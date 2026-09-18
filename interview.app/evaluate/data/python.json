@@ -8196,6 +8196,22 @@
       "prompt": "You're building a high-throughput data ingestion service that must process 10,000 concurrent API requests with a maximum of 100 simultaneous connections. Each request takes 2-5 seconds. Which approach correctly implements connection pooling and backpressure in asyncio?\n\nA) Use asyncio.Semaphore(100) to limit concurrency, gather all 10,000 coroutines, and await them\nB) Use asyncio.Queue with a maxsize=100, spawn 10,000 tasks that wait on the queue, and use a separate producer task\nC) Use ThreadPoolExecutor with max_workers=100 and submit all 10,000 requests synchronously\nD) Use asyncio.create_task() for each request with a global connection counter that blocks at 101",
       "answer": 1,
       "explanation": "Option B correctly implements backpressure using asyncio.Queue with bounded size, which prevents memory exhaustion from queueing all 10,000 requests at once. The separate producer enforces the limit, while consumer tasks process from the queue. Option A would queue all 10,000 coroutines immediately (consuming memory), C uses threads (less efficient for I/O), and D has race conditions with the global counter."
+    },
+    {
+      "id": "py-new-120",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-09-18",
+      "prompt": "You're building a data ingestion pipeline that fetches data from 50 external APIs concurrently. Each API call can timeout after 5 seconds, and you need to retry failed requests once with exponential backoff. You also need to limit concurrent requests to 10 at a time to avoid overwhelming the network. Which approach correctly implements this using asyncio?",
+      "options": [
+        "Use asyncio.gather() with all 50 coroutines, then wrap in asyncio.wait_for(timeout=5) for each, and implement retries in a separate loop after gathering results.",
+        "Use asyncio.Semaphore(10) to limit concurrency, wrap each coroutine with asyncio.wait_for(timeout=5), implement retries with exponential backoff inside the coroutine, and use asyncio.gather() to execute.",
+        "Create 10 worker tasks using asyncio.create_task() that consume from an asyncio.Queue containing all 50 API calls, implement timeout handling with try/except TimeoutError, and manually manage retries.",
+        "Use asyncio.run_coroutine_threadsafe() for each API call in a ThreadPoolExecutor with max_workers=10, which automatically handles timeouts and retries."
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is incorrect because applying wait_for after gather defeats concurrency and retry logic needs to be integrated. Option 3 works but is more verbose than necessary. Option 4 is wrong because run_coroutine_threadsafe is for running asyncio from threads, not managing concurrent async calls. Option 1 correctly uses Semaphore for concurrency control (10 max), wait_for per-coroutine for timeout handling, and integrates retry logic with exponential backoff directly in the coroutine before gathering, which is the idiomatic asyncio pattern for this scenario."
     }
   ]
 }
