@@ -1,9 +1,33 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-18 (Abhirami Anthadhi rebuilt as a layered interpretation). This file is the running memory
+_Last updated: 2026-09-18 (new article: AI Is Looking For You). This file is the running memory
 between Claude Code sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-18): `/articles/ai-is-looking-for-you.html`** — an interactive
+  story about how professional discovery is changing when the reader is an agent.
+  Self-contained HTML, no build step, no external JS. Category `ai`; cards added
+  by hand to `index.html` (sidebar + deck), counts bumped to All 149 / AI 14.
+  - **Four interactive pieces, all vanilla JS in one IIFE at the bottom of the
+    file:** a persona scan (§2), the portfolio title swap (§4), the five-signal
+    fingerprint (§5), and the "ask the machine" retriever (§8). No network calls —
+    everything runs in the browser on six fictional profiles.
+  - **The §8 matcher is deliberately honest and should stay that way.** It matches
+    query terms against each profile's `ev` (things the profile *evidences*) and
+    `kw` (things it merely *mentions*), then reports CLEAR / POSSIBLE / UNCLEAR.
+    **Never add a numeric score** — the whole piece argues against 92-out-of-100
+    theatre. The preset briefs are tuned so the flagship one returns
+    Devika (clear) / Noor (possible) / Arun (unclear); if you change `VOCAB` or a
+    profile's `ev` list, re-check all five presets.
+  - **SVG entities must be numeric or literal.** `validate_content.py` parses each
+    inline `<svg>` as XML, so `&ldquo;` / `&eacute;` inside an SVG fail the build.
+    Use the character itself.
+  - **Images are rendered, not drawn:** `share-card.png` (1200×630) and
+    `poster.png` (900×1100) were produced by screenshotting a small HTML card in
+    headless Chromium. Note the headless quirk — the CSS viewport is
+    `--window-size` height minus 87px — so the card was rendered taller and the
+    PNG cropped with a pure-Python zlib crop.
 
 - **NEW (2026-09-18): `/abhirami-andhadhi/` is now a layered interpretation, not
   a lyrics page.** Same URL, same top bar / header / footer / tokens as the other
