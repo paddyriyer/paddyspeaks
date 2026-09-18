@@ -1,9 +1,60 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-14 (all four demo dashboards moved to a light theme). This file is the running memory
+_Last updated: 2026-09-18 (Abhirami Anthadhi rebuilt as a layered interpretation). This file is the running memory
 between Claude Code sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-18): `/abhirami-andhadhi/` is now a layered interpretation, not
+  a lyrics page.** Same URL, same top bar / header / footer / tokens as the other
+  sacred-text pages. What changed is everything below the header.
+  - **`data.js` is the verified Tamil and is NEVER edited.** All interpretation
+    lives in a new sibling, **`enrichment.js`**, keyed by verse number. If you
+    add verses, add them there. Do not "fix" Tamil in `data.js` from memory —
+    if sources disagree, flag the variant in that verse's `sourceNotes`.
+  - **17 of 102 entries are interpreted** (Kaappu, 1–7, 10, 24, 25, 54, 66, 69,
+    75, 87, Nool Payan). The rest render Tamil + transliteration + the inherited
+    meaning. The structure is deliberately reusable: fill in more verses using
+    the same object shape, and the navigator, filters, search, garland map and
+    PDF all pick them up with no code change.
+  - **Three levels of claim are kept apart and must stay apart:** TEXT (what
+    Bhattar's Tamil says) / TRADITION (what later devotional practice does with
+    it) / READING (symbolic, psychological, Sri Vidya). Provenance chips render
+    this on every card. Never collapse them — "Bhattar says chanting verse 24
+    cures disease" is exactly the sentence this architecture exists to prevent.
+  - **No medical or financial guarantees, ever.** Verse 24 is "traditionally
+    associated with relief from illness", supported by its own words
+    (பிணிக்கு மருந்தே); verse 54 is about the humiliation of having to ask, not
+    about debts being cancelled. Keep that register.
+  - **Word splits are semantic, not whitespace.** Sandhi, compounds and poetic
+    contractions are opened out (உலகேழும் → உலகு + ஏழும்), double meanings are
+    listed, and `lemma: true` marks a gloss entry that is a word *note* rather
+    than a chunk of the line.
+  - **Guardrail: `node .github/scripts/validate_abhirami.js`**, wired into the
+    Validate Content workflow. It fails if a word of the source Tamil is dropped
+    from a breakdown, if a cited Lalitha name does not exist or its
+    transliteration does not match `lalitha-sahasranama/data.js`, or if the
+    navigator points at an uninterpreted verse. It caught a real omission
+    (அபிராமி missing from verse 1) and three word-level errors during the build.
+    Run it before pushing changes to either page.
+  - **The Lalitha page now has deep-link anchors.** `id="name-N"` on every name
+    row plus `#name-N` hash handling, so `/lalitha-sahasranama/#name-551` opens
+    the 1000 Names view, scrolls to the name and highlights it. 67 cross-links
+    on the Abhirami page depend on this — don't remove it.
+  - **KNOWN DATA ISSUE, pre-existing and not yet fixed.** The inherited English
+    `meaning` values in `abhirami-andhadhi/data.js` are **misaligned with the
+    Tamil for a substantial number of verses** — they appear to have been
+    shuffled at some point. Verified examples: verse 10's Tamil is "standing,
+    sitting, lying, walking I think of You" but its meaning describes a fortified
+    city; verse 24's Tamil is the gem/medicine verse but its meaning is about
+    Siva's three eyes; verses 12, 25, 54 and 100 are likewise wrong. The 17
+    interpreted verses carry corrected renderings built from their word
+    breakdowns. Everything else now shows a "working translation — under review"
+    label instead of being presented as settled. **The fix is to work through the
+    remaining verses in `enrichment.js`, not to re-shuffle `data.js`.**
+  - Minor: `refresh_sitemap_lastmod.py` maps a directory URL only to its
+    `index.html`, so a change confined to a page's `app.js`/`style.css` (as with
+    the Lalitha anchors) does not move that entry's `lastmod`.
 
 - **NEW (2026-09-14, later the same day): all four Data Lab dashboards are now
   LIGHT-THEMED.** Paddy asked for lighter backgrounds — the dark demos were
