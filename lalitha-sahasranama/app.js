@@ -358,7 +358,7 @@
     var container = document.getElementById('names-container');
     var html = '';
     LALITHA_DATA.names.forEach(function (name) {
-      html += '<div class="name-row">';
+      html += '<div class="name-row" id="name-' + name.num + '">';
       html += '<span class="name-num">' + name.num + '.</span>';
       html += '<div class="name-details">';
       html += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
@@ -751,6 +751,30 @@
   }
 
   // --- Initialize ---
+  // --- Deep links: /lalitha-sahasranama/#name-551 ---
+  function showView(viewId) {
+    var target = document.getElementById(viewId + '-view');
+    if (!target) return;
+    document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+    target.classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-view') === viewId);
+    });
+  }
+
+  function applyHash() {
+    var m = /^#name-(\d+)$/.exec(window.location.hash || '');
+    if (!m) return;
+    showView('names');
+    var row = document.getElementById('name-' + m[1]);
+    if (!row) return;
+    window.requestAnimationFrame(function () {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('name-row-targeted');
+      setTimeout(function () { row.classList.remove('name-row-targeted'); }, 2600);
+    });
+  }
+
   function init() {
     renderNyasa();
     renderDhyana();
@@ -762,6 +786,8 @@
     setupScrollButtons();
     setupPdfDownload();
     setupKeyboardNav();
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
   }
 
   if (document.readyState === 'loading') {
