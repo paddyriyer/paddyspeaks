@@ -54,9 +54,19 @@ jobs:
       - name: Pipeline tests
         run: python3 -m jobsignal.tests.test_pipeline
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Ingest
         id: ingest
         run: python3 -m jobsignal.pipeline.build
+
+      # Guard the board before publishing it: if the fresh corpus would make
+      # search worse, do not commit it.
+      - name: Search relevance on the fresh board
+        if: steps.ingest.outcome == 'success'
+        run: node jobs/tests/relevance.mjs
 
       - name: Commit if changed
         if: steps.ingest.outcome == 'success'

@@ -136,19 +136,34 @@ def employment_type(raw: str, title: str, description: str) -> str:
         return "contract"
     if any(w in blob for w in ("full time", "full-time", "fulltime", "permanent", "regular")):
         return "full_time"
-    low = description[:2000].lower()
-    if "full-time" in low or "full time" in low:
+    low = (description or "").lower()
+    if re.search(r"\b(full[- ]time|fulltime|permanent (?:position|role|employment)|"
+                 r"salaried (?:position|role)|unbefristet|festanstellung)\b", low):
         return "full_time"
+    if re.search(r"\b(part[- ]time|teilzeit)\b", low):
+        return "part_time"
+    if re.search(r"\b(fixed[- ]term|temporary (?:position|contract)|contractor role)\b", low):
+        return "contract"
     return "unknown"
 
 
+# "Engineer II" / "Engineer 2" carried no level at all before, which is why
+# 26% of the board was `unknown`. Roman and arabic suffixes are read; a
+# company-specific ladder ("L5", "IC4") deliberately is NOT — those mean
+# different things at different employers and guessing would be inventing.
+_NUMBERED = re.compile(r"\b(?:[a-z]+)\s+(i{1,3}|iv|v|[1-5])\s*$", re.I)
+_NUM_LEVEL = {"i": "entry", "1": "entry", "ii": "mid", "2": "mid",
+              "iii": "senior", "3": "senior", "iv": "senior", "4": "senior",
+              "v": "senior", "5": "senior"}
+
 _LEVEL_RULES = (
-    ("internship", (r"\bintern\b", r"\binternship\b", r"\bco-?op\b")),
+    ("internship", (r"\bintern\b", r"\binternship\b", r"\bco-?op\b",
+                    r"\bpraktikum\b", r"\bworking student\b")),
     ("director_plus", (r"\b(vp|vice president|head of|director|chief|cto|cio|cdo)\b",)),
     ("manager", (r"\b(manager|mgr|lead|team lead|supervisor)\b",)),
     ("senior", (r"\b(senior|sr\.?|staff|principal|lead engineer|architect|distinguished)\b",)),
-    ("entry", (r"\b(junior|jr\.?|entry[- ]level|associate|graduate|new grad|apprentice)\b",
-               r"\b(i|1)\b$")),
+    ("entry", (r"\b(junior|jr\.?|entry[- ]level|associate|graduate|new grad|"
+               r"university graduate|early career|apprentice|trainee)\b",)),
 )
 
 
@@ -162,12 +177,17 @@ def experience_level(title: str, description: str = "") -> str:
     the explicit exception below.
     """
     t = (title or "").lower()
+    numbered = _NUMBERED.search(t.split(",")[0].split(" - ")[0])
     for level, patterns in _LEVEL_RULES:
         for pat in patterns:
             if re.search(pat, t):
                 if level == "manager" and re.search(r"\b(product|program|project|product marketing)\s+manager\b", t):
                     break  # an IC role whose title happens to contain "manager"
                 return level
+    if numbered:
+        mapped = _NUM_LEVEL.get(numbered.group(1).lower())
+        if mapped:
+            return mapped
     m = re.search(r"(\d+)\s*\+?\s*(?:-|to)?\s*(\d+)?\s*years?", (description or "")[:4000].lower())
     if m:
         years = int(m.group(1))
@@ -336,6 +356,25 @@ def apply_host(apply_url: str) -> str:
 
 
 # ── description hash ────────────────────────────────────────────────────
+def clean_department(department: str, company_name: str) -> str:
+    """Drop a department that is really the company name.
+
+    SmartRecruiters returns the employer as the department, which put 179
+    roles in a department called "Ubisoft" — useless as a facet and actively
+    misleading beside a real department like "Data Platform".
+    """
+    d = (department or "").strip()
+    if not d:
+        return ""
+    c = (company_name or "").strip().lower()
+    dl = d.lower()
+    if c and (dl == c or dl == c + " group" or dl.replace(" ", "") == c.replace(" ", "")):
+        return ""
+    if dl in {"other", "n/a", "none", "general", "-"}:
+        return ""
+    return d
+
+
 def description_hash(description: str) -> str:
     norm = _SPACES.sub(" ", _NON_WORD.sub(" ", (description or "").lower())).strip()
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]

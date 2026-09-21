@@ -23,7 +23,7 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-from . import confidence, identity, normalize, store
+from . import confidence, identity, normalize, store, taxonomy
 from .adapters import ADAPTERS
 from .http import BudgetExhausted, Fetcher
 
@@ -34,18 +34,22 @@ DATA = ROOT / "jobs" / "data"
 # Fields carried in the compact index the browser downloads. Descriptions and
 # requirements live in the detail shards, so the index stays small enough to
 # search in the browser (see docs/JOBSIGNAL.md §2).
+# Fields carried in the compact index the browser downloads. Everything the
+# ranker and the card need, and nothing else — descriptions, requirements and
+# posting history live in the detail shards. The old index carried 38 fields
+# including derived arrays and ran to 8.25 MB for 6k roles, parsed on a phone.
 INDEX_FIELDS = (
-    "id", "company_slug", "company_name", "company_domain", "job_title",
-    "title_normalized", "department", "location", "location_city",
-    "location_region", "location_country", "remote_status", "employment_type",
-    "salary_min", "salary_max", "currency", "experience_level",
-    "education_requirement", "visa_sponsorship", "security_clearance",
-    "requisition_id", "ats_provider", "source_type", "apply_url",
-    "apply_url_host", "apply_hops", "posted_at_original", "first_seen_at",
-    "last_verified_at", "repost_count", "status", "confidence_level",
-    "freshness", "age_days", "lineage_age_days",
-    "lineage_first_seen", "skills", "industry", "company_size",
-    "is_staffing_firm",
+    "id", "company_slug", "company_name", "company_domain",
+    "job_title", "role_family", "role_head", "role_family_confidence",
+    "department", "location", "location_city", "location_region",
+    "location_country", "remote_status", "employment_type",
+    "experience_level", "education_requirement",
+    "salary_min", "salary_max", "currency",
+    "visa_sponsorship", "security_clearance",
+    "ats_provider", "apply_url", "apply_url_host", "apply_hops",
+    "posted_at_original", "first_seen_at", "last_verified_at",
+    "repost_count", "status", "confidence_level", "freshness", "age_days",
+    "skills", "industry", "company_size", "is_staffing_firm",
 )
 
 
@@ -88,6 +92,9 @@ def build_record(src: dict, raw: dict, run_iso: str) -> dict | None:
         sal_lo, sal_hi, cur = normalize.parse_salary(desc, cur)
         sal_source = "description" if sal_lo and sal_hi else ""
 
+    department = normalize.clean_department(raw.get("department", ""), src["company_name"])
+    family, provenance = taxonomy.classify(title, department, desc)
+
     canonical = identity.canonical_key(
         src["company_domain"], raw.get("requisition_id", ""), title, loc_raw)
 
@@ -106,7 +113,10 @@ def build_record(src: dict, raw: dict, run_iso: str) -> dict | None:
 
         "job_title": title,
         "title_normalized": normalize.normalize_title(title),
-        "department": (raw.get("department") or "").strip(),
+        "role_family": family,
+        "role_head": taxonomy.role_head(title),
+        "role_family_confidence": provenance,
+        "department": department,
         "location": loc_raw,
         "location_city": parts["city"],
         "location_region": parts["region"],
@@ -275,6 +285,8 @@ def write_outputs(live: list[dict], history: dict, stats: dict, health: list[dic
         "sources_failed": sum(1 for h in health if not h["ok"]),
         "postings_seen": sum(h["postings_seen"] for h in health),
         "jobs_published": len(live),
+        "jobs_filtered_out_of_scope": stats.get("filtered_out_of_scope", 0),
+        "by_family": stats.get("by_family", {}),
         "jobs_closed_this_run": len(closed_now),
         "sources": sorted(health, key=lambda h: (h["ok"], h["company_name"])),
     })
@@ -384,13 +396,22 @@ def main(argv: list[str]) -> int:
             "job_title": rec["job_title"],
         })
 
-    live = [r for r in fresh if r["status"] in ("live", "recent")]
+    # Curation (brief §20: quality over quantity). A role outside the target
+    # families is kept in the history ledger — so its age survives if it ever
+    # becomes in-scope — but it is not published to the board.
+    reachable = [r for r in fresh if r["status"] in ("live", "recent")]
+    live = [r for r in reachable if taxonomy.is_published(r["role_family"])]
+    filtered_out = len(reachable) - len(live)
+    by_family = Counter(r["role_family"] for r in reachable)
     stats = compute_stats(live, now, run_iso)
+    stats["by_family"] = {k: v for k, v in by_family.items() if k in taxonomy.TARGET_FAMILIES}
+    stats["filtered_out_of_scope"] = filtered_out
 
     print(f"  sources ok      : {sum(1 for h in health if h['ok'])}/{len(health)}")
     print(f"  postings seen   : {sum(h['postings_seen'] for h in health)}")
     print(f"  deduped away    : {len(absorbed)}")
-    print(f"  published live  : {len(live)}")
+    print(f"  in scope        : {len(live)}")
+    print(f"  filtered (scope): {filtered_out}")
     print(f"  closed this run : {len(closed_now)}")
     print(f"  requests spent  : {fetcher.spent}")
     for h in health:
