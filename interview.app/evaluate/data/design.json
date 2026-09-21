@@ -6232,6 +6232,54 @@
       ],
       "answer": 3,
       "explanation": "Structured Streaming with Kafka + Delta sink is the standard idempotent solution\u2014checkpointing tracks both Kafka offset and Delta write progress. On failure, the exact same micro-batch is replayed and Delta's write idempotency key (derived from checkpoint ID) prevents duplicates. Option 0 requires manual offset management (error-prone). Option 1 is complex and slow. Option 2 is incorrect (Delta doesn't have clustered indexes for deduplication)."
+    },
+    {
+      "id": "ds-new-098",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "Your dbt project has 500+ models organized in 12 folders. Staging models take 2 hours to rebuild, causing a 6-hour full refresh. You notice many staging models have identical transformations across different source tables. What is the BEST dbt pattern to reduce redundancy and improve incremental refresh performance?",
+      "options": [
+        "Create a single universal staging model that accepts a source parameter and Union all sources together",
+        "Extract common logic into dbt macros and use them in staging models, then leverage dbt's native incremental materialization with merge keys",
+        "Consolidate all staging models into one mega-model with conditional logic based on source_name",
+        "Create separate dbt projects for each data source to parallelize builds across machines"
+      ],
+      "answer": 1,
+      "explanation": "Using macros for reusable transformation logic is the dbt best practice for DRY code, while incremental materialization with merge keys allows staging models to process only new/changed rows, dramatically reducing rebuild time. A single universal model creates tight coupling and performance degradation; consolidation reduces modularity; separate projects fragment governance."
+    },
+    {
+      "id": "ds-new-099",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You're designing a real-time payment fraud detection system. Transactions arrive at 50k/sec. You need fraud scores within 500ms for approval/denial, AND you need to recompute historical fraud scores when models are retrained (handling data backfills of 6 months). Which architecture BEST balances latency, correctness, and operational complexity?",
+      "options": [
+        "Pure Kafka Streams with state stores; rebuild state stores nightly from batch to handle retraining",
+        "Streaming Kafka + feature store (e.g., Tecton, Feast) for low-latency online lookups, batch retraining pipeline writes updated features back to the store, streaming joins against current features",
+        "Batch-only Spark jobs refreshing a Redis cache every 5 minutes, with Kafka for event ingestion",
+        "Single Flink streaming job that processes both real-time events and batch retraining data in the same pipeline"
+      ],
+      "answer": 1,
+      "explanation": "A feature store decouples serving from training, enabling sub-100ms feature lookups during streaming inference while allowing batch retraining to safely update features without disrupting live traffic. Kafka Streams state stores are expensive to rebuild at scale; batch-only caches miss the 500ms latency SLA; merging streaming and batch in one job creates complexity and retry/idempotency nightmares."
+    },
+    {
+      "id": "ds-new-100",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "Your Iceberg table in Snowflake has 200M rows partitioned by date. Analytics queries filter on `user_id` (high cardinality, not a partition key). After 3 months, query latency degrades from 8s to 45s despite no data bloat. You enable Iceberg's Z-order clustering on `user_id`. The first query after clustering still takes 42s. What is the MOST likely root cause?",
+      "options": [
+        "Iceberg metadata files are cached in Snowflake's query optimizer; you must manually clear the plan cache before Z-order benefits appear",
+        "Z-order clustering only affects row-group pruning in the Parquet footer; you must refresh Iceberg's manifest cache with `REFRESH EXTERNAL TABLE` to apply pruning",
+        "The clustered data was written to new files, but query statistics (table statistics in Iceberg's manifest) are stale; you need to run `ANALYZE TABLE` in Snowflake to recompute statistics",
+        "Iceberg's Z-order clustering is write-time only and does not affect reads; query slowdown is likely due to metadata explosion (too many snapshots); run `VACUUM SNAPSHOTS` to remove old metadata"
+      ],
+      "answer": 3,
+      "explanation": "Z-order clustering in Iceberg is applied during write time to new data files, but historical queries over pre-clustered data won't benefit. After 3 months of writes, the manifest likely contains thousands of snapshots and intermediate versions, causing the metadata layer to bloat\u2014each query reads metadata to determine which files to scan. Running `VACUUM SNAPSHOTS` removes expired snapshots, dramatically reducing metadata I/O. The other options mischaracterize Iceberg's clustering mechanism or Snowflake integration."
     }
   ]
 }

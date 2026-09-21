@@ -14972,6 +14972,70 @@
       ],
       "answer": 3,
       "explanation": "Option 3 is the correct approach: a scheduled query with MERGE allows BigQuery to incrementally update running totals, avoiding full table rescans on historical data. The materialized view pattern is BigQuery's recommended practice for time-series aggregations. Option 0 mixes approaches inefficiently. Option 1 doesn't address the root cause (recalculating running totals). Option 2's CLUSTER hint and ROWS suggestion doesn't work as described in BigQuery's query execution model."
+    },
+    {
+      "id": "sql-new-133",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "You have a `user_accounts(user_id INT PRIMARY KEY, email VARCHAR, status VARCHAR, last_updated TIMESTAMP)` table. You receive a batch of 100K user updates in a staging table `user_accounts_stage(user_id INT, email VARCHAR, status VARCHAR)`. You need to insert new users and update existing ones' email and status atomically in Snowflake. Which approach is most efficient?",
+      "options": [
+        "Use DELETE + INSERT: delete matching rows from user_accounts, then insert all rows from staging",
+        "Use MERGE statement with WHEN MATCHED and WHEN NOT MATCHED clauses, updating email/status and setting last_updated to CURRENT_TIMESTAMP()",
+        "Use INSERT OR REPLACE in a single statement with a UNION of new and updated records",
+        "Use UPDATE for existing users first, then INSERT for new users in separate transactions"
+      ],
+      "answer": 1,
+      "explanation": "MERGE is the standard SQL pattern for atomic upsert operations. It allows conditional logic in a single statement, minimizes locking overhead, and sets last_updated consistently. DELETE+INSERT risks data loss if the operation fails mid-way; separate UPDATE/INSERT requires two passes and introduces race conditions."
+    },
+    {
+      "id": "sql-new-134",
+      "type": "single",
+      "topic": "Query Planning",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "In BigQuery, you are querying a 10TB fact table `sales_fact(sale_date DATE, region STRING, product_id INT64, amount NUMERIC)` partitioned by sale_date. Your query filters on `sale_date BETWEEN '2024-01-01' AND '2024-12-31'` and then groups by region. When you check the execution plan, you notice the query is scanning 15TB instead of the expected ~1TB for one year. What is the most likely cause?",
+      "options": [
+        "BigQuery is scanning the entire table because the partition pruning only works on equality filters, not BETWEEN",
+        "A WHERE clause on a non-partitioned column (region) earlier in the query is preventing partition elimination",
+        "The sale_date column is stored as STRING instead of DATE, breaking partition pruning logic",
+        "The query uses a subquery or CTE that accesses the full table before the date filter is applied"
+      ],
+      "answer": 3,
+      "explanation": "BigQuery applies filters bottom-up in execution plans. If a subquery or CTE selects from the table without the partition filter, the full table is scanned first, and the outer query's date filter cannot push down. BETWEEN works fine for partition pruning; STRING partitions support pruning; region filters don't block date partition elimination."
+    },
+    {
+      "id": "sql-new-135",
+      "type": "single",
+      "topic": "Date Arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "You need to calculate the number of business days (Monday\u2013Friday) between two dates in Postgres. You are given `start_date = '2024-11-01'` (Friday) and `end_date = '2024-11-11'` (Monday). Holidays are stored in a `holidays(holiday_date DATE)` table. Which query correctly counts business days, excluding both endpoints?",
+      "options": [
+        "SELECT COUNT(*) FROM generate_series(start_date + 1, end_date - 1, '1 day'::interval) AS d WHERE EXTRACT(DOW FROM d) NOT IN (0, 6) AND d NOT IN (SELECT holiday_date FROM holidays)",
+        "SELECT (end_date - start_date) - (EXTRACT(DOW FROM end_date)::INT / 7) * 2 WHERE end_date > start_date",
+        "SELECT COUNT(*) FROM (SELECT generate_series(start_date, end_date, '1 day'::interval)) AS d WHERE EXTRACT(ISODOW FROM d) <= 5",
+        "SELECT FLOOR((end_date - start_date) / 7) * 5 + MOD(EXTRACT(DOW FROM end_date), 7) - MOD(EXTRACT(DOW FROM start_date), 7)"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 uses generate_series to create each day between the dates (excluding endpoints with +1 and -1), filters for weekdays using DOW (0=Sunday, 6=Saturday), and excludes holidays via a subquery. Options 1 and 3 use arithmetic approaches that don't account for non-uniform weekday distribution. Option 2 includes both endpoints and doesn't handle holidays."
+    },
+    {
+      "id": "sql-new-136",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You are implementing a CDC (Change Data Capture) pipeline in Snowflake. A source system sends `cdc_events(event_type VARCHAR, pk_id INT, col_a VARCHAR, col_b INT, event_ts TIMESTAMP)` where event_type is 'INSERT', 'UPDATE', or 'DELETE'. You must merge these into `target_table(pk_id INT PRIMARY KEY, col_a VARCHAR, col_b INT, last_event_ts TIMESTAMP)`. You notice that multiple UPDATE events for the same pk_id may arrive out-of-order. How should you handle this?",
+      "options": [
+        "Process events in a single MERGE, matching on pk_id; rely on MERGE's last-write-wins semantics to handle out-of-order updates",
+        "Pre-filter the CDC batch to keep only the latest event per pk_id by MAX(event_ts), then execute the MERGE",
+        "Execute DELETE then INSERT in the MERGE WHEN MATCHED clause to ensure old data is purged before applying new state",
+        "Use a window function with ROW_NUMBER() to rank events, filter rank=1 per pk_id, and MERGE only those rows"
+      ],
+      "answer": 1,
+      "explanation": "When CDC events arrive out-of-order, you must deduplicate on pk_id and keep the maximum event_ts before the MERGE. Option 0 processes all events and may apply stale updates. Option 2's DELETE+INSERT is unnecessary and risky. Option 3 is similar to option 1 but more verbose; the simple GROUP BY MAX(event_ts) approach is cleaner and is the CDC best practice."
     }
   ]
 }
