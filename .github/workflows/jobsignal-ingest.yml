@@ -1,0 +1,65 @@
+name: JobSignal Ingest
+
+# Reads every enabled employer's own public ATS board, verifies what is still
+# listed, carries forward each role's age and posting history, and commits the
+# refreshed board to jobs/data/.
+#
+# Every four hours, which is the window docs/JOBSIGNAL.md commits to for the
+# 🟢 VERIFIED LIVE badge. The run is pure stdlib Python — no dependencies to
+# install and nothing to cache.
+#
+# Failure policy: a dead ATS slug drops one employer and shows up in
+# jobs/data/health.json. A run that ingests NOTHING exits non-zero and commits
+# nothing, so the previous board survives an outage rather than being replaced
+# by an empty one.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */4 * * *'
+
+concurrency:
+  group: jobsignal-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    # Never run in mirror/fork repos, matching the other workflows here.
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The invariants this product depends on — age never reset, reposts never
+      # shown as new, no aggregator apply links. If they are broken, do not
+      # publish a board built by the broken code.
+      - name: Pipeline tests
+        run: python3 -m jobsignal.tests.test_pipeline
+
+      - name: Ingest
+        id: ingest
+        run: python3 -m jobsignal.pipeline.build
+
+      - name: Commit if changed
+        if: steps.ingest.outcome == 'success'
+        run: |
+          git config user.name "PaddySpeaks Bot"
+          git config user.email "bot@paddyspeaks.com"
+          git add jobs/data
+          git diff --cached --quiet && echo "No changes" && exit 0
+          live=$(python3 -c "import json;print(json.load(open('jobs/data/stats.json'))['live_jobs'])")
+          git commit -m "🤖 JobSignal: refresh board — ${live} live roles ($(date -u +%Y-%m-%dT%H:%MZ))"
+          for attempt in 1 2 3 4; do
+            git push && break
+            echo "push failed, retrying in $((2 ** attempt))s"
+            sleep $((2 ** attempt))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done

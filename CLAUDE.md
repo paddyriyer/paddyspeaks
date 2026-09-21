@@ -23,6 +23,33 @@ before touching `/contact/`, `/testimonials/`, or the `FORMS` D1 database.
 - Recipient addresses and API keys are environment variables only — never in the
   repo, never in frontend code.
 
+## JobSignal (`/jobs/`)
+
+The job aggregator is documented in **`docs/JOBSIGNAL.md`** (architecture, D1
+schema, verification algorithm, repost detection, cost) and
+**`jobsignal/README.md`** (how to run it). Read both before touching `/jobs/`
+or `jobsignal/`.
+
+- **`first_seen_at` is written once per job id and never updated.** Every other
+  rule here exists to protect that one. A rebuild that re-dates a role we
+  already knew about defeats the product.
+- **A reposted role is never labelled JUST POSTED.** It is labelled `REPOSTED`,
+  and the detail page shows every previous run with dates.
+- **No sample, seed or placeholder jobs, ever** — same rule as testimonials. A
+  run that ingests nothing exits 1 and leaves the previous board alone. The
+  board shipped empty on purpose and fills from the first CI run.
+- **All judgement lives in Python** (`jobsignal/pipeline/`), computed once and
+  shipped as data. `jobs/js/` only formats and filters. This deliberately
+  avoids the `forms.js` / `ps-forms.js` drift trap described below.
+- **Tier 1 sources only** — public, documented, keyless ATS JSON. No scraping,
+  no auth, no CAPTCHA. LinkedIn/Indeed/Glassdoor/ZipRecruiter are never a
+  source of truth and the Apply button never points at one.
+- **Never phrase a signal as an accusation.** "Ghost job" and friends are
+  banned by a test; signals state what was observed, with a date.
+- Guardrail: `python3 -m jobsignal.tests.test_pipeline` (no network). Wired
+  into the Validate Content workflow and run again before each ingest.
+- Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
+
 ## CRITICAL: Do NOT regenerate index.html
 
 The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:
@@ -63,6 +90,8 @@ recrawl hint and learns to ignore a feed whose dates are reliably wrong.
 
 ## Site Structure
 
+- `jobs/` — JobSignal: static pages + the board data the pipeline commits
+- `jobsignal/` — JobSignal ingestion pipeline (Python, stdlib only)
 - `articles/` — Blog post HTML files (self-contained)
 - `article_metadata.json` — Article metadata (title, date, category, slug, hero_image, read_time)
 - `index.html` — Hand-crafted homepage (DO NOT auto-generate)
