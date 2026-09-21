@@ -9,6 +9,10 @@
 (function () {
   'use strict';
 
+  window.JSHeader.mount({});
+  var __foot = document.getElementById('jsFooter');
+  if (__foot) __foot.appendChild(window.JSHeader.footer());
+
   var el = window.JSDom.el;
   var F = window.JSFormat;
   var host = document.getElementById('js-health');

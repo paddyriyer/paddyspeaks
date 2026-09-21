@@ -113,23 +113,83 @@
     return 'A posting for this role has appeared ' + times + since_ + '.';
   }
 
-  function locationText(job) {
+  function placeText(city, region, country) {
     var bits = [];
-    if (job.location_city) bits.push(job.location_city);
-    if (job.location_region) bits.push(job.location_region);
-    if (!bits.length && job.location) bits.push(job.location);
-    if (job.location_country && job.location_country !== 'US') bits.push(job.location_country);
+    if (city) bits.push(city);
+    if (region) bits.push(region);
+    if (country && country !== 'US') bits.push(country);
     return bits.join(', ');
+  }
+
+  /** Every place the role is open in, primary first. */
+  function locationList(job) {
+    var out = [placeText(job.location_city, job.location_region, job.location_country)];
+    if (!out[0] && job.location) out[0] = job.location;
+    var extra = job.locations_extra || [];
+    for (var i = 0; i < extra.length; i++) {
+      var t = placeText(extra[i][0], extra[i][1], extra[i][2]);
+      if (t) out.push(t);
+    }
+    return out.filter(function (t) { return !!t; });
+  }
+
+  /** The primary place, and an honest count of the ones not shown.
+
+      A role open in San Francisco AND New York used to render as just "San
+      Francisco" — true but misleading, and it made the New York opening
+      invisible to the person it was for. The card has room for one place, so
+      it names the rest rather than dropping them. */
+  function locationText(job) {
+    var all = locationList(job);
+    if (!all.length) return '';
+    if (all.length === 1) return all[0];
+    var rest = all.length - 1;
+    return all[0] + ' +' + rest + ' other location' + (rest === 1 ? '' : 's');
   }
 
   function num(n) {
     return typeof n === 'number' ? n.toLocaleString('en-US') : '—';
   }
 
+  /** Skill names as people write them, not as the extractor stores them. */
+  var SKILL_CASE = {
+    sql: 'SQL', etl: 'ETL', elt: 'ELT', aws: 'AWS', gcp: 'GCP', azure: 'Azure',
+    'ci/cd': 'CI/CD', nlp: 'NLP', llm: 'LLM', 'c++': 'C++', 'c#': 'C#',
+    'node.js': 'Node.js', graphql: 'GraphQL', 'a/b testing': 'A/B testing',
+    'power bi': 'Power BI', dbt: 'dbt', 'rest api': 'REST API', mlops: 'MLOps',
+    ios: 'iOS'
+  };
+  function skill(s) {
+    var k = String(s || '').toLowerCase();
+    if (SKILL_CASE[k]) return SKILL_CASE[k];
+    return k.replace(/\b[a-z]/g, function (c) { return c.toUpperCase(); });
+  }
+
+  /** What the Apply button names. Prefers the employer over the ATS host. */
+  function companyShort(job) {
+    var n = String(job.company_name || '').trim();
+    return n.length > 22 ? n.slice(0, 21) + '\u2026' : (n || job.apply_url_host || 'the employer');
+  }
+
+  /**
+   * A role open an unusually long time, stated as an observation with its
+   * date — never as an accusation. Only shown when we can evidence it.
+   */
+  function longRunningLine(job) {
+    if (job.repost_count) return '';
+    var d = job.age_days;
+    if (d === null || d === undefined || d < 180) return '';
+    var from = job.posted_at_original || job.first_seen_at;
+    return 'Open since ' + monthYear(from) + ' \u2014 ' + Number(d).toLocaleString('en-US') +
+           ' days. The employer has not republished it.';
+  }
+
   global.JSFormat = {
+    skill: skill, companyShort: companyShort, longRunningLine: longRunningLine,
     statusText: statusText, since: since, day: day, dayShort: dayShort,
     monthYear: monthYear, ageText: ageText, money: money, salary: salary,
     remote: remote, level: level, employment: employment, ats: ats,
-    repostLine: repostLine, locationText: locationText, num: num,
+    repostLine: repostLine, locationText: locationText,
+    locationList: locationList, num: num,
   };
 })(window);

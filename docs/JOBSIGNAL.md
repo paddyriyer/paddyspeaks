@@ -509,3 +509,93 @@ fail CI, not ship.
 6. No statistic rendered anywhere is hardcoded; all come from `stats.json`.
 7. The string "Easy Apply" does not exist in the codebase.
 8. No confidence signal is phrased as an accusation.
+9. A query's role family gates results; an unrelated family is excluded, never
+   merely down-ranked.
+10. A role open in several places is findable by any of them, and the card never
+    shows one place as though it were the only one.
+11. One city has one spelling.
+
+---
+
+## 12. Search relevance and the role taxonomy
+
+Added with the 2026-09-21 redesign. The full design record — the measurements
+that justified each decision — is in **`docs/JOBSIGNAL-REDESIGN.md`**. This
+section is the part that constrains future changes.
+
+### Classification happens once, in Python
+
+`jobsignal/pipeline/taxonomy.py` assigns every posting a `role_family` at
+ingest, from its title, cleaned department and description. The browser
+classifies nothing: `jobs/js/search.js` parses the query and ranks candidates
+against the family the pipeline already decided. This is the same rule as
+confidence and freshness, and for the same reason — the `forms.js` /
+`ps-forms.js` drift trap in §1.
+
+`role_family_confidence` records *where* the family came from — `head`,
+`title`, `context` or `none` — and the ranker weights it accordingly. A family
+inferred from description context never outranks one stated in the title.
+
+### The gate, not the weights
+
+A query resolves to at most one family. A job outside it is **not a candidate**,
+not a down-ranked one. The old engine scored shared tokens, so "data engineer"
+returned 3,139 results at 3.6% precision — every Sales Engineer and Director of
+Field Engineering matched "engineer" just as strongly as a Senior Data Engineer.
+
+Adjacency is the one crossing, and it costs twice: a penalty on the score, plus
+two pieces of evidence the job must supply — the skills named in
+`ADJACENCY[family]`, **and** the query's own role words somewhere in the title.
+Skills alone are not enough: shared tooling let every backend engineer through
+on an infrastructure query, so `sre` returned 1,253 roles for a family of 258 —
+the identical count to `software engineer`. `design_ux`, `security` and
+`product_management` have no adjacency at all, deliberately.
+
+Below `THRESHOLD`, a result is excluded rather than shown at the bottom. Zero
+results with a named, counted broadening beats five hundred junk ones.
+
+### Curation
+
+Only `taxonomy.TARGET_FAMILIES` are published. A role outside them still enters
+the history ledger — so its age survives if it ever comes into scope — but it
+never reaches the board. That is brief §20, quality over quantity: 2,237 roles
+published from a 6,058-role corpus.
+
+### Locations
+
+A posting's location string may name several places. Reading it as one produced
+"San Francisco, NY" — a place that does not exist — on 9% of the board, by
+pairing the first city with the last region.
+
+- `normalize.place_fragments()` splits on `|`, `;` and `or`, then drops
+  fragments that name only a way of working. "Remote-Friendly
+  (Travel-Required)" is an arrangement, not an office; counting it as one put a
+  city called "Friendly Travel-Required" in the primary slot on 58 roles.
+- `parse_locations()` parses every remaining fragment. The first is the card's
+  location; the rest ship as `locations_extra` and are matched by search, so a
+  role open in San Francisco *and* New York is findable by either. The card
+  names the count it cannot show ("+1 other location"); the detail page lists
+  them all.
+- `canonical_city()` gives one city one spelling. The board carried Bengaluru
+  and Bangalore as two cities, so a search for either found two-thirds of the
+  roles and silently missed the rest.
+
+### The gazetteer is learned, not written
+
+`PLACES` in `search.js` is a short hand-written list of *aliases* — the
+disambiguation a corpus scan cannot supply ("nyc", "bay area", "bangalore" →
+Bengaluru). Every other place is read off the loaded index at query time by
+`learnPlaces()`. The hand-written list knew 14 of the 146 cities employers
+actually post in; a search for Mountain View, Toronto or Menlo Park resolved to
+no location and quietly ignored the word. A learned place can only ever name
+somewhere we hold jobs, and a single-word city that is also a role or skill word
+is skipped, so "Mobile, Alabama" cannot turn "mobile engineer" into a search for
+Alabama.
+
+### Acceptance tests
+
+`node jobs/tests/relevance.mjs` — 35 assertions, run against the committed
+index, no network. Wired into Validate Content and run again before each
+ingest. It loads the shipped `search.js` through a UMD wrapper, so the ranker
+under test is the one that ships.
+

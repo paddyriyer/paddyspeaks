@@ -40,14 +40,30 @@ or `jobsignal/`.
   board shipped empty on purpose and fills from the first CI run.
 - **All judgement lives in Python** (`jobsignal/pipeline/`), computed once and
   shipped as data. `jobs/js/` only formats and filters. This deliberately
-  avoids the `forms.js` / `ps-forms.js` drift trap described below.
+  avoids the `forms.js` / `ps-forms.js` drift trap described below. That
+  includes `role_family`: `jobsignal/pipeline/taxonomy.py` classifies at
+  ingest, and `jobs/js/search.js` classifies nothing.
+- **Search gates on role family; it does not down-rank.** A job outside the
+  query's family is not a candidate. Adjacency costs a score penalty AND must
+  evidence both the named skills and the query's own role words — skills alone
+  once let every backend engineer through on an `sre` query. Below threshold a
+  result is excluded, never shown at the bottom.
+- **Only `TARGET_FAMILIES` are published.** Out-of-scope roles stay in the
+  history ledger — so their age survives if they come into scope — but never
+  reach the board.
+- **A posting can name several places.** The first is the card's; the rest ship
+  as `locations_extra` and are searchable. Never show one place as though it
+  were the only one, and never pair the first city with the last region — that
+  is how "San Francisco, NY" reached 9% of the board.
 - **Tier 1 sources only** — public, documented, keyless ATS JSON. No scraping,
   no auth, no CAPTCHA. LinkedIn/Indeed/Glassdoor/ZipRecruiter are never a
   source of truth and the Apply button never points at one.
 - **Never phrase a signal as an accusation.** "Ghost job" and friends are
   banned by a test; signals state what was observed, with a date.
-- Guardrail: `python3 -m jobsignal.tests.test_pipeline` (no network). Wired
-  into the Validate Content workflow and run again before each ingest.
+- Guardrails, both no-network and both wired into Validate Content and re-run
+  before each ingest: `python3 -m jobsignal.tests.test_pipeline` (pipeline) and
+  `node jobs/tests/relevance.mjs` (search relevance, run against the committed
+  index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
 ## CRITICAL: Do NOT regenerate index.html
