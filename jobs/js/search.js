@@ -119,7 +119,68 @@
     ['united states', {country: 'US'}]
   ];
 
-  function parse(query) {
+  /* ── the gazetteer the corpus teaches ───────────────────────────────── */
+
+  /** Places learned from the board itself, keyed by lowercased city name.
+
+      PLACES above is hand-written, so it knew 14 of the 146 cities employers
+      actually post in: a search for Mountain View, Toronto or Menlo Park
+      resolved to no location at all and quietly ignored the word. Rather than
+      grow that list by hand forever — and have it drift the moment an employer
+      opens an office — the cities are read off the loaded index. A learned
+      place can only ever name somewhere we hold jobs.
+
+      The aliases in PLACES still win: they carry the disambiguation a corpus
+      scan cannot ("nyc", "bay area", "bangalore" -> Bengaluru). */
+  var _learned = null, _learnedFrom = null;
+
+  function learnPlaces(jobs) {
+    if (_learnedFrom === jobs && _learned) return _learned;
+    var seen = {};      // "mountain view" -> { region -> count }
+    var roleWords = {}; // words that mean a job, not a place
+
+    function note(city, region, country) {
+      if (!city) return;
+      var k = String(city).toLowerCase();
+      if (!seen[k]) seen[k] = { city: city, by: {}, n: 0 };
+      var rk = (region || '') + '|' + (country || '');
+      seen[k].by[rk] = (seen[k].by[rk] || 0) + 1;
+      seen[k].n++;
+    }
+
+    for (var i = 0; i < jobs.length; i++) {
+      var j = jobs[i];
+      note(j.location_city, j.location_region, j.location_country);
+      var ex = j.locations_extra || [];
+      for (var e = 0; e < ex.length; e++) note(ex[e][0], ex[e][1], ex[e][2]);
+      // Collect the vocabulary of roles so a city name that is also a job word
+      // cannot hijack a query. "Mobile, Alabama" must not turn "mobile
+      // engineer" into a search for Alabama.
+      var words = (String(j.role_head || '') + ' ' + (j.skills || []).join(' ')).toLowerCase().split(/[^a-z+#.]+/);
+      for (var w = 0; w < words.length; w++) if (words[w]) roleWords[words[w]] = 1;
+    }
+
+    var out = [];
+    for (var key in seen) {
+      if (!Object.prototype.hasOwnProperty.call(seen, key)) continue;
+      if (key.length < 3) continue;
+      // A single-word city that is also a role or skill word is ambiguous in a
+      // free-text query, and guessing wrong silently changes what was asked.
+      if (key.indexOf(' ') === -1 && roleWords[key]) continue;
+      var rec = seen[key], best = '', bestN = 0;
+      for (var rk in rec.by) {
+        if (rec.by[rk] > bestN) { bestN = rec.by[rk]; best = rk; }
+      }
+      var bits = best.split('|');
+      out.push([key, { city: rec.city, region: bits[0] || '', country: bits[1] || '' }]);
+    }
+    // Longest first, so "new york city" is consumed before "new york".
+    out.sort(function (a, b) { return b[0].length - a[0].length; });
+    _learned = out; _learnedFrom = jobs;
+    return out;
+  }
+
+  function parse(query, jobs) {
     var q = String(query || '').toLowerCase().trim();
     var intent = {
       raw: q, family: '', level: '', remote: '', location: null,
@@ -135,13 +196,16 @@
 
     var rest = ' ' + fixed + ' ';
 
-    for (var i = 0; i < PLACES.length; i++) {
-      var idx = rest.indexOf(' ' + PLACES[i][0] + ' ');
+    // Hand-written aliases first (they disambiguate), then what the corpus
+    // taught us. Longest match wins within each list; the match is consumed.
+    var gaz = PLACES.concat(jobs ? learnPlaces(jobs) : []);
+    for (var i = 0; i < gaz.length; i++) {
+      var idx = rest.indexOf(' ' + gaz[i][0] + ' ');
       if (idx !== -1) {
-        var loc = PLACES[i][1];
+        var loc = gaz[i][1];
         if (loc.remote) intent.remote = 'remote';
         intent.location = loc.city || loc.region || loc.country ? loc : null;
-        rest = rest.slice(0, idx + 1) + rest.slice(idx + 1 + PLACES[i][0].length);
+        rest = rest.slice(0, idx + 1) + rest.slice(idx + 1 + gaz[i][0].length);
         break;
       }
     }
@@ -192,6 +256,12 @@
         if (FAMILY_QUERY[h][1].test(fixed)) { intent.family = FAMILY_QUERY[h][0]; intent.level = ''; break; }
       }
     }
+    // "cybersecurity" is a role before it is an industry. Consuming it as an
+    // industry left no role text at all, and the leftover industry filter then
+    // cut the security family down to the few employers whose own industry
+    // string says "cybersecurity" — 34 roles out of 323. A term that WAS the
+    // whole query is what the person searched for, not a sector filter on it.
+    if (intent.industry && !intent.residual && intent.family) intent.industry = '';
     return intent;
   }
 
@@ -289,19 +359,72 @@
     return 0.4;
   }
 
+  /** Every place a role is open in, primary first.
+
+      A posting reading "San Francisco, CA | New York City, NY" is open in
+      both. Matching only the first would hide it from someone searching New
+      York — the role is there, we simply parsed past it. `locations_extra` is
+      written by the pipeline and omitted for the ~97% of roles with one place.
+   */
+  function jobPlaces(job) {
+    var places = [{
+      city: String(job.location_city || ''),
+      region: String(job.location_region || ''),
+      country: String(job.location_country || '')
+    }];
+    var extra = job.locations_extra;
+    if (extra && extra.length) {
+      for (var i = 0; i < extra.length; i++) {
+        places.push({
+          city: String(extra[i][0] || ''),
+          region: String(extra[i][1] || ''),
+          country: String(extra[i][2] || '')
+        });
+      }
+    }
+    return places;
+  }
+
+  /** Does any of the role's places satisfy the query's place?
+      Returns the strength of the BEST match, 0 when none do. */
+  function placeScore(job, l) {
+    var places = jobPlaces(job), best = 0;
+    for (var i = 0; i < places.length; i++) {
+      var p = places[i], score = 0;
+      if (l.city && p.city.toLowerCase() === l.city.toLowerCase()) score = 1.0;
+      else if (l.region && p.region === l.region) score = 0.7;
+      else if (l.country && p.country === l.country) score = 0.4;
+      if (score > best) best = score;
+    }
+    return best;
+  }
+
   function locationMatch(job, intent) {
     if (!intent.location && !intent.remote) return 0.5;
     if (intent.remote === 'remote' && job.remote_status === 'remote') return 1.0;
     if (!intent.location) return job.remote_status === intent.remote ? 1.0 : 0.3;
-    var l = intent.location;
-    if (l.city && String(job.location_city || '').toLowerCase() === l.city.toLowerCase()) return 1.0;
-    if (l.region && job.location_region === l.region) return 0.7;
-    if (l.country && job.location_country === l.country) return 0.4;
-    return 0;
+    return placeScore(job, intent.location);
   }
 
   var WEIGHTS = { title: 0.40, role: 0.25, skills: 0.15, fresh: 0.08, verify: 0.07, loc: 0.05 };
   var THRESHOLD = 0.35;
+
+  /** Does the job's own title carry the words the person actually typed?
+
+      Used to admit a neighbouring family, never to reject the family asked
+      for. A query with no role words left (the family came from the whole
+      phrase) demands no evidence. */
+  function titleEvidence(job, intent) {
+    var needle = String(intent.residual || '').trim();
+    if (!needle) return true;
+    var hay = (String(job.role_head || '') + ' ' + String(job.job_title || '')).toLowerCase();
+    var words = needle.split(/\s+/).filter(function (w) { return w.length > 2; });
+    if (!words.length) return true;
+    for (var i = 0; i < words.length; i++) {
+      if (hay.indexOf(words[i]) !== -1) return true;
+    }
+    return false;
+  }
 
   /* ── the gate ───────────────────────────────────────────────────────── */
   function candidacy(job, intent) {
@@ -316,6 +439,11 @@
         var hits = adj[i][2].filter(function (s) { return have.indexOf(s) !== -1; }).length;
         if (hits < need) return { ok: false };
       }
+      // Adjacency admits a NEIGHBOURING family, it does not merge two. Shared
+      // skills alone let every backend engineer in on an infrastructure query:
+      // "sre" returned 1,253 roles for a family of 258, the same count as
+      // "software engineer". The neighbour has to answer to the words typed.
+      if (!titleEvidence(job, intent)) return { ok: false };
       return { ok: true, penalty: adj[i][1], adjacent: true };
     }
     return { ok: false };
@@ -341,13 +469,14 @@
       // every US role through for "data engineer pittsburgh". Radius is an
       // explicit broadening (§17), never a silent one.
       var L = intent.location;
-      if (L.city) {
-        if (String(job.location_city || '').toLowerCase() !== L.city.toLowerCase()) return false;
-      } else if (L.region) {
-        if (job.location_region !== L.region) return false;
-      } else if (L.country) {
-        if (job.location_country !== L.country) return false;
+      var places = jobPlaces(job), hit = false;
+      for (var i = 0; i < places.length && !hit; i++) {
+        var p = places[i];
+        if (L.city) hit = p.city.toLowerCase() === L.city.toLowerCase();
+        else if (L.region) hit = p.region === L.region;
+        else if (L.country) hit = p.country === L.country;
       }
+      if (!hit) return false;
     }
     if (f.level && job.experience_level !== f.level) return false;
     if (f.remote && job.remote_status !== f.remote) return false;
@@ -369,7 +498,7 @@
 
   function run(jobs, filters) {
     var f = filters || {};
-    var intent = parse(f.q);
+    var intent = parse(f.q, jobs);
     var out = [];
     for (var i = 0; i < jobs.length; i++) {
       var job = jobs[i];

@@ -133,6 +133,85 @@ console.log(`relevance suite over ${JOBS.length.toLocaleString()} indexed roles\
   }
 }
 
+/* TEST 11 — a role open in several cities is findable by any of them.
+
+   A posting reading "Bellevue, WA; Mountain View, CA" was only ever matched on
+   the first city, so the Mountain View opening was invisible to the person it
+   was for. The card leads with the first place and counts the rest; search
+   matches all of them. */
+{
+  const multi = JOBS.filter(j => (j.locations_extra || []).length);
+  ok(multi.length > 0, 'T11 the corpus contains multi-location roles', `${multi.length}`);
+
+  if (multi.length) {
+    // Pick one whose secondary city differs from its primary, and search it.
+    const sample = multi.find(j =>
+      j.locations_extra[0][0] &&
+      j.locations_extra[0][0].toLowerCase() !== String(j.location_city || '').toLowerCase());
+    ok(!!sample, 'T11 found a role with a distinct secondary city');
+
+    if (sample) {
+      const city = sample.locations_extra[0][0];
+      const hits = search(`${sample.role_head} ${city}`);
+      ok(hits.some(j => j.id === sample.id),
+         `T11 "${sample.role_head} ${city}" finds the role listed there`,
+         `${sample.job_title} @ ${sample.location}`);
+
+      // ...and the primary city still works, so nothing regressed.
+      const primary = search(`${sample.role_head} ${sample.location_city}`);
+      ok(primary.some(j => j.id === sample.id),
+         `T11 the primary city still finds it`, `${sample.location_city}`);
+    }
+  }
+
+  // A remote option must never have been counted as a second place.
+  const phantom = JOBS.filter(j =>
+    (j.locations_extra || []).some(l => !l[0] && !l[1] && !l[2]));
+  ok(phantom.length === 0, 'T11 no empty phantom location was recorded',
+     `${phantom.length} rows`);
+}
+
+/* TEST 12 — adjacency admits a neighbour, it does not merge two families.
+
+   "sre" and "software engineer" both returned 1,253 — every role in
+   software_engineering AND infrastructure — because sharing a skill was enough
+   to cross the family line. A chip labelled SRE that returns every backend job
+   is a broken promise, and it is the "unrelated families excluded, not merely
+   down-ranked" rule this gate exists to keep. */
+{
+  const infra = JOBS.filter(j => j.role_family === 'infrastructure').length;
+  const swe = JOBS.filter(j => j.role_family === 'software_engineering').length;
+  const sre = search('sre');
+  ok(sre.length <= infra * 1.2,
+     'T12 "sre" stays near its own family rather than absorbing software engineering',
+     `${sre.length} results vs ${infra} infrastructure / ${swe} software engineering`);
+  ok(sre.length !== search('software engineer').length,
+     'T12 "sre" and "software engineer" are not the same search',
+     `${sre.length} vs ${search('software engineer').length}`);
+
+  // Anything admitted from outside the family must answer to the words typed.
+  const strays = search('site reliability')
+    .filter(j => j.role_family !== 'infrastructure')
+    .filter(j => !/site|reliability/i.test(`${j.role_head} ${j.job_title}`));
+  ok(strays.length === 0, 'T12 no out-of-family result ignores the query words',
+     strays.slice(0, 3).map(j => j.job_title).join('; '));
+}
+
+/* TEST 13 — a role word is not silently demoted to an industry filter.
+
+   "cybersecurity" was consumed by the industry matcher, leaving no role text;
+   the leftover filter then cut the security family from 323 roles to the 34
+   whose employer's industry string happened to say "cybersecurity". */
+{
+  const famTotal = JOBS.filter(j => j.role_family === 'security').length;
+  const r = search('cybersecurity');
+  ok(r.length >= famTotal * 0.9,
+     'T13 "cybersecurity" searches the security ROLE, not the sector',
+     `${r.length} results vs ${famTotal} in family`);
+  ok(r.every(j => j.role_family === 'security' || j._adjacent),
+     'T13 ...and still only returns security roles');
+}
+
 console.log(fails.length ? fails.join('\n') + '\n' : '');
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

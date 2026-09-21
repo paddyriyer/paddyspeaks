@@ -1,9 +1,49 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-21 (JobSignal Phase 1). This file is the running memory
-between Claude Code sessions (the web container clones fresh each time). CLAUDE.md points here._
+_Last updated: 2026-09-21 (JobSignal search relevance + visual redesign). This
+file is the running memory between Claude Code sessions (the web container
+clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-09-21, second pass): JobSignal search was rebuilt and `/jobs/`
+  was redesigned.** The board is no longer a board — it is a search product.
+  Design record: **`docs/JOBSIGNAL-REDESIGN.md`**; the rules that came out of it
+  are in `docs/JOBSIGNAL.md` §12 and summarised in `CLAUDE.md`.
+  - **Relevance is a gate, not a ranking.** A query resolves to one
+    `role_family` (assigned at ingest by `jobsignal/pipeline/taxonomy.py`) and
+    anything outside it is excluded. The old token-similarity engine returned
+    3,139 results for "data engineer" at 3.6% precision. Adjacency is the one
+    crossing and must evidence both the named skills and the query's own role
+    words.
+  - **The board is curated: 2,237 roles published from a 6,058-role corpus.**
+    Out-of-scope families stay in the history ledger (their age survives) but
+    are not published.
+  - **The shipped board data was re-derived offline, not re-ingested.** The
+    container still cannot reach ATS hosts, so `role_family`, cleaned
+    departments, experience levels and the re-parsed locations were computed
+    from the corpus already ingested at 2026-09-21T18:48Z. No employer was
+    contacted, so no timestamp moved: `first_seen_at`, `posted_at_original`,
+    `last_verified_at` and `generated_at` are byte-identical to the previous
+    commit, verified row by row. The next scheduled ingest recomputes the same
+    fields from source.
+  - **Locations were wrong on 9% of the board** — "San Francisco, NY", a place
+    that does not exist, from pairing the first city with the last region of a
+    multi-location string. A posting can name several places: the first is the
+    card's, the rest ship as `locations_extra` and are searchable. One city now
+    has one spelling (Bengaluru/Bangalore were two).
+  - **The location gazetteer is learned from the index**, not hand-written. The
+    hand list knew 14 of 146 cities; Mountain View, Toronto and Menlo Park
+    resolved to nothing and the word was silently ignored.
+  - **Chrome is a 64px (56px mobile) product header**, not the journal nav.
+    First result sits at y=231 desktop / y=318 mobile — it was 722 / 1,579.
+    `/jobs/` no longer loads the site-wide `style.css`; it is self-contained.
+  - Guardrails: **53** pipeline tests + **35** relevance assertions, both
+    no-network, both in Validate Content and before each ingest.
+  - Still open: prune 3 dead Lever slugs (Netflix, Plaid, Attentive); 5
+    Greenhouse 404s (DoorDash, Etsy, HashiCorp, Snowflake, DigitalOcean); flip
+    Bosch/Ubisoft/Ramp/Notion/Linear to `verified: true` once a run proves them;
+    possible split of Program Management out of `product_management`.
 
 - **NEW (2026-09-21): `/jobs/` — PaddySpeaks JobSignal, Phase 1.** A job
   aggregator whose whole proposition is *jobs that still exist*. Full design in

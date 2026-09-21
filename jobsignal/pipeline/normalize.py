@@ -79,6 +79,101 @@ def remote_status(location: str, description: str = "") -> str:
     return "unknown"
 
 
+# Employers often list several places in one field: "San Francisco, CA | New
+# York City, NY" or "Bay Area or Remote (U.S.)". Read left to right, those
+# become one mangled place — the CA is dropped and the trailing NY is taken as
+# the region, producing "San Francisco, NY", a city/state pair that does not
+# exist. Split them first and parse only the first, keeping the count.
+_MULTI = re.compile(r"\s*(?:\||;|\bor\b)\s*", re.I)
+
+
+def split_locations(location: str) -> list[str]:
+    parts = [p.strip(" ,-–—") for p in _MULTI.split(location or "") if p.strip(" ,-–—")]
+    return parts or ([location.strip()] if (location or "").strip() else [])
+
+
+# Words describing HOW the role is worked rather than WHERE. A fragment made
+# only of these is an arrangement, not an office: "Remote-Friendly
+# (Travel-Required)" led one employer's location string and was being read as a
+# city called "Friendly Travel-Required", pushing the real offices out of the
+# primary slot on 58 roles.
+_ARRANGEMENT_WORDS = _REMOTE_WORDS + _HYBRID_WORDS + (
+    "friendly", "travel", "required", "onsite", "on-site", "in-office", "office",
+    "in office", "flexible", "optional", "preferred", "eligible", "based", "only",
+)
+
+
+# One city, one spelling. Employers write both "Bengaluru" and "Bangalore" for
+# the same office, and the board carried them as two cities: a search for one
+# found two-thirds of the roles and silently missed the rest. Canonicalising at
+# ingest keeps the fix in Python, where the rest of the judgement lives.
+_CITY_ALIASES = {
+    "bangalore": "Bengaluru",
+    "bengaluru": "Bengaluru",
+    "new york city": "New York",
+    "nyc": "New York",
+    "san francisco bay area": "San Francisco",
+    "bay area": "San Francisco",
+    "sf": "San Francisco",
+    "ho chi minh city": "Ho Chi Minh",
+    "bombay": "Mumbai",
+    "calcutta": "Kolkata",
+    "madras": "Chennai",
+    "gurgaon": "Gurugram",
+}
+
+
+def canonical_city(city: str) -> str:
+    return _CITY_ALIASES.get((city or "").strip().lower(), (city or "").strip())
+
+
+def _is_arrangement_fragment(part: str) -> bool:
+    """True when a fragment names no place, only a way of working.
+
+    "San Francisco Bay Area or Remote (U.S.)" splits into two fragments, but
+    the second is a working arrangement, not a second office. Counting it would
+    tell the reader the role has two locations and offer to filter by a city
+    that does not exist. Remote-ness is already carried by remote_status.
+    """
+    low = part.lower()
+    if not any(w in low for w in _ARRANGEMENT_WORDS):
+        return False
+    # A fragment that still names somewhere once the arrangement words are
+    # removed is a real place with a remote option ("Remote - New York"), so
+    # keep it. What is left here is nothing, or bare country scope.
+    rest = re.sub(r"(?i)\b(%s)\b" % "|".join(
+        re.escape(w) for w in sorted(_ARRANGEMENT_WORDS, key=len, reverse=True)), "", low)
+    rest = re.sub(r"[^a-z]+", " ", rest).strip()
+    return not rest or rest in _COUNTRY_HINTS or rest.replace(" ", ".") + "." in _COUNTRY_HINTS
+
+
+def place_fragments(location: str) -> list[str]:
+    """The fragments that name an actual place, in the order written."""
+    parts = [p for p in split_locations(location) if not _is_arrangement_fragment(p)]
+    # Every fragment was an arrangement ("Hybrid; In-Office"). That is one role
+    # with no stated office, not one per marker — keep the first so any country
+    # scope it carries survives ("Remote (U.S.)"), and drop the rest.
+    if parts:
+        return parts
+    raw = split_locations(location)
+    return raw[:1]
+
+
+def location_count(location: str) -> int:
+    return len(place_fragments(location))
+
+
+def parse_locations(location: str) -> list[dict]:
+    """Parse every place in the string, not just the first.
+
+    A role advertised "San Francisco, CA | New York City, NY" is open in both.
+    Parsing only the first makes it invisible to someone searching New York, so
+    the caller gets every place and matches against all of them; the first is
+    still the one shown on the card, with a count of the rest.
+    """
+    return [parse_location(p) for p in place_fragments(location)]
+
+
 def parse_location(location: str) -> dict:
     """Split an employer's location string into city / region / country.
 
@@ -86,11 +181,19 @@ def parse_location(location: str) -> dict:
     when it matches a known name. An unrecognised string stays in `city`, where
     it is still searchable, rather than being filed somewhere wrong.
     """
-    raw = (location or "").strip()
+    parts = place_fragments(location)
+    raw = parts[0] if parts else ""
     out = {"city": "", "region": "", "country": ""}
     if not raw:
         return out
-    cleaned = re.sub(r"(?i)\b(remote|hybrid|onsite|on-site)\b[\s,\-–—]*", "", raw).strip(" ,-–—")
+    cleaned = re.sub(
+        r"(?i)\b(%s)\b[\s,\-–—]*" % "|".join(
+            re.escape(w) for w in sorted(_ARRANGEMENT_WORDS, key=len, reverse=True)),
+        "", raw).strip(" ,-–—")
+    # "(U.S.)" is a country, not a city called "(U.S.)". Brackets only ever wrap
+    # a qualifier here, so drop them before the pieces are read.
+    cleaned = cleaned.replace("(", " ").replace(")", " ").replace("[", " ").replace("]", " ")
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,-–—")
     parts = [p.strip() for p in re.split(r"\s*[,/|]\s*|\s+-\s+", cleaned) if p.strip()]
     if not parts:
         return out
@@ -115,7 +218,7 @@ def parse_location(location: str) -> dict:
     # "New York" and "Washington" on their own mean the city far more often than
     # the state in an ATS feed, and promoting them to a region would leave the
     # role with no city at all - unsearchable by the word the employer used.
-    out["city"] = rest[0] if rest else ""
+    out["city"] = canonical_city(rest[0]) if rest else ""
     return out
 
 

@@ -1,83 +1,93 @@
 /**
- * JobSignal home — live counters and the honest empty state.
+ * JobSignal home — search is the product.
  *
- * Every number on this page is read from jobs/data/stats.json, which the
- * ingestion pipeline computes by counting the board. Nothing here is written by
- * hand, and a test fails the build if a numeric statistic is ever hardcoded
- * into the markup.
+ * No statistics band, no trust bar, no marketing copy. The counts beside the
+ * popular roles are real, computed from the index the page already loads.
  */
 (function () {
   'use strict';
+  var el = window.JSDom.el, icon = window.JSIcon;
 
-  var el = window.JSDom.el;
-  var F = window.JSFormat;
+  window.JSHeader.mount({});
+  document.getElementById('jsFooter').appendChild(window.JSHeader.footer());
 
-  function stat(value, label) {
-    return el('div', { class: 'js-stat' }, [
-      el('span', { class: 'stat-value', text: value }),
-      el('span', { class: 'stat-label', text: label }),
-    ]);
+  var QUICK = [
+    ['Fresh 72', { fresh72: '1' }, 'bolt'],
+    ['Remote', { remote: 'remote' }],
+    ['Entry level', { level: 'entry' }],
+    ['$150K+', { minSalary: '150000' }],
+    ['Visa sponsorship', { visa: '1' }],
+    ['Direct apply', { directOnly: '1' }]
+  ];
+
+  var POPULAR = [
+    ['Product Manager', 'product manager'], ['Data Engineer', 'data engineer'],
+    ['UX Designer', 'ux designer'], ['Data Scientist', 'data scientist'],
+    ['Cybersecurity', 'cybersecurity'], ['AI Engineer', 'ai engineer'],
+    ['Software Engineer', 'software engineer'], ['SRE', 'site reliability']
+  ];
+
+  function href(params) {
+    var p = new URLSearchParams(params);
+    return '/jobs/search/?' + p.toString();
   }
 
-  function emptyState() {
-    return el('div', { class: 'js-empty' }, [
-      el('h2', { text: 'The board is still filling.' }),
-      el('p', {
-        text: 'No roles have been ingested yet. JobSignal will not show you a job it cannot ' +
-              'currently reach at the employer, so rather than pad this page with samples, it ' +
-              'shows you nothing until the first run completes.',
-      }),
-      el('p', {
-        text: 'Ingestion runs every four hours against employers’ own applicant tracking ' +
-              'systems. Check back shortly.',
-      }),
-      el('p', { style: 'margin-top:18px' }, [
-        el('a', { class: 'js-view', href: '/jobs/methodology/', text: 'How verification works →' }),
-      ]),
-    ]);
-  }
+  var host = document.getElementById('jsHomeSearch');
+  host.appendChild(window.JSSearchBar.build({ id: 'jsHomeQ' }));
 
-  function render(s) {
-    var host = document.getElementById('js-stats');
-    var live = s.live_jobs || 0;
+  var quick = document.getElementById('jsHomeQuick');
+  quick.appendChild(el('div', { class: 'jsChips' }, QUICK.map(function (q) {
+    var kids = [];
+    if (q[2]) kids.push(icon(q[2], 13));
+    kids.push(el('span', { text: q[0] }));
+    var a = el('a', { class: 'jsChip', href: href(q[1]) }, kids);
+    if (q[2]) a.classList.add('is-on');
+    return a;
+  })));
 
-    if (!live) {
-      host.parentNode.removeChild(host);
-      document.getElementById('js-home-empty').appendChild(emptyState());
+  window.JSData.index().then(function (doc) {
+    var jobs = doc.jobs || [];
+    var bar = host.querySelector('.jsSearch');
+    if (bar && jobs.length) {
+      // Rebuild with a suggester now that we know what is actually on the board.
+      var withSuggest = window.JSSearchBar.build({
+        id: 'jsHomeQ', suggest: window.JSSearchBar.suggester(jobs)
+      });
+      host.replaceChild(withSuggest, bar);
+    }
+
+    var pop = document.getElementById('jsHomePopular');
+    window.JSDom.clear(pop);
+    if (!jobs.length) {
+      pop.appendChild(window.JSStates ? window.JSStates.boardEmpty() : el('p', { text: 'The board is still filling.' }));
       return;
     }
 
-    window.JSDom.mount(host, [
-      stat(F.num(live), 'Live jobs'),
-      stat(F.num(s.verified_today || 0), 'Verified today'),
-      stat(F.num(s.added_last_24h || 0), 'Added in last 24h'),
-      stat(F.num(s.employers || 0), 'Employers watched'),
-      stat(F.num(s.salary_disclosed || 0), 'Salary disclosed'),
-    ]);
-
-    var when = s.generated_at
-      ? el('p', {
-          class: 'js-count',
-          style: 'width:100%;text-align:center;margin-top:6px',
-          text: 'Last ingestion run ' + F.since(s.generated_at),
-        })
-      : null;
-    if (when) host.appendChild(when);
-  }
-
-  window.JSData.stats().then(render).catch(function () {
-    var loading = document.getElementById('js-stats-loading');
-    if (loading) loading.textContent = 'Live counts are unavailable right now.';
-  });
-
-  // Carry a location typed here straight into the search page's filter state.
-  var form = document.getElementById('js-home-form');
-  if (form) {
-    form.addEventListener('submit', function () {
-      ['js-q', 'js-loc'].forEach(function (id) {
-        var input = document.getElementById(id);
-        if (input && !input.value.trim()) input.disabled = true;  // keeps the URL clean
-      });
+    var counts = {};
+    POPULAR.forEach(function (p) {
+      counts[p[0]] = window.JSSearch.run(jobs.map(function (j) { return j; }), { q: p[1] }).length;
     });
-  }
+
+    pop.appendChild(el('div', {
+      style: 'font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)',
+      text: 'Popular'
+    }));
+    pop.appendChild(el('div', { class: 'jsChips', style: 'margin-top:12px' },
+      POPULAR.filter(function (p) { return counts[p[0]] > 0; }).map(function (p) {
+        return el('a', { class: 'jsChip', href: href({ q: p[1] }) }, [
+          el('span', { text: p[0] }),
+          el('span', { style: 'color:var(--ink-3);font-variant-numeric:tabular-nums', text: String(counts[p[0]]) })
+        ]);
+      })));
+
+    pop.appendChild(el('p', {
+      style: 'margin:26px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.6',
+      text: 'Verified directly against employer hiring systems. ' +
+            jobs.length.toLocaleString('en-US') + ' roles on the board, last refreshed ' +
+            window.JSFormat.since(doc.generated_at) + '.'
+    }));
+  }).catch(function () {
+    var pop = document.getElementById('jsHomePopular');
+    window.JSDom.mount(pop, el('p', { style: 'color:var(--ink-3);font-size:14px', text: 'Role counts are unavailable right now.' }));
+  });
 })();

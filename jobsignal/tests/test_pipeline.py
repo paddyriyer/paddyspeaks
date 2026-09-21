@@ -75,6 +75,54 @@ class TestNormalize(unittest.TestCase):
         p = normalize.parse_location("New York")
         self.assertEqual(p["city"], "New York")
 
+    def test_a_multi_location_role_does_not_invent_a_place(self):
+        """"San Francisco, CA | New York City, NY" is two cities, not one.
+
+        Reading the string as a single location paired the first city with the
+        last region and produced "San Francisco, NY" — a place that does not
+        exist — on 9% of the board.
+        """
+        raw = "San Francisco, CA | New York City, NY"
+        first = normalize.parse_location(raw)
+        self.assertEqual((first["city"], first["region"]), ("San Francisco", "CA"))
+        self.assertEqual(normalize.location_count(raw), 2)
+        self.assertEqual(
+            [(l["city"], l["region"]) for l in normalize.parse_locations(raw)],
+            # "New York City" canonicalises to "New York" — see
+            # test_one_city_has_one_spelling.
+            [("San Francisco", "CA"), ("New York", "NY")],
+        )
+
+    def test_a_remote_option_is_not_a_second_location(self):
+        """"or Remote (U.S.)" is a working arrangement, not another office."""
+        raw = "San Francisco Bay Area or Remote (U.S.)"
+        self.assertEqual(normalize.location_count(raw), 1)
+        self.assertEqual(normalize.parse_location(raw)["city"], "San Francisco")
+        self.assertEqual(normalize.remote_status(raw), "remote")
+        # ...and the same for a trailing "| Remote".
+        self.assertEqual(normalize.location_count("Austin, TX | Remote"), 1)
+        # A wholly remote role keeps the country scope it stated.
+        self.assertEqual(normalize.parse_location("Remote (U.S.)")["country"], "US")
+
+    def test_a_place_named_after_the_remote_word_is_kept(self):
+        """"Remote - New York, NY" still names New York."""
+        p = normalize.parse_location("Remote - New York, NY")
+        self.assertEqual((p["city"], p["region"]), ("New York", "NY"))
+        self.assertEqual(normalize.location_count("Remote - New York, NY"), 1)
+
+    def test_one_city_has_one_spelling(self):
+        """Employers write Bengaluru and Bangalore for the same office.
+
+        Carried through as two cities, a search for either found two-thirds of
+        the roles and silently missed the rest.
+        """
+        for written in ("Bangalore, India", "Bengaluru, India"):
+            self.assertEqual(normalize.parse_location(written)["city"], "Bengaluru")
+        for written in ("New York City, NY", "New York, NY"):
+            self.assertEqual(normalize.parse_location(written)["city"], "New York")
+        self.assertEqual(
+            normalize.parse_location("San Francisco Bay Area")["city"], "San Francisco")
+
     def test_unknown_place_stays_searchable_rather_than_misfiled(self):
         p = normalize.parse_location("Bengaluru")
         self.assertEqual(p["city"], "Bengaluru")

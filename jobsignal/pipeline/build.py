@@ -42,7 +42,8 @@ INDEX_FIELDS = (
     "id", "company_slug", "company_name", "company_domain",
     "job_title", "role_family", "role_head", "role_family_confidence",
     "department", "location", "location_city", "location_region",
-    "location_country", "remote_status", "employment_type",
+    "location_country", "location_count", "locations_extra",
+    "remote_status", "employment_type",
     "experience_level", "education_requirement",
     "salary_min", "salary_max", "currency",
     "visa_sponsorship", "security_clearance",
@@ -75,7 +76,8 @@ def build_record(src: dict, raw: dict, run_iso: str) -> dict | None:
 
     desc = raw.get("description_text") or ""
     loc_raw = raw.get("location") or ""
-    parts = normalize.parse_location(loc_raw)
+    all_locs = normalize.parse_locations(loc_raw)
+    parts = all_locs[0] if all_locs else {"city": "", "region": "", "country": ""}
 
     req = list(raw.get("requirements") or [])
     pref = list(raw.get("preferred") or [])
@@ -121,6 +123,12 @@ def build_record(src: dict, raw: dict, run_iso: str) -> dict | None:
         "location_city": parts["city"],
         "location_region": parts["region"],
         "location_country": parts["country"],
+        "location_count": len(all_locs),
+        # Every place after the first, so a role open in San Francisco AND New
+        # York is findable by either. The card still leads with the first.
+        "locations_extra": [
+            [l["city"], l["region"], l["country"]] for l in all_locs[1:]
+        ],
         "remote_status": normalize.remote_status(loc_raw, desc),
         "employment_type": normalize.employment_type(
             raw.get("employment_type", ""), title, desc),
@@ -242,6 +250,9 @@ def write_outputs(live: list[dict], history: dict, stats: dict, health: list[dic
     DATA.mkdir(parents=True, exist_ok=True)
 
     index = [{k: j.get(k) for k in INDEX_FIELDS} for j in live]
+    for row in index:
+        if not row.get("locations_extra"):
+            row.pop("locations_extra", None)
     index.sort(key=lambda r: (r.get("last_verified_at") or "", r.get("first_seen_at") or ""), reverse=True)
     store.write_json(DATA / "index.json", {"generated_at": run_iso, "count": len(index), "jobs": index})
 

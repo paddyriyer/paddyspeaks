@@ -8,9 +8,10 @@
   'use strict';
 
   var BOOLS = ['verified6h', 'salaryOnly', 'directOnly', 'hideStaffing',
-    'hideReposted', 'visa', 'clearanceFree', 'includeUnverified'];
+    'hideReposted', 'visa', 'clearanceFree', 'includeUnverified',
+    'fresh72', 'includeRemote'];
   var STRINGS = ['q', 'location', 'company', 'remote', 'level', 'employment',
-    'industry', 'size', 'education', 'sort'];
+    'industry', 'size', 'education', 'family', 'sort'];
   var NUMBERS = ['postedDays', 'minSalary'];
 
   function read(search) {
