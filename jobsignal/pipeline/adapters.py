@@ -32,7 +32,7 @@ ATS_HOSTS = (
 )
 
 _TAG = re.compile(r"<[^>]+>")
-_WS = re.compile(r"[ \t\r\f\v]+")
+_WS = re.compile(r"[ \t\r\f\v\u00a0\u2007\u202f]+")
 _BLANKS = re.compile(r"\n{3,}")
 
 
@@ -45,7 +45,19 @@ def strip_html(raw: str) -> str:
     """
     if not raw:
         return ""
-    s = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", raw)
+    s = str(raw)
+    # Some feeds return HTML that is itself HTML-escaped: Greenhouse's `content`
+    # arrives as &lt;div&gt;… rather than <div>…. Stripping tags first finds
+    # nothing to strip, and the unescape at the end of this function then turns
+    # that escaped markup into *visible* markup on the job page. So unescape up
+    # front while the body is still mostly entities, and only when it really is
+    # escaped markup — a description that merely quotes a "<" in prose must not
+    # have that turned into a tag and deleted.
+    for _ in range(2):
+        if s.count("&lt;") <= s.count("<"):
+            break
+        s = html.unescape(s)
+    s = re.sub(r"(?is)<(script|style)\b.*?</\1>", " ", s)
     s = re.sub(r"(?i)<br\s*/?>", "\n", s)
     s = re.sub(r"(?i)</(p|div|li|h[1-6]|tr)>", "\n", s)
     s = re.sub(r"(?i)<li\b[^>]*>", "• ", s)

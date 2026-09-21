@@ -115,6 +115,28 @@ class TestNormalize(unittest.TestCase):
         req, pref = normalize.split_requirements("We are looking for someone great. Apply today.")
         self.assertEqual((req, pref), ([], []))
 
+    def test_escaped_html_is_not_turned_into_visible_markup(self):
+        """Greenhouse returns HTML that is itself HTML-escaped.
+
+        Regression: tags were stripped before entities were resolved, so the
+        stripper found nothing and the final unescape then produced literal
+        <div> markup in the job description shown to candidates.
+        """
+        esc = ('&lt;div class="intro"&gt;&lt;p&gt;Ready to work? At&amp;nbsp;'
+               '&lt;a href="https://x.test"&gt;Acme&lt;/a&gt;, we build.&lt;/p&gt;&lt;/div&gt;')
+        out = adapters.strip_html(esc)
+        self.assertNotIn("<", out)
+        self.assertNotIn("&nbsp;", out)
+        self.assertNotIn("\u00a0", out)
+        self.assertIn("Ready to work?", out)
+        self.assertIn("Acme", out)
+
+    def test_prose_quoting_an_angle_bracket_is_not_eaten(self):
+        # The unescape-first path must not fire on text that merely mentions
+        # "<" and then delete the rest of the sentence as if it were a tag.
+        self.assertEqual(adapters.strip_html("Use x &lt; y in your query"),
+                         "Use x < y in your query")
+
     def test_html_is_reduced_to_text_at_ingest(self):
         out = adapters.strip_html("<p>Hello <b>world</b></p><script>alert(1)</script><li>Item</li>")
         self.assertNotIn("<", out)
