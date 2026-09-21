@@ -14908,6 +14908,70 @@
       ],
       "answer": 2,
       "explanation": "The FILTER clause (supported in PostgreSQL, BigQuery, Snowflake, and others) is specifically designed for conditional aggregation and scans the table once while applying different conditions to different aggregate functions. This is more efficient than CASE statements and far superior to multiple table scans or self-joins. Option C uses the idiomatic, most performant approach for this multi-conditional aggregation pattern."
+    },
+    {
+      "id": "sql-new-129",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "You have a BigQuery table `pageviews(user_id STRING, page_url STRING, view_timestamp TIMESTAMP)` with 10 billion rows. You need to find the top 5 most-viewed pages per user, ranked by view count. Which approach minimizes query cost while maintaining accuracy?",
+      "options": [
+        "Use ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY view_count DESC) and filter WHERE row_num <= 5 after a GROUP BY",
+        "Use RANK() OVER (PARTITION BY user_id ORDER BY view_count DESC) and filter WHERE rank <= 5, then deduplicate results",
+        "Use ARRAY_AGG(STRUCT(page_url, COUNT(*)) ORDER BY COUNT(*) DESC LIMIT 5) within STRUCT_EXTRACT",
+        "Use a self-join on pageviews grouped by user_id and page_url, filtering with a correlated subquery"
+      ],
+      "answer": 0,
+      "explanation": "ROW_NUMBER() with partitioning and a filter is the most cost-efficient approach in BigQuery because it allows proper predicate pushdown and avoids redundant deduplication that RANK() would introduce. ARRAY_AGG with ORDER BY LIMIT inside STRUCT is not standard SQL syntax in BigQuery, and self-joins on 10B rows would be prohibitively expensive."
+    },
+    {
+      "id": "sql-new-130",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You're implementing a real-time CDC pipeline in Snowflake. The source sends updates with `operation_type` (INSERT, UPDATE, DELETE) and `change_timestamp`. Your target table must reflect the final state while handling out-of-order arrivals. Which MERGE strategy is correct?",
+      "options": [
+        "MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED AND s.change_timestamp > t.last_updated THEN UPDATE SET ... WHEN NOT MATCHED THEN INSERT",
+        "MERGE INTO target t USING source s ON t.id = s.id AND s.change_timestamp > t.last_updated WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED THEN INSERT",
+        "MERGE INTO target t USING source s ON t.id = s.id WHEN MATCHED AND s.operation_type = 'DELETE' THEN DELETE WHEN MATCHED THEN UPDATE ... WHEN NOT MATCHED AND s.operation_type != 'DELETE' THEN INSERT",
+        "Use DELETE then INSERT separately to ensure atomicity and proper ordering of operations"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly handles the CDC logic: it first checks for DELETE operations (DELETE MATCHED rows), then updates existing rows, and inserts new ones. The JOIN condition should only match on ID (without timestamp filter) so the WHEN clauses can evaluate operation_type and timestamp ordering independently. Option 0 misses DELETE handling, option 1 filters in JOIN which prevents DELETE matches, and option 3 sacrifices ACID guarantees."
+    },
+    {
+      "id": "sql-new-131",
+      "type": "single",
+      "topic": "Window functions",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "You need to identify users who made their largest purchase within 7 days of their first purchase. Schema: `orders(user_id INT, order_date DATE, amount DECIMAL)`. Which window function approach is most efficient?",
+      "options": [
+        "Use FIRST_VALUE(order_date) OVER (PARTITION BY user_id ORDER BY order_date) and MAX(amount) OVER (PARTITION BY user_id) to join results",
+        "Use ROW_NUMBER() to rank by order_date per user, then join rank=1 with rank based on amount, filtering for date differences",
+        "Use FIRST_VALUE(order_date) OVER (PARTITION BY user_id ORDER BY order_date) and MAX(amount) OVER (PARTITION BY user_id ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND 7 DAYS FOLLOWING)",
+        "Create a CTE with first purchase date per user, then self-join on 7-day window and find max amount in that range"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses a window frame with ROWS BETWEEN UNBOUNDED PRECEDING AND 7 DAYS FOLLOWING (Snowflake/BigQuery syntax) to find the maximum amount within 7 days of the first purchase, all in one pass. Option 0 finds the global max (not within 7 days). Option 1 requires complex post-processing. Option 3 uses a CTE + self-join which is less efficient than window functions for this pattern."
+    },
+    {
+      "id": "sql-new-132",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "In BigQuery, you have `events` table clustered by user_id with 50GB daily ingest. You need to compute running totals of event counts per user partitioned by date, but queries on historical data (6+ months) are slow. Which optimization is most appropriate?",
+      "options": [
+        "Use CURRENT_DATE() in WHERE clause to limit scans, then UNION with precomputed rolling aggregates in a separate table",
+        "Materialize daily snapshots with running totals using BigQuery BI Engine reservation and partition by _PARTITIONTIME",
+        "Use OVER (PARTITION BY user_id ORDER BY event_date ROWS UNBOUNDED PRECEDING) with a CLUSTER hint on user_id, ROWS to reduce shuffle",
+        "Create a scheduled query that incrementally updates a materialized view with running totals per user per date using MERGE"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 is the correct approach: a scheduled query with MERGE allows BigQuery to incrementally update running totals, avoiding full table rescans on historical data. The materialized view pattern is BigQuery's recommended practice for time-series aggregations. Option 0 mixes approaches inefficiently. Option 1 doesn't address the root cause (recalculating running totals). Option 2's CLUSTER hint and ROWS suggestion doesn't work as described in BigQuery's query execution model."
     }
   ]
 }

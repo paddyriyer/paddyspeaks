@@ -8212,6 +8212,54 @@
       ],
       "answer": 1,
       "explanation": "Option 1 is incorrect because applying wait_for after gather defeats concurrency and retry logic needs to be integrated. Option 3 works but is more verbose than necessary. Option 4 is wrong because run_coroutine_threadsafe is for running asyncio from threads, not managing concurrent async calls. Option 1 correctly uses Semaphore for concurrency control (10 max), wait_for per-coroutine for timeout handling, and integrates retry logic with exponential backoff directly in the coroutine before gathering, which is the idiomatic asyncio pattern for this scenario."
+    },
+    {
+      "id": "py-new-121",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-09-21",
+      "prompt": "You have a pandas DataFrame with 50M rows and 100 columns. You need to filter rows where column 'value' > 1000 and then group by 'category' to compute the mean of 'amount'. Which approach will be most memory-efficient and fast?\n\nA) df[df['value'] > 1000].groupby('category')['amount'].mean()\nB) df.loc[df['value'] > 1000].groupby('category')['amount'].transform('mean')\nC) df.query('value > 1000').groupby('category')['amount'].mean()\nD) df[df['value'] > 1000].groupby('category', observed=True)['amount'].mean()",
+      "options": [
+        "df[df['value'] > 1000].groupby('category')['amount'].mean()",
+        "df.loc[df['value'] > 1000].groupby('category')['amount'].transform('mean')",
+        "df.query('value > 1000').groupby('category')['amount'].mean()",
+        "df[df['value'] > 1000].groupby('category', observed=True)['amount'].mean()"
+      ],
+      "answer": 2,
+      "explanation": "The .query() method uses numexpr internally to evaluate the condition, which is significantly faster for large DataFrames than boolean indexing. It avoids creating an intermediate boolean array and performs the filtering more efficiently. For this scale (50M rows), the performance difference is substantial."
+    },
+    {
+      "id": "py-new-122",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You're processing 1000 data chunks using multiprocessing.Pool with 8 workers. Each chunk takes 5 seconds. You notice the program hangs intermittently when chunks fail. Which is the primary issue and best solution?\n\nA) Use pool.map() with timeout parameter and catch TimeoutError exceptions\nB) Use pool.imap_unordered() with a queue size limit and implement chunk retry logic\nC) Use concurrent.futures.ProcessPoolExecutor with max_workers and a context manager to ensure proper cleanup\nD) Increase the number of workers to 16 and use pool.apply_async() with callbacks",
+      "options": [
+        "Use pool.map() with timeout parameter and catch TimeoutError exceptions",
+        "Use pool.imap_unordered() with a queue size limit and implement chunk retry logic",
+        "Use concurrent.futures.ProcessPoolExecutor with max_workers and a context manager to ensure proper cleanup",
+        "Increase the number of workers to 16 and use pool.apply_async() with callbacks"
+      ],
+      "answer": 2,
+      "explanation": "concurrent.futures.ProcessPoolExecutor with a context manager (using 'with' statement) ensures proper cleanup of worker processes and prevents zombie processes when errors occur. The context manager guarantees shutdown() is called, preventing hangs. ProcessPoolExecutor also has better exception handling and timeout semantics than Pool.map()."
+    },
+    {
+      "id": "py-new-123",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You need to create a metaclass that enforces all subclasses to implement a specific method signature for 'transform()' with exactly 2 parameters (self, data). Which implementation is correct and prevents instantiation of non-compliant subclasses?\n\nA) class EnforceMeta(type):\n    def __new__(mcs, name, bases, dct):\n        if 'transform' in dct and len(inspect.signature(dct['transform']).parameters) != 3: raise TypeError()\n        return super().__new__(mcs, name, bases, dct)\n\nB) class EnforceMeta(type):\n    def __init__(cls, name, bases, dct):\n        for base in bases:\n            if hasattr(base, '__mro__') and type(base) is EnforceMeta:\n                sig = inspect.signature(cls.transform)\n                if len(sig.parameters) != 3: raise TypeError('Invalid signature')\n        super().__init__(name, bases, dct)\n\nC) class EnforceMeta(type):\n    def __call__(cls, *args, **kwargs):\n        sig = inspect.signature(cls.transform)\n        if len(sig.parameters) != 3: raise TypeError()\n        return super().__call__(*args, **kwargs)\n\nD) class EnforceMeta(type):\n    def __getattribute__(cls, name):\n        if name == 'transform': check_signature(cls.transform)\n        return super().__getattribute__(name)",
+      "options": [
+        "class EnforceMeta(type):\n    def __new__(mcs, name, bases, dct):\n        if 'transform' in dct and len(inspect.signature(dct['transform']).parameters) != 3: raise TypeError()\n        return super().__new__(mcs, name, bases, dct)",
+        "class EnforceMeta(type):\n    def __init__(cls, name, bases, dct):\n        for base in bases:\n            if hasattr(base, '__mro__') and type(base) is EnforceMeta:\n                sig = inspect.signature(cls.transform)\n                if len(sig.parameters) != 3: raise TypeError('Invalid signature')\n        super().__init__(name, bases, dct)",
+        "class EnforceMeta(type):\n    def __call__(cls, *args, **kwargs):\n        sig = inspect.signature(cls.transform)\n        if len(sig.parameters) != 3: raise TypeError()\n        return super().__call__(*args, **kwargs)",
+        "class EnforceMeta(type):\n    def __getattribute__(cls, name):\n        if name == 'transform': check_signature(cls.transform)\n        return super().__getattribute__(name)"
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly uses __init__ to validate the signature after the class is created and checks inherited classes. It accounts for the fact that 'transform' may not be directly in dct but inherited from a parent. The signature has 3 parameters because self is counted. Option A only checks if transform is in dct (missing inherited methods), C checks at instantiation time (too late), and D is inefficient."
     }
   ]
 }

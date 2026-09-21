@@ -6184,6 +6184,54 @@
       ],
       "answer": 1,
       "explanation": "A shadow workspace with pre-push validation catches data quality issues before production sync without adding latency dependencies. Quarantine tables enable safe review and revert decisions. Hashing for audit trails is standard practice. Kafka-based delays add unnecessary latency to a 4-hour cycle and don't prevent bad data from entering Marketo. Marketo's audit logs help investigation but don't prevent pushes. Rollback via 'native undo' does not exist in Marketo (a critical constraint)."
+    },
+    {
+      "id": "ds-new-095",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You're evolving a 40TB Iceberg table schema by adding a new non-nullable column `region_code` to a fact table with 200 billion rows. Downstream dashboards depend on this table. Which approach minimizes query breakage and recomputation?\n\n",
+      "options": [
+        "Add the column as nullable, backfill with DEFAULT values using a single Spark job, then toggle nullable=false in one metadata transaction",
+        "Create a view that COALESCE-projects the old schema plus the new column, deprecate the table, migrate consumers over 2 weeks",
+        "Add the column as non-nullable with a DEFAULT value; Iceberg's metadata-only schema evolution ensures no data rewrite and fast backfill",
+        "Perform an in-place ALTER TABLE ADD COLUMN with CASCADE, which atomically rewrites all Parquet files in parallel across partitions"
+      ],
+      "answer": 2,
+      "explanation": "Iceberg schema evolution is metadata-only when adding columns with defaults\u2014it doesn't rewrite data files, making it fast for large tables. Option 1 is suboptimal (requires explicit backfill job). Option 3 is incorrect (Iceberg doesn't cascade rewrite files). Option 4 doesn't exist in standard SQL dialects."
+    },
+    {
+      "id": "ds-new-096",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "You're building a reverse ETL pipeline that syncs customer segment membership from Snowflake to Salesforce CRM every 6 hours. The pipeline must be idempotent and handle late-arriving changes (updates arriving >30min after the segment computation). Which design ensures no duplicate Salesforce API calls or missed updates?\n\n",
+      "options": [
+        "Query Snowflake for all segments, diff against last sync checkpoint, send only deltas via Salesforce bulk API with natural key (customer_id + segment_id), track completion via a Snowflake state table",
+        "Use Snowflake STREAMS to capture changes since last query, send each change as a separate REST API call, rely on Salesforce's duplicate detection",
+        "Compute an MD5 hash of segment membership per customer, only push to Salesforce when hash changes, store hash in a Redis cache for fast lookups",
+        "Query Snowflake CHANGES() function for CDC, upsert into Salesforce with a composite unique key, rely on eventual consistency for late arrivals"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct: bulk API with natural key ensures idempotency (re-sending same payload is safe), a checkpoint table ensures late-arriving updates are caught in the next run, and diffing avoids unnecessary API calls. Option 1 fails under network failures (no idempotency). Option 2 doesn't handle late arrivals. Option 4 misunderstands CHANGES() (it's for Iceberg, not Snowflake)."
+    },
+    {
+      "id": "ds-new-097",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-09-21",
+      "prompt": "Your Spark job reads from Kafka (no transactions), performs a stateful aggregation (window-based deduplication), and writes to Delta Lake with mode='append'. The job crashes mid-batch after writing ~70% of micro-batches. On restart, Kafka auto.offset.reset=earliest and you reprocess from the last committed offset. How do you prevent duplicates in Delta?\n\n",
+      "options": [
+        "Use Delta's MERGE with a surrogate key (event_id + batch_id), set enableExactlyOnceWrites=true to make all writes atomic per batch, deduplication happens via merge logic",
+        "Write to a temporary Delta table per batch, then use UNION + ROW_NUMBER to deduplicate against the main table, commit once all batches are written",
+        "Commit Kafka offsets ONLY after Delta write succeeds; leverage Delta's built-in deduplication via clustered indexes on (event_id, event_timestamp)",
+        "Use Structured Streaming with Kafka source and Delta sink in append mode; Structured Streaming's checkpoint system ensures exactly-once semantics end-to-end"
+      ],
+      "answer": 3,
+      "explanation": "Structured Streaming with Kafka + Delta sink is the standard idempotent solution\u2014checkpointing tracks both Kafka offset and Delta write progress. On failure, the exact same micro-batch is replayed and Delta's write idempotency key (derived from checkpoint ID) prevents duplicates. Option 0 requires manual offset management (error-prone). Option 1 is complex and slow. Option 2 is incorrect (Delta doesn't have clustered indexes for deduplication)."
     }
   ]
 }
