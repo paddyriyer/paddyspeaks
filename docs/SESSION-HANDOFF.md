@@ -1,9 +1,59 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-18 (new article: AI Is Looking For You). This file is the running memory
+_Last updated: 2026-09-21 (JobSignal Phase 1). This file is the running memory
 between Claude Code sessions (the web container clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEW (2026-09-21): `/jobs/` — PaddySpeaks JobSignal, Phase 1.** A job
+  aggregator whose whole proposition is *jobs that still exist*. Full design in
+  **`docs/JOBSIGNAL.md`**; how to run it in **`jobsignal/README.md`**; the
+  non-negotiable rules are now summarised at the top of `CLAUDE.md`.
+  - **It ships with an EMPTY board, deliberately.** Every published job must be
+    backed by a currently reachable employer source, so there are no samples and
+    no seeds — same rule as testimonials. `jobs/data/*.json` are committed empty
+    and the first cron run fills them. **Do not "fix" the empty state by adding
+    example jobs.** The pages already render an honest empty state.
+  - **The container this was built in cannot reach ATS hosts** (the environment's
+    network policy 403s `boards-api.greenhouse.io` et al at the proxy), so no
+    live ingestion has ever run. The 27 employer slugs marked `verified: true`
+    in `jobsignal/sources.json` are the ones already in production use via
+    `interview/scripts/ats_boards.json`; the 12 marked `verified: false` are
+    **unproven** and the first CI run is what confirms or quarantines them.
+    Check `jobs/data/health.json` after that run and prune what failed.
+  - **The one rule everything else protects: `first_seen_at` is written once
+    per job id and never updated.** `jobs/data/history.json` is the ledger that
+    carries it across runs; `jobs/data/archive/<YYYY>.json` keeps closed roles
+    permanently so a repost years later still finds its lineage. Deleting either
+    file silently resets every age on the board.
+  - **A repost is a new spell on an existing lineage, never a new role.** The
+    card says `REPOSTED` instead of a freshness band and confidence is capped at
+    MEDIUM (two or more reposts → CAUTION). This was caught by actually running
+    the close/repost cycle: the honest age calculation on a fresh requisition
+    really does say "JUST POSTED", which is exactly the headline the brief
+    forbids — hence the explicit label.
+  - **Everything derived is computed in Python and shipped as data.** Confidence,
+    signals, freshness, age, repost counts. `jobs/js/` formats and filters and
+    decides nothing — a deliberate reaction to the `forms.js` / `ps-forms.js`
+    drift trap. If you add a judgement, add it in `jobsignal/pipeline/`.
+  - **`python3 -m jobsignal.tests.test_pipeline`** — 47 tests, no network. It
+    runs on every PR (Validate Content) and again before each ingest. It also
+    guards product rules that live across files: no "Easy Apply" anywhere, no
+    `innerHTML` in `jobs/js/`, no aggregator hostnames in the pipeline, no
+    hardcoded statistic in the markup, no seeded job in `index.json`.
+  - **Pages:** `/jobs/`, `/jobs/search/`, `/jobs/job/?id=`, `/jobs/company/?c=`,
+    `/jobs/saved/`, `/jobs/alerts/`, `/jobs/methodology/`, `/jobs/health/`
+    (noindex). Query-string routing because GitHub Pages has no rewrites — a
+    file per job would mean tens of thousands of files rewritten every 4 hours.
+  - **Saved jobs and alerts are `localStorage` only.** No account, no email
+    collected, nothing sent to the Worker. Phase 2 adds the `/api/jobs/report`
+    route and email alerts through the existing Resend wiring.
+  - **Not yet built (Phase 2+):** the reporting endpoint (the button currently
+    routes to `/contact/` prefilled), email alert delivery, admin *actions*
+    (the health console is read-only), Workday/Jobvite/iCIMS/BambooHR adapters,
+    and the D1-backed search that replaces the static index past ~25k roles.
+  - Homepage change was **one line** — a nav link beside Interview Studio. No
+    deck card, so no filter counts moved.
 
 - **NEW (2026-09-18): `/articles/ai-is-looking-for-you.html`** — an interactive
   story about how professional discovery is changing when the reader is an agent.
