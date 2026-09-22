@@ -15036,6 +15036,22 @@
       ],
       "answer": 1,
       "explanation": "When CDC events arrive out-of-order, you must deduplicate on pk_id and keep the maximum event_ts before the MERGE. Option 0 processes all events and may apply stale updates. Option 2's DELETE+INSERT is unnecessary and risky. Option 3 is similar to option 1 but more verbose; the simple GROUP BY MAX(event_ts) approach is cleaner and is the CDC best practice."
+    },
+    {
+      "id": "sql-new-137",
+      "type": "single",
+      "topic": "NULLIF / COALESCE in Snowflake",
+      "difficulty": "medium",
+      "added_date": "2026-09-22",
+      "prompt": "In Snowflake, you have a table `payments(payment_id INT, amount DECIMAL, discount DECIMAL, net_amount DECIMAL)`. Some rows have discount = 0, and you need to compute a `final_price` that equals `net_amount` if `discount` is not zero, otherwise `amount`. Additionally, if either `amount` or `net_amount` is NULL, `final_price` should default to 0. Which query correctly implements this logic?\n\nAssume: discount=0 should be treated as \"no discount applied\".",
+      "options": [
+        "SELECT payment_id, COALESCE(NULLIF(discount, 0) / NULLIF(net_amount, 0), amount, 0) as final_price FROM payments;",
+        "SELECT payment_id, CASE WHEN NULLIF(discount, 0) IS NOT NULL THEN net_amount ELSE amount END, COALESCE(net_amount, amount, 0) as final_price FROM payments;",
+        "SELECT payment_id, COALESCE(CASE WHEN NULLIF(discount, 0) IS NOT NULL THEN net_amount ELSE amount END, 0) as final_price FROM payments;",
+        "SELECT payment_id, CASE WHEN discount != 0 THEN COALESCE(net_amount, 0) ELSE COALESCE(amount, 0) END as final_price FROM payments;"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses CASE to check if discount is non-zero (via NULLIF), then selects net_amount if true, otherwise amount. The outer COALESCE handles NULLs in the result by defaulting to 0. Option 3 achieves the same logic more concisely. Option 1 divides values incorrectly, Option 4 fails when both amount and net_amount are NULL (returns NULL instead of 0)."
     }
   ]
 }
