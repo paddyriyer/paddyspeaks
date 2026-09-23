@@ -15052,6 +15052,22 @@
       ],
       "answer": 2,
       "explanation": "Option 2 correctly uses CASE to check if discount is non-zero (via NULLIF), then selects net_amount if true, otherwise amount. The outer COALESCE handles NULLs in the result by defaulting to 0. Option 3 achieves the same logic more concisely. Option 1 divides values incorrectly, Option 4 fails when both amount and net_amount are NULL (returns NULL instead of 0)."
+    },
+    {
+      "id": "sql-new-138",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-09-23",
+      "prompt": "You have a staging table `stg_product_updates(product_id INT, name TEXT, price DECIMAL, last_updated TIMESTAMP)` and a production table `products(product_id INT, name TEXT, price DECIMAL, last_updated TIMESTAMP, created_at TIMESTAMP)`. You need to implement a daily MERGE operation where: (1) existing products are updated only if `stg_product_updates.last_updated > products.last_updated`, (2) new products are inserted with `created_at = CURRENT_TIMESTAMP`, and (3) products not in staging are left unchanged. Which approach correctly handles the conditional update requirement?",
+      "options": [
+        "MERGE INTO products p USING stg_product_updates s ON p.product_id = s.product_id WHEN MATCHED AND s.last_updated > p.last_updated THEN UPDATE SET p.name = s.name, p.price = s.price, p.last_updated = s.last_updated WHEN NOT MATCHED THEN INSERT (product_id, name, price, last_updated, created_at) VALUES (s.product_id, s.name, s.price, s.last_updated, CURRENT_TIMESTAMP)",
+        "MERGE INTO products p USING stg_product_updates s ON p.product_id = s.product_id WHEN MATCHED THEN UPDATE SET p.name = s.name, p.price = s.price, p.last_updated = s.last_updated WHEN NOT MATCHED THEN INSERT (product_id, name, price, last_updated, created_at) VALUES (s.product_id, s.name, s.price, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        "UPDATE products SET name = stg_product_updates.name, price = stg_product_updates.price WHERE product_id IN (SELECT product_id FROM stg_product_updates WHERE last_updated > products.last_updated); INSERT INTO products SELECT product_id, name, price, last_updated, CURRENT_TIMESTAMP FROM stg_product_updates WHERE product_id NOT IN (SELECT product_id FROM products)",
+        "MERGE INTO products p USING stg_product_updates s ON p.product_id = s.product_id WHEN MATCHED THEN UPDATE SET p.name = s.name, p.price = s.price WHEN NOT MATCHED THEN INSERT VALUES (s.product_id, s.name, s.price, s.last_updated, s.last_updated)"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses the MERGE WHEN MATCHED clause with an AND condition to filter updates only when the staging timestamp is newer than the production timestamp. It also properly inserts new products with CURRENT_TIMESTAMP for created_at. Options 1 and 3 either incorrectly set created_at or lack the timestamp comparison logic. Option 2 uses separate UPDATE/INSERT statements which are less efficient and error-prone than a single atomic MERGE."
     }
   ]
 }
