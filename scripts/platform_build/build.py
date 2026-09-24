@@ -52,7 +52,12 @@ def step_stamp(write: bool) -> list[str]:
     return errors + [f"{f}: stamped statistic out of date — run: python3 scripts/platform_build/build.py stamp" for f in changed]
 
 
+# Step name → module, where they differ.
+MODULES = {"search": "search_index", "graph": "graph", "feeds": "feeds", "api": "api", "pages": "pages"}
+
+
 def _optional(name):
+    name = MODULES.get(name, name)
     try:
         return __import__(f"platform_build.{name}", fromlist=["run"])
     except ModuleNotFoundError as e:
