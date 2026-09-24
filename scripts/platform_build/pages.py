@@ -80,24 +80,65 @@ def fmt_date(d: str) -> str:
     return f"{t.day} {t.strftime('%B %Y')}"
 
 
+TOP_BAR = """<div class="top-bar">
+    <span>Est. 2026</span>
+    <span class="top-bar-subjects">Spirituality · Philosophy · Technology</span>
+    <span class="top-bar-links">
+        <a href="https://www.youtube.com/playlist?list=PLosfXEs7rcbvO9-dDQ2u1LnqDTn1BRafk" target="_blank" rel="noopener">YouTube ↗</a>
+        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a>
+    </span>
+</div>"""
+
+STATEMENT = ("A connected library of essays, sacred texts, career tools and working technology "
+             "experiments &mdash; written and built by <a href=\"/about.html\">Paddy Iyer</a>.")
+
+
 def nav_html(active: str | None) -> str:
+    """The shared header row — the same markup index.html carries by hand
+    (lib/ps-chrome.css styles both; lib/ps-nav.js makes it sticky). Search is
+    a link to /atlas/ that lib/ps-search.js upgrades to the search dialog."""
     items = []
     for key, label, href in NAV:
-        cls = ' class="active" aria-current="page"' if key == active else ""
-        items.append(f'    <a href="{href}"{cls}>{label}</a>')
-    items.append(
-        '    <a href="/atlas/" class="nav-search-btn" aria-label="Search PaddySpeaks" title="Search">'
-        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>'
-        '<line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></a>'
-    )
-    return '<nav class="nav-bar" aria-label="Primary">\n' + "\n".join(items) + "\n</nav>"
+        cur = ' aria-current="page"' if key == active else ""
+        if key in ("read", "learn", "prepare", "find", "build"):
+            items.append(f'    <a href="{href}" data-journey="{key}"{cur}>{label}</a>')
+        elif key == "atlas":
+            items.append(f'    <a href="{href}" class="ps-nav-atlas"{cur}>{label}</a>')
+            items.append(
+                '    <a href="/atlas/" class="nav-search-btn" data-ps-search-open aria-label="Search PaddySpeaks" title="Search (Ctrl+K or /)">'
+                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+                'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>'
+                '<line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+                '<span class="nav-search-label" aria-hidden="true">Search</span></a>')
+        else:  # about: last and quiet
+            items.append(f'    <a href="{href}" class="ps-nav-about" data-ps-after-search{cur}>{label}</a>')
+    return ('<div class="ps-navwrap" id="ps-navwrap">\n'
+            '<a class="ps-navmark" href="#main-content" tabindex="-1" aria-hidden="true">Paddy<span>Speaks</span></a>\n'
+            '<nav class="nav-bar" aria-label="Primary">\n' + "\n".join(items) + "\n</nav>\n</div>")
+
+
+def header_html(active: str | None) -> str:
+    return f"""{TOP_BAR}
+
+<header class="masthead">
+    <p class="ps-masthead-title"><a href="/">Paddy<span>Speaks</span></a></p>
+    <p class="ps-statement">{STATEMENT}</p>
+</header>
+
+{nav_html(active)}"""
 
 
 def footer_html() -> str:
     links = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in LEGAL_LINKS)
     return f"""<footer class="site-footer">
     <div class="footer-ornament" aria-hidden="true">&#10087;</div>
+    <div class="footer-links">
+        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="/about.html">About</a>
+        <a href="/resume.html">Resume</a>
+        <a href="/testimonials/">Testimonials</a>
+        <a href="/contact/">Contact</a>
+    </div>
     <nav class="ps-footer-legal" aria-label="Site information" data-ps-legal>
 {links}
     </nav>
@@ -183,7 +224,11 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
     if "data-ps-stat=" in raw:
         raise ValueError("use {{stat:key}} in page sources, not a literal data-ps-stat span (it would fight the stamper)")
     body = expand(raw[m.end():], stats)
-    path = fm["path"].strip("/") + "/"
+    # "corrections/" renders corrections/index.html; "about.html" renders that file.
+    path = fm["path"].strip("/")
+    out_file = path if path.endswith(".html") else path + "/index.html"
+    if not path.endswith(".html"):
+        path += "/"
     url = f"{SITE}/{path}"
     title = fm["title"]
     desc = fm["description"]
@@ -195,12 +240,18 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
          "isPartOf": {"@type": "WebSite", "name": "PaddySpeaks", "url": SITE + "/"},
          **({"dateModified": fm["updated"]} if fm.get("updated") else {})},
         {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": crumbs},
-    ]
+    ] + fm.get("ld", [])
     ld_html = "\n".join(
         '<script type="application/ld+json">' + json.dumps(x, ensure_ascii=False) + "</script>" for x in ld)
     robots = fm.get("robots", "index, follow")
-    extra_head = "\n".join(fm.get("head", []))
-    scripts = "\n".join(f'<script defer src="{esc(s)}"></script>' for s in fm.get("scripts", []))
+    extra_head = "\n".join(
+        [f'<link rel="stylesheet" href="{esc(c)}">' for c in fm.get("stylesheets", [])] + fm.get("head", []))
+    image = fm.get("image", f"{SITE}/images/og-default.png")
+    og_type = fm.get("ogType", "website")
+    body_class = " ".join(["ps-chrome"] + fm.get("bodyClass", "").split())
+    # ps-search.js is always loaded (the header's Search), so a page listing it is not doubled.
+    scripts = "\n".join(f'<script defer src="{esc(s)}"></script>'
+                        for s in fm.get("scripts", []) if s != "/lib/ps-search.js")
     analytics = ""
     if fm.get("analytics", True):
         analytics = (f'<script defer src="/lib/ps.js"></script>\n'
@@ -210,6 +261,18 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
     lede = f'\n    <p class="ps-lede">{fm["lede"]}</p>' if fm.get("lede") else ""
     updated = (f'\n    <p class="ps-updated">Last updated <time datetime="{fm["updated"]}">{fmt_date(fm["updated"])}</time></p>'
                if fm.get("updated") else "")
+    if fm.get("layout") == "wide":
+        # The page body owns its own hero and layout (the About page).
+        main_html = body.strip()
+    else:
+        main_html = f"""  <div class="ps-page-hero">
+    <span class="about-label">{esc(fm.get("label", title))}</span>
+    <h1>{heading}</h1>
+    <div class="masthead-rule"></div>{lede}
+  </div>
+  <div class="ps-doc">{updated}
+{body.strip()}
+  </div>"""
     feeds = ('<link rel="alternate" type="application/rss+xml" title="PaddySpeaks — all articles" href="/feed.xml">\n'
              '<link rel="alternate" type="application/rss+xml" title="PaddySpeaks — changelog" href="/changelog.xml">')
 
@@ -226,13 +289,14 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
 <link rel="canonical" href="{url}">
 <meta property="og:title" content="{esc(title)}">
 <meta property="og:description" content="{esc(desc)}">
-<meta property="og:type" content="website">
+<meta property="og:type" content="{esc(og_type)}">
 <meta property="og:url" content="{url}">
 <meta property="og:site_name" content="PaddySpeaks">
-<meta property="og:image" content="{SITE}/images/og-default.png">
+<meta property="og:image" content="{esc(image)}">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="{esc(title)}">
 <meta name="twitter:description" content="{esc(desc)}">
+<meta name="twitter:image" content="{esc(image)}">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -242,42 +306,31 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;family=JetBrains+Mono:wght@400;600&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/lib/ps-platform.css">
+<link rel="stylesheet" href="/lib/ps-chrome.css">
 {extra_head}
 {ld_html}
 </head>
-<body>
+<body class="{body_class}">
 <a class="ps-skip-link" href="#main-content">Skip to content</a>
 <div class="page-frame"></div>
 
-<header class="masthead">
-    <p class="ps-masthead-title"><a href="/">Paddy<span>Speaks</span></a></p>
-    <p class="masthead-tagline">Read &middot; Learn &middot; Prepare &middot; Find &middot; Build</p>
-    <div class="masthead-rule"></div>
-</header>
-
-{nav_html(fm.get("journey"))}
+{header_html(fm.get("journey"))}
 
 <main id="main-content">
-  <div class="ps-page-hero">
-    <span class="about-label">{esc(fm.get("label", title))}</span>
-    <h1>{heading}</h1>
-    <div class="masthead-rule"></div>{lede}
-  </div>
-  <div class="ps-doc">{updated}
-{body.strip()}
-  </div>
+{main_html}
 </main>
 
 {footer_html()}
 
 <script defer src="/lib/ps-nav.js"></script>
+<script defer src="/lib/ps-search.js"></script>
 <script defer src="/lib/ps-platform.js"></script>
 {scripts}
 {analytics}
 </body>
 </html>
 """
-    return path + "index.html", out
+    return out_file, out
 
 
 def run(write: bool) -> list[str]:

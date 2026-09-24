@@ -30,9 +30,9 @@ const BASELINE = path.join(ROOT, 'scripts', 'a11y', 'baseline.json');
 
 // Pages the platform owns outright: zero serious/critical violations allowed.
 const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', '/copyright/',
-  '/changelog/', '/subscribe/', '/atlas/'];
+  '/changelog/', '/subscribe/', '/atlas/', '/about.html'];
 // One representative page per journey, ratcheted against the baseline.
-const LEGACY = ['/', '/about.html', '/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
+const LEGACY = ['/', '/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
   '/interview.app/', '/interview.app/evaluate/', '/jobs/', '/jobs/search/?q=data%20engineer',
   '/articles/the-job-posting-is-not-the-job.html', '/ai-command-center/'];
 const WIDTHS = [1280, 390];

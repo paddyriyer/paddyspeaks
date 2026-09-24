@@ -106,6 +106,19 @@ When adding a new article, manually edit `index.html`:
    shape `<a href="…" class="deck-card" data-category="…">` (registry.py reads it)
 3. Filter counts are `data-ps-stat` stamps — never type them
 
+## About page and the shared header
+
+`about.html` is GENERATED from **`content/pages/about.html`** by
+`python3 scripts/platform_build/build.py pages` — edit the source, never the
+output (CI fails if it is stale). Its audit, decisions and the facts still
+awaiting Paddy's confirmation are in **`docs/ABOUT-PAGE-AUDIT.md`**. Career
+facts come from the Resume, counts from `{{stat:…}}` tokens.
+
+The homepage, About and every `pages.py` page share ONE header: markup in
+`index.html` (by hand) and `nav_html()` / `header_html()` in `pages.py` (must
+agree), styles in `lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky
+state in `lib/ps-nav.js`. Do not fork the navigation.
+
 ## Adding a New Article
 
 1. Create the HTML file in `articles/` using an existing article as template
