@@ -77,7 +77,8 @@ const base = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 const problems = [];
 const next = {};
-const pages = [...STRICT.filter((u) => fs.existsSync(path.join(ROOT, u, 'index.html'))), ...LEGACY];
+// A STRICT entry is a directory page (/atlas/ → atlas/index.html) or a file page (/about.html).
+const pages = [...STRICT.filter((u) => fs.existsSync(path.join(ROOT, u.endsWith('.html') ? u : path.join(u, 'index.html')))), ...LEGACY];
 
 for (const url of pages) {
   for (const w of WIDTHS) {
