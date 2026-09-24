@@ -203,7 +203,7 @@ the Read row's links in the directory (`.ps-dir`), the deck filter button (with 
 
 `docs/PADDYSPEAKS-PLATFORM-IMPLEMENTATION.md` is the map. In short:
 - Navigation is five journeys (Read · Learn · Prepare · Find · Build) + Atlas
-  + About. Labels changed; **no URL moved**.
+  + Mentoring + About (`NAV` in `pages.py`; `index.html` by hand, same order). Labels changed; **no URL moved**.
 - Search is `lib/ps-search.js` over `data/search/*.json` (built by
   `build.py search`). The homepage's old inline search engine was removed.
 - `lib/ps-platform.js` (on ~280 pages) adds the legal footer row, a skip link
