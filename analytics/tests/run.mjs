@@ -290,7 +290,8 @@ eq(toPublicTestimonial({ ...row, edited_body: '   ' }).body,
   'Original text.', 'whitespace-only edited_body falls back to original');
 
 /* ── enum surfaces are closed sets ── */
-eq(CONTACT_REASONS.length, 7, 'seven contact reasons exactly as specified');
+eq(CONTACT_REASONS.length, 8, 'eight contact reasons exactly as specified');
+ok(CONTACT_REASONS.includes('mentoring'), 'mentoring is a contact reason (the /mentoring/ button preselects it)');
 eq(RELATIONSHIPS.length, 6, 'six relationship options exactly as specified');
 eq(DISPLAY_PREFS, ['full', 'first_initial', 'anonymous'], 'three display preferences');
 eq(LIMITS.testimonial, { min: 60, max: 700 }, 'testimonial bounds are 60–700 as specified');

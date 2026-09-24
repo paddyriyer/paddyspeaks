@@ -6,6 +6,19 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-09-24): Mentoring.** `/mentoring/` (source
+  `content/pages/mentoring.html`, Paddy's text verbatim, styles
+  `lib/ps-mentoring.css`), a short section on About (`#mentoring`) and one
+  line under Interview Studio in the homepage PREPARE chapter.
+  - There is no booking calendar yet. "Book a Mentoring Conversation" opens
+    `/contact/?reason=mentoring`, a new contact reason (`mentoring`, in
+    `analytics/lib/forms.js`, the Worker's labels and the contact select);
+    `lib/ps-forms.js` preselects any `?reason=` the select offers.
+  - **When Paddy has a Calendly / Cal.com link:** replace the one href in
+    `content/pages/mentoring.html` (marked by a comment), then
+    `build.py all`. About and the homepage link to `/mentoring/`, not to the
+    booking URL, so nothing else changes.
+
 - **NEWEST (2026-09-24): About page rework + one shared header.** Audit,
   change record and the facts awaiting Paddy's confirmation are in
   **`docs/ABOUT-PAGE-AUDIT.md`**.

@@ -45,6 +45,14 @@ Three deliberate choices, each following an existing precedent in this repo:
 |---|---|
 | Contact name / email / subject / message | **Emailed, then discarded.** Never written to any database. |
 | Contact log row | Reason (dropdown value only) + salted one-way hashes. No free text. |
+
+Contact reasons (a closed set, `CONTACT_REASONS` in `analytics/lib/forms.js`):
+`article_feedback`, `interview_studio`, `technical_consulting`,
+`collaboration`, `mentoring`, `spiritual_cultural`, `website_issue`, `other`.
+Adding one means the list, `REASON_LABELS` in `worker/contact.js`, the
+`<select>` in `contact/index.html` and the count in `tests/run.mjs`.
+`/contact/?reason=<value>` preselects it (`lib/ps-forms.js`); `/mentoring/`
+links there with `reason=mentoring`.
 | Testimonial email | Stored (needed to reply/verify) but **never** returned by the public API and never displayed. |
 | Visitor IP | **Never stored raw** — only `sha256(FORMS_SALT + ip)`. |
 | Analytics events | Counts and outcomes only. No name, email, or message content ever. |
