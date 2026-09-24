@@ -238,7 +238,11 @@ def build(src: str) -> str:
     # 3. per-part time strip + footer nav (time is computed without the chrome)
     times = {}
     for num, _t, body in parts:
+        # Measure the author's content only — never the generated chrome,
+        # or each run would change the next run's numbers.
         clean = TIME_RE.sub("", body)
+        clean = re.sub(r'<nav class="hb-chapnav".*?</nav>', "", clean, flags=re.DOTALL)
+        clean = re.sub(r"<!-- HB:TOC START.*?<!-- HB:TOC END -->", "", clean, flags=re.DOTALL)
         times[num] = time_model(clean)
 
     def rewrite_section(m: re.Match) -> str:

@@ -105,7 +105,8 @@ def main() -> int:
         errors.append(
             f"<section> imbalance: {src.count('<section')} open vs {src.count('</section>')} close"
         )
-    body = src[src.find('<div class="article-content">'):src.find('<footer class="site-footer">')]
+    # The parts, from the first <section> to the last </section>.
+    body = src[src.find('<section id="part-00"'):src.rfind("</section>") + len("</section>")]
     bal = Balance()
     bal.feed(body)
     errors += [f"html: {e}" for e in bal.errors[:20]]
