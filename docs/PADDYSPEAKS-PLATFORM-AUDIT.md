@@ -327,19 +327,19 @@ storage key, `articles/index.html` (a stale listing page).
 
 | Item | Real implementation location |
 |---|---|
-| P0.1 registry | New `data/platform/catalog.json` (hand) → `scripts/platform/build.py` → `data/site-registry.json`; stamped into `[data-ps-stat]` spans; extends `interview/scripts/update_counts.py` |
+| P0.1 registry | New `data/platform/catalog.json` (hand) → `scripts/platform_build/build.py` → `data/site-registry.json`; stamped into `[data-ps-stat]` spans; extends `interview/scripts/update_counts.py` |
 | P0.2 provenance | New `data/provenance/*.json`, `lib/ps-sources.js`; mounted on sacred-text apps |
 | P0.3 corrections | New `data/corrections.json` → `/corrections/` |
 | P0.4 privacy | `privacy/index.html`, `privacy/app.js`, `privacy/privacy.css`, `lib/ps.js`, `index.html:1186`, `interview.app/leaderboard/index.html`, `interview.app/README.md`, `interview.app/js/jobs.js`, `articles/careeros-professional-intelligence-network.html`, `contact/`, `testimonials/` |
 | P0.5 legal | New `/privacy-policy/`, `/terms/`, `/disclaimer/`, `/copyright/`; footer links via `lib/ps-platform.js` + static links on key pages |
 | P0.6 security | `analytics/worker/worker.js` (CORS, auth), `forms-util.js`, `scan.js`, `leaderboard.js`, `privacy/app.js`, `jobsignal/pipeline/normalize.py`, new `_headers`, new CI workflow |
-| P0.7 backup | New `docs/BACKUP-RECOVERY.md`, `scripts/platform/export_d1.sh` |
+| P0.7 backup | New `docs/BACKUP-RECOVERY.md`, `scripts/platform_build/export_d1.sh` |
 | P0.8 accessibility | `index.html` search, `style.css` focus/reduced-motion, sacred-text skip links, new `docs/ACCESSIBILITY.md`, CI checks |
 | P1.1 IA | `index.html` nav (labels only; URLs unchanged), `lib/ps-platform.js` |
-| P1.2 search | `scripts/platform/build.py search` → `data/search/*.json`; `lib/ps-search.js` replaces the homepage IIFE |
+| P1.2 search | `scripts/platform_build/build.py search` → `data/search/*.json`; `lib/ps-search.js` replaces the homepage IIFE |
 | P1.3 pathways | `index.html`, new `.ps-paths` block after the masthead |
 | P1.4/1.5 state + continue | `lib/ps-state.js`, `lib/ps-continue.js` |
-| P1.6 subscribe | `scripts/platform/build.py feeds` → `feed.xml`, `feeds/*.xml`; `/subscribe/` |
+| P1.6 subscribe | `scripts/platform_build/build.py feeds` → `feed.xml`, `feeds/*.xml`; `/subscribe/` |
 | P1.7 changelog | `data/changelog.json` → `/changelog/` + `changelog.xml` |
 | P1.8 design language | `lib/ps-platform.css` |
 | P2.1 graph | `data/graph/edges.json` (hand) + derived `data/graph.json` |

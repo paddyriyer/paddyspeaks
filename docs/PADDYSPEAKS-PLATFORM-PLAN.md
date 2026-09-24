@@ -7,7 +7,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
 
 - **No framework, no bundler, no new runtime dependency.** The site is static
   HTML; the pipelines are stdlib Python. New build steps are stdlib Python
-  (`scripts/platform/build.py`); new browser code is small vanilla JS in
+  (`scripts/platform_build/build.py`); new browser code is small vanilla JS in
   `lib/`, loaded only where it is used.
 - **URLs do not change.** Navigation labels may change; routes do not.
 - **`index.html` is hand-crafted.** It is edited by hand (and by the
@@ -35,7 +35,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
 - **Proposed:**
   1. `data/platform/catalog.json` (hand-authored) lists *what exists*:
      journeys, sacred texts, tracks, demos, job products, pages.
-  2. `scripts/platform/build.py registry` derives every count from the
+  2. `scripts/platform_build/build.py registry` derives every count from the
      content (`questions.json`, evaluate pools, `data-modeling.html`
      scenarios, `article_metadata.json`, deck cards, catalog) and writes
      `data/site-registry.json`.
@@ -52,7 +52,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
      and the homepage filter counts equal the deck counts.
   7. The question bots regenerate the registry in the same commit.
 - **Files:** `data/platform/catalog.json`, `data/site-registry.json`,
-  `scripts/platform/build.py`, `interview/scripts/update_counts.py`,
+  `scripts/platform_build/build.py`, `interview/scripts/update_counts.py`,
   `interview/data/manifest.json`, `index.html`, `about.html`,
   `interview.app/partials/nav.html` (+35 injected copies),
   `interview.app/design/index.html`, `interview.app/sql.html`,
@@ -63,7 +63,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
   elsewhere. Bot commits must include the regenerated registry, or unrelated
   PRs go red.
 - **Acceptance:** One value per statistic everywhere it appears;
-  `python3 scripts/platform/build.py check` passes; changing
+  `python3 scripts/platform_build/build.py check` passes; changing
   `questions.json` and re-running changes every surface; CI fails if a
   stamped span is hand-edited.
 
@@ -106,7 +106,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
   and state what stays local. Remove the analytics pixel from `/privacy/`,
   self-host nothing new, and disclose Google Fonts. Fix the `ps.js`
   comments. Name Resend on contact/testimonials. A CI wording test
-  (`scripts/platform/tests/test_privacy_claims.py`) fails if banned absolute
+  (`scripts/platform_build/tests/test_privacy_claims.py`) fails if banned absolute
   phrases ("nothing is uploaded", "no tracking", "no server") reappear on
   pages that load the pixel or `ps.js`.
 - **Acceptance:** Every claim in audit §12 is accurate or removed; the
@@ -153,7 +153,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
 - **Proposed:** `docs/BACKUP-RECOVERY.md` covering the 3 D1 databases, Git
   data (jobs history ledger, questions), the mirror repo, and Cloudflare
   secrets; D1 Time Travel (30-day point-in-time); an export script
-  `scripts/platform/export_d1.sh`; retention; restore and test procedures;
+  `scripts/platform_build/export_d1.sh`; retention; restore and test procedures;
   an optional scheduled export workflow (disabled until a token exists).
 - **Acceptance:** Every persistent store in audit §4/§6/§7 has a row: what,
   how often, retention, restore, owner, test.
@@ -164,7 +164,7 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
   count); global `:focus-visible`; global `prefers-reduced-motion` guard;
   skip links on sacred-text apps, `/privacy/`, `/contact/`; a label for the
   Gita search input; `aria-pressed` on the sacred view toggle; a lakehouse
-  synthetic-data notice. CI: `scripts/platform/tests/test_a11y_static.py`
+  synthetic-data notice. CI: `scripts/platform_build/tests/test_a11y_static.py`
   (lang, viewport, img alt, label-less inputs, dialog roles on new
   components) over public pages. `docs/ACCESSIBILITY.md` with a manual
   keyboard checklist.
@@ -272,6 +272,6 @@ _Built on `docs/PADDYSPEAKS-PLATFORM-AUDIT.md`. Order of priority:
   script for horizontal overflow.
 - **Tests (all no-network, all in Validate Content):**
   - `build.py check`: registry drift, stamps, catalog paths, deck ⇄ metadata, filter counts, feeds, search index, graph integrity.
-  - `scripts/platform/tests/test_platform.py`: schema, provenance honesty, privacy wording, static a11y, internal links for new pages.
+  - `scripts/platform_build/tests/test_platform.py`: schema, provenance honesty, privacy wording, static a11y, internal links for new pages.
   - `analytics/tests/run.mjs`: extended for CORS, auth compare, rate-limit IP choice.
   - `lib/tests/search.mjs`: ranking and type filtering.

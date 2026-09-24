@@ -1,29 +1,54 @@
 #!/usr/bin/env python3
 """
-Apply current question/company counts (from manifest.json) to every
-hardcoded reference in the homepage and bank pages.
+Apply current question/company counts to every hardcoded reference in the
+homepage and bank pages.
+
+Counts are taken from the DATA, not from manifest.json: the manifest is a
+cache that once drifted (it said 988 SQL questions while questions.json held
+991). This script now recounts questions.json, refreshes the manifest's
+totals, and then rewrites the pages.
 
 Idempotent — safe to run as part of the pipeline whenever the question
 list changes. Each substitution matches "<number> + keyword" pairs so
 re-runs always replace the previous (different) number with the new one.
 
-Usage:  python3 interview/scripts/update_counts.py
+Numbers that sit in visible HTML are better expressed as
+<span data-ps-stat="…"> and stamped by scripts/platform_build/build.py from
+data/site-registry.json; this script remains for strings inside <title>,
+meta descriptions and JSON-LD, where an element cannot go.
+
+Usage:  python3 interview/scripts/update_counts.py          # rewrite
+        python3 interview/scripts/update_counts.py --check  # CI: exit 1 if anything is stale
 """
 
 from __future__ import annotations
 
 import json
 import re
+import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "interview" / "data" / "manifest.json"
+QUESTIONS = ROOT / "interview" / "data" / "questions.json"
+COMPANIES = ROOT / "interview" / "data" / "companies.json"
+CHECK = "--check" in sys.argv[1:]
+
+_questions = json.loads(QUESTIONS.read_text())
+_langs = Counter(q["language"] for q in _questions)
+TOTAL = len(_questions)
+COS = len(json.loads(COMPANIES.read_text()))
+SQL_N = _langs.get("sql", 0)
+PY_N = _langs.get("python", 0)
 
 mf = json.loads(MANIFEST.read_text())
-TOTAL = mf["total"]
-COS = mf["companies"]
-SQL_N = mf["languages"].get("sql", 0)
-PY_N = mf["languages"].get("python", 0)
+_mf_new = dict(mf)
+_mf_new["total"] = TOTAL
+_mf_new["companies"] = COS
+_mf_new["languages"] = {k: _langs[k] for k in mf.get("languages", {}) if k in _langs}
+for _k in sorted(_langs):
+    _mf_new["languages"].setdefault(_k, _langs[_k])
 
 # The Skill Check (interview.app/evaluate/) is a different dataset from the
 # question bank above — its pools live as one JSON file per section. Its SEO
@@ -118,6 +143,11 @@ SUBS = [
     (re.compile(r"<span\s+id=\"qb-companies\">\s*[—\d-]+\s*</span>"),
      f'<span id="qb-companies">{COS}</span>'),
 
+    # FAQ JSON-LD answer "Most of the 991 SQL solutions run as-is" (the
+    # visible copy of this sentence is a data-ps-stat span instead).
+    (re.compile(r"\bMost of the \d+ SQL solutions\b"),
+     f"Most of the {SQL_N} SQL solutions"),
+
     # FAQ stat about SQL solutions ("X of the Y SQL solutions") —
     # rewrite to a percentage-based phrasing that ages gracefully.
     (re.compile(r"\b\d+\s+of\s+the\s+\d+\s+SQL\s+solutions\s+run\s+as-is\b"),
@@ -126,13 +156,19 @@ SUBS = [
      "Solutions that don't are flagged with a banner — they use Snowflake"),
 ]
 
-# index.html homepage — the deck card has a giant inline number "710" inside
-# a JetBrains Mono span. Match by the surrounding font-size attribute so we
-# don't touch unrelated 710's in the homepage's many SVG charts.
-HOMEPAGE_SUBS = [
-    (re.compile(r'(font-size:\s*64px[^>]*?>)\s*\d+\s*(</div>)'),
-     rf"\g<1>{TOTAL}\g<2>"),
-]
+# Per-page strings where the same wording carries a different number on each
+# page ("N Real Questions with In-Browser Playground" is SQL on one page and
+# Python on the other), so they cannot live in the shared SUBS list.
+PAGE_SUBS = {
+    "interview.app/sql.html": [
+        (re.compile(r"\b\d+ Real Questions with In-Browser"), f"{SQL_N} Real Questions with In-Browser"),
+        (re.compile(r"\bPractice \d+ real SQL interview questions"), f"Practice {SQL_N} real SQL interview questions"),
+    ],
+    "interview.app/python.html": [
+        (re.compile(r"\b\d+ Real Questions with In-Browser"), f"{PY_N} Real Questions with In-Browser"),
+        (re.compile(r"\bPractice \d+ real Python interview questions"), f"Practice {PY_N} real Python interview questions"),
+    ],
+}
 
 FILES = [
     "index.html",
@@ -172,7 +208,26 @@ EVAL_FILES = [
 ]
 
 
+STALE: list[str] = []
+
+
+def _apply(rel: str, src: str, new: str) -> None:
+    if new == src:
+        if not CHECK:
+            print(f"clean  {rel}")
+        return
+    if CHECK:
+        STALE.append(rel)
+        print(f"stale  {rel}")
+    else:
+        (ROOT / rel).write_text(new)
+        print(f"update {rel}")
+
+
 def main():
+    mf_text = json.dumps(_mf_new, indent=2) + "\n"
+    _apply("interview/data/manifest.json", MANIFEST.read_text(), mf_text)
+
     for rel in FILES:
         path = ROOT / rel
         if not path.exists():
@@ -180,16 +235,9 @@ def main():
             continue
         src = path.read_text()
         new = src
-        for rgx, repl in SUBS:
+        for rgx, repl in SUBS + PAGE_SUBS.get(rel, []):
             new = rgx.sub(repl, new)
-        if rel == "index.html":
-            for rgx, repl in HOMEPAGE_SUBS:
-                new = rgx.sub(repl, new)
-        if new != src:
-            path.write_text(new)
-            print(f"update {rel}")
-        else:
-            print(f"clean  {rel}")
+        _apply(rel, src, new)
 
     for rel in EVAL_FILES:
         path = ROOT / rel
@@ -200,11 +248,14 @@ def main():
         new = src
         for rgx, repl in EVAL_SUBS:
             new = rgx.sub(repl, new)
-        if new != src:
-            path.write_text(new)
-            print(f"update {rel}")
-        else:
-            print(f"clean  {rel}")
+        _apply(rel, src, new)
+
+    if CHECK:
+        if STALE:
+            print("update_counts --check: stale counts in " + ", ".join(STALE)
+                  + " — run: python3 interview/scripts/update_counts.py")
+            sys.exit(1)
+        return
 
     print(f"\nCurrent counts → {TOTAL} questions · {COS} companies · sql {SQL_N} · python {PY_N}")
     print(f"Skill Check    → {EVAL_TOTAL} questions across {EVAL_SECTION_N} sections · "
