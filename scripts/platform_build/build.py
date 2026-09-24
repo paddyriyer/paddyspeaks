@@ -9,6 +9,8 @@ Steps (run in this order by `all`):
     registry   data/site-registry.json from content (P0.1)
     stamp      write registry numbers into [data-ps-stat] elements (P0.1)
     pages      render corrections / changelog lists into their pages (P0.3, P1.7)
+    assets     ?v=<content hash> on style.css / lib/ps-* links in index.html, so
+               new HTML never meets a cached old stylesheet
     search     data/search/*.json universal search index (P1.2)
     graph      data/graph.json knowledge graph (P2.1)
     feeds      feed.xml, feeds/<category>.xml, changelog.xml (P1.6)
@@ -27,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_build import checks, registry, stamp  # noqa: E402
 from platform_build.common import dump_json, read_json, write_if_changed  # noqa: E402
 
-STEPS = ["registry", "stamp", "pages", "search", "graph", "feeds", "api"]
+STEPS = ["registry", "stamp", "pages", "assets", "search", "graph", "feeds", "api"]
 
 
 def step_registry(write: bool) -> list[str]:
@@ -53,7 +55,7 @@ def step_stamp(write: bool) -> list[str]:
 
 
 # Step name → module, where they differ.
-MODULES = {"search": "search_index", "graph": "graph", "feeds": "feeds", "api": "api", "pages": "pages"}
+MODULES = {"search": "search_index", "graph": "graph", "feeds": "feeds", "api": "api", "pages": "pages", "assets": "assets"}
 
 
 def _optional(name):

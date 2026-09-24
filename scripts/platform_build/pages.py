@@ -330,7 +330,8 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
 </body>
 </html>
 """
-    return out_file, out
+    from .assets import fingerprint  # ?v=<hash> on style.css / lib/ps-* links
+    return out_file, fingerprint(out)
 
 
 def run(write: bool) -> list[str]:
