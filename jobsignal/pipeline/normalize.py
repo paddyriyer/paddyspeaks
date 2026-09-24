@@ -443,8 +443,15 @@ def split_requirements(description: str) -> tuple[list[str], list[str]]:
 
 # ── apply URL policing ──────────────────────────────────────────────────
 def apply_url_ok(apply_url: str, company_domain: str) -> bool:
-    """The candidate must land at the employer or its ATS - never an aggregator."""
-    host = urlsplit(apply_url or "").netloc.lower().split(":")[0]
+    """The candidate must land at the employer or its ATS - never an aggregator.
+
+    https only: the URL becomes an href on the board, and a host check alone
+    would pass 'javascript://acme.greenhouse.io/%0A…', which is script.
+    """
+    parts = urlsplit(apply_url or "")
+    if parts.scheme.lower() != "https":
+        return False
+    host = parts.netloc.lower().split(":")[0]
     if not host:
         return False
     root = (company_domain or "").lower()

@@ -207,6 +207,14 @@ class TestApplyUrlPolicy(unittest.TestCase):
     def test_lookalike_domain_rejected(self):
         self.assertFalse(normalize.apply_url_ok("https://acme.com.evil.test/42", "acme.com"))
 
+    def test_non_https_scheme_rejected(self):
+        # A host check alone would let a script URL through to an href.
+        for bad in ("javascript://boards.greenhouse.io/%0Aalert(1)",
+                    "http://acme.com/careers/42",
+                    "data:text/html,<a>",
+                    "//acme.com/careers/42"):
+            self.assertFalse(normalize.apply_url_ok(bad, "acme.com"), bad)
+
     def test_record_with_aggregator_apply_url_is_dropped_not_flagged(self):
         rec = build_record(SRC, raw(apply_url="https://www.indeed.com/viewjob?jk=9"), ISO)
         self.assertIsNone(rec)

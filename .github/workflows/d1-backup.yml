@@ -1,0 +1,46 @@
+name: D1 backup (encrypted)
+
+# Off by default. D1 Time Travel already gives point-in-time restore; this
+# adds an off-platform, encrypted copy (docs/BACKUP-RECOVERY.md).
+#
+# To enable: add repository secrets CLOUDFLARE_API_TOKEN (D1 read),
+# CLOUDFLARE_ACCOUNT_ID and BACKUP_PASSPHRASE, then set the repository
+# variable D1_BACKUP_ENABLED=true. The forms database holds personal data and
+# this repository is public, so the export is encrypted BEFORE it becomes an
+# artifact, and artifacts are kept for 30 days only.
+on:
+  schedule:
+    - cron: '23 4 * * 0'   # weekly, Sunday 04:23 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    if: github.repository == 'paddyriyer/paddyspeaks' && vars.D1_BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Export all D1 databases
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: scripts/platform_build/export_d1.sh "$RUNNER_TEMP/d1"
+      - name: Encrypt (AES-256, PBKDF2) and remove plaintext
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          test -n "$BACKUP_PASSPHRASE"
+          cd "$RUNNER_TEMP/d1"
+          tar czf d1.tar.gz ./*.sql ./manifest-*.sha256
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in d1.tar.gz -out "d1-$(date -u +%Y%m%d).tar.gz.enc" -pass env:BACKUP_PASSPHRASE
+          shred -u ./*.sql d1.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: d1-backup-encrypted
+          path: ${{ runner.temp }}/d1/*.enc
+          retention-days: 30
