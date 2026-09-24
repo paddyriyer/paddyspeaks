@@ -6,6 +6,19 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-09-24): About page rework + one shared header.** Audit,
+  change record and the facts awaiting Paddy's confirmation are in
+  **`docs/ABOUT-PAGE-AUDIT.md`**.
+  - `about.html` is now GENERATED from `content/pages/about.html` by
+    `build.py pages`. Twelve sections: thesis, Engineer / Seeker, the dharma
+    quote, habits, registry counts, a five-project ledger, writing map, why,
+    career arc, beliefs (from Paddy's essays), a human note, where next.
+  - The homepage, About and all `pages.py` pages share one header
+    (`lib/ps-chrome.css`, sticky state in `lib/ps-nav.js`).
+  - **Open for Paddy:** "more than three decades" (Resume) vs the old "fifteen
+    years"; how to describe Simultaneous (not on the Resume; Meta is the
+    current role there); the personal line; paraphrased principles.
+
 - **NEWEST (2026-09-24): homepage UI evolution** on branch
   `claude/modest-archimedes-afg6oz`. Audit, decisions (KEEP / REFINE /
   REDESIGN / REMOVE), change record and before/after numbers are in

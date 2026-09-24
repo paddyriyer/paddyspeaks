@@ -177,4 +177,106 @@ reported in the change record, not hidden.
 
 ## Change record
 
-_Filled in after implementation._
+### How it is built
+
+- **Source:** `content/pages/about.html`, rendered to `about.html` by
+  `python3 scripts/platform_build/build.py pages` (CI fails if the output is
+  stale). Edit the source, never `about.html`.
+- **Header:** the shared one. `lib/ps-chrome.css` now holds the tokens,
+  primitives and header that the homepage and every `pages.py` page use;
+  `pages.py` emits the same header markup as `index.html`; the sticky state
+  lives in the shared `lib/ps-nav.js`. There is no About-specific nav.
+- **Page styles:** `lib/ps-about.css`, scoped to `body.ps-about`, built on the
+  shared tokens. No JavaScript of its own.
+- **Numbers:** `{{stat:…}}` tokens → `data-ps-stat` stamps from the registry,
+  the same source as the homepage.
+- **Portrait:** re-cropped from `images/paddy-profile.png` (really a
+  1536×1024 JPEG) to a 4:5 head-and-shoulders that excludes the icon
+  overlays; `images/about/paddy-portrait-{280,440}.webp` + 440 JPEG fallback.
+
+### Sections
+
+| # | Section | Status |
+|---|---|---|
+| 1 | Thesis: name, "I build systems that think and write words that question", roles, three-decades paragraph, modest portrait | Rewritten (thesis kept) |
+| 2 | 01 The Engineer / 02 The Seeker, each with its question, six subjects and a note; the joining line | Rewritten from Engineer / Philosopher |
+| 3 | The dharma quote as the page's one full-width moment, with three paragraphs on judgment | Promoted + new copy |
+| 4 | What I actually do: Architect · Build · Write · Study, each a link | New |
+| 5 | The library so far: essays, sacred texts, interview questions, companies, data models, working demos (all stamped) | New |
+| 6 | Things I've built: Interview Studio, JobSignal, Data Lab, Privacy Console, Atlas — purpose, proof, link | New (absorbs the Interview Studio paragraph) |
+| 7 | What I write about: Technology · Work · Life · Wisdom, three real essays each | New |
+| 8 | Why PaddySpeaks exists: the other question, four convictions, "give without expecting" | Rewritten (≈ 150 words) |
+| 9 | A short career arc: five eras, companies in one line, link to the Resume | New |
+| 10 | A few things I have come to believe: five lines from Paddy's own essays, each linked | New |
+| 11 | Away from the keyboard | New |
+| 12 | Where next: read, study, explore, professional work, send a note | Replaces "Continue the conversation" |
+
+**Removed or consolidated:** the retired nav and "Resume" nav item; "Back to
+Journal"; the full journal masthead (now the compact shared one); the gear
+and "॥" icons; the standalone Interview Studio paragraph (→ ledger row 01 and
+the "give without expecting" line); the LinkedIn / Send-a-message boxes (→
+Where next, and LinkedIn/Contact in the footer); `worksFor: Simultaneous` and
+the "Philosopher" job title in the metadata.
+
+### Measured after
+
+| | Before | After |
+|---|---|---|
+| Desktop height | 2,751 px | 4,937 px |
+| Phone height | 3,594 px | 7,773 px |
+| Words in the page body | 248 | 970 |
+| Words per desktop screen | ≈ 81 | ≈ 177 |
+| First line about Paddy (desktop) | y ≈ 870, below the fold | y ≈ 400, first screen |
+| Image bytes | 232 KB | 14 KB |
+| JS | 21 KB | 44 KB (the shared header's search script) |
+| CSS | 171 KB | 202 KB (`ps-chrome.css` + `ps-about.css`) |
+| LCP desktop / phone | 1,016 / 312 ms | 204 / 356 ms |
+| CLS desktop / phone | 0.0001 / 0 | 0.047 (web-font swap) / 0 |
+| axe | clean (ratchet) | clean, now on the **strict** list |
+
+The page is longer, not shorter. The brief's 60–70% length target assumed a
+long page; this one was short and empty. It now carries four times the words
+and all of the proof in 1.8× the desktop height, and the thesis reaches the
+first screen.
+
+### Does it tell a coherent story?
+
+Read top to bottom, the page now argues one thing: the same person asks
+*what can be built* at work and *whether it should be* in the texts, and
+PaddySpeaks is where the two meet in public. Each later section is evidence
+for that: habits (4), what grew (5), what was built (6), what is written (7),
+why (8), how long (9), what he believes (10). The subjects stop looking
+random because each one is filed under a question rather than a résumé
+heading. What it still lacks is Paddy's own voice in the new paragraphs —
+they are written to match it, and he should read them aloud and change
+anything that doesn't sound like him.
+
+### Facts Paddy needs to verify
+
+1. **"For more than three decades"** — taken from the Resume ("35+ years",
+   career from 1990). The old page said fifteen.
+2. **Simultaneous** — the old page said "now through my own venture,
+   Simultaneous"; the Resume lists Meta (Apr 2024 – present) and never
+   mentions Simultaneous. The new page names no current employer. Several
+   articles still mention Simultaneous; decide how it should be described.
+3. **"Student of Vedanta"** in the roles line (from the brief, not the old page).
+4. **Away from the keyboard:** Carnatic keertanas and Ramadasu "especially",
+   and "the discipline of writing things down", are inferred from what the
+   site publishes (the Bhajan Hall series; the writing itself). Frankl and
+   Watts are from the old page. The last sentence quotes the Resume.
+5. **Principles 01 and 02** add one explanatory sentence to the essay titles
+   ("Weigh advice by who pays if it is wrong"; "At some point you have to
+   choose") — paraphrases, not quotations.
+6. **The four convictions** in "Why PaddySpeaks exists" follow the brief's
+   themes; they are new sentences, not quotations.
+7. **Career eras** are grouped from the Resume's dates; "2026 — PaddySpeaks"
+   uses the site's "Est. 2026" (some essays were first published elsewhere
+   from 2020).
+
+### Follow-ups outside this change
+
+- `resume.html` and `visual-resume.html` still carry the retired journal nav,
+  and the Resume's "128 articles / 22 data models / 18+ sacred text guides"
+  are stale against the registry (149 / 23 / 23).
+- Articles keep their own navs; moving them to the shared header is a
+  separate, site-wide change.
