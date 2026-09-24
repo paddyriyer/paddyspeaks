@@ -66,6 +66,25 @@ or `jobsignal/`.
   index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
+## DE Interview Handbook (`articles/data-engineering-interview-prep.html`)
+
+The Senior/L5 handbook is edited **directly** — the article is the source of truth.
+Audit, change log and rationale: **`docs/DE-L5-HANDBOOK-AUDIT.md`** and
+**`docs/DE-L5-HANDBOOK-CHANGES.md`**.
+
+- **Never run `scripts/combine_interview.py`** (retired; it rebuilds from the stale
+  `interview/html/` sources and would delete Parts 10–20).
+- After editing, run `python scripts/handbook_build.py` (regenerates contents, section
+  numbering, per-part time estimates and prev/next — idempotent) then
+  `python scripts/check_handbook.py` (also in Validate Content).
+- Component CSS lives in `scripts/handbook/handbook.css` and is inlined by the build.
+- Never rename or delete an existing `id` — they are deep-link targets. Merge with a
+  `<span id="old-id"></span>` anchor instead. Visible numbers may change; ids may not.
+- Every technical part ends with an L5 Interview Card (eleven sections, fixed order);
+  every code block carries an Engine / Dialect / Executable label.
+- Never call a scenario "real", "verbatim", or attribute questions to named companies.
+  Vendor defaults and prices are labelled as such, with "check current docs".
+
 ## CRITICAL: Do NOT regenerate index.html
 
 The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:

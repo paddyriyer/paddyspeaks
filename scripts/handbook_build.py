@@ -242,6 +242,7 @@ def build(src: str) -> str:
         # or each run would change the next run's numbers.
         clean = TIME_RE.sub("", body)
         clean = re.sub(r'<nav class="hb-chapnav".*?</nav>', "", clean, flags=re.DOTALL)
+        clean = re.sub(r'<p class="back-to-top">.*?</p>', "", clean, flags=re.DOTALL)
         clean = re.sub(r"<!-- HB:TOC START.*?<!-- HB:TOC END -->", "", clean, flags=re.DOTALL)
         times[num] = time_model(clean)
 
