@@ -10,6 +10,8 @@ clones fresh each time). CLAUDE.md points here._
   `content/pages/mentoring.html`, Paddy's text verbatim, styles
   `lib/ps-mentoring.css`), a short section on About (`#mentoring`) and one
   line under Interview Studio in the homepage PREPARE chapter.
+  Mentoring is also in the shared header (after Search, before About) and
+  in every footer.
   - There is no booking calendar yet. "Book a Mentoring Conversation" opens
     `/contact/?reason=mentoring`, a new contact reason (`mentoring`, in
     `analytics/lib/forms.js`, the Worker's labels and the contact select);

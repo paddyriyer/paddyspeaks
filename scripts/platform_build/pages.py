@@ -42,6 +42,7 @@ NAV = [
     ("find", "Find", "/jobs/"),
     ("build", "Build", "/#data-lab"),
     ("atlas", "Atlas", "/atlas/"),
+    ("mentoring", "Mentoring", "/mentoring/"),
     ("about", "About", "/about.html"),
 ]
 
@@ -110,8 +111,10 @@ def nav_html(active: str | None) -> str:
                 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>'
                 '<line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
                 '<span class="nav-search-label" aria-hidden="true">Search</span></a>')
+        elif key == "mentoring":  # first link after Search
+            items.append(f'    <a href="{href}" class="ps-nav-mentoring" data-ps-after-search{cur}>{label}</a>')
         else:  # about: last and quiet
-            items.append(f'    <a href="{href}" class="ps-nav-about" data-ps-after-search{cur}>{label}</a>')
+            items.append(f'    <a href="{href}" class="ps-nav-about"{cur}>{label}</a>')
     return ('<div class="ps-navwrap" id="ps-navwrap">\n'
             '<a class="ps-navmark" href="#main-content" tabindex="-1" aria-hidden="true">Paddy<span>Speaks</span></a>\n'
             '<nav class="nav-bar" aria-label="Primary">\n' + "\n".join(items) + "\n</nav>\n</div>")
@@ -135,6 +138,7 @@ def footer_html() -> str:
     <div class="footer-links">
         <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
         <a href="/about.html">About</a>
+        <a href="/mentoring/">Mentoring</a>
         <a href="/resume.html">Resume</a>
         <a href="/visual-resume.html">Visual résumé</a>
         <a href="/testimonials/">Testimonials</a>
