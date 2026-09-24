@@ -15068,6 +15068,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses the MERGE WHEN MATCHED clause with an AND condition to filter updates only when the staging timestamp is newer than the production timestamp. It also properly inserts new products with CURRENT_TIMESTAMP for created_at. Options 1 and 3 either incorrectly set created_at or lack the timestamp comparison logic. Option 2 uses separate UPDATE/INSERT statements which are less efficient and error-prone than a single atomic MERGE."
+    },
+    {
+      "id": "sql-new-139",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-09-24",
+      "prompt": "You have a BigQuery table `page_views(user_id STRING, page_id STRING, view_time TIMESTAMP, session_id STRING)` with 10 billion rows. You need to identify users who viewed more than 100 unique pages within any single 24-hour window, optimized for cost and speed. You want to avoid full table scans and leverage BigQuery's strengths. Which approach is most efficient?",
+      "options": [
+        "Partition by view_time at HOUR level, then use window functions with RANGE BETWEEN to aggregate unique pages per user per 24-hour window across all partitions",
+        "Cluster by user_id and session_id, then use a self-join on view_time with TIMESTAMP_DIFF to find 24-hour windows, grouping by user_id to count distinct pages",
+        "Partition by view_time at DAY level and cluster by user_id, then use window functions ROW_NUMBER() and RANGE BETWEEN to identify 24-hour rolling windows of unique pages per user",
+        "Load all data into a temporary table, use CROSS JOIN to generate all possible 24-hour windows, then aggregate distinct page counts per user"
+      ],
+      "answer": 2,
+      "explanation": "Partitioning by DAY and clustering by user_id allows BigQuery to prune partitions efficiently and co-locate user data, minimizing scanned data. Window functions with RANGE BETWEEN can efficiently compute rolling 24-hour windows within each partition. Option 1 risks over-partitioning with HOUR granularity. Option 2's self-join is inefficient for large datasets. Option 4 uses CROSS JOIN which is prohibitively expensive."
     }
   ]
 }
