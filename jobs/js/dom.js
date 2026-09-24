@@ -10,6 +10,15 @@
 (function (global) {
   'use strict';
 
+  // Links come from employer data and from localStorage (saved jobs). Text is
+  // already safe; an href is not, because 'javascript:' runs when clicked.
+  // Only http(s), site-relative, fragment, query, mailto and blob: (the
+  // export download) targets are rendered; anything else becomes '#'.
+  function safeHref(v) {
+    var s = String(v);
+    return /^(https?:\/\/|\/(?!\/)|#|\?|mailto:|blob:)/i.test(s.trim()) ? s : '#';
+  }
+
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
     if (attrs) {
@@ -19,6 +28,7 @@
         if (k === 'class') node.className = v;
         else if (k === 'text') node.textContent = v;
         else if (k.indexOf('on') === 0 && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else if (k === 'href') node.setAttribute(k, safeHref(v));
         else node.setAttribute(k, v === true ? '' : String(v));
       });
     }
@@ -41,5 +51,5 @@
     return node;
   }
 
-  global.JSDom = { el: el, clear: clear, mount: mount };
+  global.JSDom = { el: el, clear: clear, mount: mount, safeHref: safeHref };
 })(window);

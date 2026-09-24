@@ -6,6 +6,20 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-09-24): platform upgrade P0→P2** on branch
+  `claude/serene-noether-32rejy` (draft PR #841). Read
+  **`docs/PADDYSPEAKS-PLATFORM-IMPLEMENTATION.md`** (what and why) and
+  **`docs/PADDYSPEAKS-PLATFORM-BACKLOG.md`** (what is left, and the owner
+  decisions — #1 is the publicly readable community-questions Google Sheet).
+  - Never type a public number: `data/site-registry.json` is derived and
+    stamped into `data-ps-stat` spans; `python3 scripts/platform_build/build.py
+    check` runs in CI and fails on drift. Run `build.py all` after content changes.
+  - New pages: /atlas/ /changelog/ /subscribe/ /corrections/ /privacy-policy/
+    /terms/ /disclaimer/ /copyright/, rendered from `content/pages/`.
+  - Search is `lib/ps-search.js` over `data/search/`; the homepage's inline
+    search engine is gone. Nav is Read · Learn · Prepare · Find · Build · Atlas · About.
+  - Worker hardened (CORS allowlist, GPC, admin throttle, scan limits,
+    retention cron) — deploys with the next push to main; no new secrets.
 - **NEWEST (2026-09-24): the DE Interview Handbook got its 2026 Senior/L5 upgrade**
   (`articles/data-engineering-interview-prep.html`). Stage 0 audit in
   `docs/DE-L5-HANDBOOK-AUDIT.md` (+ `-CLAIMS.md`); what changed, per part, in

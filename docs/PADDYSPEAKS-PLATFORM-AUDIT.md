@@ -15,7 +15,7 @@ is `docs/PADDYSPEAKS-PLATFORM-PLAN.md`; what was actually done is in
 | Layer | What it is | Where |
 |---|---|---|
 | Static site | ~1,324 tracked HTML files, no framework, no bundler, no `package.json` at the root. Pages are self-contained HTML with inline CSS/JS, many sharing `/style.css`. | repo root |
-| Hosting | Custom domain via `CNAME` (`paddyspeaks.com`). `docs/REPO-GUARDRAILS.md` says "every push to `main` auto-deploys to Cloudflare"; the `CNAME` file is a GitHub-Pages convention. **Not verifiable from the container** (the proxy blocks `paddyspeaks.com`). There is no `_headers` or `_redirects` file. | `CNAME` |
+| Hosting | Custom domain via `CNAME` (`paddyspeaks.com`). `privacy/app.js` records that **paddyspeaks.com is GitHub Pages** (a relative `/api/` 404'd there), while `docs/REPO-GUARDRAILS.md` says pushes "auto-deploy to Cloudflare". That fits GitHub Pages behind a Cloudflare-managed DNS zone. The live headers could not be checked from the container (the proxy blocks the domain). There is no `_headers` or `_redirects` file. | `CNAME` |
 | API | **One** Cloudflare Worker (`paddyspeaks`) on the custom domain `ps.paddyspeaks.com`, deployed from Git. It serves analytics, contact, testimonials, leaderboard and the privacy scan. | `analytics/worker/` |
 | Databases | Three Cloudflare D1 databases bound to the Worker (see §4). | `analytics/worker/wrangler.toml` |
 | Batch jobs | GitHub Actions only (no Worker crons). | `.github/workflows/` |

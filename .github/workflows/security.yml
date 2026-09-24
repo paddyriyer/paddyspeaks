@@ -1,0 +1,57 @@
+name: Security
+
+# Baseline security checks (docs/SECURITY.md). Read-only: it never writes to
+# the repository. Runs on PRs into main, weekly (so a newly published advisory
+# against an existing dependency is noticed without a code change), and on demand.
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # --history scans every commit's added lines
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Scan tracked files and history for committed credentials
+        run: python3 scripts/platform_build/secret_scan.py --history
+
+  worker:
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # CORS allowlist, constant-time admin auth, GPC opt-out, scan-proxy
+      # origin check and limits, retention job — all without a Worker runtime.
+      - name: Worker security and logic tests
+        run: node analytics/tests/run.mjs
+
+  dependencies:
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # privacy-agent is the only package with third-party dependencies. It
+      # has no lockfile, so audit what a fresh install would resolve today.
+      - name: npm audit (privacy-agent)
+        working-directory: privacy-agent
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm audit --audit-level=high --omit=dev

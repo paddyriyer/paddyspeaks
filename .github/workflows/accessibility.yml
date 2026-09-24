@@ -1,0 +1,36 @@
+name: Accessibility
+
+# axe-core (WCAG 2.2 A/AA) in headless Chromium over one page per journey plus
+# every platform page, at desktop and phone widths (docs/ACCESSIBILITY.md).
+# A RATCHET: legacy pages may not get worse than scripts/a11y/baseline.json;
+# platform pages must be clean. Automated checks are not a substitute for the
+# manual keyboard pass in docs/ACCESSIBILITY.md.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  axe:
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Tooling only, installed outside the repo: nothing is added to the site.
+      - name: Install axe-core and Playwright
+        run: |
+          mkdir -p "$RUNNER_TEMP/a11y" && cd "$RUNNER_TEMP/a11y"
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.56.1 axe-core@4
+          npx playwright install --with-deps chromium
+      - name: axe (ratchet against scripts/a11y/baseline.json)
+        env:
+          A11Y_DEPS: ${{ runner.temp }}/a11y
+        run: node scripts/a11y/axe-check.mjs

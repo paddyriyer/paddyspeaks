@@ -24,6 +24,7 @@ EXCLUDED_HTML_PREFIXES = (
     "tools/",
     "privacy-agent/",
     "node_modules/",
+    "content/",          # page SOURCES; their rendered output is checked instead
 )
 
 

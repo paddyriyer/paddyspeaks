@@ -70,9 +70,13 @@ def check_filter_counts_are_stamped() -> list[str]:
     """Homepage filter counts must be registry-stamped, never typed."""
     html = (ROOT / "index.html").read_text(encoding="utf-8")
     problems = []
-    for m in re.finditer(r'<button class="deck-filter-btn[^"]*" data-filter="([a-z]+)">.*?</button>', html, re.S):
+    found = 0
+    for m in re.finditer(r'<button\b[^>]*class="deck-filter-btn[^"]*"[^>]*data-filter="([a-z]+)"[^>]*>.*?</button>', html, re.S):
+        found += 1
         if "data-ps-stat=" not in m.group(0):
             problems.append(f"index.html: deck filter '{m.group(1)}' count is hand-typed (use data-ps-stat)")
+    if not found:
+        problems.append("index.html: no deck filter buttons found — the filter-count check would pass vacuously")
     return problems
 
 
@@ -216,10 +220,46 @@ def check_privacy_claims() -> list[str]:
     return problems
 
 
+STORAGE_LITERAL = re.compile(r"""(?:local|session)Storage\.(?:get|set|remove)Item\(\s*['"]([^'"]+)['"]""")
+STORAGE_CONST = re.compile(r"""\b(?:[A-Z_]*KEY|LS_[A-Z_]+|STORE_[A-Z_]+|STORAGE_PREFIX|RECENT_KEY)\s*=\s*['"]([A-Za-z0-9_.:-]+)['"]""")
+
+
+def check_state_keys() -> list[str]:
+    """Every browser-storage key the site writes is registered (P1.4), so the
+    privacy policy's 'data in this browser' panel can show and clear it."""
+    from .common import public_html_files, tracked_files
+    reg = read_json("data/platform/state-keys.json")
+    specs = [k for p in reg["products"] for k in p.get("keys", []) + p.get("session", [])]
+
+    def known(key: str) -> bool:
+        return any(key == sp["key"] or (sp["match"] == "prefix" and key.startswith(sp["key"])) for sp in specs)
+
+    roots = ("lib/", "interview.app/", "jobs/js/", "careeros/", "privacy/", "index.html")
+    cat = read_json(CATALOG)
+    roots += tuple(t["path"] for t in cat["sacred_texts"])
+    files = [f for f in tracked_files("*.js") + public_html_files()
+             if f.startswith(roots) and "/vendor/" not in f and "/tests/" not in f]
+    problems, seen = [], set()
+    for f in files:
+        try:
+            text = (ROOT / f).read_text(encoding="utf-8")
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue
+        for m in list(STORAGE_LITERAL.finditer(text)) + list(STORAGE_CONST.finditer(text)):
+            key = m.group(1)
+            if key.startswith("__") or (f, key) in seen:
+                continue
+            seen.add((f, key))
+            if not known(key):
+                problems.append(f"{f}: storage key '{key}' is not registered in data/platform/state-keys.json")
+    return problems
+
+
 def run_all() -> list[str]:
     problems: list[str] = []
     for fn in (check_catalog_paths, check_articles_consistent,
                check_filter_counts_are_stamped, check_interview_counts,
-               check_provenance, check_corrections, check_privacy_claims):
+               check_provenance, check_corrections, check_privacy_claims,
+               check_state_keys):
         problems += fn()
     return problems

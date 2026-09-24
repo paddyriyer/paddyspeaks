@@ -160,6 +160,22 @@ Use existing articles as reference. Key elements:
 - `ai` — Artificial intelligence
 - `personality` — Personality development: leadership, boundaries, self-worth
 
-Adding a category means touching five places: `KNOWN_CATEGORIES` in
-`.github/scripts/validate_content.py`, and in `index.html` the nav-bar link, the
-deck filter button, the hash allow-list, and `catLabels` in the search engine.
+Adding a category means touching these places: `KNOWN_CATEGORIES` in
+`.github/scripts/validate_content.py`; `article_categories` in
+`data/platform/catalog.json` (the registry and filter counts read it);
+`CAT_LABEL` in `scripts/platform_build/search_index.py`; and in `index.html`
+the Read pathway link (`.ps-paths`), the deck filter button (with a
+`data-ps-stat="deck.<id>"` count), and the hash allow-list. Then run
+`python3 scripts/platform_build/build.py all`.
+
+## Platform layer (read before touching nav, search, footers or counts)
+
+`docs/PADDYSPEAKS-PLATFORM-IMPLEMENTATION.md` is the map. In short:
+- Navigation is five journeys (Read · Learn · Prepare · Find · Build) + Atlas
+  + About. Labels changed; **no URL moved**.
+- Search is `lib/ps-search.js` over `data/search/*.json` (built by
+  `build.py search`). The homepage's old inline search engine was removed.
+- `lib/ps-platform.js` (on ~280 pages) adds the legal footer row, a skip link
+  where missing, and records "Continue" visits for pages with
+  `<meta name="ps:continue">`. Nothing it does leaves the browser.
+- Every browser-storage key must be listed in `data/platform/state-keys.json`.

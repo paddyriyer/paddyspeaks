@@ -70,8 +70,10 @@
   display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px; border-radius: 999px;
   font: 600 10.5px/1.6 var(--ps-font-mono); letter-spacing: .06em; text-transform: uppercase;
-  color: var(--ps-badge, currentColor);
-  background: color-mix(in srgb, var(--ps-badge, currentColor) 11%, transparent);
+  /* Text is the hue darkened toward black so 10.5px labels clear 4.5:1 on the
+     light backgrounds every product uses; the tint alone carries the hue. */
+  color: color-mix(in srgb, var(--ps-badge, currentColor) 60%, #000);
+  background: color-mix(in srgb, var(--ps-badge, currentColor) 9%, transparent);
   border: 1px solid color-mix(in srgb, var(--ps-badge, currentColor) 28%, transparent);
   white-space: nowrap;
 }
@@ -86,7 +88,10 @@
 .ps-badge[data-type="company"]   { --ps-badge: var(--ps-type-job); }
 .ps-badge[data-type="demo"],
 .ps-badge[data-type="tool"]      { --ps-badge: var(--ps-type-demo); }
-.ps-badge[data-type="page"]      { --ps-badge: var(--ps-type-page); }
+.ps-badge[data-type="page"],
+.ps-badge[data-type="journey"]   { --ps-badge: var(--ps-type-page); }
+.ps-badge[data-type="concept"]   { --ps-badge: #7a3e8e; }
+.ps-badge[data-type="music"]     { --ps-badge: var(--ps-type-sacred); }
 .ps-badge[data-status="verified"],
 .ps-badge[data-status="ok"]      { --ps-badge: var(--ps-status-ok); }
 .ps-badge[data-status="under-review"],
@@ -152,8 +157,8 @@
   border-top: 1px solid color-mix(in srgb, currentColor 14%, transparent);
   font: 12px/1.6 var(--ps-font-ui); letter-spacing: .02em;
 }
-.ps-footer-legal a { color: inherit; opacity: .8; text-decoration: none; }
-.ps-footer-legal a:hover { opacity: 1; text-decoration: underline; }
+.ps-footer-legal a { color: inherit; text-decoration: none; display: inline-flex; align-items: center; min-height: 24px; }
+.ps-footer-legal a:hover { text-decoration: underline; }
 .ps-footer-min { padding: 24px 16px 32px; text-align: center; }
 
 /* ── Buttons (platform components only) ───────────────────────────────── */
@@ -170,10 +175,19 @@
   border-color: currentColor;
 }
 
-/* ── Motion: everything platform-owned respects reduced motion ────────── */
+/* ── Motion (WCAG 2.3.3): when the reader asks for less motion, the whole
+   page gets less motion — scroll reveals, hover lifts, fade-ins, smooth
+   scrolling. Loaded site-wide via ps-platform.js, so this one rule covers the
+   journal, the sacred-text apps, Interview Studio and the demos alike. ─── */
 @media (prefers-reduced-motion: reduce) {
-  .ps-panel > summary::before { transition: none; }
-  .ps-state[data-kind="loading"]::after { animation: none; }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Document pages (/corrections/, legal pages, changelog, subscribe) ─── */
@@ -210,3 +224,154 @@
 }
 .masthead .ps-masthead-title a { color: inherit; text-decoration: none; }
 .masthead .ps-masthead-title span { font-style: italic; font-weight: 400; color: var(--color-gold-dark, #1a4f8a); }
+
+/* Homepage "Stay in the Conversation": honest follow links (P1.6). */
+.ps-follow-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 14px; margin-top: 18px; }
+.ps-follow-links a {
+  display: inline-block; padding: 9px 16px; border: 1px solid currentColor; border-radius: var(--ps-radius-s);
+  font: 600 12px/1.2 var(--ps-font-mono); letter-spacing: .06em; text-transform: uppercase; text-decoration: none; color: inherit;
+}
+.ps-follow-links a:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
+
+/* ── PaddySpeaks Search (lib/ps-search.js) ─────────────────────────────── */
+html.ps-search-open { overflow: hidden; }
+.ps-search--dialog[hidden] { display: none; }
+.ps-search--dialog {
+  position: fixed; inset: 0; z-index: 9000;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px; background: rgba(14, 20, 30, .55);
+}
+.ps-search-panel {
+  width: 100%; max-width: 760px; max-height: 84vh; display: flex; flex-direction: column;
+  background: #fbfaf6; color: #1a2332; border-radius: var(--ps-radius-l);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .35); overflow: hidden;
+  font: 15px/1.5 var(--ps-font-serif);
+}
+.ps-search--page .ps-search-panel { max-height: none; box-shadow: none; background: transparent; color: inherit; border-radius: 0; overflow: visible; }
+.ps-search-title { font-family: "Playfair Display", Georgia, serif; font-size: 22px; margin: 0 0 10px; }
+.ps-search-bar, .ps-search-chips, .ps-search-status, .ps-search-foot, .ps-search-title { flex: none; }
+.ps-search-results { flex: 1 1 auto; min-height: 0; }
+.ps-search-bar { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid rgba(26, 35, 50, .12); }
+.ps-search--page .ps-search-bar { border: 1px solid rgba(26, 35, 50, .22); border-radius: var(--ps-radius-m); background: #fff; }
+.ps-search-bar:focus-within { box-shadow: inset 0 -2px 0 var(--ps-focus); }
+.ps-search--page .ps-search-bar:focus-within { box-shadow: var(--ps-focus-ring); }
+.ps-search-input {
+  flex: 1; min-width: 0; border: 0; background: transparent; color: inherit;
+  font: 18px/1.4 var(--ps-font-serif); padding: 4px 0;
+}
+.ps-search-input:focus { outline: none; }  /* the bar carries the focus indicator */
+.ps-search-input::-webkit-search-cancel-button { cursor: pointer; }
+.ps-search-close {
+  border: 1px solid rgba(26, 35, 50, .2); background: transparent; color: inherit; border-radius: var(--ps-radius-s);
+  padding: 4px 8px; font: 600 11px/1 var(--ps-font-mono); cursor: pointer;
+}
+.ps-search-chips { display: flex; gap: 6px; padding: 10px 18px 4px; overflow-x: auto; scrollbar-width: none; }
+.ps-search--page .ps-search-chips { padding: 12px 0 4px; flex-wrap: wrap; overflow: visible; }
+.ps-chip {
+  flex: none; display: inline-flex; gap: 6px; align-items: center; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid rgba(26, 35, 50, .2); background: transparent; color: inherit; cursor: pointer;
+  font: 600 12px/1.2 var(--ps-font-ui);
+}
+.ps-chip[aria-pressed="true"] { background: #1a2332; color: #fff; border-color: #1a2332; }
+.ps-chip-count { font: 11px var(--ps-font-mono); opacity: .8; }
+.ps-chip-count:empty { display: none; }
+.ps-search-status { margin: 6px 18px; font: 13px/1.5 var(--ps-font-ui); color: #4a5568; }
+.ps-search--page .ps-search-status { margin: 8px 0; }
+.ps-search-results { list-style: none; margin: 0; padding: 4px 8px 8px; overflow-y: auto; }
+.ps-search--page .ps-search-results { padding: 0; overflow: visible; }
+.ps-result > a {
+  display: block; padding: 10px 12px; border-radius: var(--ps-radius-m); color: inherit; text-decoration: none;
+}
+.ps-result[aria-selected="true"] > a, .ps-result > a:hover { background: rgba(37, 99, 168, .08); }
+.ps-result[aria-selected="true"] > a { box-shadow: inset 3px 0 0 var(--ps-focus); }
+.ps-result-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ps-result-title { font-family: "Playfair Display", Georgia, serif; font-weight: 700; font-size: 16.5px; line-height: 1.3; }
+.ps-result-sub { display: block; margin-top: 2px; font: 12.5px/1.45 var(--ps-font-ui); color: #4a5568; }
+.ps-result-text { display: block; margin-top: 3px; font-size: 14px; line-height: 1.5; color: #333d4b; }
+.ps-result mark { background: rgba(255, 196, 0, .35); color: inherit; padding: 0 1px; border-radius: 2px; }
+.ps-search-foot { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 10px 18px 14px; border-top: 1px solid rgba(26, 35, 50, .1); }
+.ps-search--page .ps-search-foot { padding: 14px 0; }
+.ps-search-foot:empty { display: none; }
+.ps-search-handoff { font: 600 12.5px/1.4 var(--ps-font-ui); color: #1a4f8a; }
+@media (max-width: 600px) {
+  .ps-search--dialog { padding: 0; }
+  .ps-search-panel { max-height: 100vh; height: 100%; border-radius: 0; }
+  .ps-search-input { font-size: 17px; }
+}
+
+/* ── Homepage orientation: "What did you come here to do?" (P1.3) ─────── */
+.ps-paths { max-width: 1200px; margin: 28px auto 8px; padding: 0 24px; }
+.ps-paths-h {
+  font-family: "Playfair Display", Georgia, serif; font-style: italic; font-weight: 400;
+  font-size: clamp(22px, 2.6vw, 30px); text-align: center; margin: 0 0 18px; color: var(--color-ink, #1a2332);
+}
+.ps-paths-grid {
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 2px solid var(--color-ink, #1a2332); border-bottom: 1px solid var(--color-border, #c8d6e5);
+}
+.ps-path { padding: 16px 16px 14px; border-right: 1px solid var(--color-border, #c8d6e5); }
+.ps-path:last-child { border-right: 0; }
+.ps-path-main { display: block; text-decoration: none; color: inherit; }
+.ps-path-label {
+  display: block; font: 700 11px/1.4 var(--ps-font-mono); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--color-gold-dark, #1a4f8a);
+}
+.ps-path-verb { display: block; margin-top: 4px; font-family: "Playfair Display", Georgia, serif; font-size: 20px; font-weight: 700; line-height: 1.2; color: var(--color-ink, #1a2332); }
+.ps-path-main:hover .ps-path-verb { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+.ps-path p { margin: 8px 0 0; font: 14px/1.55 var(--ps-font-serif); color: var(--color-muted, #3a4556); }
+.ps-path-links { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.ps-path-links a { display: inline-flex; align-items: center; min-height: 24px; min-width: 24px; font: 600 11.5px/1.2 var(--ps-font-mono); letter-spacing: .02em; color: var(--color-gold-dark, #1a4f8a); text-decoration: none; }
+.ps-path-links a:hover { text-decoration: underline; }
+.ps-paths-foot { text-align: center; margin: 12px 0 0; font: italic 15px/1.5 var(--ps-font-serif); color: var(--color-muted, #3a4556); }
+.ps-paths-foot a, .ps-linklike { color: var(--color-gold-dark, #1a4f8a); }
+.ps-linklike { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+@media (max-width: 1000px) {
+  .ps-paths-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ps-path { border-bottom: 1px solid var(--color-border, #c8d6e5); }
+  .ps-path:nth-child(2n) { border-right: 0; }
+  .ps-path:last-child { grid-column: 1 / -1; border-bottom: 0; }
+}
+@media (max-width: 560px) {
+  .ps-paths { padding: 0 16px; margin-top: 18px; }
+  .ps-paths-grid { grid-template-columns: 1fr; }
+  .ps-path { border-right: 0; padding: 14px 4px; }
+  .ps-path-verb { font-size: 18px; }
+}
+
+/* ── Continue where you left off (P1.5) ──────────────────────────────── */
+.ps-continue { max-width: 1200px; margin: 18px auto 0; padding: 0 24px; }
+.ps-continue-inner { border: 1px solid var(--color-border, #c8d6e5); border-radius: var(--ps-radius-m); padding: 14px 18px; background: color-mix(in srgb, var(--color-cream, #e2ebf4) 45%, transparent); }
+.ps-continue-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ps-continue h2 { margin: 0; font: 700 11px/1.4 var(--ps-font-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--color-gold-dark, #1a4f8a); }
+.ps-continue ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.ps-continue li a { font: 15.5px/1.5 var(--ps-font-serif); color: var(--color-ink, #1a2332); }
+.ps-continue li small { display: block; font: 11.5px/1.4 var(--ps-font-mono); color: var(--color-muted, #3a4556); }
+.ps-continue .ps-linklike { font: 12px var(--ps-font-ui); color: var(--color-muted, #3a4556); }
+@media (max-width: 560px) { .ps-continue { padding: 0 16px; } .ps-continue ul { flex-direction: column; } }
+
+/* ── Explore further (lib/ps-related.js, P2.2) ─────────────────────────── */
+.ps-related { max-width: 780px; margin: 40px auto 8px; padding: 18px 20px; border-top: 2px solid currentColor; font: 15px/1.5 var(--ps-font-serif); text-align: left; }
+.ps-related-h { margin: 0 0 10px; font: 700 12px/1.4 var(--ps-font-mono); letter-spacing: .14em; text-transform: uppercase; }
+.ps-related-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 4px 24px; }
+.ps-related-list li { padding: 8px 0; border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
+.ps-related-list a { display: flex; gap: 8px; align-items: baseline; color: inherit; text-decoration: none; min-height: 24px; }
+.ps-related-list a:hover .ps-related-title { text-decoration: underline; text-underline-offset: 3px; }
+.ps-related-title { font-weight: 600; }
+.ps-related-why { display: block; margin-top: 2px; font: 12px/1.4 var(--ps-font-ui); }
+.ps-related-more { margin: 12px 0 0; font: 600 13px/1.4 var(--ps-font-ui); }
+.ps-related-more a { color: inherit; }
+@media (max-width: 520px) { .ps-related { margin: 28px 12px 8px; padding: 14px 4px; } }
+
+/* ── Atlas (P2.3) ──────────────────────────────────────────────────────── */
+.ps-atlas-wrap { max-width: 980px; margin: 0 auto; }
+.ps-atlas-panel { margin: 18px 0; padding: 18px 20px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-left: 3px solid #7a3e8e; border-radius: var(--ps-radius-m); background: color-mix(in srgb, #7a3e8e 4%, transparent); }
+.ps-atlas-panel h2 { font-family: "Playfair Display", Georgia, serif; font-size: 24px; margin: 8px 0 6px; }
+.ps-atlas-panel h3 { margin: 16px 0 4px; font: 700 11.5px/1.4 var(--ps-font-mono); letter-spacing: .1em; text-transform: uppercase; }
+.ps-atlas-def { font-size: 16.5px; margin: 0; }
+.ps-atlas-list { list-style: none; margin: 4px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 2px 20px; }
+.ps-atlas-list li { padding: 5px 0; }
+.ps-atlas-list a { display: inline-flex; gap: 8px; align-items: baseline; color: inherit; min-height: 24px; }
+.ps-atlas-list small { display: block; font: 12px/1.4 var(--ps-font-ui); color: #4a5568; margin-left: 2px; }
+.ps-atlas-concepts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.ps-atlas-concepts a { display: inline-block; padding: 6px 12px; border: 1px solid color-mix(in srgb, #7a3e8e 40%, transparent); border-radius: 999px; color: inherit; text-decoration: none; font: 600 13px/1.3 var(--ps-font-ui); }
+.ps-atlas-concepts a:hover { background: color-mix(in srgb, #7a3e8e 8%, transparent); }
