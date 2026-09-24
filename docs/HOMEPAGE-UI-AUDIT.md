@@ -309,4 +309,59 @@ Each finding carries a classification: **KEEP** (right as is), **REFINE**
 
 ## Change record
 
-_Filled in as each phase lands._
+One commit per phase, each screenshotted at 1440 and 390 before the next began.
+
+| Phase | What changed |
+|---|---|
+| 1 | This audit. |
+| 2 | `lib/ps-home.css` (homepage only, scoped to `body.ps-home`): type scale, two spacing steps, journey accents (all ≥ 5:1 on the paper), 12-column grid, chapter / eyebrow / meta / deck / CTA primitives, a stretched-link pattern instead of card-wide anchors. Paper one step warmer on the homepage only. |
+| 3 | Masthead at about half the height, with a plain statement and Paddy's name. Nav: five equal journeys, a hairline, then Atlas · **Search** (labelled) · About (quiet, last). The row sticks after the masthead; the chapter in view gets `aria-current`. Five journeys → numbered directory. Catalogue search entry with four example queries (`data-ps-search-q` in `ps-search.js`). |
+| 4 | Feature (7 cols): cover art carries the figure, the body carries the words once. Latest (5 cols): five numbered stories, one with its illustration. The 38-card scrolling sidebar is gone. |
+| 5 | PREPARE and FIND chapters with product modules. JobSignal numbers are read from `/jobs/data/stats.json` at runtime and hidden (never zero) if unavailable. |
+| 6 | BUILD chapter: Data Lab as a six-row project index (adds CareerOS, so the page lists all six demos the registry counts) plus Privacy Console as a tool with its data behaviour stated. |
+| 7 | READ chapter: visual essays (flat, motif covers, no orbs or reveal); the 150 deck cards render as a dated list (markup untouched); health & wellness as a reading list. |
+| 8 | LEARN chapter on a parchment band, with Gita 2.47 as its threshold. Views unchanged; clearer tabs and labels; phones open on Cards, compacted to a two-column index. Devotional music as a sacred-text entry. |
+| 9 | Phone pass: full-width menu rows, slimmer sticky bar, no overflow at 320 / 390 / 900. |
+| 10 | Accessibility and performance (below). Tiny text raised; inline cover styles neutralised in the archive. |
+
+### Before → after
+
+Same harness as the baseline.
+
+| Metric | Desktop before | Desktop after | Phone before | Phone after |
+|---|---|---|---|---|
+| Page height | 11,574 px | **10,155 px** | 19,862 px | **13,185 px** |
+| LCP | 1,184 ms | 1,108–1,168 ms | 540 ms | 360 ms |
+| CLS | 0.018 | 0.007 | 0 | 0.037 (Cards view swap on load; < 0.1) |
+| Filter click → paint | 14 ms | 10–12 ms | 17 ms | 18 ms |
+| DOM elements | 3,379 | 2,929 | 3,379 | 2,929 |
+| Inline `style=""` | 623 | 325 | 623 | 326 |
+| Image bytes after load | 2,932 KB | **113 KB** | 2,112 KB | **113 KB** |
+| JS bytes | 72 KB | 76 KB (+ `ps-home.js`, 3.6 KB) | 72 KB | 76 KB |
+| CSS bytes | 171 KB | 219 KB (+ `ps-home.css`, 10 KB gzipped) | 171 KB | 219 KB |
+| HTML (gzipped) | 55 KB | 45 KB | | |
+| Text under 10px | 118 | **0** | 124 | 1 |
+| axe serious/critical | clean | clean | `target-size` ×13 | **clean** |
+
+The CSS is the one number that went up: the homepage layer is additive so
+that no shared rule changes. Everything the visitor waits for went down.
+
+### Notes and follow-ups
+
+- **Example searches.** The brief suggested "desire"; the shipped index ranks
+  a SQL question ("Obtain the Desired Result") first for it, so the entry
+  uses "karma", which returns Karma Yoga and Gita chapter 3. The other three
+  examples ("Kafka skew", "Bhagavad Gita 2.47", "Meta data engineer") return
+  sensible first results.
+- **Paper colour.** Warmer on the homepage only. Carrying it to the other
+  pages is a one-line change to `--color-paper` in `style.css`, left for the
+  owner because every article and product page would move with it.
+- **Mandala keyboard behaviour** is unchanged: the first Enter on a node shows
+  its detail panel, the second follows the link. Phones now default to Cards,
+  which are plain links.
+- **Telugu script cue** on the devotional entry relies on the reader's system
+  Telugu font (present on current Android, iOS, macOS and Windows); it is
+  `aria-hidden` and decorative.
+- Old homepage-only rules in `style.css` (`.featured-sidebar-*`, `.dd-*`,
+  `.health-card*`, `.interview-hero-card`) are now unused by `index.html` but
+  were left in place: removing shared CSS is a separate, reviewable change.
