@@ -136,6 +136,7 @@ def footer_html() -> str:
         <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
         <a href="/about.html">About</a>
         <a href="/resume.html">Resume</a>
+        <a href="/visual-resume.html">Visual résumé</a>
         <a href="/testimonials/">Testimonials</a>
         <a href="/contact/">Contact</a>
     </div>
