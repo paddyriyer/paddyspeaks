@@ -119,6 +119,12 @@ The homepage, About and every `pages.py` page share ONE header: markup in
 agree), styles in `lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky
 state in `lib/ps-nav.js`. Do not fork the navigation.
 
+Links to `style.css` and `lib/ps-*.css|js` in `index.html` and every
+`pages.py` page carry `?v=<content hash>` (`build.py assets`), so new HTML
+never meets a cached old stylesheet. After editing any of those files run
+`python3 scripts/platform_build/build.py all`; `build.py check` fails on a
+stale version. Scripts that look each other up must match with `*=`, not `$=`.
+
 ## Adding a New Article
 
 1. Create the HTML file in `articles/` using an existing article as template
