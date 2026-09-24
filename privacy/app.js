@@ -17,8 +17,12 @@
  * can it be removed, what do I say — is all here.
  *
  * Storage is `localStorage` on this origin. The only network calls this file
- * makes are to the site's own Worker for "Scan for me" — everything else,
- * including every judgement, happens locally. The paste flow makes none at all.
+ * makes are to the site's own Worker: /api/scan for "Scan for me" (which
+ * forwards the queries to Brave Search or Google Programmable Search) and
+ * /api/scan/read for "Find the opt-out" (which fetches one listing page).
+ * Everything else, including every judgement, happens locally. The paste flow
+ * makes no network call at all. The page's #data-flow section says the same in
+ * plain words — keep the two in step.
  */
 
 import { buildProfile, parseAddress } from '../privacy-agent/src/core/identity.js';
@@ -50,6 +54,15 @@ const API_BASE = 'https://ps.paddyspeaks.com';
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Result URLs come from search APIs and from text the user pasted. esc() stops
+// them breaking out of the attribute, but a `javascript:` URL is still a live
+// link, so every href built from outside data goes through safeUrl() first.
+const safeUrl = (u) => {
+  try {
+    const p = new URL(String(u ?? ''), location.href);
+    return p.protocol === 'https:' || p.protocol === 'http:' ? p.href : '#';
+  } catch { return '#'; }
+};
 
 /* ------------------------------------------------------------- state */
 
@@ -579,7 +592,7 @@ $('#scan-go')?.addEventListener('click', async () => {
           <div class="btns" style="margin-top:10px">
             <button class="btn sm primary" data-uadd="${i}">Yes, that's me</button>
             <button class="btn sm" data-uskip="${i}">Not me</button>
-            <a class="btn sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open →</a>
+            <a class="btn sm" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">Open →</a>
           </div>
         </div>`).join('')}` : ''}
     ${auto ? '<div class="btns" style="margin-top:14px"><button class="btn primary" id="scan-board">See my exposures →</button></div>' : ''}`;
@@ -748,7 +761,7 @@ $('#analyse-bulk').addEventListener('click', () => {
         <div class="btns" style="margin-top:10px">
           <button class="btn sm primary" data-add="${i}">Yes, that's me</button>
           <button class="btn sm" data-skip="${i}">Not me</button>
-          <a class="btn sm" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">Open listing →</a>
+          <a class="btn sm" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer">Open listing →</a>
         </div>
       </div>`).join('')}
     ${likely.length > 1 ? `<div class="btns" style="margin-top:14px">
@@ -1019,8 +1032,8 @@ function renderBulk() {
     ${b.identityNote ? `<div class="warnbox"><b>It will check who you are.</b> ${esc(b.identityNote)}</div>` : ''}
     ${b.note ? `<p class="note">${esc(b.note)}</p>` : ''}
     ${b.available ? `<div class="btns" style="margin-top:16px">
-      <a class="btn primary lg" href="${esc(b.url)}" target="_blank" rel="noopener noreferrer">Open the platform →</a>
-      ${b.helpUrl ? `<a class="btn" href="${esc(b.helpUrl)}" target="_blank" rel="noopener noreferrer">How it works</a>` : ''}
+      <a class="btn primary lg" href="${esc(safeUrl(b.url))}" target="_blank" rel="noopener noreferrer">Open the platform →</a>
+      ${b.helpUrl ? `<a class="btn" href="${esc(safeUrl(b.helpUrl))}" target="_blank" rel="noopener noreferrer">How it works</a>` : ''}
     </div>
     <p class="note">You file it there yourself, on the state's own site. Then come back — the
     listings below that this does <i>not</i> reach are the ones still worth your time.</p>` : ''}`;
@@ -1166,7 +1179,7 @@ function renderWaiting(live) {
               esc(r.reference.caseNumber)}</b>.</div>` : ''}
             ${r.thenWhat ? `<div class="qk" style="margin-top:6px">${esc(r.thenWhat)}</div>` : ''}
             ${r.url ? `<a class="btn sm" target="_blank" rel="noopener noreferrer"
-               href="${esc(r.url)}" style="margin-top:8px">Open the page →</a>` : ''}
+               href="${esc(safeUrl(r.url))}" style="margin-top:8px">Open the page →</a>` : ''}
           </div>`).join('')}
       </div>
     </div>`;
@@ -1253,7 +1266,7 @@ function renderExposure(e, group, open, bulk) {
         <button class="btn sm" data-copy="${esc(requestText(e))}">Copy removal request</button>
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.PENDING_REMOVAL}">I submitted it</button>` : ''}
       ${e.status === STATE.PENDING_REMOVAL ? `
-        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(e.url)}">Re-check the page →</a>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(safeUrl(e.url))}">Re-check the page →</a>
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.SUCCESSFULLY_REMOVED}">It's gone</button>` : ''}
       ${!e.removability.removable && e.status === STATE.CONFIRMED_EXPOSURE ? `
         <button class="btn sm" data-adv="${e.id}" data-to="${STATE.NOT_REMOVABLE}">Acknowledge</button>` : ''}
@@ -1334,7 +1347,7 @@ async function findOptOut(id) {
           <code>${esc(r.text)}</code>
           <div class="qk">${esc(r.why)}${r.sameSite ? '' : ' · hosted off-site, which is normal for privacy portals'}</div>
         </div>
-        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(r.url)}">Open →</a>
+        <a class="btn sm" target="_blank" rel="noopener noreferrer" href="${esc(safeUrl(r.url))}">Open →</a>
       </li>`).join('')}</ul>
     <p class="note">Once you have submitted it, come back and press <b>I submitted it</b> — that
     starts the clock, and the console will remind you that submitted is not removed.</p>

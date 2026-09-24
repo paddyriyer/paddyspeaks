@@ -18,18 +18,29 @@ import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/clas
 import { median, percentile, retention } from '../lib/metrics.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 import { THRESHOLDS } from '../lib/config.js';
+import { corsHeaders, isAdmin, gpcOptOut, isAdminRoute, adminGate } from './security.js';
+import { rateLimit } from './forms-util.js';
+import { runRetention } from './retention.js';
 
-function cors(request) {
-  const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-  };
+// CORS is an allowlist (security.js). It used to echo any Origin with
+// credentials allowed, which let any website drive this API from a visitor's
+// browser.
+const cors = corsHeaders;
+
+// A GIF that is returned whether or not the hit is recorded, so a page never
+// shows a broken image and never learns whether it was counted.
+function pixelResponse(ch) {
+  return new Response(PIXEL, {
+    headers: { 'Content-Type': 'image/gif', 'Cache-Control': 'no-store, no-cache, must-revalidate', 'Expires': '0', ...ch },
+  });
 }
 
 export default {
+  // Daily retention sweep (cron in wrangler.toml; see retention.js).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runRetention(env).then((r) => console.log('retention', JSON.stringify(r))));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const ch = cors(request);
@@ -43,6 +54,22 @@ export default {
         status: 200,
         headers: { ...ch, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' },
       });
+    }
+
+    // Global Privacy Control: the browser-side tracker already stops itself
+    // when GPC is on; the server honours the same signal for the no-JS pixel
+    // and for any collector hit that arrives anyway. Nothing is recorded.
+    if (gpcOptOut(request)) {
+      if (url.pathname === '/api/px.gif') return pixelResponse(ch);
+      if (url.pathname === '/collect' || url.pathname === '/api/v' || url.pathname === '/api/e') {
+        return new Response(null, { status: 204, headers: ch });
+      }
+    }
+
+    // Wrong admin passwords are throttled per IP before any admin handler runs.
+    if (isAdminRoute(url.pathname) && request.method !== 'OPTIONS') {
+      const limited = await adminGate(request, env, ch, rateLimit);
+      if (limited) return limited;
     }
 
     if (url.pathname.startsWith('/api/scan')) {
@@ -802,8 +829,7 @@ async function handleExcludeList(request, env, ch) {
 /* ───────── Helpers ───────── */
 
 function authenticate(request, env, ch) {
-  const auth = request.headers.get('Authorization') || '';
-  if (!auth.startsWith('Bearer ') || auth.slice(7) !== env.ADMIN_PASSWORD_HASH) {
+  if (!isAdmin(request, env)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...ch, 'Content-Type': 'application/json' },

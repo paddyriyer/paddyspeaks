@@ -34,17 +34,49 @@
  * not a convenience check.
  */
 
+import { isAllowedOrigin } from './security.js';
+import { rateLimit } from './forms-util.js';
+
 const MAX_QUERIES = 12;      // per request; the client paces itself across calls
 const MAX_RESULTS = 10;      // CSE's per-page maximum
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_PAGE_BYTES = 900_000;
 const MAX_LINKS = 300;       // enough for a footer-heavy broker page, small on the wire
 
+// Abuse limits per client IP per hour. A thorough scan is ~6 calls of up to 12
+// queries each; opt-out lookups are one call per listing. These leave a real
+// person plenty of headroom and stop a script burning the search quota.
+const SCAN_PER_HOUR = 30;
+const READ_PER_HOUR = 60;
+const MAX_REDIRECTS = 5;
+
+/**
+ * Only the site's own pages may call the scan routes. CORS alone does not stop
+ * a server-side script (it simply ignores CORS), so the Origin is checked here
+ * too; a request with no Origin — curl, a bot — is refused.
+ */
+function originOk(request) {
+  return isAllowedOrigin(request.headers.get('Origin') || '');
+}
+
 export async function routeScan(request, env, url, ch) {
-  if (url.pathname === '/api/scan' && request.method === 'POST') {
+  const isScan = url.pathname === '/api/scan' && request.method === 'POST';
+  const isRead = url.pathname === '/api/scan/read' && request.method === 'POST';
+  if (isScan || isRead) {
+    if (!originOk(request)) return json({ error: 'origin_not_allowed' }, 403, ch);
+    // Fail CLOSED: an unmetered call spends the search quota.
+    const rl = await rateLimit(env, request, isScan ? 'scan' : 'scan-read',
+      isScan ? SCAN_PER_HOUR : READ_PER_HOUR, 3600, { failClosed: true });
+    if (!rl.ok) {
+      return new Response(JSON.stringify({ error: 'rate_limited', retryAfter: rl.retryAfter }), {
+        status: 429, headers: { ...ch, 'Content-Type': 'application/json', 'Retry-After': String(rl.retryAfter || 3600) },
+      });
+    }
+  }
+  if (isScan) {
     return handleScan(request, env, ch);
   }
-  if (url.pathname === '/api/scan/read' && request.method === 'POST') {
+  if (isRead) {
     return handleRead(request, env, ch);
   }
   if (url.pathname === '/api/scan/status' && request.method === 'GET') {
@@ -202,16 +234,26 @@ async function handleRead(request, env, ch) {
   if (!isFetchable(target)) return json({ error: 'url_not_allowed' }, 400, ch);
 
   try {
-    const res = await withTimeout(fetch(target, {
-      headers: {
-        // Identify honestly. A tool acting for a person exercising their own
-        // privacy rights has no business pretending to be a random browser,
-        // and sites that wish to block it should be able to.
-        'User-Agent': 'PaddySpeaksPrivacyConsole/1.0 (+https://paddyspeaks.com/privacy/)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-      redirect: 'follow',
-    }));
+    // Redirects are followed by hand so EVERY hop passes isFetchable(): with
+    // redirect:'follow' a public URL could bounce the Worker to an internal one.
+    let res, hop = target;
+    for (let i = 0; ; i++) {
+      res = await withTimeout(fetch(hop, {
+        headers: {
+          // Identify honestly. A tool acting for a person exercising their own
+          // privacy rights has no business pretending to be a random browser,
+          // and sites that wish to block it should be able to.
+          'User-Agent': 'PaddySpeaksPrivacyConsole/1.0 (+https://paddyspeaks.com/privacy/)',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+        redirect: 'manual',
+      }));
+      const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+      if (!loc) break;
+      if (i >= MAX_REDIRECTS) return json({ error: 'too_many_redirects' }, 200, ch);
+      hop = new URL(loc, hop).href;
+      if (!isFetchable(hop)) return json({ error: 'url_not_allowed' }, 200, ch);
+    }
 
     const type = res.headers.get('content-type') || '';
     if (!/text\/html|text\/plain|application\/xhtml/i.test(type)) {
@@ -219,7 +261,7 @@ async function handleRead(request, env, ch) {
     }
 
     const html = (await res.text()).slice(0, MAX_PAGE_BYTES);
-    const base = res.url || target;
+    const base = hop || res.url || target;
     return json({
       url: base,
       status: res.status,
