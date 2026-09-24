@@ -4,7 +4,11 @@ A static web app that ships **1527 real interview questions** from 107 companies
 across SQL, Python, Snowflake, and Git, plus in-browser **SQL** and **Python**
 playgrounds so you can try every question without leaving the page.
 
-Everything runs client-side. No backend, no telemetry, no install.
+Everything runs client-side: no install, no account, and no backend for the
+question bank itself. The site-wide first-party analytics (`lib/ps.js`), the
+anonymous leaderboard and the optional AI mock interview (your own Anthropic
+key, sent directly from your browser to Anthropic) are the network features;
+see `/privacy-policy/`.
 
 ## URL
 

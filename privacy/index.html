@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Privacy Console — find and remove your personal data | PaddySpeaks</title>
-<meta name="description" content="A working privacy tool that runs entirely in your browser. Build your identity profile, generate the searches that find your exposed data, score every result against your identity, and track removals. Nothing is uploaded.">
+<meta name="description" content="A working privacy tool. Your identity profile, scores and removal tracker stay in your browser; the optional automatic scan sends your search terms through this site's server to a search provider. Find your exposed data, check each result is really you, and track removals.">
 <link rel="canonical" href="https://paddyspeaks.com/privacy/">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="Privacy Console — find and remove your personal data">
-<meta property="og:description" content="Build your identity profile, generate the searches that find your exposed data, score every result, and track removals. Runs entirely in your browser — nothing is uploaded.">
+<meta property="og:description" content="Build your identity profile, generate the searches that find your exposed data, score every result, and track removals. Your profile stays in your browser; the optional scan is explained step by step.">
 <meta property="og:url" content="https://paddyspeaks.com/privacy/">
 <meta name="twitter:card" content="summary_large_image">
 
@@ -29,7 +29,7 @@
 
 <div class="wrap">
   <div class="hero">
-    <span class="badge">Local-first · Private · Human-in-the-loop</span>
+    <span class="badge">Local-first · No account · Human-in-the-loop</span>
     <h1>Stop guessing who has your data.<span class="accent">We find it. You fix it.</span></h1>
     <p class="lede">Your personal information is out there — on data-broker sites,
     people-search pages and forgotten corners of the internet. This finds those exposures,
@@ -48,7 +48,8 @@
       way so the page can be read for its own removal link — a listing URL usually has your
       name in it. Both are used for that one request and discarded: nothing is logged, nothing
       is stored, nothing is cached. Neither is automatic; if you would rather it never happened,
-      use <i>Paste results</i> and skip the opt-out finder — everything else sends nothing.
+      use <i>Paste results</i> and skip the opt-out finder — the tool itself then sends nothing.
+      <a href="#data-flow">Exactly where each piece goes&nbsp;→</a>
     </div>
   </div>
 
@@ -289,10 +290,52 @@ node bin/privacy-agent.mjs run --mission</code></li>
     </section>
   </div>
 
+
+<section class="wrap" id="data-flow" aria-labelledby="data-flow-h" style="margin:48px auto 24px;max-width:860px">
+  <style>
+    #data-flow h2{font-family:var(--display);font-size:26px;margin:0 0 10px}
+    #data-flow h3{font-size:16px;margin:26px 0 6px}
+    #data-flow p,#data-flow li{line-height:1.65;margin:6px 0}
+    #data-flow ul{padding-left:22px}
+    #data-flow code{font-size:.9em}
+  </style>
+  <h2 id="data-flow-h">Data flow — where each piece goes</h2>
+  <p>This is what the code does, not an aspiration. The Worker source is public:
+  <a href="https://github.com/paddyriyer/paddyspeaks/blob/main/analytics/worker/scan.js">analytics/worker/scan.js</a>.</p>
+
+  <h3>Stays in this browser</h3>
+  <ul>
+    <li>Your identity profile, every scored result and your removal tracker, held in this browser's local storage (key <code>ps-privacy-v1</code>). Clearing site data, or <i>Erase everything</i>, removes it.</li>
+    <li><i>Paste results</i> mode: pasted search results are parsed and scored in the page. Nothing is sent.</li>
+  </ul>
+
+  <h3>Scan for me (optional, only when you press it)</h3>
+  <p><b>Your browser → ps.paddyspeaks.com (this site's Cloudflare Worker) → a search provider (Brave Search API, or Google Programmable Search if Brave is not configured).</b></p>
+  <ul>
+    <li>What is sent: the generated search queries. They contain your name and any address and phone number you entered.</li>
+    <li>The Worker runs the searches and returns the results. Its code writes no log line, stores nothing in any database, and marks responses <code>no-store</code>.</li>
+    <li>The search provider receives the queries under its own privacy policy. Cloudflare, which runs the Worker, keeps its own standard platform request logs; this site's code does not control those.</li>
+  </ul>
+
+  <h3>Find the opt-out (optional, per listing)</h3>
+  <p><b>Your browser → ps.paddyspeaks.com → the listing's own website.</b></p>
+  <ul>
+    <li>What is sent: the listing's web address, which often contains your name.</li>
+    <li>The Worker fetches that page from Cloudflare's network, so the broker sees a Cloudflare address rather than yours, and returns its text so the page can find the removal link. Nothing is logged or stored by this site's code.</li>
+  </ul>
+
+  <h3>Loading this page</h3>
+  <ul>
+    <li>Fonts come from Google Fonts, so Google receives your IP address and browser details when the page loads.</li>
+    <li>This page loads <b>no</b> analytics script and <b>no</b> tracking pixel.</li>
+  </ul>
+  <p>For the rest of the site, see the <a href="/privacy-policy/">privacy policy</a>.</p>
+</section>
 </main>
 
 <footer class="site"><div class="wrap">
-  Runs entirely in your browser — no account, no server, nothing uploaded.
+  Your profile stays in this browser — no account, no database.
+  <a href="#data-flow">What the optional scan sends, and to whom</a>.
   The same engine powers the
   <a href="https://github.com/paddyriyer/paddyspeaks/tree/main/privacy-agent">command-line agent</a>,
   which additionally automates form submission. ·
@@ -300,6 +343,6 @@ node bin/privacy-agent.mjs run --mission</code></li>
 </div></footer>
 
 <script type="module" src="app.js"></script>
-<img src="https://ps.paddyspeaks.com/api/px.gif?p=/privacy/" alt="" width="1" height="1" style="position:absolute;opacity:0" loading="eager">
+<script defer src="/lib/ps-platform.js"></script>
 </body>
 </html>

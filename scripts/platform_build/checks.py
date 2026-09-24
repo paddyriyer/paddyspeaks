@@ -87,9 +87,139 @@ def check_interview_counts() -> list[str]:
     return []
 
 
+STATUSES = {"verified", "source-noted", "source-not-recorded", "under-review"}
+SOURCE_ROLES = {"text", "transliteration", "translation", "commentary", "reference", "data"}
+SOURCE_KINDS = {"primary", "secondary", "reference"}
+CORRECTION_KINDS = {"factual", "translation", "technical", "data", "statistics", "attribution", "citation"}
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _path_exists(url: str) -> bool:
+    path = url.split("#")[0].split("?")[0].lstrip("/")
+    if not path:
+        return (ROOT / "index.html").exists()
+    p = ROOT / path
+    return (p / "index.html").exists() if path.endswith("/") else p.exists()
+
+
+def check_provenance() -> list[str]:
+    """Provenance records are honest and complete (docs/PROVENANCE.md)."""
+    import datetime
+    today = datetime.date.today().isoformat()
+    problems = []
+    cat = read_json(CATALOG)
+    for t in cat["sacred_texts"]:
+        f = ROOT / "data" / "provenance" / f"{t['id']}.json"
+        if not f.exists():
+            problems.append(f"sacred text '{t['id']}' has no data/provenance/{t['id']}.json")
+            continue
+        rec = read_json(f.relative_to(ROOT))
+        where = f"data/provenance/{t['id']}.json"
+        if rec.get("id") != t["id"] or rec.get("url") != "/" + t["path"]:
+            problems.append(f"{where}: id/url must match the catalog ({t['id']}, /{t['path']})")
+        st = rec.get("status")
+        if st not in STATUSES:
+            problems.append(f"{where}: status '{st}' not in {sorted(STATUSES)}")
+        # The honesty rule: 'verified' must name a check of the TEXT against its SOURCE.
+        if st == "verified":
+            ok = any(v.get("scope") == "text-against-source" and DATE_RE.match(v.get("verifiedOn", ""))
+                     for v in rec.get("verification", []))
+            if not ok:
+                problems.append(f"{where}: status 'verified' needs a verification entry with scope 'text-against-source' and a verifiedOn date")
+        if st == "source-not-recorded" and not rec.get("statusNote"):
+            problems.append(f"{where}: 'source-not-recorded' must explain itself in statusNote")
+        if st == "source-noted" and not rec.get("sources"):
+            problems.append(f"{where}: 'source-noted' with no sources")
+        for s_ in rec.get("sources", []):
+            if s_.get("role") not in SOURCE_ROLES or s_.get("kind") not in SOURCE_KINDS or not s_.get("label"):
+                problems.append(f"{where}: source {s_.get('label')!r} needs role in {sorted(SOURCE_ROLES)}, kind in {sorted(SOURCE_KINDS)} and a label")
+            u = s_.get("url")
+            if u and not (u.startswith("https://") or u.startswith("http://") or (u.startswith("/") and _path_exists(u))):
+                problems.append(f"{where}: source url {u!r} is neither http(s) nor an existing site path")
+        lr = rec.get("lastReviewed")
+        if lr and (not DATE_RE.match(lr) or lr > today):
+            problems.append(f"{where}: lastReviewed {lr!r} must be a past YYYY-MM-DD date")
+    return problems
+
+
+def check_corrections() -> list[str]:
+    problems = []
+    data = read_json("data/corrections.json")
+    items = data.get("corrections", [])
+    dates = [c.get("date", "") for c in items]
+    if dates != sorted(dates, reverse=True):
+        problems.append("data/corrections.json: entries must be newest first")
+    ids = [c.get("id") for c in items]
+    if len(ids) != len(set(ids)):
+        problems.append("data/corrections.json: duplicate ids")
+    for c in items:
+        where = f"data/corrections.json[{c.get('id')}]"
+        for k in ("id", "date", "url", "title", "kind", "summary"):
+            if not c.get(k):
+                problems.append(f"{where}: missing '{k}'")
+        if c.get("date") and not DATE_RE.match(c["date"]):
+            problems.append(f"{where}: date must be YYYY-MM-DD")
+        if c.get("kind") and c["kind"] not in CORRECTION_KINDS:
+            problems.append(f"{where}: kind '{c['kind']}' not in {sorted(CORRECTION_KINDS)}")
+        for u in [c.get("url", "")] + c.get("also", []):
+            if u and not _path_exists(u):
+                problems.append(f"{where}: url {u!r} does not exist")
+    return problems
+
+
+BANNED_PRIVACY = re.compile(
+    r"\bno (?:tracking|telemetry|analytics)\b|\bnothing (?:is )?uploaded\b|"
+    r"\bno server\b(?!-)|runs entirely in your browser\s*[—-]\s*nothing", re.I)
+# Places where a banned phrase is accurate or is not a claim about this site:
+# an essay about someone else's analytics, a code sample, a local-only tool.
+PRIVACY_CLAIM_ALLOW = {
+    "articles/part1.html",                       # code comment inside a sample
+    "articles/comprehensive-guide-consent-management-multi-level-cohorts.html",
+    "articles/build-your-own-analytics-and-debug-it.html",
+    "ic-flightdeck/index.html",                  # true: no pixel, no ps.js
+    "jobs/js/pages/job.js", "jobs/saved/index.html",  # the pipeline itself is never uploaded
+    "jobs/js/data.js", "jobs/js/tracker.js",           # same: describe the pipeline's data, accurately
+    "privacy/app.js",                                  # "the paste flow needs no server" — true
+    "interview.app/design/the-career-problem.html",    # "no telemetry inside a building" — editorial
+}
+TRACKER_RE = re.compile(r"/lib/ps\.js|api/px\.gif")
+
+
+def check_privacy_claims() -> list[str]:
+    """No page may promise more privacy than the code keeps (P0.4).
+
+    A page that loads the analytics script or pixel cannot say "no tracking";
+    no product page may say "nothing is uploaded" or "no telemetry" unless it
+    is on the reviewed allowlist above. The Privacy Console must stay free of
+    analytics and must keep its data-flow disclosure.
+    """
+    from .common import public_html_files, tracked_files
+    problems = []
+    files = public_html_files() + [f for f in tracked_files("*.js")
+                                   if f.startswith(("lib/", "interview.app/js/", "jobs/js/", "careeros/", "privacy/"))]
+    for f in files:
+        if f in PRIVACY_CLAIM_ALLOW or f.startswith("privacy-agent/"):
+            continue
+        try:
+            text = (ROOT / f).read_text(encoding="utf-8")
+        except (UnicodeDecodeError, FileNotFoundError):
+            continue
+        for m in BANNED_PRIVACY.finditer(text):
+            line = text.count("\n", 0, m.start()) + 1
+            problems.append(f"{f}:{line}: privacy claim '{m.group(0)}' — see docs/PADDYSPEAKS-PLATFORM-AUDIT.md §12; say what the code actually does")
+    pc = (ROOT / "privacy/index.html").read_text(encoding="utf-8")
+    if TRACKER_RE.search(pc):
+        problems.append("privacy/index.html must not load analytics — the page says it loads none")
+    for needle in ('id="data-flow"', "Brave", "Google"):
+        if needle not in pc:
+            problems.append(f"privacy/index.html: data-flow disclosure is missing '{needle}'")
+    return problems
+
+
 def run_all() -> list[str]:
     problems: list[str] = []
     for fn in (check_catalog_paths, check_articles_consistent,
-               check_filter_counts_are_stamped, check_interview_counts):
+               check_filter_counts_are_stamped, check_interview_counts,
+               check_provenance, check_corrections, check_privacy_claims):
         problems += fn()
     return problems

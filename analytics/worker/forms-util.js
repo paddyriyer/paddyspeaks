@@ -18,10 +18,13 @@ export async function sha256Hex(str) {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Best-effort client IP (Cloudflare). Never stored raw — always hashed. */
+/**
+ * Client IP as Cloudflare saw it. Never stored raw — always hashed.
+ * X-Forwarded-For is deliberately NOT consulted: on Cloudflare it is set by
+ * the client and can be spoofed to dodge a per-IP rate limit.
+ */
 export function clientIp(request) {
-  return request.headers.get('CF-Connecting-IP') ||
-    request.headers.get('X-Forwarded-For') || '0.0.0.0';
+  return request.headers.get('CF-Connecting-IP') || '0.0.0.0';
 }
 
 /** Salt for one-way hashes. Falls back to a constant so it works pre-config. */
@@ -33,10 +36,14 @@ export async function ipHash(env, request) {
 
 /**
  * Fixed-window rate limit backed by D1 `rate_limits`. Returns { ok, retryAfter }.
- * Fails OPEN (ok:true) if the table/binding is unavailable — never blocks a
- * legitimate user because of an infra hiccup; the honeypot + email still apply.
+ * By default fails OPEN (ok:true) if the table/binding is unavailable — a
+ * contact message is never lost to an infra hiccup; the honeypot + email still
+ * apply. Pass { failClosed: true } where an unmetered call costs money or
+ * weakens a defence (the scan proxy, admin sign-in).
  */
-export async function rateLimit(env, request, endpoint, max, windowSec) {
+export async function rateLimit(env, request, endpoint, max, windowSec, opts) {
+  const failClosed = !!(opts && opts.failClosed);
+  if (!env.FORMS) return failClosed ? { ok: false, retryAfter: windowSec } : { ok: true };
   try {
     const now = Date.now();
     const win = Math.floor(now / (windowSec * 1000));
@@ -58,7 +65,7 @@ export async function rateLimit(env, request, endpoint, max, windowSec) {
     }
     return { ok: true };
   } catch (e) {
-    return { ok: true }; // fail open
+    return failClosed ? { ok: false, retryAfter: windowSec } : { ok: true };
   }
 }
 
