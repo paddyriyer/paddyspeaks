@@ -20,7 +20,7 @@ export const LIMITS = {
 
 export const CONTACT_REASONS = [
   'article_feedback', 'interview_studio', 'technical_consulting',
-  'collaboration', 'spiritual_cultural', 'website_issue', 'other',
+  'collaboration', 'mentoring', 'spiritual_cultural', 'website_issue', 'other',
 ];
 
 export const RELATIONSHIPS = [

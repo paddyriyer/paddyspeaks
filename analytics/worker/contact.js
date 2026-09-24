@@ -16,6 +16,7 @@ const REASON_LABELS = {
   interview_studio: 'Interview Studio',
   technical_consulting: 'Technical consulting',
   collaboration: 'Collaboration or speaking',
+  mentoring: 'Mentoring conversation',
   spiritual_cultural: 'Spiritual or cultural content',
   website_issue: 'Website issue',
   other: 'Something else',
