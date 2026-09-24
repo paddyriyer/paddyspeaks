@@ -353,9 +353,15 @@ that no shared rule changes. Everything the visitor waits for went down.
   uses "karma", which returns Karma Yoga and Gita chapter 3. The other three
   examples ("Kafka skew", "Bhagavad Gita 2.47", "Meta data engineer") return
   sensible first results.
-- **Paper colour.** Warmer on the homepage only. Carrying it to the other
-  pages is a one-line change to `--color-paper` in `style.css`, left for the
-  owner because every article and product page would move with it.
+- **Paper colour — now site-wide (2026-09-24, owner's call).** `style.css`
+  `:root` carries the warm paper (`#f7f5f0`), cream (`#efebe2`) and matching
+  borders (`#d5cfc2` / `#e4dfd4`); `lib/ps-home.css` no longer overrides them
+  and `lib/ps-platform.css` fallbacks match. Ink, blues and the type are
+  unchanged, and every shared text colour gains a little contrast (e.g.
+  `--color-light-muted` 5.30 → 5.42:1). The axe ratchet reports the same
+  counts on every page as before. Pages that define their own palette
+  (most self-contained articles, the sacred-text apps, JobSignal) are
+  unaffected by design.
 - **Mandala keyboard behaviour** is unchanged: the first Enter on a node shows
   its detail panel, the second follows the link. Phones now default to Cards,
   which are plain links.

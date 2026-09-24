@@ -23,7 +23,9 @@ clones fresh each time). CLAUDE.md points here._
   - Deck cards keep their exact markup; CSS renders them as a dated list.
   - Images on load: 2.9 MB → 113 KB. Phone page: 19.9k px → 13.2k px. axe clean
     at both widths (was 13 `target-size` on phone).
-  - Owner decision left open: carry the warmer paper to the rest of the site.
+  - The warm paper is now **site-wide** (`style.css` `:root`: paper `#f7f5f0`,
+    cream `#efebe2`, borders `#d5cfc2` / `#e4dfd4`) — Paddy's call: "we want to be
+    warm people". The homepage layer no longer overrides it.
 
 - **NEWEST (2026-09-24): platform upgrade P0→P2** on branch
   `claude/serene-noether-32rejy` (draft PR #841). Read
