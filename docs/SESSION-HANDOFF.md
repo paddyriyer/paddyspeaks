@@ -1,10 +1,22 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-21 (JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-24 (DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-09-24): the DE Interview Handbook got its 2026 Senior/L5 upgrade**
+  (`articles/data-engineering-interview-prep.html`). Stage 0 audit in
+  `docs/DE-L5-HANDBOOK-AUDIT.md` (+ `-CLAIMS.md`); what changed, per part, in
+  `docs/DE-L5-HANDBOOK-CHANGES.md`. 20 parts now (13–20 new: distributed systems,
+  platform/security/release, CDC/contracts/dbt, serving & warehouses, DE for AI,
+  system design & capacity, debugging lab, self-assessment & cheat sheets); 17 L5
+  Interview Cards; ~350 audited claims; every code block labelled. The article is the
+  source of truth — `combine_interview.py` is retired; run `scripts/handbook_build.py`
+  then `scripts/check_handbook.py` after edits (rules in CLAUDE.md). Open follow-ups:
+  a compression pass on Parts 01/03/09 (page is ~182K words), CI-executing the
+  "Executable: Yes" code, and the hedged items listed under "Remaining gaps".
 
 - **NEWEST (2026-09-21, second pass): JobSignal search was rebuilt and `/jobs/`
   was redesigned.** The board is no longer a board — it is a search product.
