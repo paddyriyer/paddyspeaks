@@ -12,6 +12,25 @@ Namespacing strategy:
 """
 from __future__ import annotations
 
+# ─────────────────────────────────────────────────────────────────────────
+# RETIRED (September 2026). Do not run.
+#
+# articles/data-engineering-interview-prep.html is now edited directly and is
+# the single source of truth. The interview/html/ sources below stopped being
+# maintained in April 2026: Parts 10–12 and every later edit exist only in the
+# article, so re-running this script would silently delete them.
+#
+# The navigation layer (contents, numbering, prev/next, time estimates) is
+# maintained by scripts/handbook_build.py; scripts/check_handbook.py guards it.
+# ─────────────────────────────────────────────────────────────────────────
+import sys as _sys
+
+if __name__ == "__main__" and "--i-know-this-overwrites-the-handbook" not in _sys.argv:
+    _sys.exit(
+        "combine_interview.py is retired: the article is the source of truth and this "
+        "script would delete Parts 10+. Edit the article and run scripts/handbook_build.py."
+    )
+
 import html
 import re
 import sys
