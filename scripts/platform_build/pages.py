@@ -149,6 +149,15 @@ def render_journeys() -> str:
     return f"<ul>\n{lis}\n</ul>"
 
 
+def render_concepts() -> str:
+    p = ROOT / "data" / "graph" / "concepts.json"
+    if not p.exists():
+        return ""
+    cs = json.loads(p.read_text(encoding="utf-8"))["concepts"]
+    lis = "\n".join(f'  <li><a href="/atlas/?c={esc(c["id"].split(":", 1)[1])}">{esc(c["label"])}</a></li>' for c in cs)
+    return f'<ul class="ps-atlas-concepts">\n{lis}\n</ul>'
+
+
 def expand(body: str, stats: dict) -> str:
     def stat(m):
         key, style = m.group(1), m.group(2)
@@ -160,6 +169,7 @@ def expand(body: str, stats: dict) -> str:
     body = body.replace("{{corrections}}", render_corrections())
     body = body.replace("{{changelog}}", render_changelog())
     body = body.replace("{{journeys}}", render_journeys())
+    body = body.replace("{{concepts}}", render_concepts())
     return body
 
 
@@ -169,6 +179,8 @@ def render(src_name: str, stats: dict) -> tuple[str, str]:
     if not m:
         raise ValueError(f"content/pages/{src_name}: missing <!--page {{...}} --> front matter")
     fm = json.loads(m.group(1))
+    if "data-ps-stat=" in raw:
+        raise ValueError("use {{stat:key}} in page sources, not a literal data-ps-stat span (it would fight the stamper)")
     body = expand(raw[m.end():], stats)
     path = fm["path"].strip("/") + "/"
     url = f"{SITE}/{path}"

@@ -76,3 +76,58 @@ in the same commit, so a bot run never leaves drift for the next PR.
 - `careeros/js/data/profiles.js` is mock profile data inside a prototype.
 - `interview.app/js/app.js` shows a "1400+" placeholder only in the instant
   before the question bank loads.
+
+## Search
+
+`build.py search` writes `data/search/`:
+
+| Shard | Loaded | Contents |
+|---|---|---|
+| `core.json` | when search opens (~55 KB gzipped) | essays, sacred texts and Gita chapters, devotional music, Interview Studio tracks, design problems and data models, question topics, companies, demos, tools, site pages, concepts, journeys |
+| `verses.json` | first keystroke | 697 Bhagavad Gita verses: translation, transliteration, word list |
+| `names.json` | first keystroke | 2,007 Vishnu and Lalitha Sahasranama names and meanings |
+| `questions.json` | first keystroke | 1,527 Interview Studio question titles |
+| `manifest.json` | never (for people and tools) | counts, sizes, schema |
+
+The document schema is `{id, type, title, subtitle, text, tags, category, url,
+updated, source}`. Big shards hoist shared fields into `defaults`, which the
+client merges back. Sacred data is read from the apps' own `data.js` files
+by `extract_sacred.mjs`, evaluated in an empty Node `vm` sandbox, so nothing
+is copied by hand.
+
+**Live JobSignal roles are never indexed.** The client reads
+`/jobs/data/companies.json` at query time and hands role searches to
+`/jobs/search/?q=`, JobSignal's own family-gated ranker.
+
+Ranking (`lib/ps-search.js`, pure and tested by `lib/tests/search.mjs`):
+
+- whole-word and word-prefix title matches outrank tag, subtitle and body matches;
+- light stemming ("attachment" matches "attached");
+- diacritic-insensitive matching ("karmani" matches "karmaṇi");
+- an exact verse reference ("Gita 2.47", "bg 18.66") wins outright;
+- a company is a result only when the query names it;
+- per-type weights, and in the All view at most 5 results of one type unless nothing else matched.
+
+## Design language (P1.8)
+
+`lib/ps-platform.css` is the shared layer. The products keep their own
+palettes (journal ink-blue, sacred-text saffron and parchment, Interview
+Studio night-sky, JobSignal's product chrome, the light demo dashboards).
+What they now share:
+
+| Token / component | Purpose |
+|---|---|
+| `--ps-radius-*`, `--ps-space-*`, `--ps-font-*` | Radius, spacing and type scale for platform components |
+| `:focus-visible` ring | One focus treatment everywhere (low specificity, so products can refine it) |
+| `.ps-badge[data-type]` | Content-type labels: Essay, Sacred text, Verse, Interview prep, Company, Demo, Concept … the same colour for the same kind everywhere |
+| `.ps-badge[data-status]` | Status labels: source noted, not recorded, under review, verified, open |
+| `.ps-panel` | Collapsed disclosure (Sources & Verification, data flow) |
+| `.ps-state[data-kind]` | Empty, loading and error states |
+| `.ps-btn`, `.ps-chip` | Buttons and filter chips, with `aria-pressed` styling |
+| `.ps-footer-legal` | The site-information footer row |
+| `.ps-doc`, `.ps-callout`, `.ps-entry`, `.ps-toc` | Document pages (legal, corrections, changelog) |
+| Reduced-motion guard | Site-wide |
+
+Components inherit colour from their context (`currentColor` and
+`color-mix`), so the same panel looks native on every product. They were
+audited with axe for contrast (WCAG AA) and target size (24px).

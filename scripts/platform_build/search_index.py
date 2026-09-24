@@ -212,11 +212,21 @@ def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
 
 
+def concept_docs() -> list[dict]:
+    p = ROOT / "data" / "graph" / "concepts.json"
+    if not p.exists():
+        return []
+    return [doc(c["id"], "concept", c["label"], "/atlas/?c=" + c["id"].split(":", 1)[1],
+                subtitle="Concept · connects " + str(len(c["edges"])) + " pages",
+                text=c["definition"], tags=c.get("aliases", []), source="data/graph/concepts.json")
+            for c in json.loads(p.read_text(encoding="utf-8"))["concepts"]]
+
+
 def build() -> dict[str, list[dict]]:
     cat = read_json(registry.CATALOG)
     chapters, verses, names = sacred_docs()
     icore, questions = interview_docs()
-    core = articles() + catalog_docs(cat) + design_docs() + icore + chapters
+    core = articles() + catalog_docs(cat) + design_docs() + icore + chapters + concept_docs()
     core.sort(key=lambda d: d["id"])
     return {"core": core, "verses": verses, "names": names, "questions": questions}
 

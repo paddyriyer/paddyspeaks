@@ -73,6 +73,24 @@ def step_generic(name: str, write: bool) -> list[str]:
     return mod.run(write=write)
 
 
+def changelog_suggest() -> int:
+    """Print recent commits that MIGHT deserve a changelog entry. Never writes:
+    the changelog is curated by a person, because most commits are noise."""
+    import subprocess
+    log = subprocess.run(["git", "log", "--since=45 days ago", "--no-merges", "--format=%as  %s"],
+                         cwd=registry.ROOT, capture_output=True, text=True).stdout.splitlines()
+    noise = ("🤖", "Merge", "wip", "typo", "fix typo", "refresh", "bump")
+    have = {e["title"].lower() for e in read_json("data/changelog.json")["entries"]}
+    print("Candidates (curate by hand into data/changelog.json; most commits are not news):")
+    for line in log:
+        if any(n.lower() in line.lower() for n in noise):
+            continue
+        if line[12:].lower() in have:
+            continue
+        print("  " + line)
+    return 0
+
+
 def main(argv: list[str]) -> int:
     args = argv[1:] or ["all"]
     if args == ["check"]:
@@ -89,6 +107,9 @@ def main(argv: list[str]) -> int:
             return 1
         print("✓ platform check passed")
         return 0
+
+    if args == ["changelog-suggest"]:
+        return changelog_suggest()
 
     steps = STEPS if args == ["all"] else args
     unknown = [s for s in steps if s not in STEPS]
