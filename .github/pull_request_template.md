@@ -11,6 +11,6 @@
 ## Checklist
 
 - [ ] If adding an article: `article_metadata.json` updated (newest entry first)
-- [ ] If adding an article: card added to `index.html` (sidebar + deck grid) and filter counts updated
+- [ ] If adding an article: added to `index.html` (Latest list + deck grid); filter counts are stamped by `build.py`
 - [ ] No index-generation scripts were run (`index.html` is hand-crafted — see CLAUDE.md)
 - [ ] The **Validate Content** check is green
