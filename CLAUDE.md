@@ -88,22 +88,29 @@ Audit, change log and rationale: **`docs/DE-L5-HANDBOOK-AUDIT.md`** and
 ## CRITICAL: Do NOT regenerate index.html
 
 The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:
-- Scrollbar sidebar with featured articles
-- Sacred texts section with Mandala, Timeline, and Cards views
-- Custom featured hero with visual design
-- Hand-tuned deck grid ordering
+- Five-path directory (01 Read … 05 Build) and catalogue search entry
+- Front page: one feature (`.ps-feature`) and the five latest (`.ps-latest-list`)
+- Five numbered chapters; LEARN keeps the Mandala, Timeline and Cards views
+- Hand-tuned deck ordering (rendered as a dated archive list)
+
+Its layout and the reasons behind it are in **`docs/HOMEPAGE-UI-AUDIT.md`**;
+its styles live in `lib/ps-home.css` (homepage only, scoped to `body.ps-home`)
+and its behaviour in `lib/ps-home.js`. Do not restyle it through `style.css`,
+which ~190 other pages share.
 
 **NEVER run `generate_index.py`** (now deleted) or any script that overwrites `index.html`.
-When adding a new article, manually insert a card into `index.html`:
-1. Add a `featured-sidebar-card` entry in the sidebar section
-2. Add a `deck-card` entry in the `deck-grid` section
-3. Update filter counts if needed
+When adding a new article, manually edit `index.html`:
+1. Add an `<li>` at the top of `.ps-latest-list` and remove the fifth. Only the
+   first item carries an image; move it (or drop it) so exactly one does.
+2. Add a `deck-card` entry at the top of the `deck-grid` section, keeping the
+   shape `<a href="…" class="deck-card" data-category="…">` (registry.py reads it)
+3. Filter counts are `data-ps-stat` stamps — never type them
 
 ## Adding a New Article
 
 1. Create the HTML file in `articles/` using an existing article as template
 2. Add metadata to `article_metadata.json` (newest article first)
-3. Manually add cards to `index.html` (sidebar + deck grid)
+3. Manually add it to `index.html` (Latest list + deck grid)
 4. Add a `<url>` entry to `sitemap.xml`
 5. Run `python3 scripts/platform_build/build.py all`. This is NOT an index
    generator: it restamps the filter counts and other `data-ps-stat` numbers,
@@ -164,7 +171,7 @@ Adding a category means touching these places: `KNOWN_CATEGORIES` in
 `.github/scripts/validate_content.py`; `article_categories` in
 `data/platform/catalog.json` (the registry and filter counts read it);
 `CAT_LABEL` in `scripts/platform_build/search_index.py`; and in `index.html`
-the Read pathway link (`.ps-paths`), the deck filter button (with a
+the Read row's links in the directory (`.ps-dir`), the deck filter button (with a
 `data-ps-stat="deck.<id>"` count), and the hash allow-list. Then run
 `python3 scripts/platform_build/build.py all`.
 

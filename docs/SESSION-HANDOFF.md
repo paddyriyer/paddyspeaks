@@ -1,10 +1,29 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-24 (DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-24 (homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-09-24): homepage UI evolution** on branch
+  `claude/modest-archimedes-afg6oz`. Audit, decisions (KEEP / REFINE /
+  REDESIGN / REMOVE), change record and before/after numbers are in
+  **`docs/HOMEPAGE-UI-AUDIT.md`**.
+  - The homepage is now: compact masthead → sticky quiet nav → five-path
+    directory + catalogue search → feature (7 cols) + Latest five (5 cols) →
+    Continue → chapters 01 READ (visual essays, archive list, health) · 02 LEARN
+    (parchment band, mandala) · 03 PREPARE · 04 FIND · 05 BUILD.
+  - Styles: `lib/ps-home.css` (homepage only, scoped to `body.ps-home`);
+    behaviour: `lib/ps-home.js` (sticky state, `aria-current`, live JobSignal
+    counts from `/jobs/data/stats.json`). `style.css` was not touched.
+  - **Adding an article changed:** the 38-card sidebar is gone. Add an `<li>`
+    at the top of `.ps-latest-list` (drop the fifth) plus the usual deck card.
+    CLAUDE.md has the steps.
+  - Deck cards keep their exact markup; CSS renders them as a dated list.
+  - Images on load: 2.9 MB → 113 KB. Phone page: 19.9k px → 13.2k px. axe clean
+    at both widths (was 13 `target-size` on phone).
+  - Owner decision left open: carry the warmer paper to the rest of the site.
 
 - **NEWEST (2026-09-24): platform upgrade P0→P2** on branch
   `claude/serene-noether-32rejy` (draft PR #841). Read
