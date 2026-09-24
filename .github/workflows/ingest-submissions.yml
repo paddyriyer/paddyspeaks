@@ -34,11 +34,21 @@ jobs:
       - name: Refresh hardcoded counts
         run: python3 interview/scripts/update_counts.py
 
+      # The registry (data/site-registry.json) and every data-ps-stat span are
+      # derived from the same data; regenerate them in the same commit so the
+      # next PR's platform check never inherits drift from a bot run.
+      - name: Refresh platform registry
+        run: python3 scripts/platform_build/build.py registry stamp
+
       - name: Commit and push
         run: |
           git config user.name "PaddySpeaks Bot"
           git config user.email "bot@paddyspeaks.com"
           git add interview.app/evaluate/data/ interview.app/evaluate/index.html interview.app/evaluate/quiz.html .github/scripts/processed_submissions.json
+          # The count refreshes above also touch the registry, the manifest
+          # and stamped pages anywhere on the site.
+          git add data/ interview/data/manifest.json
+          git diff --name-only -z -- '*.html' | xargs -0 -r git add --
           git diff --cached --quiet && echo "No new questions" && exit 0
           git commit -m "🌍 Add community-submitted questions — $(date +%Y-%m-%d)"
           git push

@@ -73,7 +73,11 @@
           el('a', { href: '/jobs/', text: 'JobSignal' }),
           el('a', { href: '/jobs/methodology/', text: 'How verification works' }),
           el('a', { href: '/', text: 'PaddySpeaks' }),
-          el('a', { href: '/contact/', text: 'Contact' })
+          el('a', { href: '/contact/', text: 'Contact' }),
+          el('a', { href: '/privacy-policy/', text: 'Privacy' }),
+          el('a', { href: '/terms/', text: 'Terms' }),
+          el('a', { href: '/disclaimer/#career', text: 'Disclaimer' }),
+          el('a', { href: '/corrections/', text: 'Corrections' })
         ]),
         el('p', {
           class: 'jsFoot-note',

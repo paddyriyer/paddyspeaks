@@ -9,6 +9,7 @@
  * difficulty multipliers + measure real elapsed time — but a determined user
  * can still forge a raw score. This board is motivational, not a credential.
  */
+import { rateLimit } from "./forms-util.js";
 
 // ── config (all tunable) ──
 const CFG = {
@@ -284,6 +285,10 @@ async function handleDelete(request, env, ch) {
 async function handleReport(request, env, ch) {
   let d; try { d = await request.json(); } catch { return json({ error: "bad json" }, 400, ch); }
   if (!d.id) return json({ error: "id required" }, 400, ch);
+  // Unauthenticated by design (anyone may flag a suspicious score), so it is
+  // metered: without a limit one script could flag the whole board.
+  const rl = await rateLimit(env, request, "lb-report", 10, 3600);
+  if (!rl.ok) return json({ error: "rate_limited" }, 429, ch);
   await env.LB.prepare(
     `UPDATE leaderboard_entries SET integrity_status = 'under_review'
      WHERE id = ? AND integrity_status = 'valid'`

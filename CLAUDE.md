@@ -105,7 +105,19 @@ When adding a new article, manually insert a card into `index.html`:
 2. Add metadata to `article_metadata.json` (newest article first)
 3. Manually add cards to `index.html` (sidebar + deck grid)
 4. Add a `<url>` entry to `sitemap.xml`
-5. Run NO index generation scripts
+5. Run `python3 scripts/platform_build/build.py all`. This is NOT an index
+   generator: it restamps the filter counts and other `data-ps-stat` numbers,
+   and refreshes the search index, feeds and graph. CI (`build.py check`)
+   fails if the deck and `article_metadata.json` disagree.
+6. Run NO index generation scripts
+
+## Public statistics: never type a number
+
+Every public count comes from `data/site-registry.json`, which is derived
+from the content (see **`docs/PLATFORM-DATA.md`**). Put numbers in pages as
+`<span data-ps-stat="interview.questions">1527</span>` and let
+`build.py stamp` keep them true. The catalog of what exists
+(`data/platform/catalog.json`) is hand-authored and holds no counts.
 
 ## Sitemap
 

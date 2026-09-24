@@ -13,7 +13,11 @@ import {
 } from '../lib/forms.js';
 import { redactEmails } from '../worker/forms-util.js';
 import { isFetchable, linksOf } from '../worker/scan.js';
-import { pixelPage } from '../worker/worker.js';
+import worker, { pixelPage } from '../worker/worker.js';
+import { corsHeaders, isAllowedOrigin, safeEqual, gpcOptOut, isAdminRoute, adminGate } from '../worker/security.js';
+import { clientIp, rateLimit } from '../worker/forms-util.js';
+import { routeScan } from '../worker/scan.js';
+import { runRetention } from '../worker/retention.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -383,6 +387,116 @@ eq(px('?p=%2F' + 'x'.repeat(500)), '/' + 'x'.repeat(500),
 // from location.pathname — never a query string or fragment.
 eq(px('?p=%2Fa.html%3Fx%3D1'), '/a.html', 'pixelPage strips a query string from ?p=');
 eq(px('?p=%2Fa.html%23frag'), '/a.html', 'pixelPage strips a fragment from ?p=');
+
+/* ── security (P0.6): CORS allowlist ── */
+const req = (url, init = {}) => new Request(url, init);
+const withOrigin = (o) => req('https://ps.paddyspeaks.com/api/testimonials', { headers: o ? { Origin: o } : {} });
+eq(corsHeaders(withOrigin('https://paddyspeaks.com'))['Access-Control-Allow-Origin'], 'https://paddyspeaks.com', 'CORS echoes the site origin');
+eq(corsHeaders(withOrigin('https://www.paddyspeaks.com'))['Access-Control-Allow-Origin'], 'https://www.paddyspeaks.com', 'CORS echoes www');
+eq(corsHeaders(withOrigin('http://localhost:8000'))['Access-Control-Allow-Origin'], 'http://localhost:8000', 'CORS allows local dev');
+ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('https://evil.example'))), 'CORS gives a foreign origin no ACAO');
+ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('https://paddyspeaks.com.evil.example'))), 'CORS is not fooled by a suffix');
+ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('null'))), 'CORS refuses the null origin');
+ok(!('Access-Control-Allow-Credentials' in corsHeaders(withOrigin('https://paddyspeaks.com'))), 'CORS never allows credentials');
+eq(corsHeaders(withOrigin('https://paddyspeaks.com')).Vary, 'Origin', 'CORS varies on Origin');
+ok(!isAllowedOrigin('http://localhost.evil.example'), 'dev-origin regex is anchored');
+
+/* ── security: constant-time admin compare ── */
+ok(safeEqual('abc', 'abc'), 'safeEqual equal strings');
+ok(!safeEqual('abc', 'abd'), 'safeEqual differing strings');
+ok(!safeEqual('abc', 'abcd'), 'safeEqual differing lengths');
+ok(!safeEqual('', ''), 'safeEqual refuses empty === empty (unset secret)');
+ok(!safeEqual(undefined, undefined), 'safeEqual refuses undefined');
+
+/* ── privacy: Global Privacy Control ── */
+ok(gpcOptOut(req('https://x/', { headers: { 'Sec-GPC': '1' } })), 'Sec-GPC: 1 is an opt-out');
+ok(!gpcOptOut(req('https://x/')), 'no Sec-GPC header is not an opt-out');
+ok(isAdminRoute('/api/export') && isAdminRoute('/api/testimonials/admin') && !isAdminRoute('/api/testimonials'), 'admin routes identified');
+
+/* ── rate limiter: never trusts X-Forwarded-For ── */
+eq(clientIp(req('https://x/', { headers: { 'X-Forwarded-For': '6.6.6.6' } })), '0.0.0.0', 'clientIp ignores spoofable X-Forwarded-For');
+eq(clientIp(req('https://x/', { headers: { 'CF-Connecting-IP': '1.2.3.4' } })), '1.2.3.4', 'clientIp uses CF-Connecting-IP');
+
+// A tiny in-memory stand-in for the D1 rate_limits table.
+function fakeForms() {
+  const rows = new Map();
+  return {
+    prepare(sql) {
+      return {
+        bind(...a) {
+          return {
+            async run() { if (/INSERT INTO rate_limits/.test(sql)) rows.set(a[0], (rows.get(a[0]) || 0) + 1); return {}; },
+            async first() { return { hits: rows.get(a[0]) || 0 }; },
+          };
+        },
+      };
+    },
+  };
+}
+const brokenForms = { prepare() { throw new Error('d1 down'); } };
+
+const rlReq = () => req('https://x/', { headers: { 'CF-Connecting-IP': '9.9.9.9' } });
+{
+  const env = { FORMS: fakeForms() };
+  let last;
+  for (let i = 0; i < 3; i++) last = await rateLimit(env, rlReq(), 't', 2, 60);
+  ok(!last.ok, 'rateLimit blocks after max hits');
+  ok((await rateLimit({ FORMS: brokenForms }, rlReq(), 't', 2, 60)).ok, 'rateLimit fails open by default');
+  ok(!(await rateLimit({ FORMS: brokenForms }, rlReq(), 't', 2, 60, { failClosed: true })).ok, 'rateLimit fails closed when asked');
+  ok(!(await rateLimit({}, rlReq(), 't', 2, 60, { failClosed: true })).ok, 'failClosed with no binding blocks');
+}
+
+/* ── admin sign-in throttle ── */
+{
+  const env = { FORMS: fakeForms(), ADMIN_PASSWORD_HASH: 'secret-hash' };
+  const bad = () => req('https://x/api/stats', { headers: { Authorization: 'Bearer nope', 'CF-Connecting-IP': '5.5.5.5' } });
+  let r = null;
+  for (let i = 0; i < 11; i++) r = await adminGate(bad(), env, {}, rateLimit);
+  eq(r && r.status, 429, 'adminGate locks out after 10 failed attempts');
+  const good = req('https://x/api/stats', { headers: { Authorization: 'Bearer secret-hash', 'CF-Connecting-IP': '5.5.5.5' } });
+  eq(await adminGate(good, env, {}, rateLimit), null, 'adminGate never blocks the right token');
+}
+
+/* ── scan proxy: origin check + fail-closed limit ── */
+{
+  const env = { FORMS: fakeForms() };
+  const u = new URL('https://ps.paddyspeaks.com/api/scan');
+  const noOrigin = await routeScan(req(u, { method: 'POST', body: '{}' }), env, u, {});
+  eq(noOrigin.status, 403, 'scan refuses a request with no Origin');
+  const evil = await routeScan(req(u, { method: 'POST', body: '{}', headers: { Origin: 'https://evil.example' } }), env, u, {});
+  eq(evil.status, 403, 'scan refuses a foreign Origin');
+  const noStore = await routeScan(req(u, { method: 'POST', body: '{}', headers: { Origin: 'https://paddyspeaks.com' } }), {}, u, {});
+  eq(noStore.status, 429, 'scan fails closed without a limiter store');
+}
+
+/* ── worker: GPC means nothing is written ── */
+{
+  let writes = 0;
+  const DB = { prepare() { writes++; return { bind() { return { run: async () => ({}) }; } }; } };
+  const ctx = { waitUntil(p) { return p; } };
+  const px = await worker.fetch(req('https://ps.paddyspeaks.com/api/px.gif?p=/a', { headers: { 'Sec-GPC': '1', Origin: 'https://paddyspeaks.com' } }), { DB }, ctx);
+  eq(px.headers.get('Content-Type'), 'image/gif', 'GPC pixel still returns a GIF');
+  const col = await worker.fetch(req('https://ps.paddyspeaks.com/api/v', { method: 'POST', body: '{"p":"/"}', headers: { 'Sec-GPC': '1' } }), { DB }, ctx);
+  eq(col.status, 204, 'GPC collect returns 204');
+  eq(writes, 0, 'GPC: no database write for pixel or collect');
+  const ev = await worker.fetch(req('https://ps.paddyspeaks.com/api/e', { method: 'POST', body: '{}', headers: { 'Sec-GPC': '1' } }), { DB }, ctx);
+  eq(ev.status, 204, 'GPC event returns 204');
+}
+
+/* ── retention (scheduled) ── */
+{
+  const seen = [];
+  const db = (name) => ({ prepare(sql) { return { bind(...a) { return { run: async () => { seen.push([name, sql, a]); return { meta: { changes: 1 } }; } }; } }; } });
+  const now = new Date('2026-09-24T03:17:00Z');
+  const r = await runRetention({ LB: db('LB'), FORMS: db('FORMS') }, now);
+  eq(Object.keys(r).sort(), ['leaderboard_entries', 'rate_limits', 'used_nonces'], 'retention sweeps three tables');
+  ok(!seen.some(([, sql]) => /page_views|events|visitors|server_hits|testimonials/.test(sql)), 'retention never touches analytics or testimonials');
+  const nonce = seen.find(([, sql]) => /used_nonces/.test(sql));
+  eq(nonce[2][0], '2026-09-23T03:17:00.000Z', 'nonces older than 24h are removed');
+  const broken = { prepare() { throw new Error('down'); } };
+  const r2 = await runRetention({ LB: broken, FORMS: db('FORMS') }, now);
+  eq(r2.rate_limits, 1, 'one failing database does not stop the others');
+}
 
 /* ── report ── */
 console.log(fails.join('\n'));

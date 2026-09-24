@@ -19,6 +19,7 @@ import {
   validateTestimonial, toPublicTestimonial, deriveDisplayName, escapeHtml, LIMITS,
 } from '../lib/forms.js';
 import { json, ipHash, rateLimit, pruneRateLimits, sendEmail, emailShell } from './forms-util.js';
+import { isAdmin } from './security.js';
 
 const REL_LABELS = {
   reader: 'PaddySpeaks reader',
@@ -31,9 +32,9 @@ const REL_LABELS = {
 
 const CFG = { rlMax: 3, rlWindowSec: 3600, publicLimit: 50 };
 
+// Constant-time, and never true for an unset secret (security.js).
 function authOk(request, env) {
-  const auth = request.headers.get('Authorization') || '';
-  return !!env.ADMIN_PASSWORD_HASH && auth.startsWith('Bearer ') && auth.slice(7) === env.ADMIN_PASSWORD_HASH;
+  return isAdmin(request, env);
 }
 
 /* ── public submit ── */

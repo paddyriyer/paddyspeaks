@@ -134,7 +134,8 @@ export function philosophyView() {
         </p>
         <p class="small secondary" style="margin-top:10px">
           Your intent, saved items, dismissals and feed preferences persist in this browser's local
-          storage. Nothing is transmitted anywhere — there is no backend and no analytics in this page.
+          storage. Nothing you do here is transmitted — there is no backend. The page itself is counted
+          by the site's anonymous page-view pixel (page, approximate location, browser type).
         </p>
         <div class="btn-row" style="margin-top:15px">
           <button type="button" class="btn btn-primary btn-sm" ${action('navigate', { route: 'home' })}>
