@@ -21,7 +21,7 @@ import re
 
 from .common import ROOT, write_if_changed
 
-FILES = ["index.html"]
+FILES = ["index.html", "resume.html", "visual-resume.html"]
 
 # href="style.css" · href="/style.css" · src="/lib/ps-nav.js" · …, with or without ?v=
 REF_RE = re.compile(

@@ -117,7 +117,12 @@ facts come from the Resume, counts from `{{stat:…}}` tokens.
 The homepage, About and every `pages.py` page share ONE header: markup in
 `index.html` (by hand) and `nav_html()` / `header_html()` in `pages.py` (must
 agree), styles in `lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky
-state in `lib/ps-nav.js`. Do not fork the navigation.
+state in `lib/ps-nav.js`. Do not fork the navigation. Hand-crafted pages
+that are not rendered by `pages.py` (today `resume.html` and
+`visual-resume.html`) get the same header and footer written between
+`<!-- ps:header -->` / `<!-- ps:footer -->` markers by `build.py chrome` —
+never edit inside the markers; add a page to `FILES` in
+`scripts/platform_build/chrome.py` (and `assets.py`) to adopt the header.
 
 Links to `style.css` and `lib/ps-*.css|js` in `index.html` and every
 `pages.py` page carry `?v=<content hash>` (`build.py assets`), so new HTML
