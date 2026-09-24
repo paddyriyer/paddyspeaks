@@ -1,0 +1,357 @@
+/*
+ * PaddySpeaks — shared chrome and primitives (docs/HOMEPAGE-UI-AUDIT.md,
+ * docs/ABOUT-PAGE-AUDIT.md).
+ *
+ * ONE header for the homepage, the About page and every page rendered by
+ * scripts/platform_build/pages.py: top bar, compact masthead, the sticky
+ * Read · Learn · Prepare · Find · Build | Atlas · Search · About row. Plus
+ * the tokens (type scale, spacing, journey accents) and layout primitives
+ * (wrap, grid, eyebrow, meta, deck, chapter, CTA, stretched link) that the
+ * homepage and About build on. Everything is scoped to body.ps-chrome, so
+ * pages that have not adopted the shared header are untouched.
+ *
+ * The markup lives in two places that must agree: index.html (hand-crafted)
+ * and nav_html()/header_html() in pages.py. The sticky state is set by
+ * lib/ps-nav.js.
+ */
+
+/* ═══════════════════════════ 1. TOKENS ═══════════════════════════ */
+
+body.ps-chrome {
+    /* Paper, cream and border colours come from style.css (warm since
+       2026-09-24); this layer no longer overrides them. */
+
+    --h-ink: #1a2332;
+    --h-muted: #3a4556;          /* 8.9:1 on paper */
+    --h-soft: #4f5b6b;           /* 6.3:1 — the palest text allowed to carry meaning */
+    --h-rule: #1a2332;
+    --h-surface: #fbfaf7;        /* product surfaces sit a hair above the paper */
+    --h-blue: #1f5a9e;
+
+    /* Journey accents: small marks, never backgrounds. All ≥ 5:1 on paper. */
+    --j-read: #1a2332;
+    --j-learn: #9a4f12;
+    --j-prepare: #1f5a9e;
+    --j-find: #2d6a45;
+    --j-build: #48566a;
+
+    /* Type scale */
+    --t-display: clamp(1.9rem, 1.1rem + 2.3vw, 2.9rem);
+    --t-h1: clamp(1.55rem, 1.15rem + 1.2vw, 2.05rem);
+    --t-h2: clamp(1.15rem, 1.02rem + .45vw, 1.35rem);
+    --t-h3: 1.08rem;
+    --t-deck: clamp(1rem, .96rem + .2vw, 1.09rem);
+    --t-body: 1rem;
+    --t-eyebrow: .75rem;         /* 12px mono caps — the floor for labels */
+    --t-meta: .78rem;            /* 12.5px mono */
+
+    /* Space: tight inside a chapter, generous between chapters */
+    --s-1: 8px;
+    --s-2: 16px;
+    --s-3: 24px;
+    --s-4: 36px;
+    --s-5: clamp(40px, 5vw, 64px);
+    --s-chapter: clamp(56px, 7vw, 96px);
+
+    --h-max: 1280px;
+    --h-gutter: clamp(16px, 4vw, 48px);
+    --h-measure: 68ch;
+    --h-ease: 180ms ease;
+
+    background-color: var(--color-paper);
+}
+
+/* ═══════════════════════════ 2. PRIMITIVES ═══════════════════════════ */
+
+.ps-chrome .ps-wrap {
+    max-width: var(--h-max);
+    margin: 0 auto;
+    padding: 0 var(--h-gutter);
+}
+.ps-chrome .ps-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: clamp(16px, 2.6vw, 40px);
+}
+
+.ps-chrome .ps-eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--t-eyebrow);
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--h-muted);
+    line-height: 1.4;
+}
+.ps-chrome .ps-meta {
+    font-family: var(--font-mono);
+    font-size: var(--t-meta);
+    letter-spacing: .02em;
+    color: var(--h-soft);
+    line-height: 1.5;
+}
+.ps-chrome .ps-meta > * + *::before {
+    content: "·";
+    margin: 0 .5em;
+    color: var(--h-soft);
+}
+.ps-chrome .ps-deck {
+    font-family: var(--font-body);
+    font-size: var(--t-deck);
+    line-height: 1.55;
+    color: var(--h-muted);
+    max-width: var(--h-measure);
+}
+.ps-chrome .ps-byline { font-style: italic; }
+.ps-chrome .ps-byline a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+/* A link whose hit area is its whole row/block, without nesting links:
+   the title's ::after covers the positioned parent; secondary links sit above. */
+.ps-chrome .ps-stretch { position: relative; }
+.ps-chrome .ps-stretch-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+.ps-chrome .ps-stretch .ps-above { position: relative; z-index: 1; }
+
+/* Quiet text links with a moving underline */
+.ps-chrome .ps-link {
+    color: var(--h-blue);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color var(--h-ease), color var(--h-ease);
+}
+.ps-chrome .ps-link:hover { text-decoration-color: currentColor; }
+.ps-chrome .ps-arrow { display: inline-block; transition: transform var(--h-ease); }
+.ps-chrome a:hover .ps-arrow,
+.ps-chrome a:focus-visible .ps-arrow,
+.ps-chrome .ps-stretch:hover .ps-arrow { transform: translateX(3px); }
+
+/* The one button style for a primary product action: square, ink, no glow. */
+.ps-chrome .ps-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: .5em;
+    min-height: 44px;
+    padding: 10px 20px;
+    background: var(--h-ink);
+    color: #fbfaf7;
+    border: 1px solid var(--h-ink);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: background var(--h-ease), border-color var(--h-ease);
+}
+.ps-chrome .ps-cta:hover { background: var(--accent, var(--h-blue)); border-color: var(--accent, var(--h-blue)); color: #fff; }
+
+.ps-chrome :where(a, button, [tabindex]):focus-visible {
+    outline: 2px solid var(--h-blue);
+    outline-offset: 3px;
+    border-radius: 1px;
+}
+
+/* Journey accent hook: any element with data-journey gets --accent */
+.ps-chrome [data-journey="read"]    { --accent: var(--j-read); }
+.ps-chrome [data-journey="learn"]   { --accent: var(--j-learn); }
+.ps-chrome [data-journey="prepare"] { --accent: var(--j-prepare); }
+.ps-chrome [data-journey="find"]    { --accent: var(--j-find); }
+.ps-chrome [data-journey="build"]   { --accent: var(--j-build); }
+
+/* ── Chapter break: 01 / READ / one line ── */
+.ps-chrome .ps-chapter {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    column-gap: var(--s-3);
+    row-gap: 4px;
+    padding-top: var(--s-2);
+    margin: var(--s-chapter) 0 var(--s-4);
+    border-top: 1px solid var(--h-rule);
+    position: relative;
+}
+.ps-chrome .ps-chapter::before {          /* a short accent bar over the rule */
+    content: "";
+    position: absolute;
+    top: -2px;
+    left: 0;
+    width: 56px;
+    height: 3px;
+    background: var(--accent, var(--h-ink));
+}
+.ps-chrome .ps-chapter-num {
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    font-weight: 500;
+    letter-spacing: .08em;
+    color: var(--accent, var(--h-ink));
+    grid-row: span 2;
+    padding-top: .45em;
+}
+.ps-chrome .ps-chapter-title {
+    font-family: var(--font-display);
+    font-size: var(--t-h1);
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    line-height: 1.1;
+    color: var(--h-ink);
+    margin: 0;
+}
+.ps-chrome .ps-chapter-line {
+    font-family: var(--font-body);
+    font-style: italic;
+    font-size: var(--t-deck);
+    color: var(--h-muted);
+    margin: 0;
+}
+
+/* ── Sub-section head inside a chapter ── */
+.ps-chrome .ps-subhead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+    margin: var(--s-5) 0 var(--s-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-border);
+}
+.ps-chrome .ps-subhead h3 {
+    font-family: var(--font-display);
+    font-size: var(--t-h2);
+    font-weight: 700;
+    color: var(--h-ink);
+    margin: 0;
+}
+.ps-chrome .ps-subhead p { margin: 0; }
+
+/* ═══════════════════════ 3. HEADER & NAVIGATION ═══════════════════════ */
+
+/* Top bar: a quiet line. The red filled YouTube button was the loudest thing
+   on the page and pointed off-site; it is now a plain link like LinkedIn. */
+.ps-chrome .top-bar { padding: 12px var(--h-gutter); color: var(--h-soft); }
+.ps-chrome .top-bar a { color: var(--h-muted); }
+
+/* Masthead: same wordmark, ornament and italic *Speaks*, at about half the height. */
+.ps-chrome .masthead { padding: clamp(22px, 3.2vw, 40px) var(--h-gutter) clamp(18px, 2.4vw, 28px); }
+.ps-chrome .masthead::before { font-size: 18px; margin-bottom: 10px; }
+.ps-chrome .masthead h1,
+.ps-chrome .masthead .ps-masthead-title { font-size: clamp(2.6rem, 1.6rem + 3.6vw, 4.4rem); margin: 0; }
+.ps-chrome .ps-statement {
+    max-width: 40rem;
+    margin: 12px auto 0;
+    font-family: var(--font-body);
+    font-size: clamp(1rem, .95rem + .3vw, 1.15rem);
+    line-height: 1.5;
+    color: var(--h-muted);
+    text-wrap: balance;
+}
+.ps-chrome .ps-statement a { color: var(--h-ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--color-border); }
+.ps-chrome .ps-statement a:hover { text-decoration-color: currentColor; }
+
+/* Sticky nav row. The wordmark inside it shows only once the masthead is gone. */
+.ps-chrome .ps-navwrap {
+    position: sticky;
+    top: 0;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-paper);
+    border-top: 1px solid var(--color-border-light);
+    border-bottom: 1px solid var(--color-border-light);
+    transition: box-shadow var(--h-ease);
+}
+.ps-chrome .ps-navwrap.is-stuck { box-shadow: 0 1px 0 var(--color-border), 0 6px 18px -14px rgba(26,35,50,.35); }
+.ps-chrome .ps-navmark {
+    position: absolute;
+    left: var(--h-gutter);
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--h-ink);
+    text-decoration: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--h-ease), visibility var(--h-ease);
+}
+.ps-chrome .ps-navmark span { font-style: italic; font-weight: 400; color: var(--color-gold-dark); }
+.ps-chrome .ps-navwrap.is-stuck .ps-navmark { opacity: 1; visibility: visible; }
+
+.ps-chrome .nav-bar {
+    border: 0;
+    padding: 10px var(--h-gutter);
+    gap: 6px 26px;
+    align-items: center;
+}
+.ps-chrome .nav-bar a { color: var(--h-muted); padding: 8px 0; }
+.ps-chrome .nav-bar a[data-journey] { color: var(--h-ink); }
+.ps-chrome .nav-bar a::after { height: 2px; background: var(--accent, var(--h-blue)); transition: width var(--h-ease); }
+.ps-chrome .nav-bar a.active, .ps-chrome .nav-bar a[aria-current] { color: var(--h-ink); }
+.ps-chrome .nav-bar a.active::after, .ps-chrome .nav-bar a[aria-current]::after { width: 100%; }
+/* A hairline separates the five journeys from Atlas / Search / About. */
+.ps-chrome .nav-bar .ps-nav-atlas { margin-left: 8px; padding-left: 26px; border-left: 1px solid var(--color-border); }
+.ps-chrome .nav-bar .ps-nav-atlas::after { left: calc(50% + 13px); }
+.ps-chrome .nav-bar .ps-nav-about { color: var(--h-soft); font-size: 11px; }
+.ps-chrome .nav-search-btn {
+    min-height: 34px;
+    padding: 6px 12px;
+    border-radius: 2px;
+    border-color: var(--color-border);
+    color: var(--h-ink);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    background: var(--h-surface);
+    transition: border-color var(--h-ease), color var(--h-ease);
+}
+.ps-chrome .nav-search-btn:hover { border-color: var(--h-ink); color: var(--h-ink); }
+/* On pages without the dialog script, Search is a link to the Atlas: same look. */
+.ps-chrome .nav-bar a.nav-search-btn { display: inline-flex; padding: 6px 12px; color: var(--h-ink); text-decoration: none; }
+.ps-chrome .nav-bar a.nav-search-btn::after { display: none; }
+
+/* ═══════════════════════ HEADER ON PHONES ═══════════════════════ */
+
+@media (max-width: 1100px) {
+    .ps-chrome .nav-bar .ps-nav-atlas { margin-left: 0; }
+}
+
+@media (max-width: 768px) {
+    /* Top bar: one line. The subject list goes; the two links stay. */
+    .ps-chrome .top-bar { padding: 10px 20px; font-size: 11px; }
+    .ps-chrome .top-bar-subjects { display: none; }
+    .ps-chrome .masthead { padding: 18px 20px 16px; }
+    .ps-chrome .masthead::before { margin-bottom: 4px; font-size: 16px; }
+    .ps-chrome .ps-statement { font-size: 1rem; margin-top: 8px; }
+
+    /* Sticky mobile bar: wordmark left once stuck, Menu + Search right. */
+    .ps-chrome .ps-navwrap { display: block; }
+    .ps-chrome .ps-nav-mobile-bar { justify-content: flex-end; padding: 6px 16px; border: 0; }
+    .ps-chrome .ps-navmark { left: 16px; top: 50%; }
+    .ps-chrome .ps-navwrap:not(.is-stuck) .ps-nav-mobile-bar { justify-content: center; }
+    .ps-chrome .nav-search-btn { min-height: 44px; min-width: 44px; justify-content: center; }
+    .ps-chrome .nav-search-label { display: none; }
+    .ps-chrome .ps-nav-collapsible.is-open { padding: 0 16px 12px; align-items: stretch; }
+    .ps-chrome .ps-nav-collapsible.is-open a { justify-content: flex-start; padding: 4px 6px; }
+    .ps-chrome .nav-bar .ps-nav-atlas { border-left: 0; padding-left: 6px; margin: 0; }
+    .ps-chrome .nav-bar .ps-nav-about { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ps-chrome *, .ps-chrome *::before, .ps-chrome *::after {
+        transition-duration: 0s !important;
+        animation-duration: 0s !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+    }
+}
