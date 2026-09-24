@@ -46,6 +46,7 @@ NAV = [
 ]
 
 LEGAL_LINKS = [
+    ("/", "PaddySpeaks home"),
     ("/about.html", "About"),
     ("/contact/", "Contact"),
     ("/subscribe/", "Follow"),
