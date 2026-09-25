@@ -143,7 +143,7 @@ def main() -> int:
                 card = part[at:]
                 if f'id="p{num}-l5-card"' not in card[:200]:
                     errors.append(f"part {num}: card id must be p{num}-l5-card")
-                heads = re.findall(r"<h5>(.*?)</h5>", card)
+                heads = re.findall(r"<h4>(.*?)</h4>", card)
                 if heads != CARD_SECTIONS:
                     errors.append(f"part {num}: card sections {heads} != documented order")
 
