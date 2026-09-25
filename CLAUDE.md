@@ -9,6 +9,19 @@ Worker + separate D1 `paddyspeaks-leaderboard`); the public board reveals at 5
 real scores and shows a sample preview until then; the LinkedIn launch blurb is
 parked until real scores flow. Update that file when meaningful state changes.
 
+## Change safety — read before any major rework
+
+**Merging to `main` deploys**: the site through GitHub Pages, and the analytics
+Worker (`ps.paddyspeaks.com`) through Cloudflare Workers Builds. There is no
+staging. Before any change to `analytics/worker/`, `lib/ps.js`, headers or
+hosting, or any multi-system rework, follow **`docs/CHANGE-SAFETY.md`**: split
+the PR; run `node analytics/tests/run.mjs` (it includes the browser CORS
+contract); if the Worker changed, run `scripts/analytics_smoke.py` against the
+PR's branch preview URL; and confirm the **Analytics Health** workflow is green
+after merge. Never remove `Access-Control-Allow-Credentials` for the site's
+origins: `sendBeacon` is always credentialed, and without that header every page
+view is dropped silently (the 2026-09-24 outage).
+
 ## Contact & Testimonials
 
 Both features are documented in **`docs/CONTACT-AND-TESTIMONIALS.md`** — read it
