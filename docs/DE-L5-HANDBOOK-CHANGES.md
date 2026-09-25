@@ -195,6 +195,7 @@ The code was **not** rewritten wholesale to the newest syntax. Examples are labe
   - whether delta-spark still needs the DynamoDB log store
 - **Web access.** The container's egress proxy blocked several official sites. Version facts were confirmed through official-domain search results and package-registry metadata rather than full page reads.
 - **Legacy line anchors.** 1,065 per-line code anchors (`pNN-cbN-M`) disappeared; every section, heading and code-block anchor survived where code blocks were rewritten. Nothing in the repo links to them; external links to individual code lines, if any exist, will land at the top of the page.
+- **Trimmed material.** A reader pointed out that the three dimensions of boundedness (temporal, cardinality, completeness) had been cut from Part 02 §1. They were restored on 2026-09-25, next to the newer completeness contract. The pre-upgrade edition is archived, unchanged and `noindex`, at `archive/data-engineering-interview-prep-2026-04.html`, and the Overview links to it.
 - **The source files in `interview/html/` are stale.** They are marked as such rather than regenerated.
 
 ## 9. Future backlog
