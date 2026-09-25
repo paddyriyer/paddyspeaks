@@ -444,7 +444,7 @@
                 <div class="stat-trend" id="trendVisitors" style="font-family:var(--font-mono);font-size:0.75rem;margin-top:4px"></div>
             </div>
             <div class="stat-card" style="border-left:4px solid var(--color-sage,#2a7a4a)">
-                <div class="stat-label">Server Hits (all traffic)</div>
+                <div class="stat-label" title="Page loads counted by the no-JS pixel (/api/px.gif). Ad blockers often block this too, so it is not truly 'all' traffic.">Pixel Page Loads</div>
                 <div class="stat-value" id="serverHits" style="font-size:1.8rem;color:var(--color-sage,#2a7a4a)">-</div>
                 <div id="invisiblePct" style="font-family:var(--font-mono);font-size:0.7rem;margin-top:4px;color:var(--color-muted)"></div>
             </div>
@@ -496,7 +496,7 @@
 
         <!-- ── Server-side pages (the pixel fires without JS, so this sees what ps.js cannot) ── -->
         <div class="panel">
-            <div class="panel-title">Server Pages <span style="font-weight:400;color:var(--muted);font-size:0.8rem">every load, including ad-blocked, incognito and no-JS · "—" = page not in the JS top 15, which is unknown, not zero</span></div>
+            <div class="panel-title">Pixel Page Loads by Page <span style="font-weight:400;color:var(--muted);font-size:0.8rem">the no-JS pixel, which also catches JS-off and script-blocked loads (many ad blockers block the pixel too) · "—" = page not in the JS top 15, which is unknown, not zero</span></div>
             <div style="overflow-x:auto"><table class="data-table" id="tableServerPages"><tbody></tbody></table></div>
         </div>
 
@@ -1205,17 +1205,41 @@
         renderTrend('trendViews', ov.total_views, prev.total_views);
         renderTrend('trendVisitors', ov.unique_visitors, prev.unique_visitors);
         
-        // Server-side hits (invisible traffic)
+        // Pixel page loads vs JS page views
         var sh = data.serverHits || {};
         var serverTotal = sh.total_hits || 0;
         document.getElementById('serverHits').textContent = fmt(serverTotal);
         var clientTotal = ov.total_views || 0;
-        if (serverTotal > 0 && clientTotal > 0) {
-            var invisible = Math.max(0, serverTotal - clientTotal);
-            var invisiblePct = Math.round((invisible / serverTotal) * 100);
-            document.getElementById('invisiblePct').innerHTML = invisible > 0
-                ? '<span style="color:var(--color-rust,#c44b2b)">' + invisiblePct + '% invisible</span> (ad blockers / incognito)'
-                : '<span style="color:var(--color-sage,#2a7a4a)">100% tracked</span>';
+        // "Pixel-only share": page loads the pixel saw that ps.js did not
+        // report. Normally that is JS disabled, the script blocked while the
+        // pixel loaded, or Global Privacy Control. It is NOT the ad-block rate:
+        // many blockers stop the pixel too, so those visits appear on neither
+        // side. A share far above normal almost always means the tracker is
+        // broken (2026-09-24: a CORS change dropped every JS page view while
+        // the pixel kept counting, and this tile read "90% ad blockers").
+        var PIXEL_ONLY_ALERT_PCT = 60;   // well above any plausible blocked/no-JS share
+        var PIXEL_ONLY_MIN_HITS = 20;    // don't alarm on tiny samples
+        var pctEl = document.getElementById('invisiblePct');
+        pctEl.innerHTML = '';
+        if (serverTotal > 0) {
+            var pixelOnly = Math.max(0, serverTotal - clientTotal);
+            var pixelOnlyPct = Math.round((pixelOnly / serverTotal) * 100);
+            // Filters narrow the JS side only (the pixel has no country/page
+            // dimensions to filter here), so the share is only meaningful unfiltered.
+            var filtered = Object.keys(currentFilters).some(function(k) { return k !== 'exclude_me'; });
+            if (filtered) {
+                pctEl.textContent = 'Pixel-only share hidden while filters are on';
+            } else if (serverTotal >= PIXEL_ONLY_MIN_HITS && pixelOnlyPct >= PIXEL_ONLY_ALERT_PCT) {
+                pctEl.innerHTML =
+                    '<span style="color:var(--color-rust,#a63a1f);font-weight:600">⚠ ' + pixelOnlyPct + '% pixel-only — JS tracking may be broken</span><br>' +
+                    'Far above normal. Check <a href="https://github.com/paddyriyer/paddyspeaks/actions/workflows/analytics-health.yml" target="_blank" rel="noopener">Analytics Health</a> ' +
+                    'and the browser console for CORS errors from ps.paddyspeaks.com. Known outage: 24 Sep 14:33 – 25 Sep 18:15 UTC.';
+            } else if (pixelOnly > 0) {
+                pctEl.innerHTML = '<span title="Loads the pixel saw but ps.js did not report: JS off, script blocked while the pixel loaded, or Global Privacy Control. Not the ad-block rate — blockers often stop the pixel too.">' +
+                    pixelOnlyPct + '% pixel-only (JS blocked or off)</span>';
+            } else {
+                pctEl.innerHTML = '<span style="color:var(--color-sage,#2a7a4a)">Every pixel load was also reported by JS</span>';
+            }
         }
 
         // Entry/exit pages
@@ -1407,7 +1431,7 @@
     function renderServerPagesTable(serverPages, clientPages) {
         var t = document.getElementById('tableServerPages');
         var html = '<thead><tr><th>Page</th><th style="text-align:right">Server hits</th>' +
-                   '<th style="text-align:right">JS views</th><th style="text-align:right">Invisible</th></tr></thead><tbody>';
+                   '<th style="text-align:right">JS views</th><th style="text-align:right" title="Share of pixel loads that ps.js did not report">Pixel-only</th></tr></thead><tbody>';
         if (!serverPages.length) {
             t.innerHTML = html + '<tr><td colspan="4" class="empty-state">No server-pixel hits in this range yet.</td></tr></tbody>';
             return;
