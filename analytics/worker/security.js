@@ -34,8 +34,15 @@ export function isAllowedOrigin(origin) {
 /**
  * CORS headers for a request. An allowed Origin is echoed; anything else gets
  * no Access-Control-Allow-Origin at all, so the browser blocks the response.
- * Credentials are never allowed: nothing here uses cookies, and bearer tokens
- * are sent explicitly by the admin pages.
+ *
+ * Allowed origins also get Access-Control-Allow-Credentials: true. That is not
+ * optional: navigator.sendBeacon ALWAYS sends in credentials mode "include",
+ * and lib/ps.js beacons are application/json, so every page view is
+ * preflighted — and a credentialed preflight without this header is refused.
+ * The browser then drops the beacon silently while sendBeacon() still returns
+ * true. Removing it on 2026-09-24 stopped all JS page views for a day.
+ * It is safe because the origin is allowlisted (the old hole was echoing ANY
+ * origin with credentials), and nothing here reads cookies.
  */
 export function corsHeaders(request) {
   const origin = request.headers.get('Origin') || '';
@@ -45,7 +52,10 @@ export function corsHeaders(request) {
     'Access-Control-Max-Age': '600',
     'Vary': 'Origin',
   };
-  if (isAllowedOrigin(origin)) h['Access-Control-Allow-Origin'] = origin;
+  if (isAllowedOrigin(origin)) {
+    h['Access-Control-Allow-Origin'] = origin;
+    h['Access-Control-Allow-Credentials'] = 'true';
+  }
   return h;
 }
 
