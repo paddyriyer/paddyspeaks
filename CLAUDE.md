@@ -9,6 +9,18 @@ Worker + separate D1 `paddyspeaks-leaderboard`); the public board reveals at 5
 real scores and shows a sample preview until then; the LinkedIn launch blurb is
 parked until real scores flow. Update that file when meaningful state changes.
 
+## Incidents — the controlling document
+
+**`docs/INCIDENTS.md`** is the runbook and log for production incidents. Read it
+before touching anything that deploys, and immediately if the live site or
+analytics looks wrong. Its standing rules bind every session: merging is
+deploying; production-behaviour changes go in their own small PR; a green test
+that asserts a platform rule must match the platform, not our assumption; verify
+in production after merge; revert first, diagnose second; every incident gets a
+log entry and a merged guardrail before it is closed; record plainly who made
+the change, including Claude sessions. Check its open follow-ups at the start of
+a session and close any that are yours.
+
 ## Change safety — read before any major rework
 
 **Merging to `main` deploys**: the site through GitHub Pages, and the analytics
