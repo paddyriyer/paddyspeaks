@@ -15084,6 +15084,22 @@
       ],
       "answer": 2,
       "explanation": "Partitioning by DAY and clustering by user_id allows BigQuery to prune partitions efficiently and co-locate user data, minimizing scanned data. Window functions with RANGE BETWEEN can efficiently compute rolling 24-hour windows within each partition. Option 1 risks over-partitioning with HOUR granularity. Option 2's self-join is inefficient for large datasets. Option 4 uses CROSS JOIN which is prohibitively expensive."
+    },
+    {
+      "id": "sql-new-140",
+      "type": "single",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-09-25",
+      "prompt": "You have a table `employees(emp_id INT, manager_id INT, name TEXT, salary DECIMAL)` where manager_id can be NULL for the CEO. You need to calculate the total compensation cost for each manager's entire subtree (including the manager and all direct/indirect reports). Which recursive CTE approach correctly computes this in a single pass without multiple joins?\n\nGiven the constraint that you must avoid window functions and the dataset has 50,000 employees with a tree depth up to 15 levels, which query is most efficient?",
+      "options": [
+        "WITH RECURSIVE org_tree AS (SELECT emp_id, manager_id, salary, salary AS subtree_cost FROM employees WHERE manager_id IS NULL UNION ALL SELECT e.emp_id, e.manager_id, e.salary, e.salary + ot.subtree_cost FROM employees e INNER JOIN org_tree ot ON e.manager_id = ot.emp_id) SELECT emp_id, subtree_cost FROM org_tree;",
+        "WITH RECURSIVE org_tree AS (SELECT emp_id, manager_id, salary, 1 AS depth FROM employees UNION ALL SELECT e.emp_id, e.manager_id, e.salary, ot.depth + 1 FROM employees e INNER JOIN org_tree ot ON e.manager_id = ot.emp_id) SELECT manager_id, SUM(salary) FROM org_tree GROUP BY manager_id;",
+        "WITH RECURSIVE org_tree AS (SELECT emp_id, manager_id, salary, ARRAY[emp_id] AS path FROM employees WHERE manager_id IS NULL UNION ALL SELECT e.emp_id, e.manager_id, e.salary, ot.path || e.emp_id FROM employees e INNER JOIN org_tree ot ON e.manager_id = ot.emp_id) SELECT emp_id, (SELECT SUM(salary) FROM employees WHERE emp_id = ANY(path)) FROM org_tree;",
+        "WITH RECURSIVE org_tree AS (SELECT emp_id, manager_id, salary, salary AS subtree_cost FROM employees UNION ALL SELECT e.emp_id, e.manager_id, e.salary, e.salary + ot.subtree_cost FROM employees e INNER JOIN org_tree ot ON e.manager_id = ot.emp_id) SELECT manager_id, SUM(subtree_cost) FROM org_tree GROUP BY manager_id;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly builds the tree bottom-up, starting from leaf nodes (employees with no subordinates) and accumulating salary as it traverses upward to managers. Each recursive iteration adds the employee's own salary to their manager's accumulated subtree cost. Option 1 doesn't aggregate costs, Option 2 inefficiently recalculates via a correlated subquery, and Option 4 double-counts costs by summing an already-aggregated column after grouping, leading to exponential growth in the result."
     }
   ]
 }
