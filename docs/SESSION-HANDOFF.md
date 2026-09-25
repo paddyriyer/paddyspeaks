@@ -6,6 +6,8 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **Read `docs/INCIDENTS.md` first** — incident runbook, standing rules, and the
+  2026-09-24 analytics outage post-mortem with its open follow-ups.
 - **2026-09-25: analytics outage fixed + guardrails.** From ~14:33 UTC 2026-09-24
   to ~18:15 UTC 2026-09-25 no JS page views were recorded: the Worker's CORS
   hardening (1a564d2) dropped `Access-Control-Allow-Credentials`, and
