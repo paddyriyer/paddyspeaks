@@ -501,6 +501,45 @@ const rlReq = () => req('https://x/', { headers: { 'CF-Connecting-IP': '9.9.9.9'
   eq(r2.rate_limits, 1, 'one failing database does not stop the others');
 }
 
+/* ── Beacon CORS contract (the check that would have caught 2026-09-24) ──
+   lib/ps.js sends page views with navigator.sendBeacon + an application/json
+   Blob. sendBeacon ALWAYS uses credentials mode "include", so the browser
+   preflights and then applies the CORS check for CREDENTIALED requests.
+   If this fails, every JS page view is dropped silently in the browser while
+   sendBeacon() still returns true. This drives the real Worker route, not a
+   helper, and applies the browser's rule, not ours. */
+{
+  function browserAllowsCredentialed(res, origin, method, reqHeaders) {
+    const h = (k) => (res.headers.get(k) || '');
+    if (res.status < 200 || res.status > 299) return 'preflight status ' + res.status;
+    if (h('Access-Control-Allow-Origin') !== origin) return 'ACAO is ' + JSON.stringify(h('Access-Control-Allow-Origin'));
+    if (h('Access-Control-Allow-Credentials') !== 'true') return 'ACAC is ' + JSON.stringify(h('Access-Control-Allow-Credentials'));
+    const methods = h('Access-Control-Allow-Methods').toUpperCase().split(/\s*,\s*/);
+    if (!methods.includes(method)) return 'method ' + method + ' not allowed';
+    const allowed = h('Access-Control-Allow-Headers').toLowerCase().split(/\s*,\s*/);
+    for (const rh of reqHeaders) if (!allowed.includes(rh)) return 'header ' + rh + ' not allowed';
+    return 'ok';
+  }
+  const preflight = (path, origin) => worker.fetch(new Request('https://ps.paddyspeaks.com' + path, {
+    method: 'OPTIONS',
+    headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' },
+  }), {}, { waitUntil() {} });
+  for (const origin of ['https://paddyspeaks.com', 'https://www.paddyspeaks.com']) {
+    for (const path of ['/api/v', '/api/e', '/collect']) {
+      eq(browserAllowsCredentialed(await preflight(path, origin), origin, 'POST', ['content-type']), 'ok',
+        `a browser would send ps.js beacons to ${path} from ${origin}`);
+    }
+  }
+  const foreign = await preflight('/api/v', 'https://evil.example');
+  ok(browserAllowsCredentialed(foreign, 'https://evil.example', 'POST', ['content-type']) !== 'ok',
+    'a browser would NOT send a credentialed beacon from a foreign origin');
+  // The GPC short-circuit answers the real POST; it must carry the same CORS headers.
+  const gpc = await worker.fetch(new Request('https://ps.paddyspeaks.com/api/v', {
+    method: 'POST', headers: { Origin: 'https://paddyspeaks.com', 'Sec-GPC': '1', 'Content-Type': 'application/json' }, body: '{}',
+  }), {}, { waitUntil() {} });
+  eq(gpc.headers.get('Access-Control-Allow-Credentials'), 'true', 'collector responses carry ACAC for the site');
+}
+
 /* ── report ── */
 console.log(fails.join('\n'));
 console.log(`\n${pass} passed, ${fail} failed`);

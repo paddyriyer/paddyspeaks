@@ -6,6 +6,16 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **2026-09-25: analytics outage fixed + guardrails.** From ~14:33 UTC 2026-09-24
+  to ~18:15 UTC 2026-09-25 no JS page views were recorded: the Worker's CORS
+  hardening (1a564d2) dropped `Access-Control-Allow-Credentials`, and
+  `sendBeacon` is always credentialed. Fixed in #861. Guardrails: a browser CORS
+  contract test in `analytics/tests/run.mjs`, the hourly **Analytics Health**
+  workflow (`scripts/analytics_smoke.py` against production), and
+  `docs/CHANGE-SAFETY.md` (read before major reworks). Gap estimate:
+  `analytics/queries/estimate-gap-sessions.sql` (pixel-calibrated; an estimate,
+  never written into `page_views`).
+
 - **NEWEST (2026-09-24): Mentoring.** `/mentoring/` (source
   `content/pages/mentoring.html`, Paddy's text verbatim, styles
   `lib/ps-mentoring.css`), a short section on About (`#mentoring`) and one

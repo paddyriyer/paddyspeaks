@@ -1,0 +1,41 @@
+name: Analytics Health
+
+# Production check for the analytics Worker (scripts/analytics_smoke.py).
+# A push to main auto-deploys the Worker through Cloudflare Workers Builds, so
+# this runs after every push (with time for the deploy to land) and hourly.
+# It asks ps.paddyspeaks.com exactly what a browser asks before sending a page
+# view and fails if a browser would refuse — the failure mode of 2026-09-24,
+# which was silent in the browser and invisible for a day. A failed run emails
+# the repository owner. Read-only: it records no analytics data.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'analytics/worker/**'
+      - 'lib/ps.js'
+      - 'scripts/analytics_smoke.py'
+      - '.github/workflows/analytics-health.yml'
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the Worker deploy to land
+        if: github.event_name == 'push'
+        run: sleep 180
+      - name: Browser CORS contract against production
+        run: |
+          for i in 1 2 3; do
+            python3 scripts/analytics_smoke.py && exit 0
+            echo "retrying in 60s (deploy may still be propagating)"; sleep 60
+          done
+          exit 1
