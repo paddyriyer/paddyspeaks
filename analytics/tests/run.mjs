@@ -398,7 +398,9 @@ eq(corsHeaders(withOrigin('http://localhost:8000'))['Access-Control-Allow-Origin
 ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('https://evil.example'))), 'CORS gives a foreign origin no ACAO');
 ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('https://paddyspeaks.com.evil.example'))), 'CORS is not fooled by a suffix');
 ok(!('Access-Control-Allow-Origin' in corsHeaders(withOrigin('null'))), 'CORS refuses the null origin');
-ok(!('Access-Control-Allow-Credentials' in corsHeaders(withOrigin('https://paddyspeaks.com'))), 'CORS never allows credentials');
+eq(corsHeaders(withOrigin('https://paddyspeaks.com'))['Access-Control-Allow-Credentials'], 'true', 'CORS allows credentials for the site (sendBeacon is always credentialed)');
+ok(!('Access-Control-Allow-Credentials' in corsHeaders(withOrigin('https://evil.example'))), 'CORS never allows credentials for a foreign origin');
+ok(!('Access-Control-Allow-Credentials' in corsHeaders(withOrigin(''))), 'CORS never allows credentials without an Origin');
 eq(corsHeaders(withOrigin('https://paddyspeaks.com')).Vary, 'Origin', 'CORS varies on Origin');
 ok(!isAllowedOrigin('http://localhost.evil.example'), 'dev-origin regex is anchored');
 
