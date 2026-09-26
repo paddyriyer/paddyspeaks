@@ -91,6 +91,17 @@ The dashboard's Audits page links its assumption tests to these anchors via
 `essay` in `assumptionTests` (`data.js`). People, figures and systems are
 invented, and each block says so.
 
+## Audit, 2026-09-26
+
+A full audit of all 39 routes (about 125 issues) moved every remaining typed
+figure into `data.js` or computed it. Examples: deletion and consent scopes,
+obligation scope, executive memo numbers, Worst Day inputs (`worstDay`), user
+rights requests and deadlines (`rightsRequests`, `rightsDeadlines`), and dataset
+classes (`datasetClass`). Launch blockers are one computed rule
+(`P.reviewBlockers`); `review.blockers` is a getter over it, so the Kanban,
+tiles, personas and overview agree. Unknown statuses (for example CCPA access)
+are shown as UNKNOWN, never as met.
+
 ## Guardrails
 
 - Both pages are in the **strict** axe list (`scripts/a11y/axe-check.mjs`):
