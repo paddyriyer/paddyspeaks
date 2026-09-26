@@ -91,6 +91,20 @@ or `jobsignal/`.
   index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
+## Privacy Command Center (`/privacy-command-center/`) and the privacy essay
+
+Read **`docs/PRIVACY-COMMAND-CENTER.md`** before touching `privacy-command-center/`
+or `articles/every-arrow-is-a-decision.html`. Both come from Paddy's field guide
+(`docs/Privacy_Engineering_Visual_Field_Guide.pdf`).
+
+- **Northstar is fictional, and the data is synthetic.** Never add a real company as a
+  Northstar vendor or system.
+- **Never type a number.** Every metric is computed from `data.js` and shows
+  the rule that produced it. **UNKNOWN is a finding**, never a blank.
+- The analyst is deterministic. Every statement is labelled FACT, INFERENCE,
+  RECOMMENDATION or UNKNOWN and cites entities. Do not add text it cannot
+  derive from the graph.
+
 ## DE Interview Handbook (`articles/data-engineering-interview-prep.html`)
 
 The Senior/L5 handbook is edited **directly** — the article is the source of truth.
