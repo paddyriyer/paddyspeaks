@@ -261,7 +261,7 @@ P.NAV = [
 ];
 var NAV_COUNT = { 'privacy/risks': ['highfind', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
 function renderNav() {
-  var h = '';
+  var h = P.forYouNav ? P.forYouNav() : '';
   P.NAV.forEach(function (g) {
     if (g[0]) h += '<h2>' + esc(g[0]) + '</h2>';
     g[1].forEach(function (it) {
@@ -367,11 +367,12 @@ function setRole(r) {
   if (P.route.path === 'overview') { P._keepScroll = true; render(); }
 }
 P.setRole = setRole;
+P.renderNav = function () { renderNav(); var r = P.route.path.split('/').slice(0, 2).join('/'); document.querySelectorAll('.side a').forEach(function (x) { if (x.getAttribute('data-route') === r) x.setAttribute('aria-current', 'page'); }); };
 
 /* ── boot wiring (called from boot.js after views load) ─── */
 P.init = function () {
   drawer = document.getElementById('drawer'); drawerBody = document.getElementById('drawerBody'); drawerCrumb = document.getElementById('drawerCrumb');
-  renderNav(); renderTrail(); setRole('reviewer');
+  if (P.initPersona) P.initPersona(); renderNav(); renderTrail(); setRole(P.persona ? P.persona.hat : 'reviewer');
   window.addEventListener('hashchange', render);
   document.addEventListener('click', function (ev) {
     var t = ev.target.closest('[data-ent],[data-metric],[data-act],[data-stack],[data-role],[data-go]');

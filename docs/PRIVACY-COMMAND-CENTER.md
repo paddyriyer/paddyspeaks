@@ -34,6 +34,22 @@ everywhere, and never left blank.
 Vanilla JS, no libraries, no browser storage (nothing to register in
 `data/platform/state-keys.json`). Hash routing: `#/section/page?query`.
 
+## Personas (who is looking decides what comes first)
+
+`personas.js` holds 15 roles, each owning ONE question: CPO, CISO / Security VP, CTO,
+Executive, Engineering Manager (team-scoped), Product Manager, Data Governance,
+Privacy Counsel, Compliance, Internal Auditor, Privacy / Data / Software /
+Security / AI-ML Engineer. First visit shows the “Who’s looking?” picker. A
+persona home shows the question, a computed one-line answer, up to five things
+that need that person, four indicators, and where to start. The full Command
+Center sits under “Everything else”. The choice is remembered under
+`pcc.persona.v1` (registered in `data/platform/state-keys.json`). `#/overview?as=ciso`
+links straight to a role, and `#/overview?all=1` shows the full view.
+Persona-only indicators are ordinary metrics marked `hidden` (they stay off the
+full tile wall).
+
+Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
+
 ## Models worth knowing before editing
 
 - **Risk:** nine exposure factors (0–5) and three assurance factors (control,
