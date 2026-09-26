@@ -7,7 +7,7 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   engineering and governance platform for a fictional company, Northstar.
   Synthetic data only, labelled in the header and footer of every screen.
 - **`/articles/every-arrow-is-a-decision.html`**: the visual essay (15 scenes
-  and six corner-case trails). It is self-contained, and its facts use the
+  and seven corner-case trails). It is self-contained, and its facts use the
   guide's own wording and sources.
 
 ## The one rule
@@ -68,10 +68,11 @@ Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
 
 ## Corner-case trails (the essay)
 
-One engine (the last inline script in the essay) replays six dated stories. Each
+One engine (the last inline script in the essay) replays seven dated stories. Each
 is `T.<id> = { steps, habits, world(step, habits) }`. `world()` derives
 everything on screen from the state: the artifact, its trail, who holds it,
-the counters. Habit switches change the state, so nothing is scripted twice and
+the counters. Habit switches change the state, and while any habit is on each
+counter also shows its value without the habits, so nothing is scripted twice and
 a counter can't disagree with its story. Mount one with
 `<div class="tl" data-trail="<id>"></div>`.
 
@@ -83,6 +84,7 @@ a counter can't disagree with its story. Mount one with
 | `family` | 06 | A private purchase, an inference, household linking, the family TV |
 | `optout` | 08 | Opt-out at 01:58 during a job that read consent at 00:00; retries, segments, partner |
 | `forget` | 09 | Deletion with partial failures, a premature "deleted" email, a restore that resurrects |
+| `auth` | 11 | Dana's week: leaked password, push fatigue, real-time phishing, SIM-swap recovery, 2FA phone reused for ads. Preceded by the sign-in methods × attacks matrix (`.authm`) |
 
 Each corner case sits in `<div class="cc" id="cc-<id>">` (02·B is `#s02b`).
 The dashboard's Audits page links its assumption tests to these anchors via
