@@ -512,10 +512,10 @@ var controls = [
   { id: 'c_ttl_fs', name: 'Feature store TTL', domain: 'Retention', level: 4, health: 'working', owner: 't_fraud', scope: 's_fraudfs', evidence: 'TTL enforced by store · sampled daily', statement: '' },
   { id: 'c_purpose_fs', name: 'Purpose tags on feature reads', domain: 'Purpose', level: 1, health: 'failing', owner: 't_fraud', scope: 's_fraudfs', evidence: 'Access request reviewed by a human; Marketing request approved as "analytics"', statement: 'Reads must declare purpose.' },
   { id: 'c_purpose_runtime', name: 'Query-time purpose enforcement', domain: 'Purpose', level: 4, health: 'working', owner: 't_privacy', scope: 'Pulse only', evidence: 'Policy engine denies non-matching purpose · 0 bypasses', statement: '' },
-  { id: 'c_consent_read', name: 'Consent checked at read', domain: 'Consent', level: 4, health: 'working', owner: 't_privacy', scope: '9 of 14 consumers', evidence: 'Consent SDK on read path', statement: '' },
+  { id: 'c_consent_read', name: 'Consent checked at read', domain: 'Consent', level: 4, health: 'working', owner: 't_privacy', scope: '' /* computed below */, evidence: 'Consent SDK on read path', statement: '' },
   { id: 'c_consent_batch', name: 'Nightly consent filter for batch exports', domain: 'Consent', level: 3, health: 'failing', owner: 't_audience', scope: 'ads exports', evidence: 'Filter step removed from one DAG on 2026-09-21', statement: '' },
-  { id: 'c_delete_orch', name: 'Deletion orchestrator', domain: 'Deletion', level: 4, health: 'working', owner: 't_privacy', scope: '22 of 26 systems', evidence: 'Per-system receipts', statement: '' },
-  { id: 'c_delete_verify', name: 'Deletion verification scan', domain: 'Deletion', level: 5, health: 'working', owner: 't_privacy', scope: '17 of 26 systems', evidence: 'Canary IDs re-queried at T+72h', statement: '' },
+  { id: 'c_delete_orch', name: 'Deletion orchestrator', domain: 'Deletion', level: 4, health: 'working', owner: 't_privacy', scope: '' /* computed below */, evidence: 'Per-system receipts', statement: '' },
+  { id: 'c_delete_verify', name: 'Deletion verification scan', domain: 'Deletion', level: 5, health: 'working', owner: 't_privacy', scope: '' /* computed below */, evidence: 'Canary IDs re-queried at T+72h', statement: '' },
   { id: 'c_cryptoshred', name: 'Per-user keys (crypto-shredding)', domain: 'Deletion', level: 4, health: 'working', owner: 't_pulse', scope: 'Pulse', evidence: 'Key destruction receipts', statement: '' },
   { id: 'c_backup_reapply', name: 'Re-apply deletions on restore', domain: 'Deletion', level: 3, health: 'working', owner: 't_sre', scope: 'backups', evidence: 'Restore drill 2026-09-03', statement: '' },
   { id: 'c_gate_egress', name: 'Third-party egress review gate', domain: 'Vendors', level: 3, health: 'failing', owner: 't_privacy', scope: 'server egress', evidence: 'Browser telemetry used a pre-approved destination; gate skipped', statement: '' },
@@ -604,7 +604,7 @@ var findings = [
     owner: 't_sre', due: '2026-10-07', enforcement: 4, status: 'in progress', opened: '2026-08-28' },
   { id: 'PRV-0229', sev: 'HIGH', title: 'Identity resolution job has no owner, no purpose, no retention',
     kind: 'UNKNOWN OWNER + UNKNOWN PURPOSE', linddun: ['Linking', 'Identifying', 'Non-compliance'], harms: ['Linkability', 'Re-identification'],
-    detector: 'Unknown = finding: owner null, purpose [], retention null', people: 180000000,
+    detector: 'Unknown = finding: no owner, no declared purpose, no retention', people: 180000000,
     entities: ['s_idres', 'd_identity_graph', 'fl25', 'fl26', 'i_customer', 'i_maid', 'i_pulse', 'i_cookie'],
     human: 'A job nobody owns links health, advertising and shopping identities for 180M people "in case".',
     mitigations: ['Assign owner or shut down', 'Declare purpose per edge type', 'Forbid purpose-scoped ID joins', 'Delete graph edges older than need'],
@@ -654,7 +654,7 @@ var findings = [
     kind: 'EXPIRED AGREEMENT', linddun: ['Non-compliance'], harms: ['Loss of control'], detector: 'Contract calendar × egress log', people: 410000,
     entities: ['v_surveyloop'], human: 'Survey answers are sent to a vendor with no current contract.', mitigations: ['Pause export', 'Renew or offboard'], owner: 't_privacy', due: '2026-09-29', enforcement: 1, status: 'open', opened: '2026-09-02' },
   { id: 'PRV-0236', sev: 'MEDIUM', title: 'Assistant memory launching with no retention or deletion defined',
-    kind: 'UNKNOWN RETENTION', linddun: ['Unawareness', 'Unintervenability'], harms: ['Loss of control'], detector: 'Launch gate: retention=null', people: 0,
+    kind: 'UNKNOWN RETENTION', linddun: ['Unawareness', 'Unintervenability'], harms: ['Loss of control'], detector: 'Launch gate: retention not declared', people: 0,
     entities: ['f_memory', 's_novamem', 'd_novamem', 'mdl_memory'], human: 'People cannot see or remove what the assistant decided to remember.',
     mitigations: ['Memory viewer + delete', 'Default 12-month expiry', 'Exclude T4 from memory'], owner: 't_nova', due: '2026-10-06', enforcement: 3, status: 'blocking launch', opened: '2026-09-18' },
   { id: 'PRV-0218', sev: 'MEDIUM', title: '1,200 people can read gateway logs',
@@ -976,26 +976,26 @@ var dp = {
 /* ── Regulations / policies → obligations ───────────────────── */
 var regulations = [
   { id: 'reg_gdpr', name: 'GDPR', scope: 'EU/EEA residents', obligations: [
-    { id: 'ob1', text: 'Erasure on request', data: 'd_profile', systems: 26, control: 'c_delete_orch', evidence: 'c_delete_verify', status: 'partial', note: '24 of 26 systems verifiable' },
+    { id: 'ob1', text: 'Erasure on request', data: 'd_profile', systems: 26, control: 'c_delete_orch', evidence: 'c_delete_verify', status: 'partial', note: '' /* computed below */ },
     { id: 'ob2', text: 'Purpose limitation', data: 'd_fraudfeat', systems: 3, control: 'c_purpose_fs', evidence: null, status: 'gap', note: 'human approval only; drift found' },
     { id: 'ob3', text: 'Transfer safeguards', data: 'd_transcripts', systems: 2, control: null, evidence: null, status: 'gap', note: 'new US subprocessor' },
     { id: 'ob4', text: 'Special-category processing basis', data: 'd_pulsecycle', systems: 2, control: 'c_purpose_runtime', evidence: 'c_purpose_runtime', status: 'met', note: 'explicit consent checked at read' } ] },
   { id: 'reg_ccpa', name: 'CCPA / CPRA', scope: 'California residents', obligations: [
     { id: 'ob5', text: 'Opt-out of sale/sharing honoured', data: 'd_audience', systems: 4, control: 'c_consent_batch', evidence: null, status: 'gap', note: 'opt-outs not reaching AdReach' },
     { id: 'ob6', text: 'Limit use of sensitive personal information', data: 'd_lochist', systems: 7, control: null, evidence: null, status: 'gap', note: 'location used for ads' },
-    { id: 'ob7', text: 'Right to know / access', data: 'd_profile', systems: 22, control: 'c_delete_orch', evidence: 'c_delete_verify', status: 'met', note: '' } ] },
+    { id: 'ob7', text: 'Right to know / access', data: 'd_profile', systems: 22, control: null, evidence: null, status: 'unknown', note: 'no automated access/export control is registered; requests are answered by hand' } ] },
   { id: 'reg_coppa', name: 'COPPA', scope: 'Children under 13 (US)', obligations: [
     { id: 'ob8', text: 'Verifiable parental consent', data: 'd_family', systems: 4, control: 'c_children', evidence: 'c_children', status: 'met', note: '' },
-    { id: 'ob9', text: 'No behavioural ads to children', data: 'd_family', systems: 4, control: 'c_children', evidence: null, status: 'partial', note: 'ns_uid cookie present on /family' } ] },
+    { id: 'ob9', text: 'Parental consent before persistent identifiers are used for behavioural ads', data: 'd_family', systems: 4, control: 'c_children', evidence: null, status: 'partial', note: 'ns_uid cookie present on /family' } ] },
   { id: 'reg_hipaa', name: 'HIPAA (where applicable)', scope: 'Covered-entity partnerships only', obligations: [
     { id: 'ob10', text: 'Business associate safeguards for partner data', data: 'd_pulsecycle', systems: 2, control: 'c_cryptoshred', evidence: 'c_cryptoshred', status: 'met', note: 'Pulse is consumer app; applies only to clinic pilot' } ] },
   { id: 'reg_glba', name: 'GLBA', scope: 'Northstar Pay', obligations: [
     { id: 'ob11', text: 'Safeguard customer financial information', data: 'd_txn', systems: 4, control: 'c_tokenise', evidence: 'c_tokenise', status: 'met', note: '' } ] },
   { id: 'reg_pci', name: 'PCI DSS', scope: 'Card data', obligations: [
-    { id: 'ob12', text: 'Do not store PAN', data: 'd_txn', systems: 2, control: 'c_tokenise', evidence: 'c_tokenise', status: 'met', note: '' } ] },
+    { id: 'ob12', text: 'Render stored PAN unreadable; never keep sensitive authentication data after authorisation', data: 'd_txn', systems: 2, control: 'c_tokenise', evidence: 'c_tokenise', status: 'met', note: '' } ] },
   { id: 'reg_internal', name: 'Northstar policy PP-12', scope: 'Internal', obligations: [
     { id: 'ob13', text: 'No personal data in logs', data: 'd_applogs', systems: 6, control: 'c_policy_nolog', evidence: null, status: 'gap', note: 'policy only; runtime redactor failing' },
-    { id: 'ob14', text: 'Every dataset declares retention', data: 'd_orders_wh', systems: 25, control: 'c_ttl_wh', evidence: 'c_retention_scan', status: 'partial', note: '' } ] }
+    { id: 'ob14', text: 'Every dataset declares retention', data: 'd_orders_wh', all: 'datasets', control: 'c_ttl_wh', evidence: 'c_retention_scan', status: 'partial', note: '' /* computed below */ } ] }
 ];
 
 /* ── Maturity ───────────────────────────────────────────────── */
@@ -1004,7 +1004,7 @@ var maturity = [
   ['Data Discovery', 3, 'Schema registry tags tiers; SDK streams undiscovered.'],
   ['Data Lineage', 2, 'Warehouse lineage automated; streams and vendors manual.'],
   ['Purpose Governance', 1, 'Purpose tags exist; enforced at runtime only in Pulse.'],
-  ['Consent', 3, 'Read-time checks for 9 of 14 consumers.'],
+  ['Consent', 3, '' /* computed below */],
   ['Retention', 3, 'Drift scanner is verifiable; half the stores still lack TTL.'],
   ['Deletion', 4, 'Orchestrator + verification scan with canaries.'],
   ['Identity', 1, 'Scoped identifiers are a standard nobody enforces.'],
@@ -1126,6 +1126,21 @@ var contextNorms = { fl10: 'Breaks the norm: shared to stop fraud, used to sell 
   fl21: 'Breaks the norm: asking for help is not volunteering training data.', fl23: 'Unclear: a support chat processed by an unnamed third party.',
   fl26: 'Breaks the norm: separate contexts stitched into one person.', fl04: 'Matches: payment details go to the payment processor.',
   fl19: 'Matches: health data stays with the health feature, encrypted per person.', fl11: 'Only with consent — and opt-outs are not arriving.' };
+
+/* Scopes and notes that are counts are computed from the data, never typed. */
+(function () {
+  var n = deletionTargets.length, st = function (x) { return deletionTargets.filter(function (t) { return t[3] === x; }).length; };
+  var ver = st('verified'), wired = n - st('unknown'), rt = consentConsumers.filter(function (c) { return c.mode === 'read-time'; }).length;
+  var ctl = function (id) { for (var i = 0; i < controls.length; i++) if (controls[i].id === id) return controls[i]; };
+  ctl('c_delete_orch').scope = wired + ' of ' + n + ' systems wired';
+  ctl('c_delete_verify').scope = ver + ' of ' + n + ' systems verified';
+  ctl('c_consent_read').scope = rt + ' of ' + consentConsumers.length + ' consumers';
+  regulations.forEach(function (r) { r.obligations.forEach(function (o) {
+    if (o.id === 'ob1') o.note = ver + ' of ' + n + ' systems verifiable';
+    if (o.id === 'ob14') { var noTtl = datasets.filter(function (d) { return d.retention == null || d.retention.declared == null; }).length; o.note = noTtl ? noTtl + ' of ' + datasets.length + ' datasets declare no retention' : ''; }
+  }); });
+  maturity.forEach(function (m) { if (m[0] === 'Consent') m[2] = 'Read-time checks for ' + rt + ' of ' + consentConsumers.length + ' consumers.'; });
+})();
 
 window.NS = {
   handshakes: handshakes, assumptionTests: assumptionTests, contextNorms: contextNorms,

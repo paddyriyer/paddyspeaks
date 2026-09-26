@@ -198,7 +198,7 @@ var M = P.METRICS = [
   { id: 'aiprov', label: 'Models with unknown provenance', rule: 'Training provenance recorded as unknown or partial.', tone: 'unk', route: 'privacy/ai', items: function () { return NS.models.filter(function (m) { return m.provenance !== 'documented'; }).map(function (m) { return { id: m.id, why: 'provenance: ' + m.provenance }; }); } },
   { id: 'paper', label: 'Controls only in documents', rule: 'Controls at enforcement level 0 (policy text, no mechanism).', tone: 'hot', route: 'assurance/controls', items: function () { return NS.controls.filter(function (c) { return c.level === 0; }).map(function (c) { return { id: c.id, why: c.evidence }; }); } },
   { id: 'runtime', label: 'Runtime-enforced controls', rule: 'Controls at level 4 (runtime) or 5 (continuous audit).', tone: 'good', route: 'assurance/controls', items: function () { return NS.controls.filter(function (c) { return c.level >= 4; }).map(function (c) { return { id: c.id, why: 'L' + c.level + ' · ' + c.health }; }); } },
-  { id: 'drift', label: 'Privacy drift this week', rule: 'Changes detected in the last 7 days: new fields, joins, consumers, SDKs, vendors, regions, purposes.', route: 'assurance/drift', items: function () { return NS.drift.filter(function (d) { return daysSince(d.t.slice(0, 10)) <= 7 && d.sev !== 'GOOD'; }).map(function (d) { return { id: d.entities[0], why: d.text, t: d.t }; }); } }
+  { id: 'drift', label: 'Privacy drift this week', rule: 'Changes detected in the last 7 days: new fields, joins, consumers, SDKs, vendors, regions, purposes.', route: 'assurance/drift', items: function () { return NS.drift.filter(function (d) { return daysSince(d.t.slice(0, 10)) < 7 && d.sev !== 'GOOD'; }).map(function (d) { return { id: d.entities[0], why: d.text, t: d.t }; }); } }
 ];
 P.metric = function (id) { for (var i = 0; i < M.length; i++) if (M[i].id === id) return M[i]; };
 
@@ -345,6 +345,7 @@ P.openMetric = function (id) {
 };
 
 /* ── trail ───────────────────────────────────────────────── */
+P.pushTrail = function (id) { pushTrail(id); };
 function pushTrail(id) {
   var t = P.state.trail; if (t[t.length - 1] === id) return;
   t.push(id); if (t.length > 14) t.shift(); renderTrail();
