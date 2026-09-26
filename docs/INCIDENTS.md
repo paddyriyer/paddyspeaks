@@ -106,8 +106,10 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
   - [ ] **Paddy:** require the `worker` and `validate` status checks on `main`
     (Settings → Branches), so a red contract test blocks the merge instead of
     advising.
-  - [ ] **Claude (next session):** confirm Analytics Health's hourly schedule is
-    firing (as of 20:56 UTC on 25 Sep only the push-triggered run existed; the
-    session token cannot dispatch workflows).
+  - [x] **Claude:** confirm Analytics Health's hourly schedule is firing. Done
+    2026-09-25: the first scheduled run
+    ([36193171479](https://github.com/paddyriyer/paddyspeaks/actions/runs/36193171479))
+    ran at 21:44 UTC and passed. GitHub started the new cron late; later runs
+    follow the hourly schedule.
   - [ ] **Paddy:** after a few normal days, note the usual pixel-only share so the
     dashboard warning threshold (60%) can be tightened.
