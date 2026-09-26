@@ -5,7 +5,7 @@ var P = window.PCC, NS = window.NS, esc = P.esc, chip = P.chip, fmtN = P.fmtN, u
 var V = P.views;
 
 /* ════════════ OVERVIEW — WHERE SHOULD I WORRY? ════════════ */
-V.overview = { title: 'Command Center', render: function () {
+P.fullOverview = { title: 'Command Center', render: function () {
   var open = P.openFindings();
   var rOf = function (f) { var m = 0; NS.risks.forEach(function (r) { if (r.findings.indexOf(f.id) >= 0) m = Math.max(m, P.riskCalc(r).residual); }); return m; };
   var top = open.slice().sort(function (a, b) { var s = { HIGH: 3, MEDIUM: 2, LOW: 1 }; return (s[b.sev] - s[a.sev]) || (rOf(b) - rOf(a)) || (b.people - a.people); });
@@ -22,7 +22,7 @@ V.overview = { title: 'Command Center', render: function () {
     return '<button data-act="sixList" data-k="' + k + '"><div class="qn">' + (i + 1) + ' · ' + k + '</div><div class="qt">' + esc(P.SIX_Q[k]) + '</div><div class="big">' + P.pct(y, pd.length) + '<span class="small dim">% answered</span></div><div class="bar"><i style="width:' + P.pct(y, pd.length) + '%;background:var(--ctl)"></i><i style="width:' + P.pct(n, pd.length) + '%;background:var(--exp)"></i><i style="width:' + P.pct(u, pd.length) + '%;background:repeating-linear-gradient(90deg,var(--unk) 0 3px,transparent 3px 5px)"></i></div><div class="fig"><span class="ok">' + y + ' ✓</span><span class="bad">' + n + ' ✗</span><span class="unknown" style="border:0">' + u + ' ?</span></div></button>';
   }).join('');
   var denom = { personal: NS.datasets.length, sensitive: NS.datasets.length, nottl: NS.datasets.length, retviol: NS.datasets.length, unmapped: NS.flows.length, paper: NS.controls.length, runtime: NS.controls.length, delfail: NS.deletionTargets.length, aipersonal: NS.models.length, aiprov: NS.models.length, sdks: NS.trackers.length, consentfail: NS.consentConsumers.length, hivendor: NS.vendors.length };
-  var tiles = P.METRICS.map(function (m) {
+  var tiles = P.METRICS.filter(function (m) { return !m.hidden; }).map(function (m) {
     var n = m.items().length;
     return '<button class="tile ' + (m.tone || '') + '" data-metric="' + m.id + '" title="' + esc(m.rule) + '"><span class="v">' + n + '</span><span class="l">' + esc(m.label) + '</span><span class="d">' + (denom[m.id] ? 'of ' + denom[m.id] + ' · ' : '') + 'why? →</span></button>';
   }).join('');
@@ -57,7 +57,7 @@ function worryMap(open) {
     h += '<span class="hr">' + (b === '__none' ? '<span class="unknown">no owner</span>' : esc(P.name(b))) + '</span>';
     P.STAGES.forEach(function (s) {
       var v = cell[b + '|' + s] || 0, a = v / max;
-      h += '<button class="hc" data-act="heatCell" data-b="' + b + '" data-s="' + s + '" style="background:' + (v ? 'rgba(255,138,92,' + (0.12 + a * 0.75).toFixed(2) + ')' : 'var(--panel)') + ';color:' + (a > 0.55 ? '#1a0e09' : 'var(--muted)') + '" aria-label="' + esc(P.name(b)) + ' ' + s + ': ' + v + '">' + (v || '') + '</button>';
+      h += '<button class="hc" data-act="heatCell" data-b="' + b + '" data-s="' + s + '" style="background:' + (v ? 'rgba(192,71,15,' + (0.12 + a * 0.75).toFixed(2) + ')' : 'var(--panel)') + ';color:' + (a > 0.55 ? '#ffffff' : 'var(--muted)') + '" aria-label="' + esc(P.name(b)) + ' ' + s + ': ' + v + '">' + (v || '') + '</button>';
     });
   });
   return h + '</div><p class="small dim" style="margin:10px 0 0">Click a cell for the findings behind it. The DELETE column is where promises most often become unprovable.</p>';
@@ -95,13 +95,13 @@ function radarMini() {
   var xs = function (p) { return pad + (Math.log10(Math.max(p, 1e4)) - 4) / (8.4 - 4) * (W - pad * 2); };
   var ys = function (r) { return H - pad - (r / 45) * (H - pad * 2); };
   var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="group" aria-label="Risks by people affected and residual risk">';
-  [1e5, 1e6, 1e7, 1e8].forEach(function (v) { var x = xs(v); s += '<line x1="' + x + '" x2="' + x + '" y1="' + pad / 2 + '" y2="' + (H - pad) + '" stroke="#1f2835"/><text x="' + x + '" y="' + (H - pad + 16) + '" fill="#7c879b" font-size="10" text-anchor="middle">' + fmtN(v) + '</text>'; });
-  [[26, 'HIGH'], [16, 'MED']].forEach(function (t) { var y = ys(t[0]); s += '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y + '" y2="' + y + '" stroke="' + (t[1] === 'HIGH' ? '#ff8a5c' : '#f2c46d') + '" stroke-opacity=".35" stroke-dasharray="4 4"/><text x="' + (W - pad) + '" y="' + (y - 4) + '" fill="#7c879b" font-size="10" text-anchor="end">' + t[1] + ' ≥ ' + t[0] + '</text>'; });
-  s += '<text x="' + pad + '" y="' + (H - 6) + '" fill="#7c879b" font-size="10">people affected (log) →</text><text x="10" y="' + (pad / 2 + 4) + '" fill="#7c879b" font-size="10">residual ↑</text>';
+  [1e5, 1e6, 1e7, 1e8].forEach(function (v) { var x = xs(v); s += '<line x1="' + x + '" x2="' + x + '" y1="' + pad / 2 + '" y2="' + (H - pad) + '" stroke="#e7e1d5"/><text x="' + x + '" y="' + (H - pad + 16) + '" fill="#6b6457" font-size="10" text-anchor="middle">' + fmtN(v) + '</text>'; });
+  [[26, 'HIGH'], [16, 'MED']].forEach(function (t) { var y = ys(t[0]); s += '<line x1="' + pad + '" x2="' + (W - pad) + '" y1="' + y + '" y2="' + y + '" stroke="' + (t[1] === 'HIGH' ? '#c0470f' : '#946300') + '" stroke-opacity=".35" stroke-dasharray="4 4"/><text x="' + (W - pad) + '" y="' + (y - 4) + '" fill="#6b6457" font-size="10" text-anchor="end">' + t[1] + ' ≥ ' + t[0] + '</text>'; });
+  s += '<text x="' + pad + '" y="' + (H - 6) + '" fill="#6b6457" font-size="10">people affected (log) →</text><text x="10" y="' + (pad / 2 + 4) + '" fill="#6b6457" font-size="10">residual ↑</text>';
   rs.forEach(function (r) {
     var c = P.riskCalc(r), d = P.get(r.asset).obj, x = xs(d.people), y = ys(c.residual), rad = 6 + r.f.sens * 2.2;
-    var col = c.rating === 'HIGH' ? '#ff8a5c' : c.rating === 'MEDIUM' ? '#f2c46d' : '#4fd8b6';
-    s += '<g class="node" data-ent="' + r.id + '" tabindex="0" role="button" aria-label="' + esc(r.name) + ' residual ' + c.residual + '"><circle cx="' + x + '" cy="' + y + '" r="' + rad + '" fill="' + col + '" fill-opacity=".22" stroke="' + col + '" stroke-width="1.5"/><text x="' + (x + rad + 4) + '" y="' + (y + 4) + '" fill="#e9edf3" font-size="11">' + esc(r.name) + '</text></g>';
+    var col = c.rating === 'HIGH' ? '#c0470f' : c.rating === 'MEDIUM' ? '#946300' : '#0b7d60';
+    s += '<g class="node" data-ent="' + r.id + '" tabindex="0" role="button" aria-label="' + esc(r.name) + ' residual ' + c.residual + '"><circle cx="' + x + '" cy="' + y + '" r="' + rad + '" fill="' + col + '" fill-opacity=".22" stroke="' + col + '" stroke-width="1.5"/><text x="' + (x + rad + 4) + '" y="' + (y + 4) + '" fill="#1d2430" font-size="11">' + esc(r.name) + '</text></g>';
   });
   return s + '</svg><p class="small dim" style="margin:6px 0 0">Bubble size = data sensitivity. The two lowest-risk assets hold the most sensitive data — Pulse cycle logs and Messenger metadata — because architecture, not policy, protects them.</p>';
 }
@@ -206,7 +206,7 @@ V['explore/data'] = { title: 'Data', render: function () {
 
 /* ════════════ KNOWLEDGE GRAPH ════════════ */
 var LANES = ['bu', 'product', 'feature', 'team', 'endpoint', 'system', 'dataset', 'identifier', 'purpose', 'model', 'vendor', 'subprocessor', 'control', 'finding', 'risk', 'incident', 'regulation'];
-var LANE_COL = { bu: '#687891', product: '#72b7ff', feature: '#72b7ff', team: '#9aa5b8', endpoint: '#9aa5b8', system: '#8fb3d9', dataset: '#f2a25c', identifier: '#b39bff', purpose: '#4fd8b6', model: '#e59cff', vendor: '#ff8a5c', subprocessor: '#ff8a5c', control: '#4fd8b6', finding: '#ff5d73', risk: '#ff5d73', incident: '#ff5d73', regulation: '#9aa5b8' };
+var LANE_COL = { bu: '#6b7a93', product: '#1f6ac0', feature: '#1f6ac0', team: '#6f7788', endpoint: '#6f7788', system: '#4f78a8', dataset: '#bd5f14', identifier: '#6346c9', purpose: '#0b7d60', model: '#963bbd', vendor: '#c0470f', subprocessor: '#c0470f', control: '#0b7d60', finding: '#c42d49', risk: '#c42d49', incident: '#c42d49', regulation: '#6f7788' };
 P.LANE_COL = LANE_COL;
 V['explore/graph'] = { title: 'Knowledge Graph', render: function (s, q) {
   var focus = q.focus && P.get(q.focus) ? q.focus : 'd_fraudfeat', depth = +(q.depth || 2), dir = q.dir || 'both';
@@ -217,7 +217,7 @@ V['explore/graph'] = { title: 'Knowledge Graph', render: function (s, q) {
     '<div class="seg" role="group" aria-label="Depth">' + [1, 2, 3].map(function (d) { return '<button data-gdepth="' + d + '" aria-pressed="' + (depth === d) + '">' + d + ' hop' + (d > 1 ? 's' : '') + '</button>'; }).join('') + '</div>' +
     '<button class="btn ghost" data-gall="1">Whole organisation</button></div>' +
     '<div class="canvas" id="gCanvas"></div>' +
-    '<div class="legend" style="margin-top:10px"><span><i style="background:#72b7ff"></i>data flow</span><span><i style="background:#ff8a5c"></i>unsanctioned join / finding</span><span><i style="background:#3a475c"></i>structural</span><span><i class="dash"></i>unknown</span><span class="dim">Click a node to focus it and open its passport. Keyboard: Tab to a node, Enter.</span></div>';
+    '<div class="legend" style="margin-top:10px"><span><i style="background:#1f6ac0"></i>data flow</span><span><i style="background:#c0470f"></i>unsanctioned join / finding</span><span><i style="background:#b9b1a0"></i>structural</span><span><i class="dash"></i>unknown</span><span class="dim">Click a node to focus it and open its passport. Keyboard: Tab to a node, Enter.</span></div>';
 }, mount: function (root, s, q) {
   var focus = q.focus && P.get(q.focus) ? q.focus : 'd_fraudfeat', depth = +(q.depth || 2), dir = q.dir || 'both';
   function nav(o) { var n = { focus: focus, depth: depth, dir: dir }; for (var k in o) n[k] = o[k]; P._keepScroll = true; P.go('explore/graph?focus=' + n.focus + '&depth=' + n.depth + '&dir=' + n.dir); }
@@ -261,7 +261,7 @@ function drawGraph(el, focus, depth, dir) {
     lanes[l].forEach(function (id, j) { pos[id] = { x: 20 + i * colW, y: top + off + j * rowH }; });
   });
   var sv = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="group" aria-label="Knowledge graph' + (focus ? ' around ' + esc(P.name(focus)) : '') + '">';
-  used.forEach(function (l, i) { sv += '<text x="' + (20 + i * colW) + '" y="20" fill="#7c879b" font-size="10" font-family="JetBrains Mono" letter-spacing="1">' + esc((P.TYPE_LABEL[l] || l).toUpperCase()) + ' · ' + lanes[l].length + '</text>'; });
+  used.forEach(function (l, i) { sv += '<text x="' + (20 + i * colW) + '" y="20" fill="#6b6457" font-size="10" font-family="JetBrains Mono" letter-spacing="1">' + esc((P.TYPE_LABEL[l] || l).toUpperCase()) + ' · ' + lanes[l].length + '</text>'; });
   sv += '<g id="gEdges">';
   edges.forEach(function (e) {
     var a = pos[e.a], b = pos[e.b]; if (!a || !b) return;
@@ -269,19 +269,19 @@ function drawGraph(el, focus, depth, dir) {
     if (a.x > b.x) { ax = a.x; bx = b.x + nodeW; }
     if (a.x === b.x) { ax = a.x + nodeW; bx = b.x + nodeW; }
     var mx = a.x === b.x ? ax + 60 : (ax + bx) / 2;
-    var col = /unsanctioned/.test(e.rel) ? '#ff8a5c' : e.rel === 'flows to' ? '#72b7ff' : e.rel === 'affects' || e.rel === 'evidenced by' ? '#ff5d73' : '#3a475c';
+    var col = /unsanctioned/.test(e.rel) ? '#c0470f' : e.rel === 'flows to' ? '#1f6ac0' : e.rel === 'affects' || e.rel === 'evidenced by' ? '#c42d49' : '#b9b1a0';
     var fl = e.x && typeof e.x === 'string' ? P.get(e.x).obj : null;
     var dash = fl && fl.status === 'unknown' ? ' stroke-dasharray="5 4"' : /unsanctioned/.test(e.rel) ? ' stroke-dasharray="4 3"' : '';
-    if (fl && fl.status === 'unknown') col = '#b39bff';
+    if (fl && fl.status === 'unknown') col = '#6346c9';
     sv += '<path d="M' + ax + ',' + ay + ' C' + mx + ',' + ay + ' ' + mx + ',' + by + ' ' + bx + ',' + by + '" fill="none" stroke="' + col + '" stroke-opacity="' + (all ? 0.28 : 0.7) + '" stroke-width="' + (all ? 0.8 : 1.3) + '"' + dash + ' data-a="' + e.a + '" data-b="' + e.b + '"><title>' + esc(P.name(e.a) + ' — ' + e.rel + ' → ' + P.name(e.b)) + '</title></path>';
   });
   sv += '</g>';
   Object.keys(pos).forEach(function (id) {
-    var p = pos[id], e = P.get(id), col = LANE_COL[e.type] || '#9aa5b8', isF = id === focus;
+    var p = pos[id], e = P.get(id), col = LANE_COL[e.type] || '#6f7788', isF = id === focus;
     var unknownish = (e.type === 'dataset' && !e.obj.owner) || (e.type === 'system' && !e.obj.team && e.type !== 'endpoint') || (e.type === 'subprocessor' && !e.obj.known) || (e.type === 'vendor' && !e.obj.declared);
     var label = e.type === 'finding' ? id : P.name(id); var max = all ? 19 : 25; if (label.length > max) label = label.slice(0, max - 1) + '…';
-    if (all) sv += '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.TYPE_LABEL[e.type] + ': ' + P.name(id)) + '"><circle cx="' + (p.x + 5) + '" cy="' + (p.y + 6) + '" r="4.5" fill="' + col + '" stroke="' + (unknownish ? '#b39bff' : 'none') + '"/><text x="' + (p.x + 14) + '" y="' + (p.y + 10) + '" fill="#a3adbf" font-size="10.5">' + esc(label) + '</text></g>';
-    else sv += '<g class="node" data-ent="' + id + '" data-focus="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.TYPE_LABEL[e.type] + ': ' + P.name(id)) + '"><rect x="' + p.x + '" y="' + p.y + '" width="' + nodeW + '" height="26" rx="7" fill="' + (isF ? '#1c2533' : '#121821') + '" stroke="' + (isF ? col : unknownish ? '#b39bff' : '#2b3647') + '" stroke-width="' + (isF ? 2 : 1) + '"' + (unknownish ? ' stroke-dasharray="4 3"' : '') + '/><rect x="' + p.x + '" y="' + p.y + '" width="4" height="26" rx="2" fill="' + col + '"/><text x="' + (p.x + 11) + '" y="' + (p.y + 17) + '" fill="' + (isF ? '#fff' : '#d6dce6') + '" font-size="11.5"' + (isF ? ' font-weight="700"' : '') + '>' + esc(label) + '</text></g>';
+    if (all) sv += '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.TYPE_LABEL[e.type] + ': ' + P.name(id)) + '"><circle cx="' + (p.x + 5) + '" cy="' + (p.y + 6) + '" r="4.5" fill="' + col + '" stroke="' + (unknownish ? '#6346c9' : 'none') + '"/><text x="' + (p.x + 14) + '" y="' + (p.y + 10) + '" fill="#4f5968" font-size="10.5">' + esc(label) + '</text></g>';
+    else sv += '<g class="node" data-ent="' + id + '" data-focus="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.TYPE_LABEL[e.type] + ': ' + P.name(id)) + '"><rect x="' + p.x + '" y="' + p.y + '" width="' + nodeW + '" height="26" rx="7" fill="' + (isF ? '#e9f0fa' : '#fffdf9') + '" stroke="' + (isF ? col : unknownish ? '#6346c9' : '#d3cbbb') + '" stroke-width="' + (isF ? 2 : 1) + '"' + (unknownish ? ' stroke-dasharray="4 3"' : '') + '/><rect x="' + p.x + '" y="' + p.y + '" width="4" height="26" rx="2" fill="' + col + '"/><text x="' + (p.x + 11) + '" y="' + (p.y + 17) + '" fill="' + (isF ? '#1d2430' : '#1d2430') + '" font-size="11.5"' + (isF ? ' font-weight="700"' : '') + '>' + esc(label) + '</text></g>';
   });
   el.innerHTML = sv + '</svg>';
   var svg = el.querySelector('svg');
@@ -316,19 +316,19 @@ V['explore/person'] = { title: 'One Person', render: function () {
   function portrait(el, shown) {
     var W = 680, H = 470, cx = W / 2, cy = H / 2 - 6, ids = P.uniq([].concat.apply(ps.starts.slice(), ps.facts.map(function (f) { return f.path; })));
     var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;margin:auto" role="group" aria-label="Identifiers and facts joined around one person">';
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="175" fill="none" stroke="#1f2835" stroke-dasharray="2 5"/><circle cx="' + cx + '" cy="' + cy + '" r="100" fill="none" stroke="#1f2835" stroke-dasharray="2 5"/>';
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="175" fill="none" stroke="#e7e1d5" stroke-dasharray="2 5"/><circle cx="' + cx + '" cy="' + cy + '" r="100" fill="none" stroke="#e7e1d5" stroke-dasharray="2 5"/>';
     var ip = {}; ids.forEach(function (id, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / ids.length; ip[id] = { x: cx + 100 * Math.cos(a), y: cy + 100 * Math.sin(a) }; });
     ps.facts.forEach(function (f, i) {
       var a = -Math.PI / 2 + (i + 0.5) * 2 * Math.PI / ps.facts.length, x = cx + 175 * Math.cos(a) * 1.3, y = cy + 175 * Math.sin(a);
       var vis = i < shown, g = blocked(f), unkn = f.kind === 'UNKNOWABLE';
-      var col = unkn ? '#b39bff' : ['#4a5568', '#687891', '#72b7ff', '#f2a25c', '#ff5d73'][f.tier];
+      var col = unkn ? '#6346c9' : ['#9aa1ac', '#6b7a93', '#1f6ac0', '#bd5f14', '#c42d49'][f.tier];
       var from = f.path.length ? ip[f.path[f.path.length - 1]] : { x: cx, y: cy };
       if (vis && !unkn) s += '<line x1="' + from.x.toFixed(1) + '" y1="' + from.y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + col + '" stroke-opacity="' + (g ? 0.08 : 0.5) + '"' + (f.kind === 'INFERENCE' ? ' stroke-dasharray="3 3"' : '') + '/>';
-      s += '<g opacity="' + (vis ? (g ? 0.18 : 1) : 0) + '" style="transition:opacity .4s"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (4 + f.tier * 1.4) + '" fill="' + col + '"' + (unkn ? ' fill-opacity="0" stroke="#b39bff" stroke-dasharray="2 2"' : '') + '/><title>' + esc(f.a) + '</title></g>';
+      s += '<g opacity="' + (vis ? (g ? 0.18 : 1) : 0) + '" style="transition:opacity .4s"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + (4 + f.tier * 1.4) + '" fill="' + col + '"' + (unkn ? ' fill-opacity="0" stroke="#6346c9" stroke-dasharray="2 2"' : '') + '/><title>' + esc(f.a) + '</title></g>';
     });
-    ids.forEach(function (id) { var p = ip[id]; s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '" stroke="#b39bff" stroke-opacity=".35"/><g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="13" fill="#161d29" stroke="#b39bff"/><text x="' + p.x.toFixed(1) + '" y="' + (p.y + 25).toFixed(1) + '" fill="#b39bff" font-size="9.5" text-anchor="middle">' + esc(P.name(id).replace(/ \(.*\)/, '')) + '</text></g>'; });
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="#1c2533" stroke="#e9edf3"/><text x="' + cx + '" y="' + (cy + 5) + '" fill="#fff" font-size="15" font-weight="700" text-anchor="middle">A.</text>';
-    el.innerHTML = s + '<text x="10" y="' + (H - 10) + '" fill="#7c879b" font-size="10">inner ring: identifiers · outer ring: facts & inferences (colour = tier; dashed = inference) · hypothetical person</text></svg>';
+    ids.forEach(function (id) { var p = ip[id]; s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '" stroke="#6346c9" stroke-opacity=".35"/><g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="13" fill="#f6f3ec" stroke="#6346c9"/><text x="' + p.x.toFixed(1) + '" y="' + (p.y + 25).toFixed(1) + '" fill="#6346c9" font-size="9.5" text-anchor="middle">' + esc(P.name(id).replace(/ \(.*\)/, '')) + '</text></g>'; });
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="#e9f0fa" stroke="#1d2430"/><text x="' + cx + '" y="' + (cy + 5) + '" fill="#1d2430" font-size="15" font-weight="700" text-anchor="middle">A.</text>';
+    el.innerHTML = s + '<text x="10" y="' + (H - 10) + '" fill="#6b6457" font-size="10">inner ring: identifiers · outer ring: facts & inferences (colour = tier; dashed = inference) · hypothetical person</text></svg>';
   }
   root.querySelectorAll('[data-lever]').forEach(function (cb) { cb.addEventListener('change', function () { P.personLevers[cb.getAttribute('data-lever')] = cb.checked; cb.closest('.lever').classList.toggle('on', cb.checked); draw(); }); });
   root.querySelector('#pTrav').addEventListener('click', function () {
@@ -341,26 +341,26 @@ V['explore/person'] = { title: 'One Person', render: function () {
 
 /* ════════════ IDENTITY & LINKABILITY ════════════ */
 var CLS = ['GLOBAL DURABLE', 'CROSS-APP', 'PER-VENDOR', 'PURPOSE-SCOPED', 'ROTATING', 'EPHEMERAL', 'NONE'];
-var CLS_COL = { 'GLOBAL DURABLE': '#ff5d73', 'CROSS-APP': '#ff8a5c', 'PER-VENDOR': '#f2c46d', 'PURPOSE-SCOPED': '#4fd8b6', 'ROTATING': '#72b7ff', 'EPHEMERAL': '#8fb3d9', 'NONE': '#7c879b' };
+var CLS_COL = { 'GLOBAL DURABLE': '#c42d49', 'CROSS-APP': '#c0470f', 'PER-VENDOR': '#946300', 'PURPOSE-SCOPED': '#0b7d60', 'ROTATING': '#1f6ac0', 'EPHEMERAL': '#4f78a8', 'NONE': '#6b6457' };
 V['explore/identities'] = { title: 'Identities', render: function () {
   var ids = NS.identifiers, W = 640, H = 520, cx = W / 2, cy = H / 2 + 6, R = 200;
   var pos = {}; ids.forEach(function (i, k) { var a = -Math.PI / 2 + k * 2 * Math.PI / ids.length; pos[i.id] = { x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), a: a }; });
   var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px" role="group" aria-label="Identifier join graph">';
   NS.idJoins.forEach(function (j) {
     if (!j[2] && j[4]) return; var a = pos[j[0]], b = pos[j[1]]; if (!a || !b) return;
-    var col = j[4] ? '#3a475c' : '#ff8a5c';
+    var col = j[4] ? '#b9b1a0' : '#c0470f';
     s += '<path d="M' + a.x.toFixed(1) + ',' + a.y.toFixed(1) + ' Q' + cx + ',' + cy + ' ' + b.x.toFixed(1) + ',' + b.y.toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="' + (j[4] ? 1.2 : 2) + '"' + (j[4] ? '' : ' stroke-dasharray="5 4" class="flowdash"') + '><title>' + esc(P.name(j[0]) + ' ↔ ' + P.name(j[1]) + ': ' + j[3]) + '</title></path>';
   });
   ids.forEach(function (i) {
     var p = pos[i.id], c = CLS_COL[i.cls], anchor = Math.cos(p.a) > 0.2 ? 'start' : Math.cos(p.a) < -0.2 ? 'end' : 'middle', dx = anchor === 'start' ? 16 : anchor === 'end' ? -16 : 0, dy = anchor === 'middle' ? (Math.sin(p.a) > 0 ? 26 : -18) : 4;
-    s += '<g class="node" data-ent="' + i.id + '" tabindex="0" role="button" aria-label="' + esc(i.name + ', ' + i.cls) + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="10" fill="' + c + '" fill-opacity=".25" stroke="' + c + '" stroke-width="2"/><text x="' + (p.x + dx).toFixed(1) + '" y="' + (p.y + dy).toFixed(1) + '" fill="#e9edf3" font-size="11.5" text-anchor="' + anchor + '">' + esc(i.name) + '</text></g>';
+    s += '<g class="node" data-ent="' + i.id + '" tabindex="0" role="button" aria-label="' + esc(i.name + ', ' + i.cls) + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="10" fill="' + c + '" fill-opacity=".25" stroke="' + c + '" stroke-width="2"/><text x="' + (p.x + dx).toFixed(1) + '" y="' + (p.y + dy).toFixed(1) + '" fill="#1d2430" font-size="11.5" text-anchor="' + anchor + '">' + esc(i.name) + '</text></g>';
   });
   s += '</svg>';
   var spectrum = '<div class="spec">' + CLS.map(function (c) { var m = ids.filter(function (i) { return i.cls === c; }); return '<div class="sp" style="border-top:3px solid ' + CLS_COL[c] + '"><div class="mono small" style="color:' + CLS_COL[c] + '">' + c + '</div>' + (m.length ? m.map(function (i) { return chip(i.id); }).join('') : '<span class="dim small">—</span>') + '</div>'; }).join('') + '</div>';
   var un = NS.idJoins.filter(function (j) { return !j[4]; });
   return P.pageHead('Explore', 'Identity & linkability', 'Every stable key is a thread that stitches contexts together. Solid grey joins are sanctioned; dashed coral joins happen without anyone having decided they should.') +
     '<div class="callout warn" style="margin-bottom:14px"><b>Health App Device ID ↕ Advertising Warehouse Device ID.</b> The Pulse SDK sends the device ID and the advertising ID in one beacon, and the identity job joins the Pulse user ID to both. Harm: cross-context linkage, sensitive inference, re-identification. ' + chip('PRV-0233') + '</div>' +
-    '<div class="grid g-main"><div class="card"><div class="card-h"><h2 class="sec">Join graph</h2><span class="sub">' + un.length + ' unsanctioned joins</span></div>' + s + '<div class="legend"><span><i style="background:#3a475c"></i>sanctioned join</span><span><i style="background:#ff8a5c"></i>unsanctioned join</span></div></div>' +
+    '<div class="grid g-main"><div class="card"><div class="card-h"><h2 class="sec">Join graph</h2><span class="sub">' + un.length + ' unsanctioned joins</span></div>' + s + '<div class="legend"><span><i style="background:#b9b1a0"></i>sanctioned join</span><span><i style="background:#c0470f"></i>unsanctioned join</span></div></div>' +
     '<div class="card"><h2 class="sec" style="margin-bottom:6px">Unsanctioned joins</h2><p class="small muted">Ask everywhere: can we use a weaker, rotating, scoped or purpose-specific identifier?</p><div class="tbl-wrap"><table class="tbl"><tbody>' + un.map(function (j) { return '<tr><td>' + chip(j[0]) + '<br>' + chip(j[1]) + '</td><td class="small">' + esc(j[3]) + '<div class="dim">in ' + (j[2] ? esc(P.name(j[2])) : '—') + '</div></td></tr>'; }).join('') + '</tbody></table></div></div></div>' +
     '<div class="card" style="margin-top:14px"><div class="card-h"><h2 class="sec">◀ More linkable · less linkable ▶</h2><span class="sub">choose the weakest identifier that still does the job</span></div>' + spectrum + '</div>' +
     '<style>.spec{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.sp{background:var(--panel);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:5px;align-items:flex-start}@media(max-width:1100px){.spec{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>';
@@ -378,17 +378,17 @@ V['explore/flows'] = { title: 'Data Flows', render: function (s, q) {
   return P.pageHead('Explore', 'Data flow & trust boundaries', '<b>Every arrow is a decision.</b> Each one is a privacy object with fields, identifier, purpose, consent, retention, region, recipient, contract, control and deletion behaviour. Click any arrow.') +
     '<div class="toolbar">' + toggles.map(function (t) { return '<label class="tog"><input type="checkbox" data-ftog="' + t[0] + '"> ' + t[1] + '</label>'; }).join('') + '</div>' +
     '<div class="canvas" id="fCanvas"></div>' +
-    '<div class="legend" style="margin-top:10px"><span><i style="background:#5d6a7f"></i>reviewed</span><span><i style="background:#ff8a5c"></i>leaves Northstar</span><span><i style="background:#f2c46d"></i>purpose change</span><span><i class="dash"></i>unknown — nobody described it</span><span class="dim">Line width = sensitivity tier.</span></div>';
+    '<div class="legend" style="margin-top:10px"><span><i style="background:#9aa1ac"></i>reviewed</span><span><i style="background:#c0470f"></i>leaves Northstar</span><span><i style="background:#946300"></i>purpose change</span><span><i class="dash"></i>unknown — nobody described it</span><span class="dim">Line width = sensitivity tier.</span></div>';
 }, mount: function (root, s, q) {
   var W = 1340, H = 750, el = root.querySelector('#fCanvas');
-  function flowCol(f) { if (f.status === 'unknown') return '#b39bff'; if ((f.flags || []).indexOf('purpose_change') >= 0) return '#f2c46d'; if (f.boundary === 'third_party') return '#ff8a5c'; return '#5d6a7f'; }
+  function flowCol(f) { if (f.status === 'unknown') return '#6346c9'; if ((f.flags || []).indexOf('purpose_change') >= 0) return '#946300'; if (f.boundary === 'third_party') return '#c0470f'; return '#9aa1ac'; }
   function match(f, k) {
     var fl = f.flags || [];
     return { third: f.boundary === 'third_party', trust: f.boundary === 'trust' || f.boundary === 'third_party' || f.boundary === 'device', region: f.regionFrom !== f.regionTo && f.regionTo !== 'user' && f.regionFrom !== 'user' && f.regionFrom !== 'device', join: fl.indexOf('identity_join') >= 0, purpose: fl.indexOf('purpose_change') >= 0, sensitive: fl.indexOf('sensitive_join') >= 0 || f.tier >= 4, unrev: f.status === 'unreviewed', unknown: f.status === 'unknown' }[k];
   }
   var sv = '<svg width="100%" style="min-width:980px;height:auto" viewBox="0 0 ' + W + ' ' + H + '" role="group" aria-label="Northstar data-flow map with trust boundaries"><defs>' +
     ['5d6a7f', 'ff8a5c', 'f2c46d', 'b39bff', 'e9edf3'].map(function (c) { return '<marker id="ar' + c + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#' + c + '"/></marker>'; }).join('') + '</defs>';
-  [[10, 10, 160, 730, 'USER DEVICE', '#72b7ff'], [185, 10, 915, 730, 'NORTHSTAR — YOUR SERVERS', '#4fd8b6'], [1130, 10, 200, 730, 'THIRD PARTIES', '#ff8a5c'], [930, 105, 170, 300, 'ADVERTISING CONTEXT', '#f2c46d']].forEach(function (z) {
+  [[10, 10, 160, 730, 'USER DEVICE', '#1f6ac0'], [185, 10, 915, 730, 'NORTHSTAR — YOUR SERVERS', '#0b7d60'], [1130, 10, 200, 730, 'THIRD PARTIES', '#c0470f'], [930, 105, 170, 300, 'ADVERTISING CONTEXT', '#946300']].forEach(function (z) {
     sv += '<rect x="' + z[0] + '" y="' + z[1] + '" width="' + z[2] + '" height="' + z[3] + '" rx="14" fill="' + z[5] + '" fill-opacity=".035" stroke="' + z[5] + '" stroke-opacity=".35" stroke-dasharray="6 5"/><text x="' + (z[0] + 12) + '" y="' + (z[1] + z[3] - 10) + '" fill="' + z[5] + '" fill-opacity=".8" font-size="10" font-family="JetBrains Mono" letter-spacing="1.5">' + z[4] + '</text>';
   });
   sv += '<g id="fEdges">';
@@ -404,10 +404,10 @@ V['explore/flows'] = { title: 'Data Flows', render: function (s, q) {
   sv += '</g>';
   Object.keys(FP).forEach(function (id) {
     var p = FP[id], e = P.get(id); if (!e) return;
-    var t = e.type, col = t === 'vendor' || t === 'subprocessor' ? '#ff8a5c' : t === 'endpoint' ? '#72b7ff' : t === 'model' ? '#e59cff' : '#8fb3d9';
+    var t = e.type, col = t === 'vendor' || t === 'subprocessor' ? '#c0470f' : t === 'endpoint' ? '#1f6ac0' : t === 'model' ? '#963bbd' : '#4f78a8';
     var unknownish = (t === 'system' && !e.obj.team) || (t === 'vendor' && !e.obj.declared) || (t === 'subprocessor' && !e.obj.known);
     var label = P.name(id).replace(' (user device)', '').replace('Event Bus · purchase-events', 'Event Bus'); if (label.length > 21) label = label.slice(0, 20) + '…';
-    sv += '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><rect x="' + (p[0] - 62) + '" y="' + p[1] + '" width="124" height="30" rx="8" fill="#121821" stroke="' + (unknownish ? '#b39bff' : '#2b3647') + '"' + (unknownish ? ' stroke-dasharray="4 3"' : '') + '/><rect x="' + (p[0] - 62) + '" y="' + p[1] + '" width="3.5" height="30" rx="2" fill="' + col + '"/><text x="' + p[0] + '" y="' + (p[1] + 19) + '" fill="#e2e7ef" font-size="11" text-anchor="middle">' + esc(label) + '</text></g>';
+    sv += '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><rect x="' + (p[0] - 62) + '" y="' + p[1] + '" width="124" height="30" rx="8" fill="#fffdf9" stroke="' + (unknownish ? '#6346c9' : '#d3cbbb') + '"' + (unknownish ? ' stroke-dasharray="4 3"' : '') + '/><rect x="' + (p[0] - 62) + '" y="' + p[1] + '" width="3.5" height="30" rx="2" fill="' + col + '"/><text x="' + p[0] + '" y="' + (p[1] + 19) + '" fill="#1d2430" font-size="11" text-anchor="middle">' + esc(label) + '</text></g>';
   });
   el.innerHTML = sv + '</svg>';
   function apply() {
@@ -434,16 +434,16 @@ V['explore/vendors'] = { title: 'Vendor Egress', render: function () {
   var W = 1100, rowS = 44, H = Math.max(srcs.length, vs.length, sps.length) * rowS + 60, x0 = 20, x1 = 440, x2 = 860, nw = 190;
   function ys(arr, id) { var off = (H - 40 - arr.length * rowS) / 2; return 30 + off + arr.indexOf(id) * rowS; }
   var s = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="group" aria-label="Egress graph: Northstar systems to vendors to subprocessors">';
-  [[x0, 'NORTHSTAR SOURCE'], [x1, 'VENDOR / PROCESSOR / PARTNER'], [x2, 'SUBPROCESSOR / DESTINATION']].forEach(function (c) { s += '<text x="' + c[0] + '" y="16" fill="#7c879b" font-size="10" font-family="JetBrains Mono" letter-spacing="1">' + c[1] + '</text>'; });
+  [[x0, 'NORTHSTAR SOURCE'], [x1, 'VENDOR / PROCESSOR / PARTNER'], [x2, 'SUBPROCESSOR / DESTINATION']].forEach(function (c) { s += '<text x="' + c[0] + '" y="16" fill="#6b6457" font-size="10" font-family="JetBrains Mono" letter-spacing="1">' + c[1] + '</text>'; });
   function ribbon(xa, ya, xb, yb, w, col, op, dash, ent) { var mx = (xa + xb) / 2; return '<path class="edge" data-ent="' + ent + '" d="M' + xa + ',' + ya + ' C' + mx + ',' + ya + ' ' + mx + ',' + yb + ' ' + xb + ',' + yb + '" fill="none" stroke="' + col + '" stroke-opacity="' + op + '" stroke-width="' + w + '"' + (dash ? ' stroke-dasharray="6 4"' : '') + ' style="cursor:pointer"><title>' + esc(P.name(ent)) + '</title></path>'; }
   eg.forEach(function (f) {
     var fromV = P.get(f.from).type === 'vendor';
     var xa = (fromV ? x1 : x0) + nw, ya = (fromV ? ys(vs, f.from) : ys(srcs, f.from)) + 14, xb = fromV ? x2 : x1, yb = (fromV ? ys(sps, f.to) : ys(vs, f.to)) + 14;
     var v = P.get(fromV ? f.from : f.to).obj, w = Math.max(2, Math.sqrt((v.people || 1e5) / 1e6) * 2.6);
-    s += ribbon(xa, ya, xb, yb, w, f.status === 'unknown' ? '#b39bff' : f.tier >= 3 ? '#ff8a5c' : '#72b7ff', 0.45, f.status === 'unknown', f.id);
+    s += ribbon(xa, ya, xb, yb, w, f.status === 'unknown' ? '#6346c9' : f.tier >= 3 ? '#c0470f' : '#1f6ac0', 0.45, f.status === 'unknown', f.id);
   });
-  NS.vendors.forEach(function (v) { v.subprocessors.forEach(function (sp) { if (eg.some(function (f) { return f.from === v.id && f.to === sp; })) return; s += ribbon(x1 + nw, ys(vs, v.id) + 14, x2, ys(sps, sp) + 14, 1.2, P.get(sp).obj.known ? '#3a475c' : '#b39bff', 0.6, !P.get(sp).obj.known, v.id); }); });
-  function node(x, y, id, sub, bad, unkn) { return '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><rect x="' + x + '" y="' + y + '" width="' + nw + '" height="28" rx="7" fill="#121821" stroke="' + (unkn ? '#b39bff' : bad ? '#ff8a5c' : '#2b3647') + '"' + (unkn ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (x + 10) + '" y="' + (y + 18) + '" fill="#e2e7ef" font-size="11.5">' + esc(P.name(id).slice(0, 24)) + '</text>' + (sub ? '<text x="' + (x + nw - 8) + '" y="' + (y + 18) + '" fill="' + (bad ? '#ff8a5c' : '#7c879b') + '" font-size="9.5" text-anchor="end" font-family="JetBrains Mono">' + esc(sub) + '</text>' : '') + '</g>'; }
+  NS.vendors.forEach(function (v) { v.subprocessors.forEach(function (sp) { if (eg.some(function (f) { return f.from === v.id && f.to === sp; })) return; s += ribbon(x1 + nw, ys(vs, v.id) + 14, x2, ys(sps, sp) + 14, 1.2, P.get(sp).obj.known ? '#b9b1a0' : '#6346c9', 0.6, !P.get(sp).obj.known, v.id); }); });
+  function node(x, y, id, sub, bad, unkn) { return '<g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><rect x="' + x + '" y="' + y + '" width="' + nw + '" height="28" rx="7" fill="#fffdf9" stroke="' + (unkn ? '#6346c9' : bad ? '#c0470f' : '#d3cbbb') + '"' + (unkn ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (x + 10) + '" y="' + (y + 18) + '" fill="#1d2430" font-size="11.5">' + esc(P.name(id).slice(0, 24)) + '</text>' + (sub ? '<text x="' + (x + nw - 8) + '" y="' + (y + 18) + '" fill="' + (bad ? '#c0470f' : '#6b6457') + '" font-size="9.5" text-anchor="end" font-family="JetBrains Mono">' + esc(sub) + '</text>' : '') + '</g>'; }
   srcs.forEach(function (id) { s += node(x0, ys(srcs, id), id, '', false, false); });
   var iss = {}; P.vendorIssues().forEach(function (x) { iss[x.v.id] = x.issues; });
   NS.vendors.forEach(function (v) { s += node(x1, ys(vs, v.id), v.id, iss[v.id].length ? iss[v.id].length + ' ⚑' : '✓', iss[v.id].length > 1, !v.declared); });
@@ -476,14 +476,14 @@ V['explore/geo'] = { title: 'Geography', render: function (s, q) {
   var tf = q.t || 'all';
   var tr = NS.transfers.filter(function (t) { return tf === 'all' || (tf === 'sens' && t.tier >= 3) || (tf === 'unrev' && !t.reviewed) || (tf === 'eu' && /^eu/.test(t.from) && !/^eu/.test(t.to)); });
   var RP = {}; NS.regions.forEach(function (r) { RP[r.id] = proj(r.lon, r.lat); });
-  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="group" aria-label="World map of Northstar data regions and cross-border transfers"><g fill="#2b3647">' + dots + '</g>';
-  NS.geoUsers.forEach(function (g) { var p = RP[g.region]; svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (6 + Math.sqrt(g.people / 1e6) * 2.2).toFixed(1) + '" fill="#72b7ff" fill-opacity=".10" stroke="#72b7ff" stroke-opacity=".3"/>'; });
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="group" aria-label="World map of Northstar data regions and cross-border transfers"><g fill="#d3cbbb">' + dots + '</g>';
+  NS.geoUsers.forEach(function (g) { var p = RP[g.region]; svg += '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="' + (6 + Math.sqrt(g.people / 1e6) * 2.2).toFixed(1) + '" fill="#1f6ac0" fill-opacity=".10" stroke="#1f6ac0" stroke-opacity=".3"/>'; });
   tr.forEach(function (t) {
     var a = RP[t.from], b = RP[t.to], mx = (a[0] + b[0]) / 2, my = Math.min(a[1], b[1]) - Math.abs(a[0] - b[0]) * 0.22 - 20;
-    var col = t.to === 'unknown' || t.basis === 'unknown' || t.basis === 'none' || t.basis === 'none on file' ? '#b39bff' : t.tier >= 3 && !t.reviewed ? '#ff8a5c' : t.tier >= 3 ? '#f2c46d' : '#4fd8b6';
-    svg += '<path d="M' + a[0].toFixed(1) + ',' + a[1].toFixed(1) + ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + b[0].toFixed(1) + ',' + b[1].toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="' + (1 + t.tier * 0.5) + '" stroke-opacity=".8"' + (col === '#b39bff' ? ' stroke-dasharray="5 4" class="flowdash"' : '') + (t.flow ? ' data-ent="' + t.flow + '" style="cursor:pointer"' : '') + '><title>' + esc(t.from + ' → ' + t.to + ': ' + t.what + ' (basis: ' + t.basis + ')') + '</title></path>';
+    var col = t.to === 'unknown' || t.basis === 'unknown' || t.basis === 'none' || t.basis === 'none on file' ? '#6346c9' : t.tier >= 3 && !t.reviewed ? '#c0470f' : t.tier >= 3 ? '#946300' : '#0b7d60';
+    svg += '<path d="M' + a[0].toFixed(1) + ',' + a[1].toFixed(1) + ' Q' + mx.toFixed(1) + ',' + my.toFixed(1) + ' ' + b[0].toFixed(1) + ',' + b[1].toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="' + (1 + t.tier * 0.5) + '" stroke-opacity=".8"' + (col === '#6346c9' ? ' stroke-dasharray="5 4" class="flowdash"' : '') + (t.flow ? ' data-ent="' + t.flow + '" style="cursor:pointer"' : '') + '><title>' + esc(t.from + ' → ' + t.to + ': ' + t.what + ' (basis: ' + t.basis + ')') + '</title></path>';
   });
-  NS.regions.forEach(function (r) { var p = RP[r.id], col = r.kind === 'store' ? '#4fd8b6' : r.kind === 'vendor' ? '#ff8a5c' : r.kind === 'unknown' ? '#b39bff' : r.kind === 'process' ? '#f2c46d' : '#72b7ff'; svg += '<g class="node" data-ent="' + r.id + '" tabindex="0" role="button" aria-label="' + esc(r.label) + '"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="5" fill="' + col + '"' + (r.kind === 'unknown' ? ' fill-opacity="0" stroke="#b39bff" stroke-dasharray="2 2"' : '') + '/><text x="' + (p[0] + 8) + '" y="' + (p[1] - 6) + '" fill="#cfd6e1" font-size="10.5">' + esc(r.label.split(' — ')[0].split(' (')[0]) + '</text></g>'; });
+  NS.regions.forEach(function (r) { var p = RP[r.id], col = r.kind === 'store' ? '#0b7d60' : r.kind === 'vendor' ? '#c0470f' : r.kind === 'unknown' ? '#6346c9' : r.kind === 'process' ? '#946300' : '#1f6ac0'; svg += '<g class="node" data-ent="' + r.id + '" tabindex="0" role="button" aria-label="' + esc(r.label) + '"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="5" fill="' + col + '"' + (r.kind === 'unknown' ? ' fill-opacity="0" stroke="#6346c9" stroke-dasharray="2 2"' : '') + '/><text x="' + (p[0] + 8) + '" y="' + (p[1] - 6) + '" fill="#3a4250" font-size="10.5">' + esc(r.label.split(' — ')[0].split(' (')[0]) + '</text></g>'; });
   svg += '</svg>';
   return P.pageHead('Explore', 'Geography & data residency', 'Where people are, where data originates, where it is stored and processed, and where vendors receive it. Blue halos = users; teal = storage; amber = processing; coral = vendor; violet = unknown destination.') +
     '<div class="toolbar"><div class="seg" role="group" aria-label="Filter transfers">' + [['all', 'All transfers'], ['sens', 'Sensitive (T3+)'], ['unrev', 'Unreviewed'], ['eu', 'Leaves Europe']].map(function (x) { return '<button data-go="explore/geo?t=' + x[0] + '" aria-pressed="' + (tf === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +

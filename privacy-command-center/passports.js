@@ -6,7 +6,7 @@
 var P = window.PCC, NS = window.NS, esc = P.esc, chip = P.chip, kv = P.kv, sec = P.sec, unk = P.unk, fmtN = P.fmtN, fmtDays = P.fmtDays;
 
 function head(type, title, sub) { return '<p class="pp-type">' + esc(type) + '</p><h2 class="pp-title">' + esc(title) + '</h2>' + (sub ? '<p class="muted small" style="margin:0">' + sub + '</p>' : ''); }
-function why(text, flagged, label) { return '<div class="why' + (flagged ? ' flag' : '') + '"><div class="wl">' + esc(label || 'WHY DOES THIS DATA EXIST?') + '</div><p>' + (text ? esc(text) : unk('No one has written down why')) + '</p>' + (flagged ? '<p class="small" style="margin-top:6px;color:#ffc2ad">Flagged: “we may need it someday” is not a purpose. Data kept for an unknown future use is exposure with no value attached.</p>' : '') + '</div>'; }
+function why(text, flagged, label) { return '<div class="why' + (flagged ? ' flag' : '') + '"><div class="wl">' + esc(label || 'WHY DOES THIS DATA EXIST?') + '</div><p>' + (text ? esc(text) : unk('No one has written down why')) + '</p>' + (flagged ? '<p class="small" style="margin-top:6px;color:#a33a0c">Flagged: “we may need it someday” is not a purpose. Data kept for an unknown future use is exposure with no value attached.</p>' : '') + '</div>'; }
 function findingsList(list) {
   if (!list.length) return '<p class="dim small">No open findings.</p>';
   return '<div class="tbl-wrap"><table class="tbl"><tbody>' + list.map(function (f) { return '<tr class="click" data-ent="' + f.id + '"><td class="nowrap">' + P.sev(f.sev) + '</td><td><div style="font-weight:600">' + esc(f.title) + '</div><div class="small dim mono">' + f.id + ' · ' + esc(f.kind) + '</div></td></tr>'; }).join('') + '</tbody></table></div>';
