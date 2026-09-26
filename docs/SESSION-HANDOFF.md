@@ -12,9 +12,13 @@ clones fresh each time). CLAUDE.md points here._
   has a privacy knowledge graph, explainable risk, every flow as a privacy
   object, consent as state, Forget Me, the enforcement ladder, drift, and an
   evidence-citing analyst (not an LLM). `/articles/every-arrow-is-a-decision.html`
-  is the 14-scene essay, now Latest #01 and the first deck card. Read
-  **`docs/PRIVACY-COMMAND-CENTER.md`** before editing either. Both pages are in
-  the strict axe list.
+  is the 15-scene essay, now Latest #01 and the first deck card. It carries six
+  replayable corner-case trails (a restored version 11 that reaches an agency,
+  a debug flag, an escaped CSV, a family TV, an opt-out mid-job, a deletion that
+  comes back). Each trail has habit switches, and the dashboard's Audits page
+  links to them. Read **`docs/PRIVACY-COMMAND-CENTER.md`** before editing
+  either. Both pages are in the strict axe list. Paddy asked for light themes
+  only, and for visual stories rather than pasted text.
 
 - **Read `docs/INCIDENTS.md` first** — incident runbook, standing rules, and the
   2026-09-24 analytics outage post-mortem with its open follow-ups.

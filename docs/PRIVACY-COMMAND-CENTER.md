@@ -6,8 +6,9 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
 - **`/privacy-command-center/`**: an interactive privacy observability,
   engineering and governance platform for a fictional company, Northstar.
   Synthetic data only, labelled in the header and footer of every screen.
-- **`/articles/every-arrow-is-a-decision.html`**: the visual essay (14 scenes).
-  It is self-contained, and its facts use the guide's own wording and sources.
+- **`/articles/every-arrow-is-a-decision.html`**: the visual essay (15 scenes
+  and six corner-case trails). It is self-contained, and its facts use the
+  guide's own wording and sources.
 
 ## The one rule
 
@@ -64,6 +65,29 @@ Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
   (`P.tierOff`) to show how an organisation would customise them.
 - **Worst Day** follows the guide's breach budget (DAMAGE = collected × kept ×
   identifiable × key holder). The model is labelled illustrative on the page.
+
+## Corner-case trails (the essay)
+
+One engine (the last inline script in the essay) replays six dated stories. Each
+is `T.<id> = { steps, habits, world(step, habits) }`. `world()` derives
+everything on screen from the state: the artifact, its trail, who holds it,
+the counters. Habit switches change the state, so nothing is scripted twice and
+a counter can't disagree with its story. Mount one with
+`<div class="tl" data-trail="<id>"></div>`.
+
+| id | Scene | Story |
+|---|---|---|
+| `v11` | 02·B | Sep 10 export in a doc → Tom restores v11 → a meeting → Mike → design agency |
+| `debug` | 03 | A DEBUG flag left on for 11 days; vendor, warehouse, backups, a curious contractor |
+| `csv` | 05 | One churn CSV: email, personal drive, public chatbot, then a deletion request |
+| `family` | 06 | A private purchase, an inference, household linking, the family TV |
+| `optout` | 08 | Opt-out at 01:58 during a job that read consent at 00:00; retries, segments, partner |
+| `forget` | 09 | Deletion with partial failures, a premature "deleted" email, a restore that resurrects |
+
+Each corner case sits in `<div class="cc" id="cc-<id>">` (02·B is `#s02b`).
+The dashboard's Audits page links its assumption tests to these anchors via
+`essay` in `assumptionTests` (`data.js`). People, figures and systems are
+invented, and each block says so.
 
 ## Guardrails
 

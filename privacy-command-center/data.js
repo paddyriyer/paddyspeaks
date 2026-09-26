@@ -1110,14 +1110,14 @@ var handshakes = { v_clearsight: 'NONE', v_adreach: 'NONE', v_parcelry: 'PERMISS
   v_signalrisk: 'NONE', v_mailpost: 'RELAY', v_lumen: 'NONE', v_pixelpeak: 'NONE', v_geogrid: 'NONE', v_surveyloop: 'PERMISSION', v_cloudhost: 'TOKEN' };
 /* Assumption bugs to test every time (guide p.45), with Northstar's latest result. */
 var assumptionTests = [
-  { k: 'Revocation mid-job', q: 'Batch started before the opt-out', result: 'fail', where: 'Audience Builder nightly run caches consent at 00:00', ent: 'cc7' },
-  { k: 'Retries & dead letters', q: 'Payload copies nobody deletes', result: 'fail', where: 'purchase-events DLQ holds 41 days of payloads; not in deletion orchestrator', ent: 's_bus' },
-  { k: 'Debug logging', q: 'The #1 place raw data leaks', result: 'fail', where: 'Emails in gateway query strings (PRV-0199)', ent: 'PRV-0199' },
+  { k: 'Revocation mid-job', q: 'Batch started before the opt-out', result: 'fail', where: 'Audience Builder nightly run caches consent at 00:00', ent: 'cc7', essay: 'cc-optout' },
+  { k: 'Retries & dead letters', q: 'Payload copies nobody deletes', result: 'fail', where: 'purchase-events DLQ holds 41 days of payloads; not in deletion orchestrator', ent: 's_bus', essay: 'cc-optout' },
+  { k: 'Debug logging', q: 'The #1 place raw data leaks', result: 'fail', where: 'Emails in gateway query strings (PRV-0199)', ent: 'PRV-0199', essay: 'cc-debug' },
   { k: 'Fallback paths', q: 'Degraded mode skips the filter', result: 'fail', where: 'Consent cache miss → CAPI forwarder defaults to "granted"', ent: 's_capi' },
-  { k: 'Exports', q: 'A CSV escapes every control', result: 'fail', where: '2.1M-row profile export by analyst-7731', ent: 'd_profile' },
-  { k: 'Shared devices', q: 'Notifications reveal to others', result: 'unknown', where: 'Reorder reminders show SKU names on lock screen — not yet tested', ent: 'f_reorder' },
+  { k: 'Exports', q: 'A CSV escapes every control', result: 'fail', where: '2.1M-row profile export by analyst-7731', ent: 'd_profile', essay: 'cc-csv' },
+  { k: 'Shared devices', q: 'Notifications reveal to others', result: 'unknown', where: 'Reorder reminders show SKU names on lock screen — not yet tested', ent: 'f_reorder', essay: 'cc-family' },
   { k: 'Stale consent', q: 'Cached at login, never refreshed', result: 'pass', where: 'Edge consent cache TTL 15 min, verified', ent: 'cc4' },
-  { k: 'Partial failures', q: 'Half the deletes succeeded', result: 'pass', where: 'Orchestrator retries + verification scan catch survivors', ent: 'c_delete_verify' }
+  { k: 'Partial failures', q: 'Half the deletes succeeded', result: 'pass', where: 'Orchestrator retries + verification scan catch survivors', ent: 'c_delete_verify', essay: 'cc-forget' }
 ];
 /* Contextual integrity (guide p.6): does this flow match what the person expected when they shared it? */
 var contextNorms = { fl10: 'Breaks the norm: shared to stop fraud, used to sell ads.', fl14: 'Breaks the norm: shared to find a pickup point, used to profile home and work.',
