@@ -1,10 +1,20 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-24 (homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-26 (Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-09-26): Privacy Command Center + “Every Arrow Is a Decision”.**
+  Built from Paddy's field guide (`docs/Privacy_Engineering_Visual_Field_Guide.*`).
+  `/privacy-command-center/` is Data Lab demo 01 (synthetic Northstar data). It
+  has a privacy knowledge graph, explainable risk, every flow as a privacy
+  object, consent as state, Forget Me, the enforcement ladder, drift, and an
+  evidence-citing analyst (not an LLM). `/articles/every-arrow-is-a-decision.html`
+  is the 14-scene essay, now Latest #01 and the first deck card. Read
+  **`docs/PRIVACY-COMMAND-CENTER.md`** before editing either. Both pages are in
+  the strict axe list.
 
 - **Read `docs/INCIDENTS.md` first** — incident runbook, standing rules, and the
   2026-09-24 analytics outage post-mortem with its open follow-ups.
