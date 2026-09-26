@@ -317,6 +317,30 @@ var datasets = [
     accessPeople: 0, accessServices: 1, deletion: 'n/a (aggregate)', deletionVerified: true, lastAudit: '2026-09-12', consent: 'n/a' }
 ];
 
+/* Retention class per dataset (Retention page groups by it). raw = records as
+ * collected · events = raw event streams · derived = features, joins, indexes ·
+ * aggregates = no per-person rows · logs · backups · ML & training.        */
+var datasetClass = {
+  d_txn: 'raw', d_profile: 'raw', d_phone2fa: 'raw', d_lochist: 'raw', d_pulsecycle: 'raw', d_family: 'raw', d_msgmeta: 'raw', d_transcripts: 'raw',
+  d_purchase: 'events', d_adsevents: 'events', d_pulseinstall: 'events', d_browse: 'events',
+  d_orders_wh: 'derived', d_fraudfeat: 'derived', d_audience: 'derived', d_heart: 'derived', d_identity_graph: 'derived', d_search: 'derived',
+  d_dpstats: 'aggregates', d_applogs: 'logs', d_linklogs: 'logs', d_prompts: 'logs', d_backup: 'backups',
+  d_novavec: 'ML & training', d_novamem: 'ML & training'
+};
+datasets.forEach(function (d) { d.class = datasetClass[d.id] || null; });
+
+/* Worst Day (breach budget): which datasets to model, and what an attacker
+ * could infer from each. Every number on that page is derived from the
+ * dataset, its risk entry and its flows; only these words are authored.   */
+var worstDay = [
+  { ds: 'd_lochist', infer: ['home and work', 'daily routine', 'clinic or place-of-worship visits', 'who lives together'] },
+  { ds: 'd_prompts', infer: ['health conditions', 'relationships', 'money trouble', 'work secrets'] },
+  { ds: 'd_identity_graph', infer: ['health-app users by name', 'every device a person owns', 'household membership'] },
+  { ds: 'd_transcripts', infer: ['complaints', 'order history', 'contact details'] },
+  { ds: 'd_applogs', infer: ['who reset their password, when'] },
+  { ds: 'd_pulsecycle', infer: ['cycle', 'symptoms'] }
+];
+
 /* ── Identifiers ─────────────────────────────────────────────── */
 var identifiers = [
   { id: 'i_email',     name: 'Email',               cls: 'GLOBAL DURABLE', lifespan: 'years', note: 'Known outside Northstar; joins to any partner.' },
@@ -828,6 +852,89 @@ var deletionTargets = [
 /* ── User rights requests (generated deterministically) ─────── */
 var rightsTypes = ['ACCESS', 'DELETE', 'CORRECT', 'PORT', 'OPT OUT', 'OBJECT', 'LIMIT SENSITIVE USE'];
 
+/* Response deadlines per region and right, SIMPLIFIED for the demo — orientation,
+ * not legal advice. First matching row wins; days are calendar days.       */
+var rightsDeadlines = [
+  { region: 'EU', rights: '*', days: 30, ext: 60, verify: true, basis: 'GDPR Art. 12(3): one month (shown as 30 d), extendable by two further months' },
+  { region: 'UK', rights: '*', days: 30, ext: 60, verify: true, basis: 'UK GDPR Art. 12(3): one month (shown as 30 d), extendable by two further months' },
+  { region: 'BR', rights: ['ACCESS'], days: 15, ext: 0, verify: true, basis: 'LGPD Art. 19(II): full access statement within 15 days' },
+  { region: 'BR', rights: '*', days: 15, ext: 0, verify: true, basis: 'Northstar policy target; LGPD sets no fixed statutory term for this right' },
+  { region: 'US-CA', rights: ['OPT OUT', 'LIMIT SENSITIVE USE'], days: 21, ext: 0, verify: false, basis: 'CCPA regulations: 15 business days (shown as 21 calendar days); no identity verification required' },
+  { region: 'US-CA', rights: '*', days: 45, ext: 45, verify: true, basis: 'CCPA (Cal. Civ. Code 1798.130): 45 days, extendable once by 45' },
+  { region: 'US-other', rights: '*', days: 45, ext: 45, verify: true, basis: 'Typical US state privacy law: 45 days, extendable by 45' }
+];
+
+/* Rights requests: a fixed, fictional set (generated once from a seed and
+ * frozen here). status: open | complete | refused (identity check failed).
+ * took = days from receipt to completion or refusal. delay = the system the
+ * request waited on longest, recorded only for completed requests.        */
+var rightsRequests = [
+  { id: 'DSR-4100', type: 'PORT', region: 'EU', idv: 'passed', status: 'open', received: '2026-09-14' },
+  { id: 'DSR-4101', type: 'PORT', region: 'US-other', idv: 'passed', status: 'open', received: '2026-08-08' },
+  { id: 'DSR-4102', type: 'PORT', region: 'US-other', idv: 'passed', status: 'open', received: '2026-09-06' },
+  { id: 'DSR-4103', type: 'OBJECT', region: 'EU', idv: 'passed', status: 'complete', received: '2026-08-26', took: 28, verified: true, delay: 'v_helphub' },
+  { id: 'DSR-4104', type: 'PORT', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-09-22', took: 4, verified: false },
+  { id: 'DSR-4105', type: 'LIMIT SENSITIVE USE', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-08-03', took: 30, verified: true, delay: 's_idres' },
+  { id: 'DSR-4106', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-09-03', took: 2, verified: false },
+  { id: 'DSR-4107', type: 'CORRECT', region: 'UK', idv: 'passed', status: 'open', received: '2026-08-24' },
+  { id: 'DSR-4108', type: 'LIMIT SENSITIVE USE', region: 'EU', idv: 'passed', status: 'complete', received: '2026-09-02', took: 3, verified: true },
+  { id: 'DSR-4109', type: 'OPT OUT', region: 'EU', idv: 'not required', status: 'complete', received: '2026-08-18', took: 10, verified: false },
+  { id: 'DSR-4110', type: 'ACCESS', region: 'US-other', idv: 'failed', status: 'refused', received: '2026-09-04', took: 3 },
+  { id: 'DSR-4111', type: 'DELETE', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-16', took: 2, verified: true },
+  { id: 'DSR-4112', type: 'DELETE', region: 'BR', idv: 'passed', status: 'complete', received: '2026-08-29', took: 11, verified: true },
+  { id: 'DSR-4113', type: 'LIMIT SENSITIVE USE', region: 'UK', idv: 'passed', status: 'complete', received: '2026-07-21', took: 38, verified: true, delay: 's_wh' },
+  { id: 'DSR-4114', type: 'CORRECT', region: 'UK', idv: 'passed', status: 'complete', received: '2026-08-25', took: 10, verified: true },
+  { id: 'DSR-4115', type: 'PORT', region: 'EU', idv: 'passed', status: 'open', received: '2026-09-02' },
+  { id: 'DSR-4116', type: 'LIMIT SENSITIVE USE', region: 'UK', idv: 'passed', status: 'complete', received: '2026-09-05', took: 5, verified: true },
+  { id: 'DSR-4117', type: 'OPT OUT', region: 'US-CA', idv: 'not required', status: 'complete', received: '2026-09-05', took: 2, verified: true },
+  { id: 'DSR-4118', type: 'ACCESS', region: 'UK', idv: 'passed', status: 'open', received: '2026-09-02' },
+  { id: 'DSR-4119', type: 'OPT OUT', region: 'EU', idv: 'not required', status: 'complete', received: '2026-09-07', took: 4, verified: true },
+  { id: 'DSR-4120', type: 'DELETE', region: 'BR', idv: 'passed', status: 'complete', received: '2026-08-28', took: 3, verified: true },
+  { id: 'DSR-4121', type: 'ACCESS', region: 'BR', idv: 'passed', status: 'open', received: '2026-09-15' },
+  { id: 'DSR-4122', type: 'OPT OUT', region: 'US-other', idv: 'not required', status: 'complete', received: '2026-08-31', took: 12, verified: true },
+  { id: 'DSR-4123', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-09-15', took: 7, verified: true },
+  { id: 'DSR-4124', type: 'ACCESS', region: 'UK', idv: 'passed', status: 'complete', received: '2026-08-20', took: 3, verified: true },
+  { id: 'DSR-4125', type: 'DELETE', region: 'US-other', idv: 'passed', status: 'open', received: '2026-08-08' },
+  { id: 'DSR-4126', type: 'CORRECT', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-08-12', took: 41, verified: true, delay: 's_novalogs' },
+  { id: 'DSR-4127', type: 'ACCESS', region: 'US-other', idv: 'passed', status: 'open', received: '2026-09-15' },
+  { id: 'DSR-4128', type: 'DELETE', region: 'UK', idv: 'passed', status: 'open', received: '2026-09-05' },
+  { id: 'DSR-4129', type: 'CORRECT', region: 'BR', idv: 'passed', status: 'complete', received: '2026-08-21', took: 11, verified: true },
+  { id: 'DSR-4130', type: 'PORT', region: 'UK', idv: 'passed', status: 'complete', received: '2026-09-01', took: 3, verified: true },
+  { id: 'DSR-4131', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-20', took: 12, verified: true },
+  { id: 'DSR-4132', type: 'OPT OUT', region: 'EU', idv: 'not required', status: 'complete', received: '2026-08-22', took: 3, verified: true },
+  { id: 'DSR-4133', type: 'PORT', region: 'EU', idv: 'passed', status: 'complete', received: '2026-09-10', took: 15, verified: true, delay: 's_idres' },
+  { id: 'DSR-4134', type: 'CORRECT', region: 'UK', idv: 'passed', status: 'complete', received: '2026-07-15', took: 37, verified: true, delay: 'v_helphub' },
+  { id: 'DSR-4135', type: 'DELETE', region: 'BR', idv: 'passed', status: 'open', received: '2026-08-18' },
+  { id: 'DSR-4136', type: 'CORRECT', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-08-27', took: 11, verified: true },
+  { id: 'DSR-4137', type: 'ACCESS', region: 'EU', idv: 'passed', status: 'complete', received: '2026-08-27', took: 9, verified: true },
+  { id: 'DSR-4138', type: 'OPT OUT', region: 'UK', idv: 'not required', status: 'open', received: '2026-08-08' },
+  { id: 'DSR-4139', type: 'PORT', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-06-30', took: 50, verified: true, delay: 'v_adreach' },
+  { id: 'DSR-4140', type: 'CORRECT', region: 'US-other', idv: 'passed', status: 'open', received: '2026-08-19' },
+  { id: 'DSR-4141', type: 'DELETE', region: 'US-other', idv: 'passed', status: 'open', received: '2026-09-10' },
+  { id: 'DSR-4142', type: 'OBJECT', region: 'UK', idv: 'passed', status: 'open', received: '2026-08-09' },
+  { id: 'DSR-4143', type: 'PORT', region: 'BR', idv: 'passed', status: 'complete', received: '2026-09-13', took: 5, verified: true },
+  { id: 'DSR-4144', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-31', took: 2, verified: true },
+  { id: 'DSR-4145', type: 'PORT', region: 'EU', idv: 'passed', status: 'complete', received: '2026-08-11', took: 45, verified: false, delay: 'v_adreach' },
+  { id: 'DSR-4146', type: 'OBJECT', region: 'BR', idv: 'passed', status: 'open', received: '2026-09-02' },
+  { id: 'DSR-4147', type: 'DELETE', region: 'EU', idv: 'passed', status: 'open', received: '2026-08-15' },
+  { id: 'DSR-4148', type: 'ACCESS', region: 'EU', idv: 'passed', status: 'complete', received: '2026-08-21', took: 2, verified: true },
+  { id: 'DSR-4149', type: 'OBJECT', region: 'UK', idv: 'passed', status: 'complete', received: '2026-08-19', took: 27, verified: true, delay: 's_logs' },
+  { id: 'DSR-4150', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-25', took: 5, verified: true },
+  { id: 'DSR-4151', type: 'PORT', region: 'UK', idv: 'passed', status: 'complete', received: '2026-07-22', took: 31, verified: true, delay: 's_idres' },
+  { id: 'DSR-4152', type: 'DELETE', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-07-08', took: 47, verified: true, delay: 's_logs' },
+  { id: 'DSR-4153', type: 'LIMIT SENSITIVE USE', region: 'EU', idv: 'passed', status: 'open', received: '2026-09-04' },
+  { id: 'DSR-4154', type: 'DELETE', region: 'UK', idv: 'passed', status: 'complete', received: '2026-07-14', took: 44, verified: true, delay: 's_wh' },
+  { id: 'DSR-4155', type: 'PORT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-24', took: 4, verified: true },
+  { id: 'DSR-4156', type: 'DELETE', region: 'EU', idv: 'passed', status: 'complete', received: '2026-07-14', took: 37, verified: true, delay: 's_idres' },
+  { id: 'DSR-4157', type: 'DELETE', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-07-22', took: 33, verified: true, delay: 'v_helphub' },
+  { id: 'DSR-4158', type: 'CORRECT', region: 'US-CA', idv: 'passed', status: 'complete', received: '2026-08-07', took: 20, verified: true, delay: 's_logs' },
+  { id: 'DSR-4159', type: 'ACCESS', region: 'US-other', idv: 'passed', status: 'complete', received: '2026-07-25', took: 40, verified: true, delay: 'v_adreach' },
+  { id: 'DSR-4160', type: 'CORRECT', region: 'US-other', idv: 'passed', status: 'open', received: '2026-09-13' },
+  { id: 'DSR-4161', type: 'CORRECT', region: 'US-other', idv: 'failed', status: 'refused', received: '2026-09-18', took: 2 },
+  { id: 'DSR-4162', type: 'OPT OUT', region: 'US-CA', idv: 'not required', status: 'complete', received: '2026-08-31', took: 9, verified: true },
+  { id: 'DSR-4163', type: 'LIMIT SENSITIVE USE', region: 'EU', idv: 'passed', status: 'complete', received: '2026-09-03', took: 16, verified: false, delay: 's_logs' }
+];
+
 /* ── Reviews (operating model) ──────────────────────────────── */
 var reviewStages = ['INTAKE', 'TRIAGE', 'DESIGN REVIEW', 'BUILD CHECK', 'LAUNCH GATE', 'POST-LAUNCH AUDIT'];
 var reviews = [
@@ -1128,6 +1235,7 @@ var contextNorms = { fl10: 'Breaks the norm: shared to stop fraud, used to sell 
   fl19: 'Matches: health data stays with the health feature, encrypted per person.', fl11: 'Only with consent — and opt-outs are not arriving.' };
 
 window.NS = {
+  datasetClass: datasetClass, worstDay: worstDay, rightsDeadlines: rightsDeadlines, rightsRequests: rightsRequests,
   handshakes: handshakes, assumptionTests: assumptionTests, contextNorms: contextNorms,
   TODAY: TODAY, org: org, bus: bus, teams: teams, products: products, features: features, systems: systems,
   purposes: purposes, datasets: datasets, identifiers: identifiers, idJoins: idJoins, vendors: vendors,
