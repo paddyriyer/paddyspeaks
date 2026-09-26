@@ -32,8 +32,8 @@ everywhere, and never left blank.
 | `views-assurance.js` | Enforcement Ladder, Audits, Access & Insider, Incidents, Drift, Evidence, Regulations, Vendor Register, Maturity, and the four reports. |
 | `intel.js` | Universal search (`/` or ⌘K), the analyst, and the 10-step guided investigation (HIGH RISK → Checkout → Fraud → flow → join → vendor → purpose → finding → mitigations → enforcement). |
 
-Vanilla JS, no libraries, no browser storage (nothing to register in
-`data/platform/state-keys.json`). Hash routing: `#/section/page?query`.
+Vanilla JS, no libraries. The only browser storage is the chosen persona
+(`pcc.persona.v1`, registered in `data/platform/state-keys.json`; see Personas). Hash routing: `#/section/page?query`.
 
 ## Personas (who is looking decides what comes first)
 

@@ -390,7 +390,7 @@ var vendors = [
     deletionApi: true, securityReview: '2025-12-01', privacyReview: '2025-12-01', consentDep: 'marketing email', optOutPropagates: true, attestation: '2026-03-31', lastAudit: '2026-03-31', purpose: 'service_delivery' },
   { id: 'v_lumen', name: 'Lumen Model API', role: 'Third-party LLM provider', region: 'us', declared: true,
     data: ['prompt_text', 'retrieved_chunks'], identifiers: [], tier: 3, people: 22000000, frequency: 'per request',
-    retention: { contract: 0, actual: 30 }, subprocessors: ['sp_cloudhost_us'], contract: { signed: '2025-08-01', expires: '2027-08-01', dpa: true, noTraining: true },
+    retention: { contract: 30, actual: 30 }, subprocessors: ['sp_cloudhost_us'], contract: { signed: '2025-08-01', expires: '2027-08-01', dpa: true, noTraining: true },
     deletionApi: false, securityReview: '2025-08-01', privacyReview: '2025-08-10', consentDep: null, optOutPropagates: true, attestation: '2026-02-01', lastAudit: '2026-02-01', purpose: 'service_delivery' },
   { id: 'v_pixelpeak', name: 'PixelPeak', role: 'Ad pixel (arrived via SDK)', region: 'us', declared: false,
     data: ['page_url', 'order_value', 'hashed_email'], identifiers: ['i_hemail', 'i_cookie'], tier: 2, people: 48000000, frequency: 'per page view',
@@ -1137,7 +1137,7 @@ var contextNorms = { fl10: 'Breaks the norm: shared to stop fraud, used to sell 
   ctl('c_consent_read').scope = rt + ' of ' + consentConsumers.length + ' consumers';
   regulations.forEach(function (r) { r.obligations.forEach(function (o) {
     if (o.id === 'ob1') o.note = ver + ' of ' + n + ' systems verifiable';
-    if (o.id === 'ob14') { var noTtl = datasets.filter(function (d) { return d.retention == null || d.retention.declared == null; }).length; o.note = noTtl ? noTtl + ' of ' + datasets.length + ' datasets declare no retention' : ''; }
+    if (o.id === 'ob14') { var none = datasets.filter(function (d) { return !d.retention || d.retention.required == null; }).length, noTtl = datasets.filter(function (d) { return d.retention && d.retention.ttl === false; }).length; o.note = none + ' of ' + datasets.length + ' datasets declare no retention; ' + noTtl + ' have no TTL enforcing it'; }
   }); });
   maturity.forEach(function (m) { if (m[0] === 'Consent') m[2] = 'Read-time checks for ' + rt + ' of ' + consentConsumers.length + ' consumers.'; });
 })();

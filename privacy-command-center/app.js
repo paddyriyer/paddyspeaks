@@ -184,7 +184,8 @@ var M = P.METRICS = [
   { id: 'noowner', label: 'Unknown data owners', rule: 'Datasets, systems and findings with no accountable team.', tone: 'unk', items: function () {
       return NS.datasets.filter(function (d) { return !d.owner; }).map(function (d) { return { id: d.id, why: 'dataset without owner' }; })
         .concat(NS.systems.filter(function (s) { return !s.team; }).map(function (s) { return { id: s.id, why: 'system without owning team' }; }))
-        .concat(NS.flows.filter(function (f) { return !f.owner; }).map(function (f) { return { id: f.id, why: 'flow without owner' }; })); } },
+        .concat(P.openFindings().filter(function (f) { return !f.owner; }).map(function (f) { return { id: f.id, why: 'open finding without owning team' }; })); } },
+  { id: 'highrisk', label: 'HIGH residual risks', rule: 'Risks whose residual score (exposure × (1 − 0.6 × assurance)) rates HIGH.', tone: 'hot', hidden: true, route: 'privacy/risks', items: function () { return NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).map(function (r) { return { id: r.id, why: 'residual ' + P.riskCalc(r).residual }; }); } },
   { id: 'unmapped', label: 'Unmapped data flows', rule: 'Flows observed in traffic or lineage that no review has described (status = unknown).', tone: 'unk', route: 'explore/flows', items: function () { return NS.flows.filter(function (f) { return f.status === 'unknown'; }).map(function (f) { return { id: f.id, why: f.fields.join(', ') }; }); } },
   { id: 'undeclared', label: 'Undeclared third-party egress', rule: 'Recipients receiving personal data with no contract or declaration.', tone: 'hot', route: 'explore/vendors', items: function () { return NS.vendors.filter(function (v) { return !v.declared; }).map(function (v) { return { id: v.id, why: v.data.join(', ') + ' · ' + fmtN(v.people) + ' people' }; }); } },
   { id: 'nottl', label: 'Datasets without TTL', rule: 'Retention is not machine-enforced (and the data is not tied to a source lifetime).', route: 'privacy/retention', items: function () { return NS.datasets.filter(function (d) { return !d.retention.ttl && d.retention.note == null; }).map(function (d) { return { id: d.id, why: 'actual ' + (fmtDays(d.retention.actual) || 'unknown') }; }); } },
@@ -259,7 +260,7 @@ P.NAV = [
   ['Governance', [['governance/regulations', 'Policies & Regulations'], ['governance/vendors', 'Vendor Register'], ['governance/maturity', 'Maturity']]],
   ['Report', [['report/executive', 'Executive'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / Legal']]]
 ];
-var NAV_COUNT = { 'privacy/risks': ['highfind', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
+var NAV_COUNT = { 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
 function renderNav() {
   var h = P.forYouNav ? P.forYouNav() : '';
   P.NAV.forEach(function (g) {
@@ -338,7 +339,7 @@ P.openMetric = function (id) {
     '<p class="small muted">Every item below is the evidence for the number. Click one to open its passport.</p>' +
     '<div class="tbl-wrap"><table class="tbl"><tbody>' + items.map(function (it) {
       var e = ENT[it.id];
-      return '<tr class="click" data-ent="' + esc(it.id) + '"><td>' + (e ? '<div style="font-weight:600">' + esc(e.name) + '</div><div class="small dim">' + esc(TYPE_LABEL[e.type]) + '</div>' : esc(it.id)) + '</td><td class="small muted">' + esc(it.why || '') + '</td></tr>';
+      return '<tr class="click" data-ent="' + esc(it.id) + '" tabindex="0"><td>' + (e ? '<div style="font-weight:600">' + esc(e.name) + '</div><div class="small dim">' + esc(TYPE_LABEL[e.type]) + '</div>' : esc(it.id)) + '</td><td class="small muted">' + esc(it.why || '') + '</td></tr>';
     }).join('') + '</tbody></table></div>' +
     (m.route ? '<div class="btn-row" style="margin-top:12px"><a class="btn" href="#/' + m.route + '">Open the full view →</a></div>' : '');
   P.openHTML(m.label, h, 'Metric');
@@ -354,7 +355,7 @@ function renderTrail() {
   var t = P.state.trail, el = document.getElementById('trail');
   el.innerHTML = '<span class="tl">TRAIL</span>' + (t.length ? t.map(function (id, i) { return (i ? '<span class="sep">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '<button class="chip" data-act="clearTrail" style="margin-left:6px">clear</button>'
     : '<span class="empty">Your investigation path appears here. Every click is recorded, so you can explain how you got to a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>');
-  el.scrollLeft = el.scrollWidth;
+  if (t.length) el.scrollLeft = el.scrollWidth; /* keep the newest step in view; leave the help text at its start */
 }
 P.acts.clearTrail = function () { P.state.trail = []; renderTrail(); };
 
@@ -375,6 +376,8 @@ P.init = function () {
   drawer = document.getElementById('drawer'); drawerBody = document.getElementById('drawerBody'); drawerCrumb = document.getElementById('drawerCrumb');
   if (P.initPersona) P.initPersona(); renderNav(); renderTrail(); setRole(P.persona ? P.persona.hat : 'reviewer');
   window.addEventListener('hashchange', render);
+  /* A link inside the drawer moves to a new page: the drawer belongs to the old one. */
+  window.addEventListener('hashchange', function () { if (drawer.classList.contains('open')) P.closeDrawer(); });
   document.addEventListener('click', function (ev) {
     var t = ev.target.closest('[data-ent],[data-metric],[data-act],[data-stack],[data-role],[data-go]');
     if (!t) return;
