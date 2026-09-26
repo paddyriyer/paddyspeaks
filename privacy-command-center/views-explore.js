@@ -93,7 +93,7 @@ function queue() {
   var r = P.state.role, items = [];
   if (r === 'reviewer') {
     NS.reviews.filter(function (x) { return x.blockers || x.drift || ['INTAKE', 'TRIAGE', 'DESIGN REVIEW'].indexOf(x.stage) >= 0; }).sort(function (a, b) { return (b.blockers - a.blockers) || ((b.risk === 'HIGH') - (a.risk === 'HIGH')); }).slice(0, 7).forEach(function (x) {
-      items.push('<div role="button" tabindex="0" data-go="privacy/reviews/' + x.feature + '"><div><div class="fx"><b>' + esc(P.name(x.feature)) + '</b> <span class="mono small dim">' + x.id + '</span></div><div class="small muted">' + esc(x.stage) + ' · ' + x.age + ' d' + (x.blockers ? ' · <span class="bad">' + x.blockers + ' launch blocker</span>' : '') + (x.drift ? ' · <span class="warn">post-launch drift</span>' : '') + (!x.reviewer ? ' · <span class="unknown">no reviewer</span>' : '') + '</div></div>' + P.sev(x.risk) + '</div>');
+      items.push('<div role="button" tabindex="0" data-go="privacy/reviews/' + x.feature + '"><div><div class="fx"><b>' + esc(P.name(x.feature)) + '</b> <span class="mono small dim">' + x.id + '</span></div><div class="small muted">' + esc(x.stage) + ' · ' + x.age + ' d' + (x.blockers ? ' · <span class="bad">' + x.blockers + ' launch blocker' + (x.blockers === 1 ? '' : 's') + '</span>' : '') + (x.drift ? ' · <span class="warn">post-launch drift</span>' : '') + (!x.reviewer ? ' · <span class="unknown">no reviewer</span>' : '') + '</div></div>' + P.sev(x.risk) + '</div>');
     });
   } else if (r === 'builder') {
     NS.controls.filter(function (c) { return c.level <= 1 || c.health === 'failing'; }).sort(function (a, b) { return a.level - b.level; }).slice(0, 8).forEach(function (c) {

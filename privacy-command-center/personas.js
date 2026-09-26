@@ -16,8 +16,8 @@ add({ id: 'blast', label: 'People in HIGH-risk assets (up to)', rule: 'Sum of pe
   items: function () { return NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).map(function (r) { return { id: r.asset, why: fmtN(P.get(r.asset).obj.people) + ' people · residual ' + P.riskCalc(r).residual }; }); } });
 add({ id: 'access', label: 'Insider access signals this week', rule: 'Sensitive-query monitoring alerts: warehouse-wide reads, inactive accounts, bulk exports, unexpected joins, break-glass without a ticket, spikes.', tone: 'hot', route: 'assurance/access',
   items: function () { return NS.accessEvents.map(function (e) { return { id: e.data, why: e.flag + ' — ' + e.who }; }); } });
-add({ id: 'blocked', label: 'Launches blocked', rule: 'Reviews with at least one open launch blocker.', tone: 'hot', route: 'privacy/reviews',
-  items: function () { return NS.reviews.filter(function (r) { return r.blockers; }).map(function (r) { return { id: r.feature, why: r.id + ' · ' + r.stage + ' · ' + r.blockers + ' blocker' }; }); } });
+add({ id: 'blocked', label: 'Launches blocked', rule: 'Reviews with at least one open blocker: an open finding on the feature that is HIGH or marked blocking launch.', tone: 'hot', route: 'privacy/reviews',
+  items: function () { return NS.reviews.filter(function (r) { return r.blockers; }).map(function (r) { return { id: r.feature, why: r.id + ' · ' + r.stage + ' · ' + r.blockers + ' blocker' + (r.blockers === 1 ? '' : 's') }; }); } });
 add({ id: 'waiting', label: 'Reviews waiting', rule: 'Reviews in intake, triage or design review.', route: 'privacy/reviews',
   items: function () { return NS.reviews.filter(function (r) { return ['INTAKE', 'TRIAGE', 'DESIGN REVIEW'].indexOf(r.stage) >= 0; }).map(function (r) { return { id: r.feature, why: r.stage + ' · ' + r.age + ' d' }; }); } });
 add({ id: 'drifted', label: 'Purpose-drift findings', rule: 'Open findings where data collected for one purpose is used for another.', tone: 'hot', route: 'privacy/purpose',
