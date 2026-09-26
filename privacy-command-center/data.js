@@ -405,6 +405,7 @@ var vendors = [
     retention: { contract: 180, actual: 180 }, subprocessors: ['sp_cloudhost_eu'], contract: { signed: '2023-09-01', expires: '2026-09-01', dpa: true },
     deletionApi: false, securityReview: '2024-08-20', privacyReview: '2024-08-28', consentDep: null, optOutPropagates: true, attestation: null, lastAudit: '2024-08-28', purpose: 'research' },
   { id: 'v_cloudhost', name: 'CloudHost', role: 'Infrastructure processor', region: 'us', declared: true,
+    infraOnly: true,
     data: ['all hosted data (encrypted)'], identifiers: [], tier: 4, people: 212000000, frequency: 'continuous',
     retention: { contract: 0, actual: 0 }, subprocessors: [], contract: { signed: '2020-01-01', expires: '2029-01-01', dpa: true },
     deletionApi: true, securityReview: '2026-06-01', privacyReview: '2026-06-01', consentDep: null, optOutPropagates: true, attestation: '2026-06-01', lastAudit: '2026-06-01', purpose: 'service_delivery' }
@@ -491,6 +492,7 @@ var models = [
     promptLogging: 'n/a', outputLogging: '14d', humanReview: 'n/a', rag: null, vector: null, featureStore: null, thirdParty: [],
     trainsOnUserInput: true, deletionPath: 'retrain weekly', memorization: 'n/a', review: 'approved 2026-05' },
   { id: 'mdl_memory', name: 'Nova Memory Extractor', purpose: 'personalization', team: 't_nova', provider: 'Lumen Model API', hosting: 'ISOLATED PRIVATE CLOUD', region: 'us-west',
+    feature: 'f_memory',
     training: [], provenance: 'documented', personal: true, sensitive: true, consent: 'opt-in (planned)', trainingRetention: 'none',
     promptLogging: 'off', outputLogging: 'memory rows only', humanReview: 'none', rag: null, vector: null, featureStore: null, thirdParty: ['v_lumen'],
     trainsOnUserInput: false, deletionPath: 'user-visible delete', memorization: 'n/a', review: 'at launch gate' }
