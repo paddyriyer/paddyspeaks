@@ -1,5 +1,10 @@
 # Homepage UI Audit — before the evolution pass
 
+> **Superseded in part (2026-09-26):** the homepage's information architecture
+> changed again — it is now a map and the chapters below moved to `/articles/`,
+> `/sacred/` and `/explore/`. See `docs/HOMEPAGE-MAP-REDESIGN.md`. This file
+> remains the record of the 2026-09-24 pass and its measurements.
+
 _Audited 2026-09-24 against `main` at `0d135d2`. Phase 1 of the homepage UI
 evolution brief. Nothing in this document was changed before it was written.
 What was then changed, phase by phase, is in the "Change record" at the end._

@@ -1,10 +1,33 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-26 (Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-27 (homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-09-27): the homepage is a map, not a catalogue.** Branch
+  `claude/vibrant-galileo-is052r`. Read **`docs/HOMEPAGE-MAP-REDESIGN.md`**
+  (audit, IA, wireframes, before/after, follow-ups). Built to Paddy's mockup
+  (exact colours and navigation).
+  - Homepage: hero → five doorways (Read · Sacred · Prepare · Find=search ·
+    Explore) → Worth Reading (1 + 3) → four gateways → Experiments → About +
+    search / Surprise me. 3.2k px desktop (was 10.4k), 5.0k phone (was 13.1k),
+    27 links in main (was 300). axe strict and clean.
+  - The catalogues moved, markup intact: every essay → **`/articles/`** (source
+    `content/pages/articles.html`; the deck lives there now and registry.py
+    reads it), sacred texts → **`/sacred/`** (`lib/ps-sacred.js`), demos + tools
+    → **`/explore/`**. Styles `lib/ps-library.css`.
+  - Shared header is one row everywhere: wordmark · Read · Prepare · Sacred ·
+    Explore · About · search field. Top bar and masthead are gone from shared
+    pages. JobSignal / Mentoring / Atlas are reached via the Prepare gateway,
+    `/explore/`, search and the footer.
+  - Old `/#archive`, `/#sacred-texts`, `/#data-lab`, `index.html#technology`…
+    links are forwarded by a script in the homepage `<head>`.
+  - Analytics untouched: `lib/ps.js` + pixel unchanged on `/`; new pages get
+    both from `pages.py`. No new events (a `data-cta` follow-up is listed).
+  - **Adding an article changed:** deck card goes in
+    `content/pages/articles.html`; the homepage only optionally features it.
 
 - **NEWEST (2026-09-26): Privacy Command Center + “Every Arrow Is a Decision”.**
   Built from Paddy's field guide (`docs/Privacy_Engineering_Visual_Field_Guide.*`).

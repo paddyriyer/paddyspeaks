@@ -38,7 +38,7 @@ def check_catalog_paths() -> list[str]:
 
 
 def check_articles_consistent() -> list[str]:
-    """The homepage archive and article_metadata.json describe the same set."""
+    """The /articles/ archive and article_metadata.json describe the same set."""
     meta = read_json("article_metadata.json")
     slugs = {m["slug"] for m in meta}
     problems = []
@@ -55,28 +55,31 @@ def check_articles_consistent() -> list[str]:
             problems.append(f"article_metadata.json: {m['slug']} has unknown category '{m['category']}'")
     deck_articles = {h[len("articles/"):] for h, _ in homepage_deck() if h.startswith("articles/")}
     for s in sorted(deck_articles - slugs):
-        problems.append(f"index.html deck card articles/{s} has no entry in article_metadata.json")
+        problems.append(f"content/pages/articles.html deck card articles/{s} has no entry in article_metadata.json")
     for s in sorted(slugs - deck_articles):
-        problems.append(f"article_metadata.json: {s} has no deck card on the homepage")
+        problems.append(f"article_metadata.json: {s} has no deck card in content/pages/articles.html")
     by_slug = {m["slug"]: m["category"] for m in meta}
     for h, c in homepage_deck():
         s = h[len("articles/"):]
         if s in by_slug and by_slug[s] != c:
-            problems.append(f"index.html deck card {h} is '{c}' but metadata says '{by_slug[s]}'")
+            problems.append(f"content/pages/articles.html deck card {h} is '{c}' but metadata says '{by_slug[s]}'")
     return problems
 
 
 def check_filter_counts_are_stamped() -> list[str]:
-    """Homepage filter counts must be registry-stamped, never typed."""
-    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    """Archive filter counts must be registry-stamped, never typed.
+    Checked on the rendered /articles/ page (its source uses {{stat:deck.*}},
+    which pages.py renders as data-ps-stat spans; build.py check also fails
+    if the rendered page is stale)."""
+    html = (ROOT / "articles/index.html").read_text(encoding="utf-8")
     problems = []
     found = 0
     for m in re.finditer(r'<button\b[^>]*class="deck-filter-btn[^"]*"[^>]*data-filter="([a-z]+)"[^>]*>.*?</button>', html, re.S):
         found += 1
         if "data-ps-stat=" not in m.group(0):
-            problems.append(f"index.html: deck filter '{m.group(1)}' count is hand-typed (use data-ps-stat)")
+            problems.append(f"articles/index.html: deck filter '{m.group(1)}' count is hand-typed (use {{{{stat:deck.*}}}} in content/pages/articles.html)")
     if not found:
-        problems.append("index.html: no deck filter buttons found — the filter-count check would pass vacuously")
+        problems.append("articles/index.html: no deck filter buttons found — the filter-count check would pass vacuously")
     return problems
 
 
