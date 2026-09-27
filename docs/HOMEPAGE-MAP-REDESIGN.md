@@ -314,6 +314,55 @@ panel 1 carries a real company's logo, so neither was used. To change the
 feature later: swap the `<article class="ps-feature">` text and image, and
 keep the list below it at three.
 
+## 10b. Final polish pass (2026-09-27)
+
+Brief: keep the IA; make it calmer — one visual language, fewer rectangles,
+a resolved hero, separate phone design, a quieter footer.
+
+| Area | Change |
+|---|---|
+| Hero | Disciplined split: words left (≤ 52% of the width), painting right (45%), meeting through a short cream fade; text never sits on the painting (measured: at 1440 the text ends at 690 px, the painting starts at 792 px). Saturation eased to 0.9. Phones: a 160–210 px band, then eyebrow, title, line, two normal-size buttons; hero ends ~590 px of 844. |
+| Destinations | Same five. No borders or shadow, left-aligned type, 30 px line icons, text CTA; hover deepens the tint, nothing moves. Five across down to 960 px, compact rows below. |
+| Worth Reading | No card chrome: a hairline, the feature beside its own panel, three titles with category · date · time. |
+| Prepare / Wisdom | Still two tinted panels, now borderless. Prepare shows the real SQL Playground; Wisdom a dawn-light detail of the hero painting. The laptop and temple drawings are gone. |
+| Mentoring | Paddy's sentence between two hairlines with one text link — not a banner. |
+| Technology / Philosophy | Typography only: a rule, a kicker, the headline, a line, a link. No pictures. |
+| Experiments | Three real screenshots (Privacy Console, the Privacy Command Center for the Data Lab, the AI Command Center). The neon SVGs are gone. |
+| Closing | Paddy's real portrait (from the About page) in a circle; the search block keeps one tint, no border. |
+| Buttons | Only the hero's two. Everything else is a text link with an arrow. |
+| Footer | The owner's spec: primary row mirrors the header; one small utility row; no link twice. Follow, Changelog and Corrections are no longer in the shared footer (still reachable by search, the Atlas and the pages that link them). |
+
+## 12. Radical simplicity (2026-09-27, supersedes §3–§4 and §10b for the homepage)
+
+Brief: remove another 40–60% of the UI. The page answers three questions —
+*what is this, where do I want to go, what is one thing worth seeing* — and
+stops. The polish pass (§10b) was built and checked but not shipped; this
+replaced it on the same branch.
+
+| | Section | What it is |
+|---|---|---|
+| 1 | Hero | The painting across the full width; the words in its calm lower-left under a cream wash. "PaddySpeaks · Ideas for a more thoughtful world. · Essays, timeless wisdom, career tools and things I build." One link: *Explore ↓*. |
+| 2 | Five ways in | "What did you come here to do? — Five ways in. One library." Five typeset rows: 01 READ · 02 LEARN · 03 PREPARE · 04 FIND (opens search) · 05 EXPLORE. Number in the way's colour, title, one line, one text CTA; hairlines between; the whole row is the link; the arrow nudges 4 px on hover. No icons, no boxes. |
+| 3 | Worth your time | One story only (*Every Arrow Is a Decision*) with its own panel, then a quiet *View all writings →*. |
+| 4 | Depth | Three numbers, each a `data-ps-stat` stamp and a link: interview questions → `/interview.app/`, sacred texts → `/sacred/`, working experiments → `/explore/`. Typography only. |
+| 5 | Looking for something? | One large search field; under it About Paddy · Mentoring · Contact. |
+
+Removed from the homepage (content and pages untouched, reachable from the
+rows, header, footer and search): the Prepare / Timeless Wisdom / Technology /
+Philosophy gateways, the Experiments gallery, the Mentoring strip (Mentoring
+stays in the header, at the owner's standing request, and in the closing
+links), Behind PaddySpeaks, the secondary reading list, every illustration and
+screenshot. The one image is the painting. No buttons, no cards.
+
+Legacy anchors (`#archive`, `#sacred-texts`, `#data-lab`, `#prepare`) are empty
+spans after the five rows, so a no-JS link still lands on the rows that name
+the destination; the `<head>` script forwards them when JavaScript runs.
+
+Measured (same harness): desktop 1440 — 3,230 px (was 3,154 before the
+polish pass, 10,429 at the start); phone 390 — 3,045 px (was 4,959; 13,129 at
+the start); links in `<main>`: 13 (was 27; 300 at the start). Whole structure
+visible within two phone screens; the hero ends at ~516 px of 844. See §9 for the earlier numbers.
+
 ## 11. Follow-ups
 
 - **Measure it.** `lib/ps.js` already reports `cta_click` for any link with
