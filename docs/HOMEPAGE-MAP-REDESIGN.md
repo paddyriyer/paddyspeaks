@@ -168,19 +168,31 @@ Before: Read · Learn · Prepare · Find · Build | Atlas · Search · Mentoring
 masthead above it on every page).
 
 After (the owner's design): **wordmark · Read · Prepare · Sacred · Explore ·
-About · search field** — one sticky row on every page that uses the shared
+Mentoring · About · search field** (Mentoring restored 2026-09-27 — see below) — one sticky row on every page that uses the shared
 header (homepage, About, all `pages.py` pages, the résumés). The top bar and
 the masthead are gone from those pages; the homepage hero carries the large
 wordmark, and YouTube / LinkedIn moved to the footer as icons.
 
 - Journey ids are unchanged (`learn` = Sacred, `build` = Explore), so the
   accents, `data-journey` hooks and the search index keep working.
-- **JobSignal, Mentoring and the Atlas** left the top row. They are one click
-  away: the Prepare gateway links jobs and mentoring; `/explore/` lists
-  JobSignal and the Atlas as tools; search opens everything; the footer lists
-  all three.
-- Phones: two rows — wordmark + search icon, then the five links. There are
-  only five, so the Menu button `lib/ps-nav.js` injects is hidden; nothing
+- **JobSignal and the Atlas** left the top row. They are one click away: the
+  Prepare gateway links jobs; `/explore/` lists JobSignal and the Atlas as
+  tools; search opens everything; the footer lists both.
+- **Mentoring — a mistake, corrected (2026-09-27).** The first cut of this
+  redesign followed the mockup's five-item nav and moved Mentoring out of the
+  header, and reduced the homepage's "Sometimes 30 minutes…" line to a small
+  "Free mentoring" link. Paddy had added Mentoring to the header on
+  2026-09-24; the redesign should have asked before demoting it, and said so
+  plainly rather than in a closing note. Restored: Mentoring is back in the
+  header (between Explore and About) and the footer's section row, and the
+  homepage carries Paddy's sentence with *Book a Mentoring Conversation →* as
+  a full-width strip between the Prepare/Wisdom row and the Technology/
+  Philosophy row. CLAUDE.md now says never to remove or demote an item the
+  owner asked for without asking.
+- Phones: two rows — wordmark + search icon, then the six links, which fit
+  one row from 360 px up (the size eases down to 0.86 rem). Below 360 px they
+  wrap, and the header stops being sticky there so it does not take 144 px of
+  a small screen. The Menu button `lib/ps-nav.js` injects is hidden; nothing
   hides behind a control.
 
 ## 6. Components

@@ -19,9 +19,15 @@ clones fresh each time). CLAUDE.md points here._
     reads it), sacred texts → **`/sacred/`** (`lib/ps-sacred.js`), demos + tools
     → **`/explore/`**. Styles `lib/ps-library.css`.
   - Shared header is one row everywhere: wordmark · Read · Prepare · Sacred ·
-    Explore · About · search field. Top bar and masthead are gone from shared
-    pages. JobSignal / Mentoring / Atlas are reached via the Prepare gateway,
+    Explore · Mentoring · About · search field. Top bar and masthead are gone
+    from shared pages. JobSignal / Atlas are reached via the Prepare gateway,
     `/explore/`, search and the footer.
+  - **Mentoring was dropped from the header by the first cut of this redesign
+    and restored on 2026-09-27 at Paddy's request** (header, footer, and Paddy's
+    "Sometimes 30 minutes…" line on the homepage). Never demote something the
+    owner asked for without asking.
+  - Hero is Paddy's sunrise-over-a-lake painting (WebP srcset); the featured
+    story is *Every Arrow Is a Decision* with its "Deleted? Not really." panel.
   - Old `/#archive`, `/#sacred-texts`, `/#data-lab`, `index.html#technology`…
     links are forwarded by a script in the homepage `<head>`.
   - Analytics untouched: `lib/ps.js` + pixel unchanged on `/`; new pages get

@@ -132,7 +132,8 @@ The homepage (`index.html`) is **hand-crafted**. Since 2026-09-26 it is a
 **map, not a catalogue** (`docs/HOMEPAGE-MAP-REDESIGN.md`): hero → five
 doorways (Read · Sacred · Prepare · Find · Explore) → Worth Reading (one
 feature + three) → four gateways (Prepare, Timeless Wisdom, Technology,
-Philosophy) → Experiments → About + search. Depth lives on the destination
+Philosophy) with the Mentoring strip between their two rows → Experiments →
+About + search. Depth lives on the destination
 pages, never on the homepage: ask "does a first-time visitor need this before
 choosing where to go?" — if not, it belongs on `/articles/`, `/sacred/`,
 `/explore/`, `/interview.app/` or `/jobs/`.
@@ -168,13 +169,15 @@ awaiting Paddy's confirmation are in **`docs/ABOUT-PAGE-AUDIT.md`**. Career
 facts come from the Resume, counts from `{{stat:…}}` tokens.
 
 The homepage, About and every `pages.py` page share ONE header — a single
-sticky row: wordmark · Read · Prepare · Sacred · Explore · About · a search
-field (the owner's design, 2026-09-26). Markup in `index.html` (by hand) and
+sticky row: wordmark · Read · Prepare · Sacred · Explore · Mentoring · About ·
+a search field (the owner's design, 2026-09-26, with Mentoring restored at
+the owner's request on 2026-09-27). Markup in `index.html` (by hand) and
 `nav_html()` / `footer_html()` in `pages.py` (must agree), styles in
 `lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky state and the phone
-layout in `lib/ps-nav.js`. Do not fork the navigation; do not add a sixth
-item — JobSignal, Mentoring and the Atlas are reached from the Prepare
-gateway, `/explore/`, search and the footer. Hand-crafted pages
+layout in `lib/ps-nav.js`. Do not fork the navigation. **Never remove or
+demote an item the owner asked for (Mentoring was once dropped by a redesign
+and had to be restored) — ask first.** JobSignal and the Atlas are reached
+from the Prepare gateway, `/explore/`, search and the footer. Hand-crafted pages
 that are not rendered by `pages.py` (today `resume.html` and
 `visual-resume.html`) get the same header and footer written between
 `<!-- ps:header -->` / `<!-- ps:footer -->` markers by `build.py chrome` —
@@ -264,7 +267,7 @@ in `content/pages/articles.html` (with a `{{stat:deck.<id>}}` count);
 ## Platform layer (read before touching nav, search, footers or counts)
 
 `docs/PADDYSPEAKS-PLATFORM-IMPLEMENTATION.md` is the map. In short:
-- Navigation is Read · Prepare · Sacred · Explore · About + a search field
+- Navigation is Read · Prepare · Sacred · Explore · Mentoring · About + a search field
   (`NAV` in `pages.py`; `index.html` by hand, same order). Journey ids are
   unchanged (`read`, `prepare`, `learn` = Sacred, `build` = Explore; `find` =
   JobSignal). **No URL moved**: old homepage anchors are forwarded.
