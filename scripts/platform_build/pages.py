@@ -1,8 +1,9 @@
 """Render platform pages from content/pages/*.html into <path>/index.html.
 
 Why a renderer at all: the new utility pages (corrections, the four legal
-pages, changelog, subscribe, atlas) share chrome — masthead, the Read / Learn /
-Prepare / Find / Build navigation, the legal footer row, canonical/OG/JSON-LD.
+pages, changelog, subscribe, atlas, and the library pages /articles/, /sacred/,
+/explore/) share chrome — the one-row header, the footer with its legal row,
+canonical/OG/JSON-LD.
 Hand-copying that chrome into eight files is how the rest of the site ended up
 with ~250 footer variants. Each source file holds only its body plus a
 front-matter comment; the output is plain static HTML, committed, and CI
@@ -33,16 +34,16 @@ from .common import ROOT, SITE, read_json, write_if_changed
 SRC_DIR = ROOT / "content" / "pages"
 FRONT_RE = re.compile(r"^<!--page\s+(\{.*?\})\s*-->\s*", re.S)
 
-# The platform navigation (P1.1). Labels changed; every URL is one that already
-# existed, so nothing an outside link points at moves.
+# The platform navigation. Since 2026-09-26 (docs/HOMEPAGE-MAP-REDESIGN.md) it
+# is the owner's single row: wordmark · Read · Prepare · Sacred · Explore ·
+# About · a search field. Journey ids ("learn", "build") are unchanged so the
+# accents and data-journey hooks keep working; only labels and targets moved,
+# and every old target (/#archive, /#sacred-texts, /#data-lab) still resolves.
 NAV = [
-    ("read", "Read", "/#archive"),
-    ("learn", "Learn", "/#sacred-texts"),
+    ("read", "Read", "/articles/"),
     ("prepare", "Prepare", "/interview.app/"),
-    ("find", "Find", "/jobs/"),
-    ("build", "Build", "/#data-lab"),
-    ("atlas", "Atlas", "/atlas/"),
-    ("mentoring", "Mentoring", "/mentoring/"),
+    ("learn", "Sacred", "/sacred/"),
+    ("build", "Explore", "/explore/"),
     ("about", "About", "/about.html"),
 ]
 
@@ -81,73 +82,72 @@ def fmt_date(d: str) -> str:
     return f"{t.day} {t.strftime('%B %Y')}"
 
 
-TOP_BAR = """<div class="top-bar">
-    <span>Est. 2026</span>
-    <span class="top-bar-subjects">Spirituality · Philosophy · Technology</span>
-    <span class="top-bar-links">
-        <a href="https://www.youtube.com/playlist?list=PLosfXEs7rcbvO9-dDQ2u1LnqDTn1BRafk" target="_blank" rel="noopener">YouTube ↗</a>
-        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a>
-    </span>
-</div>"""
+SEARCH_ICON = ('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+               'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7.5"/>'
+               '<line x1="21" y1="21" x2="16.4" y2="16.4"/></svg>')
 
-STATEMENT = ("A connected library of essays, sacred texts, career tools and working technology "
-             "experiments &mdash; written and built by <a href=\"/about.html\">Paddy Iyer</a>.")
+YOUTUBE = "https://www.youtube.com/playlist?list=PLosfXEs7rcbvO9-dDQ2u1LnqDTn1BRafk"
+LINKEDIN = "https://linkedin.com/in/paddyiyer"
+ICON_YOUTUBE = ('<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.6 12 4.6 12 4.6s-7 0-8.9.5A3 3 0 0 0 1 7.2 31 31 0 0 0 .5 12a31 31 0 0 0 .5 4.8 3 3 0 0 0 2.1 2.1c1.9.5 8.9.5 8.9.5s7 0 8.9-.5a3 3 0 0 0 2.1-2.1 31 31 0 0 0 .5-4.8 31 31 0 0 0-.5-4.8zM9.8 15.1V8.9L15.2 12z"/></svg>')
+ICON_LINKEDIN = ('<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.4 2H3.6A1.6 1.6 0 0 0 2 3.6v16.8A1.6 1.6 0 0 0 3.6 22h16.8a1.6 1.6 0 0 0 1.6-1.6V3.6A1.6 1.6 0 0 0 20.4 2zM8 19H5V9.5h3zM6.5 8.2a1.7 1.7 0 1 1 0-3.5 1.7 1.7 0 0 1 0 3.5zM19 19h-3v-4.6c0-1.1 0-2.5-1.5-2.5S12.8 13 12.8 14.3V19h-3V9.5h2.8v1.3a3.1 3.1 0 0 1 2.8-1.5c3 0 3.6 2 3.6 4.6z"/></svg>')
 
 
 def nav_html(active: str | None) -> str:
     """The shared header row — the same markup index.html carries by hand
-    (lib/ps-chrome.css styles both; lib/ps-nav.js makes it sticky). Search is
-    a link to /atlas/ that lib/ps-search.js upgrades to the search dialog."""
+    (lib/ps-chrome.css styles both; lib/ps-nav.js adds the phone menu).
+    Search is a link to /atlas/ that lib/ps-search.js upgrades to the search
+    dialog, drawn as a field; it stays last so ps-nav.js can move it beside
+    the phone menu button."""
     items = []
     for key, label, href in NAV:
         cur = ' aria-current="page"' if key == active else ""
-        if key in ("read", "learn", "prepare", "find", "build"):
-            items.append(f'    <a href="{href}" data-journey="{key}"{cur}>{label}</a>')
-        elif key == "atlas":
-            items.append(f'    <a href="{href}" class="ps-nav-atlas"{cur}>{label}</a>')
-            items.append(
-                '    <a href="/atlas/" class="nav-search-btn" data-ps-search-open aria-label="Search PaddySpeaks" title="Search (Ctrl+K or /)">'
-                '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
-                'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/>'
-                '<line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
-                '<span class="nav-search-label" aria-hidden="true">Search</span></a>')
-        elif key == "mentoring":  # first link after Search
-            items.append(f'    <a href="{href}" class="ps-nav-mentoring" data-ps-after-search{cur}>{label}</a>')
-        else:  # about: last and quiet
+        if key == "about":
             items.append(f'    <a href="{href}" class="ps-nav-about"{cur}>{label}</a>')
+        else:
+            items.append(f'    <a href="{href}" data-journey="{key}"{cur}>{label}</a>')
+    items.append(
+        '    <a href="/atlas/" class="nav-search-btn" data-ps-search-open aria-label="Search PaddySpeaks" title="Search (Ctrl+K or /)">'
+        + SEARCH_ICON + '<span class="nav-search-label" aria-hidden="true">Search PaddySpeaks&hellip;</span>'
+        '<kbd class="nav-search-kbd" aria-hidden="true">/</kbd></a>')
     return ('<div class="ps-navwrap" id="ps-navwrap">\n'
-            '<a class="ps-navmark" href="#main-content" tabindex="-1" aria-hidden="true">Paddy<span>Speaks</span></a>\n'
+            '<a class="ps-navmark" href="/" aria-label="PaddySpeaks home">Paddy<span>Speaks</span></a>\n'
             '<nav class="nav-bar" aria-label="Primary">\n' + "\n".join(items) + "\n</nav>\n</div>")
 
 
 def header_html(active: str | None) -> str:
-    return f"""{TOP_BAR}
+    return nav_html(active)
 
-<header class="masthead">
-    <p class="ps-masthead-title"><a href="/">Paddy<span>Speaks</span></a></p>
-    <p class="ps-statement">{STATEMENT}</p>
-</header>
 
-{nav_html(active)}"""
+FOOTER_NAV = [("/articles/", "Read"), ("/interview.app/", "Prepare"), ("/sacred/", "Sacred"),
+              ("/explore/", "Explore"), ("/about.html", "About")]
+FOOTER_MORE = [("/jobs/", "JobSignal"), ("/mentoring/", "Mentoring"), ("/atlas/", "Atlas"),
+               ("/resume.html", "Resume"), ("/visual-resume.html", "Visual résumé"),
+               ("/testimonials/", "Testimonials"), ("/contact/", "Contact")]
 
 
 def footer_html() -> str:
+    """The shared footer — index.html carries the same markup by hand."""
+    main = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_NAV)
+    more = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_MORE)
     links = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in LEGAL_LINKS)
-    return f"""<footer class="site-footer">
-    <div class="footer-ornament" aria-hidden="true">&#10087;</div>
-    <div class="footer-links">
-        <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
-        <a href="/about.html">About</a>
-        <a href="/mentoring/">Mentoring</a>
-        <a href="/resume.html">Resume</a>
-        <a href="/visual-resume.html">Visual résumé</a>
-        <a href="/testimonials/">Testimonials</a>
-        <a href="/contact/">Contact</a>
+    return f"""<footer class="site-footer ps-footer">
+    <div class="ps-footer-row">
+        <a class="ps-footer-mark" href="/">Paddy<span>Speaks</span></a>
+        <nav class="ps-footer-nav" aria-label="Sections">
+{main}
+        </nav>
+        <p class="ps-footer-social">
+            <a href="{YOUTUBE}" target="_blank" rel="noopener" aria-label="PaddySpeaks on YouTube">{ICON_YOUTUBE}</a>
+            <a href="{LINKEDIN}" target="_blank" rel="noopener" aria-label="Paddy Iyer on LinkedIn">{ICON_LINKEDIN}</a>
+        </p>
     </div>
+    <nav class="footer-links" aria-label="More from PaddySpeaks">
+{more}
+    </nav>
     <nav class="ps-footer-legal" aria-label="Site information" data-ps-legal>
 {links}
     </nav>
-    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer &middot; Ideas for a more thoughtful world.</p>
 </footer>"""
 
 

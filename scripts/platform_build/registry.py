@@ -27,12 +27,16 @@ SKILL_CHECK_SECTIONS = {
     "communication": "communication", "dashboarding": "dashboarding",
 }
 
-DECK_RE = re.compile(r'<a href="([^"]+)" class="deck-card[^"]*" data-category="([a-z]+)"')
+DECK_RE = re.compile(r'<a href="/?([^"]+)" class="deck-card[^"]*" data-category="([a-z]+)"')
+# The archive of every essay. Until 2026-09-26 it lived on the homepage; it is
+# now the body of /articles/ (docs/HOMEPAGE-MAP-REDESIGN.md). Hrefs there are
+# root-relative ("/articles/x.html"); they are returned without the slash.
+DECK_SOURCE = "content/pages/articles.html"
 
 
 def homepage_deck() -> list[tuple[str, str]]:
-    """(href, category) for every archive card on the hand-crafted homepage."""
-    return DECK_RE.findall((ROOT / "index.html").read_text(encoding="utf-8"))
+    """(href, category) for every archive card in the /articles/ archive."""
+    return DECK_RE.findall((ROOT / DECK_SOURCE).read_text(encoding="utf-8"))
 
 
 def article_counts(catalog) -> dict:

@@ -4,7 +4,9 @@
 
 Running state and "where we left off" between sessions lives in
 **`docs/SESSION-HANDOFF.md`** — read it at the start of a session to resume.
-Current headline: the **anonymous Community Leaderboard is LIVE** (Cloudflare
+Current headline: the **homepage is now a map** (`docs/HOMEPAGE-MAP-REDESIGN.md`)
+and the catalogues moved to `/articles/`, `/sacred/`, `/explore/`. Before that:
+the **anonymous Community Leaderboard is LIVE** (Cloudflare
 Worker + separate D1 `paddyspeaks-leaderboard`); the public board reveals at 5
 real scores and shows a sample preview until then; the LinkedIn launch blurb is
 parked until real scores flow. Update that file when meaningful state changes.
@@ -126,24 +128,36 @@ Audit, change log and rationale: **`docs/DE-L5-HANDBOOK-AUDIT.md`** and
 
 ## CRITICAL: Do NOT regenerate index.html
 
-The homepage (`index.html`) is **hand-crafted** with custom sections that no script can reproduce:
-- Five-path directory (01 Read … 05 Build) and catalogue search entry
-- Front page: one feature (`.ps-feature`) and the five latest (`.ps-latest-list`)
-- Five numbered chapters; LEARN keeps the Mandala, Timeline and Cards views
-- Hand-tuned deck ordering (rendered as a dated archive list)
+The homepage (`index.html`) is **hand-crafted**. Since 2026-09-26 it is a
+**map, not a catalogue** (`docs/HOMEPAGE-MAP-REDESIGN.md`): hero → five
+doorways (Read · Sacred · Prepare · Find · Explore) → Worth Reading (one
+feature + three) → four gateways (Prepare, Timeless Wisdom, Technology,
+Philosophy) → Experiments → About + search. Depth lives on the destination
+pages, never on the homepage: ask "does a first-time visitor need this before
+choosing where to go?" — if not, it belongs on `/articles/`, `/sacred/`,
+`/explore/`, `/interview.app/` or `/jobs/`.
 
-Its layout and the reasons behind it are in **`docs/HOMEPAGE-UI-AUDIT.md`**;
-its styles live in `lib/ps-home.css` (homepage only, scoped to `body.ps-home`)
+Its styles live in `lib/ps-home.css` (homepage only, scoped to `body.ps-home`)
 and its behaviour in `lib/ps-home.js`. Do not restyle it through `style.css`,
-which ~190 other pages share.
+which ~190 other pages share. The `<head>` carries a small script that
+forwards old links (`/#archive`, `/#sacred-texts`, `/#data-lab`,
+`index.html#technology` …, ~140 pages use them) to their new pages — keep it.
 
 **NEVER run `generate_index.py`** (now deleted) or any script that overwrites `index.html`.
-When adding a new article, manually edit `index.html`:
-1. Add an `<li>` at the top of `.ps-latest-list` and remove the fifth. Only the
-   first item carries an image; move it (or drop it) so exactly one does.
-2. Add a `deck-card` entry at the top of the `deck-grid` section, keeping the
-   shape `<a href="…" class="deck-card" data-category="…">` (registry.py reads it)
-3. Filter counts are `data-ps-stat` stamps — never type them
+
+## The library pages: /articles/, /sacred/, /explore/
+
+Rendered by `pages.py` from `content/pages/articles.html`, `sacred.html` and
+`explore.html` (styles `lib/ps-library.css`, scoped to `body.ps-library`;
+behaviour `lib/ps-articles.js` and `lib/ps-sacred.js`). Edit the sources,
+never the output.
+
+- **The archive of every essay is `content/pages/articles.html`.** Its deck
+  cards keep the shape `<a href="/articles/…" class="deck-card" data-category="…">`
+  (registry.py reads it; CI fails if the deck and `article_metadata.json`
+  disagree). Filter counts there are `{{stat:deck.*}}` tokens — never typed.
+- The sacred-text views (mandala / timeline / cards) and their data are in
+  `lib/ps-sacred.js`; the text list itself is `data/platform/catalog.json`.
 
 ## About page and the shared header
 
@@ -153,10 +167,14 @@ output (CI fails if it is stale). Its audit, decisions and the facts still
 awaiting Paddy's confirmation are in **`docs/ABOUT-PAGE-AUDIT.md`**. Career
 facts come from the Resume, counts from `{{stat:…}}` tokens.
 
-The homepage, About and every `pages.py` page share ONE header: markup in
-`index.html` (by hand) and `nav_html()` / `header_html()` in `pages.py` (must
-agree), styles in `lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky
-state in `lib/ps-nav.js`. Do not fork the navigation. Hand-crafted pages
+The homepage, About and every `pages.py` page share ONE header — a single
+sticky row: wordmark · Read · Prepare · Sacred · Explore · About · a search
+field (the owner's design, 2026-09-26). Markup in `index.html` (by hand) and
+`nav_html()` / `footer_html()` in `pages.py` (must agree), styles in
+`lib/ps-chrome.css` (scoped to `body.ps-chrome`), sticky state and the phone
+layout in `lib/ps-nav.js`. Do not fork the navigation; do not add a sixth
+item — JobSignal, Mentoring and the Atlas are reached from the Prepare
+gateway, `/explore/`, search and the footer. Hand-crafted pages
 that are not rendered by `pages.py` (today `resume.html` and
 `visual-resume.html`) get the same header and footer written between
 `<!-- ps:header -->` / `<!-- ps:footer -->` markers by `build.py chrome` —
@@ -173,13 +191,18 @@ stale version. Scripts that look each other up must match with `*=`, not `$=`.
 
 1. Create the HTML file in `articles/` using an existing article as template
 2. Add metadata to `article_metadata.json` (newest article first)
-3. Manually add it to `index.html` (Latest list + deck grid)
-4. Add a `<url>` entry to `sitemap.xml`
-5. Run `python3 scripts/platform_build/build.py all`. This is NOT an index
-   generator: it restamps the filter counts and other `data-ps-stat` numbers,
-   and refreshes the search index, feeds and graph. CI (`build.py check`)
-   fails if the deck and `article_metadata.json` disagree.
-6. Run NO index generation scripts
+3. Add a `deck-card` entry at the top of the `deck-grid` in
+   `content/pages/articles.html` (root-relative `href="/articles/…"`,
+   `src="/images/…"`)
+4. Optionally feature it on the homepage: add an `<li class="ps-read">` at the
+   top of `.ps-reading-list` in `index.html` and drop the last one, so the list
+   stays at three (a 72px thumbnail goes in `images/home/`). Never add a grid.
+5. Add a `<url>` entry to `sitemap.xml`
+6. Run `python3 scripts/platform_build/build.py all`. This is NOT an index
+   generator: it renders `/articles/`, restamps the filter counts and other
+   `data-ps-stat` numbers, and refreshes the search index, feeds and graph.
+   CI (`build.py check`) fails if the deck and `article_metadata.json` disagree.
+7. Run NO index generation scripts
 
 ## Public statistics: never type a number
 
@@ -233,16 +256,18 @@ Use existing articles as reference. Key elements:
 Adding a category means touching these places: `KNOWN_CATEGORIES` in
 `.github/scripts/validate_content.py`; `article_categories` in
 `data/platform/catalog.json` (the registry and filter counts read it);
-`CAT_LABEL` in `scripts/platform_build/search_index.py`; and in `index.html`
-the Read row's links in the directory (`.ps-dir`), the deck filter button (with a
-`data-ps-stat="deck.<id>"` count), and the hash allow-list. Then run
-`python3 scripts/platform_build/build.py all`.
+`CAT_LABEL` in `scripts/platform_build/search_index.py`; the deck filter button
+in `content/pages/articles.html` (with a `{{stat:deck.<id>}}` count);
+`FILTERS` in `lib/ps-articles.js`; and the legacy-hash map in the `<head>` of
+`index.html`. Then run `python3 scripts/platform_build/build.py all`.
 
 ## Platform layer (read before touching nav, search, footers or counts)
 
 `docs/PADDYSPEAKS-PLATFORM-IMPLEMENTATION.md` is the map. In short:
-- Navigation is five journeys (Read · Learn · Prepare · Find · Build) + Atlas
-  + Mentoring + About (`NAV` in `pages.py`; `index.html` by hand, same order). Labels changed; **no URL moved**.
+- Navigation is Read · Prepare · Sacred · Explore · About + a search field
+  (`NAV` in `pages.py`; `index.html` by hand, same order). Journey ids are
+  unchanged (`read`, `prepare`, `learn` = Sacred, `build` = Explore; `find` =
+  JobSignal). **No URL moved**: old homepage anchors are forwarded.
 - Search is `lib/ps-search.js` over `data/search/*.json` (built by
   `build.py search`). The homepage's old inline search engine was removed.
 - `lib/ps-platform.js` (on ~280 pages) adds the legal footer row, a skip link
