@@ -6,32 +6,34 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-09-27): the homepage is a map, not a catalogue.** Branch
-  `claude/vibrant-galileo-is052r`. Read **`docs/HOMEPAGE-MAP-REDESIGN.md`**
-  (audit, IA, wireframes, before/after, follow-ups). Built to Paddy's mockup
-  (exact colours and navigation).
-  - Homepage: hero → five doorways (Read · Sacred · Prepare · Find=search ·
-    Explore) → Worth Reading (1 + 3) → four gateways → Experiments → About +
-    search / Surprise me. 3.2k px desktop (was 10.4k), 5.0k phone (was 13.1k),
-    27 links in main (was 300). axe strict and clean.
-  - The catalogues moved, markup intact: every essay → **`/articles/`** (source
-    `content/pages/articles.html`; the deck lives there now and registry.py
-    reads it), sacred texts → **`/sacred/`** (`lib/ps-sacred.js`), demos + tools
-    → **`/explore/`**. Styles `lib/ps-library.css`.
-  - Shared header is one row everywhere: wordmark · Read · Prepare · Sacred ·
-    Explore · Mentoring · About · search field. Top bar and masthead are gone
-    from shared pages. JobSignal / Atlas are reached via the Prepare gateway,
-    `/explore/`, search and the footer.
-  - **Mentoring was dropped from the header by the first cut of this redesign
-    and restored on 2026-09-27 at Paddy's request** (header, footer, and Paddy's
-    "Sometimes 30 minutes…" line on the homepage). Never demote something the
-    owner asked for without asking.
-  - Hero is Paddy's sunrise-over-a-lake painting (WebP srcset); the featured
-    story is *Every Arrow Is a Decision* with its "Deleted? Not really." panel.
+- **NEWEST (2026-09-27, evening): the homepage is radically sparse.** Merged
+  in #878 (after #873 map, #874 feature, #875 painting, #876 Mentoring, #877
+  footer — all the same day). Read **`docs/HOMEPAGE-MAP-REDESIGN.md`** §12.
+  - Homepage = hero (Paddy's sunrise painting, "Ideas for a more thoughtful
+    world.", one link *Explore ↓*) → **five ways in** as typeset rows (READ ·
+    LEARN · PREPARE · FIND=search · EXPLORE) → one story (*Every Arrow Is a
+    Decision*) → three registry-stamped numbers → search field with About /
+    Mentoring / Contact → footer. 3.2k px desktop, 3.0k phone, 13 links.
+    Nothing else goes on it — CLAUDE.md has the rule and the test.
+  - Header: Read · Prepare · Sacred · Explore · Mentoring · About · search.
+    Footer: one primary row mirroring the header, one utility row, no link
+    twice (`FOOTER_PRIMARY` / `FOOTER_UTILITY` in `pages.py`).
+  - The catalogues live on **`/articles/`** (deck source
+    `content/pages/articles.html`; registry.py reads it), **`/sacred/`**
+    (`lib/ps-sacred.js`), **`/explore/`**. Styles `lib/ps-library.css`.
   - Old `/#archive`, `/#sacred-texts`, `/#data-lab`, `index.html#technology`…
-    links are forwarded by a script in the homepage `<head>`.
-  - Analytics untouched: `lib/ps.js` + pixel unchanged on `/`; new pages get
-    both from `pages.py`. No new events (a `data-cta` follow-up is listed).
+    links are forwarded by a script in the homepage `<head>`; the ids also
+    exist as empty spans after the five rows for no-JS.
+  - Analytics untouched all day: `lib/ps.js` + pixel unchanged on `/`; new
+    pages get both from `pages.py`. No new events.
+  - Hero painting is Paddy's second one (figure on a rock, sunrise over a
+    bay), uploaded as `images/hero image.png` and encoded to
+    `images/home/hero-painting-{720,1200,1916}.webp`. The words sit on the
+    right (over the bay) because the figure is on the left; the cream wash
+    is bottom-right only. If the painting changes again, re-encode all three
+    sizes and re-check where the words land.
+  - **Open:** confirm the first Analytics Health run after 00:19 UTC 27 Sep is
+    green (a check-in is armed; cron `23 * * * *` but GitHub delays it).
   - **Adding an article changed:** deck card goes in
     `content/pages/articles.html`; the homepage only optionally features it.
 
