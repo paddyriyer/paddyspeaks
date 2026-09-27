@@ -11,13 +11,13 @@ var KEY = 'pcc.persona.v1';
 
 /* ── extra metrics personas need (hidden from the full tile wall) ── */
 function add(m) { m.hidden = true; P.METRICS.push(m); }
-add({ id: 'blast', label: 'People in HIGH-risk assets', rule: 'Sum of people in assets whose residual risk is HIGH (Risk Radar model). Overlaps are not removed, so this is an upper bound.', tone: 'hot', route: 'privacy/worstday',
-  value: function () { return fmtN(NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).reduce(function (s, r) { return s + P.get(r.asset).obj.people; }, 0)); },
+add({ id: 'blast', label: 'People in HIGH-risk assets (up to)', rule: 'Sum of people in assets whose residual risk is HIGH (Risk Radar model), capped at everyone Northstar serves. Overlaps are not removed, so this is an upper bound.', tone: 'hot', route: 'privacy/worstday',
+  value: function () { return fmtN(Math.min(NS.org.people, NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).reduce(function (s, r) { return s + P.get(r.asset).obj.people; }, 0))); },
   items: function () { return NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).map(function (r) { return { id: r.asset, why: fmtN(P.get(r.asset).obj.people) + ' people · residual ' + P.riskCalc(r).residual }; }); } });
 add({ id: 'access', label: 'Insider access signals this week', rule: 'Sensitive-query monitoring alerts: warehouse-wide reads, inactive accounts, bulk exports, unexpected joins, break-glass without a ticket, spikes.', tone: 'hot', route: 'assurance/access',
   items: function () { return NS.accessEvents.map(function (e) { return { id: e.data, why: e.flag + ' — ' + e.who }; }); } });
-add({ id: 'blocked', label: 'Launches blocked', rule: 'Reviews with at least one open launch blocker.', tone: 'hot', route: 'privacy/reviews',
-  items: function () { return NS.reviews.filter(function (r) { return r.blockers; }).map(function (r) { return { id: r.feature, why: r.id + ' · ' + r.stage + ' · ' + r.blockers + ' blocker' }; }); } });
+add({ id: 'blocked', label: 'Launches blocked', rule: 'Reviews with at least one open blocker: an open finding on the feature that is HIGH or marked blocking launch.', tone: 'hot', route: 'privacy/reviews',
+  items: function () { return NS.reviews.filter(function (r) { return r.blockers; }).map(function (r) { return { id: r.feature, why: r.id + ' · ' + r.stage + ' · ' + r.blockers + ' blocker' + (r.blockers === 1 ? '' : 's') }; }); } });
 add({ id: 'waiting', label: 'Reviews waiting', rule: 'Reviews in intake, triage or design review.', route: 'privacy/reviews',
   items: function () { return NS.reviews.filter(function (r) { return ['INTAKE', 'TRIAGE', 'DESIGN REVIEW'].indexOf(r.stage) >= 0; }).map(function (r) { return { id: r.feature, why: r.stage + ' · ' + r.age + ' d' }; }); } });
 add({ id: 'drifted', label: 'Purpose-drift findings', rule: 'Open findings where data collected for one purpose is used for another.', tone: 'hot', route: 'privacy/purpose',
@@ -28,8 +28,8 @@ add({ id: 'gaps', label: 'Obligations with a gap', rule: 'Mapped obligations who
   items: function () { var o = []; NS.regulations.forEach(function (r) { r.obligations.forEach(function (x) { if (x.status !== 'met') o.push({ id: x.data, why: r.name + ': ' + x.text + ' — ' + x.status }); }); }); return o; } });
 add({ id: 'noverify', label: 'Datasets without verified deletion', rule: 'Personal datasets whose deletion has not been verified by a scan.', tone: 'hot', route: 'privacy/deletion',
   items: function () { return P.personalDatasets().filter(function (d) { return !d.deletionVerified; }).map(function (d) { return { id: d.id, why: d.deletion }; }); } });
-add({ id: 'aireview', label: 'AI systems not reviewed since change', rule: 'Models whose privacy review is missing, pending, or predates a material change.', tone: 'hot', route: 'privacy/ai',
-  items: function () { return NS.models.filter(function (m) { return !/^approved 2026-0[5-9]/.test(m.review) || /before/.test(m.review); }).map(function (m) { return { id: m.id, why: m.review }; }); } });
+add({ id: 'aireview', label: 'AI systems not reviewed since change', rule: 'Models whose privacy review is missing, pending, older than 180 days, or predates a material change.', tone: 'hot', route: 'privacy/ai',
+  items: function () { return NS.models.filter(function (m) { var d = (m.review.match(/^approved (\d{4}-\d{2}-\d{2})/) || [])[1]; return !d || P.daysSince(d) > 180 || /before/.test(m.review); }).map(function (m) { return { id: m.id, why: m.review }; }); } });
 add({ id: 'duesoon', label: 'Findings due in 14 days', rule: 'Open findings due within 14 days or overdue.', tone: 'hot', route: 'report/engineering',
   items: function () { return P.openFindings().filter(function (f) { return P.daysUntil(f.due) <= 14; }).map(function (f) { return { id: f.id, why: 'due ' + f.due }; }); } });
 
@@ -49,7 +49,7 @@ var PERSONAS = [
     kpis: ['blast', 'access', 'undeclared', 'incidents'],
     items: function () {
       var r = P.risksSorted().filter(function (x) { return P.riskCalc(x).rating === 'HIGH'; }).map(function (x) { var d = P.get(x.asset).obj; return { id: x.asset, title: 'Worst day: ' + d.name, why: fmtN(d.people) + ' people · ' + (d.accessPeople == null ? 'unknown' : d.accessPeople) + ' people with access · keys: ' + d.keyOwner, sev: 'HIGH', go: 'privacy/worstday', cta: 'Blast radius' }; });
-      var a = NS.accessEvents.slice(0, 2).map(function (e) { return { id: e.data, title: e.flag.charAt(0).toUpperCase() + e.flag.slice(1), why: e.who + ' — ' + e.what, sev: 'HIGH', go: 'assurance/access', cta: 'Access signals' }; });
+      var a = NS.accessEvents.filter(function (e) { var o = P.get(e.data); return o && o.type === 'dataset' && P.dsTier(o.obj) >= 3; }).map(function (e) { return { id: e.data, title: e.flag.charAt(0).toUpperCase() + e.flag.slice(1), why: e.who + ' — ' + e.what, sev: 'HIGH', go: 'assurance/access', cta: 'Access signals' }; });
       return r.concat(a);
     },
     start: [['privacy/worstday', 'Worst day', 'Blast radius under six architectures'], ['assurance/access', 'Access & insider', 'Who can reach sensitive data'], ['explore/vendors', 'Vendor egress', 'What leaves, to whom'], ['assurance/incidents', 'Incidents', 'Failed assumptions and permanent guards']] },
@@ -131,7 +131,7 @@ P.setPersona = function (id) {
   var sel = document.getElementById('personaSel'); if (sel) sel.value = p ? p.id : '';
   if (p) P.setRole(p.hat);
   P.renderNav();
-  if (P.route.path === 'overview' || P.route.path === '') P.render(); else P.go('overview');
+  if ((P.route.path === 'overview' || P.route.path === '') && !(P.route.q && (P.route.q.all || P.route.q.as))) P.render(); else P.go('overview');
 };
 P.initPersona = function () {
   var q = (location.hash.split('?')[1] || '').match(/(?:^|&)as=([a-z]+)/);
@@ -140,8 +140,8 @@ P.initPersona = function () {
   if (q && P.persona) save(P.persona.id);
   var sel = document.getElementById('personaSel');
   sel.innerHTML = '<option value="">Choose a role…</option>' + GROUPS.map(function (g) { return '<optgroup label="' + esc(g) + '">' + PERSONAS.filter(function (p) { return p.group === g; }).map(function (p) { return '<option value="' + p.id + '">' + esc(p.name) + '</option>'; }).join('') + '</optgroup>'; }).join('') + '<option value="__all">Everyone — full Command Center</option>';
-  sel.value = P.persona ? P.persona.id : '';
-  sel.addEventListener('change', function () { if (sel.value === '__all') { P.persona = null; save(''); P.renderNav(); P.go('overview?all=1'); sel.value = ''; return; } P.setPersona(sel.value); });
+  sel.value = P.persona ? P.persona.id : (/[?&]all=1/.test(location.hash) ? '__all' : '');
+  sel.addEventListener('change', function () { if (sel.value === '__all') { P.persona = null; save(''); P.renderNav(); P.go('overview?all=1'); sel.value = '__all'; return; } P.setPersona(sel.value); });
 };
 P.forYouNav = function () {
   var p = P.persona; if (!p) return '';
@@ -173,9 +173,10 @@ P.acts.teamKpi = function (el) {
   var x = teamKpi(el.getAttribute('data-k'), P.state.team);
   P.openHTML(x.label, '<p class="pp-type">Indicator · ' + esc(P.name(P.state.team)) + '</p><h2 class="pp-title">' + esc(x.label) + '</h2><div class="why"><div class="wl">HOW THIS NUMBER IS COMPUTED</div><p>' + esc(x.rule) + '</p></div><div class="tbl-wrap"><table class="tbl"><tbody>' + (x.list.length ? x.list.map(function (it) { return '<tr class="click" data-ent="' + esc(it.id) + '" tabindex="0"><td><b>' + esc(P.name(it.id)) + '</b></td><td class="small muted">' + esc(it.why) + '</td></tr>'; }).join('') : '<tr><td class="ok">Nothing — good.</td></tr>') + '</tbody></table></div>', 'Indicator');
 };
+function hotKpis(p, t) { return p.kpis.filter(function (k) { if (/^team:/.test(k)) return teamKpi(k, t).tone === 'hot'; var m = P.metric(k); return m.tone === 'hot' && (m.value ? m.value() !== '0' : m.items().length > 0); }).length; }
 function home(p) {
   var t = P.state.team, items = p.items(t), top = items.slice(0, 5);
-  var answer = items.length ? '<b>' + items.length + ' thing' + (items.length === 1 ? '' : 's') + ' need' + (items.length === 1 ? 's' : '') + ' you.</b> Start with ' + esc(top[0].title) + '.' : '<b>Nothing needs you right now.</b> The indicators below will say when that changes.';
+  var answer = items.length ? '<b>' + items.length + ' thing' + (items.length === 1 ? '' : 's') + ' need' + (items.length === 1 ? 's' : '') + ' you.</b> Start with ' + esc(top[0].title) + '.' : (hotKpis(p, t) ? '<b>No open items assigned to you.</b> But ' + hotKpis(p, t) + ' of your indicators below need a look.' : '<b>Nothing needs you right now.</b> The indicators below will say when that changes.');
   var teamSel = p.team ? '<label class="small muted" style="display:inline-flex;gap:8px;align-items:center;margin-top:12px">Your team <select id="teamSel">' + NS.teams.filter(function (x) { return x.id !== 't_privacy'; }).map(function (x) { return '<option value="' + x.id + '"' + (x.id === t ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' : '';
   var cards = top.map(function (it, i) {
     var link = it.go ? 'data-go="' + esc(it.go) + '"' : 'data-ent="' + esc(it.id) + '"';
@@ -183,7 +184,7 @@ function home(p) {
   }).join('');
   return '<section class="ph"><div class="ph-top"><span class="ph-who">Viewing as <b>' + esc(p.name) + '</b></span><button class="chip" data-act="changePersona">Change role</button></div>' +
     '<h1 class="ph-q">' + esc(p.q) + '</h1><p class="ph-a">' + answer + '</p>' + teamSel + '</section>' +
-    '<section class="ph-grid"><div><h2 class="ph-sec">What needs you</h2>' + (cards || '<p class="ok">Nothing open.</p>') + (items.length > 5 ? '<p class="small dim" style="margin:8px 2px 0">+ ' + (items.length - 5) + ' more in the views on the right.</p>' : '') + '</div>' +
+    '<section class="ph-grid"><div><h2 class="ph-sec">What needs you</h2>' + (cards || '<p class="ok">Nothing open.</p>') + (items.length > 5 ? '<p class="small dim" style="margin:8px 2px 0">+ ' + (items.length - 5) + ' more — open the views under “Start here”.</p>' : '') + '</div>' +
     '<div><h2 class="ph-sec">Your four indicators</h2><div class="ph-kpis">' + p.kpis.map(function (k) { return kpiTile(k, t); }).join('') + '</div>' +
     '<h2 class="ph-sec" style="margin-top:22px">Start here</h2><div class="ph-start">' + p.start.map(function (s) { return '<a class="ph-go" href="#/' + s[0] + '"><b>' + esc(s[1]) + '</b><span>' + esc(s[2]) + '</span></a>'; }).join('') + '</div></div></section>' +
     '<details class="ph-more"><summary>Everything else — the full Command Center (all indicators, worry map, drift)</summary><div class="ph-more-b">' + P.fullOverview.render() + '</div></details>';
@@ -191,6 +192,8 @@ function home(p) {
 
 P.views.overview = { title: 'Command Center', render: function (s, q) {
   if (q && q.all) return P.fullOverview.render();
+  /* #/overview?as=ciso works on any navigation, not only a fresh load. */
+  if (q && q.as && byId(q.as) && (!P.persona || P.persona.id !== q.as)) { P.persona = byId(q.as); save(P.persona.id); var sel = document.getElementById('personaSel'); if (sel) sel.value = P.persona.id; P.setRole(P.persona.hat); setTimeout(P.renderNav, 0); }
   return P.persona ? home(P.persona) : picker();
 }, mount: function (root, s, q) {
   var ts = root.querySelector('#teamSel'); if (ts) ts.addEventListener('change', function () { P.state.team = ts.value; P._keepScroll = true; P.render(); });

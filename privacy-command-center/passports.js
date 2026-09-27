@@ -269,7 +269,7 @@ P.riskWhy = function (r) {
   var c = P.riskCalc(r);
   var rows = NS.riskFactors.map(function (f) {
     var v = r.f[f.k], w = v / 5 * 100, as = f.kind === 'assurance';
-    return '<div class="br"><span>' + esc(f.label) + (as ? ' <span class="dim small">(assurance)</span>' : '') + '</span><span class="track"><span class="fill" style="width:' + w + '%;background:' + (as ? 'var(--ctl)' : v >= 4 ? 'var(--exp)' : v >= 3 ? 'var(--med)' : 'var(--t1)') + '"></span></span><span class="mono small" style="text-align:right">' + v + ' / 5</span></div>';
+    return '<div class="br"><span>' + esc(f.label) + (as ? ' <span class="dim small">(assurance)</span>' : '') + '</span><span class="track"><span class="fill" style="width:' + w + '%;background:' + (as ? 'var(--ctl)' : 'var(--exp)') + '"></span></span><span class="mono small" style="text-align:right">' + v + ' / 5</span></div>';
   }).join('');
   return '<div class="card flat" style="margin:12px 0"><div class="card-h"><h3 style="margin:0">' + P.sev(c.rating) + ' ' + esc(r.name) + '</h3><span class="mono small dim">residual ' + c.residual + '</span></div>' +
     '<div class="g2 grid"><div><div class="small dim" style="margin-bottom:4px">WHY</div><ul class="checks">' + r.why.map(function (w) { return '<li><span class="ic bad">+</span><span>' + esc(w) + '</span></li>'; }).join('') + '</ul></div>' +
