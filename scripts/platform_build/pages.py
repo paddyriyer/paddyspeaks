@@ -48,17 +48,14 @@ NAV = [
     ("about", "About", "/about.html"),
 ]
 
-# The footer's legal row. Only the policies: everything in the header (About,
-# the five sections, Mentoring) and the wordmark's "home" link are not repeated
-# here, and Contact / Follow / Changelog live in the row above. Pages outside
-# pages.py get their own row from lib/ps-platform.js, which is unchanged.
-LEGAL_LINKS = [
-    ("/corrections/", "Corrections"),
-    ("/privacy-policy/", "Privacy"),
-    ("/terms/", "Terms"),
-    ("/disclaimer/", "Disclaimer"),
-    ("/copyright/", "Copyright"),
-]
+# The footer (2026-09-27, the owner's spec): one primary row that mirrors the
+# header, then ONE quiet utility row. No link appears twice in the footer.
+FOOTER_PRIMARY = [("/articles/", "Read"), ("/interview.app/", "Prepare"), ("/sacred/", "Sacred"),
+                  ("/explore/", "Explore"), ("/mentoring/", "Mentoring"), ("/about.html", "About")]
+FOOTER_UTILITY = [("/jobs/", "JobSignal"), ("/atlas/", "Atlas"), ("/resume.html", "Resume"),
+                  ("/visual-resume.html", "Visual Résumé"), ("/testimonials/", "Testimonials"),
+                  ("/contact/", "Contact"), ("/privacy-policy/", "Privacy"), ("/terms/", "Terms"),
+                  ("/disclaimer/", "Disclaimer"), ("/copyright/", "Copyright")]
 
 KIND_LABEL = {
     "factual": "Factual", "translation": "Translation", "technical": "Technical",
@@ -120,36 +117,27 @@ def header_html(active: str | None) -> str:
     return nav_html(active)
 
 
-# The footer carries only what the header does not (2026-09-27, the owner's
-# call: no duplicates). The header is sticky on every page that uses it, so
-# Read / Prepare / Sacred / Explore / Mentoring / About are always one click
-# away and are not repeated here.
-FOOTER_MORE = [("/jobs/", "JobSignal"), ("/atlas/", "Atlas"),
-               ("/resume.html", "Resume"), ("/visual-resume.html", "Visual résumé"),
-               ("/testimonials/", "Testimonials"), ("/contact/", "Contact"),
-               ("/subscribe/", "Follow"), ("/changelog/", "Changelog")]
-
-
 def footer_html() -> str:
-    """The shared footer — index.html carries the same markup by hand."""
-    more = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_MORE)
-    links = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in LEGAL_LINKS)
+    """The shared footer — index.html carries the same markup by hand. The
+    utility row carries data-ps-legal so lib/ps-platform.js does not add a
+    second legal row."""
+    primary = "\n".join(f'            <a href="{h}">{t}</a>' for h, t in FOOTER_PRIMARY)
+    utility = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_UTILITY)
     return f"""<footer class="site-footer ps-footer">
     <div class="ps-footer-row">
         <a class="ps-footer-mark" href="/" aria-label="PaddySpeaks home">Paddy<span>Speaks</span></a>
-        <p class="ps-footer-line">Ideas for a more thoughtful world.</p>
+        <nav class="ps-footer-nav" aria-label="Sections">
+{primary}
+        </nav>
         <p class="ps-footer-social">
             <a href="{YOUTUBE}" target="_blank" rel="noopener" aria-label="PaddySpeaks on YouTube">{ICON_YOUTUBE}</a>
             <a href="{LINKEDIN}" target="_blank" rel="noopener" aria-label="Paddy Iyer on LinkedIn">{ICON_LINKEDIN}</a>
         </p>
     </div>
-    <nav class="footer-links" aria-label="More from PaddySpeaks">
-{more}
+    <nav class="ps-footer-utility" aria-label="More from PaddySpeaks" data-ps-legal>
+{utility}
     </nav>
-    <nav class="ps-footer-legal" aria-label="Site information" data-ps-legal>
-{links}
-    </nav>
-    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer &middot; Ideas for a more thoughtful world.</p>
 </footer>"""
 
 

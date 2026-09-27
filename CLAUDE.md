@@ -128,15 +128,21 @@ Audit, change log and rationale: **`docs/DE-L5-HANDBOOK-AUDIT.md`** and
 
 ## CRITICAL: Do NOT regenerate index.html
 
-The homepage (`index.html`) is **hand-crafted**. Since 2026-09-26 it is a
-**map, not a catalogue** (`docs/HOMEPAGE-MAP-REDESIGN.md`): hero → five
-doorways (Read · Sacred · Prepare · Find · Explore) → Worth Reading (one
-feature + three) → four gateways (Prepare, Timeless Wisdom, Technology,
-Philosophy) with the Mentoring strip between their two rows → Experiments →
-About + search. Depth lives on the destination
-pages, never on the homepage: ask "does a first-time visitor need this before
-choosing where to go?" — if not, it belongs on `/articles/`, `/sacred/`,
-`/explore/`, `/interview.app/` or `/jobs/`.
+The homepage (`index.html`) is **hand-crafted**. Since 2026-09-27 it is
+**radically sparse** (`docs/HOMEPAGE-MAP-REDESIGN.md` §12): hero (one painting,
+one line, "Explore ↓") → **five ways in** as typeset rows (Read · Learn ·
+Prepare · Find · Explore — the centrepiece) → **one** featured story → three
+registry-stamped numbers that prove the depth → a search field with About /
+Mentoring / Contact under it → footer. That is the whole page. Nothing else
+goes on it: no article grids, no product modules, no gateways for Technology,
+Philosophy, Sacred, Prepare or Experiments — those are reached through the
+five rows, the header and the footer. Before adding anything ask: "if I
+remove this, does a visitor understand PaddySpeaks less?" If not, leave it out.
+
+**One image on the whole page**: Paddy's sunrise painting in the hero. The
+featured story carries its own artwork; nothing else has a picture. No cards,
+no buttons (the hero's "Explore ↓" and the search field are links and a
+field), no illustrations, no icons in the five rows.
 
 Its styles live in `lib/ps-home.css` (homepage only, scoped to `body.ps-home`)
 and its behaviour in `lib/ps-home.js`. Do not restyle it through `style.css`,
@@ -177,8 +183,10 @@ the owner's request on 2026-09-27). Markup in `index.html` (by hand) and
 layout in `lib/ps-nav.js`. Do not fork the navigation. **Never remove or
 demote an item the owner asked for (Mentoring was once dropped by a redesign
 and had to be restored) — ask first.** JobSignal and the Atlas are reached
-from the Prepare gateway, `/explore/`, search and the footer. The footer never
-repeats a header link (the header is sticky); it holds only what the header does not. Hand-crafted pages
+from the Prepare gateway, `/explore/`, search and the footer. The footer (the
+owner's spec, 2026-09-27) is one primary row that mirrors the header, then ONE
+quiet utility row (JobSignal · Atlas · Resume · Visual Résumé · Testimonials ·
+Contact · Privacy · Terms · Disclaimer · Copyright); no link appears twice in it. Hand-crafted pages
 that are not rendered by `pages.py` (today `resume.html` and
 `visual-resume.html`) get the same header and footer written between
 `<!-- ps:header -->` / `<!-- ps:footer -->` markers by `build.py chrome` —
@@ -198,9 +206,10 @@ stale version. Scripts that look each other up must match with `*=`, not `$=`.
 3. Add a `deck-card` entry at the top of the `deck-grid` in
    `content/pages/articles.html` (root-relative `href="/articles/…"`,
    `src="/images/…"`)
-4. Optionally feature it on the homepage: add an `<li class="ps-read">` at the
-   top of `.ps-reading-list` in `index.html` and drop the last one, so the list
-   stays at three (a 72px thumbnail goes in `images/home/`). Never add a grid.
+4. Optionally make it the homepage's one featured story: replace the
+   `<article class="ps-feature">` block in `index.html` (title, one line,
+   reading time, its own artwork in `images/home/`). One story only — never a
+   list or a grid.
 5. Add a `<url>` entry to `sitemap.xml`
 6. Run `python3 scripts/platform_build/build.py all`. This is NOT an index
    generator: it renders `/articles/`, restamps the filter counts and other
