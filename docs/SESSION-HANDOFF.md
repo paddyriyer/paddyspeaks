@@ -26,12 +26,18 @@ clones fresh each time). CLAUDE.md points here._
     exist as empty spans after the five rows for no-JS.
   - Analytics untouched all day: `lib/ps.js` + pixel unchanged on `/`; new
     pages get both from `pages.py`. No new events.
-  - Hero painting is Paddy's second one (figure on a rock, sunrise over a
-    bay), uploaded as `images/hero image.png` and encoded to
-    `images/home/hero-painting-{720,1200,1916}.webp`. The words sit on the
-    right (over the bay) because the figure is on the left; the cream wash
-    is bottom-right only. If the painting changes again, re-encode all three
-    sizes and re-check where the words land.
+  - Hero painting is Paddy's third (two people sitting together at dawn),
+    uploaded as `images/hero image.png` and encoded to
+    `images/home/hero-painting-{720,1200,1916}.webp`. The words sit
+    centre-left in the quiet sky between the figures and the sunrise
+    (`.ps-hero-inner` is padded `31vw`, not the gutter; the offset must live
+    on the container, because `.ps-hero-line { margin: 0 … }` wins over any
+    margin on the children). Below 960 px the painting is a band and the
+    words follow it, with a deliberate crop (figures left edge, sunrise
+    right) rather than the desktop image centred. If the
+    painting changes again, re-encode all three sizes and re-check where the
+    words land. The header was lightened at the same time (smaller wordmark,
+    muted links) so it reads as a signature.
   - **Open:** confirm the first Analytics Health run after 00:19 UTC 27 Sep is
     green (a check-in is armed; cron `23 * * * *` but GitHub delays it).
   - **Adding an article changed:** deck card goes in
