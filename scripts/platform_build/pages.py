@@ -48,12 +48,11 @@ NAV = [
     ("about", "About", "/about.html"),
 ]
 
+# The footer's legal row. Only the policies: everything in the header (About,
+# the five sections, Mentoring) and the wordmark's "home" link are not repeated
+# here, and Contact / Follow / Changelog live in the row above. Pages outside
+# pages.py get their own row from lib/ps-platform.js, which is unchanged.
 LEGAL_LINKS = [
-    ("/", "PaddySpeaks home"),
-    ("/about.html", "About"),
-    ("/contact/", "Contact"),
-    ("/subscribe/", "Follow"),
-    ("/changelog/", "Changelog"),
     ("/corrections/", "Corrections"),
     ("/privacy-policy/", "Privacy"),
     ("/terms/", "Terms"),
@@ -121,24 +120,24 @@ def header_html(active: str | None) -> str:
     return nav_html(active)
 
 
-FOOTER_NAV = [("/articles/", "Read"), ("/interview.app/", "Prepare"), ("/sacred/", "Sacred"),
-              ("/explore/", "Explore"), ("/mentoring/", "Mentoring"), ("/about.html", "About")]
+# The footer carries only what the header does not (2026-09-27, the owner's
+# call: no duplicates). The header is sticky on every page that uses it, so
+# Read / Prepare / Sacred / Explore / Mentoring / About are always one click
+# away and are not repeated here.
 FOOTER_MORE = [("/jobs/", "JobSignal"), ("/atlas/", "Atlas"),
                ("/resume.html", "Resume"), ("/visual-resume.html", "Visual résumé"),
-               ("/testimonials/", "Testimonials"), ("/contact/", "Contact")]
+               ("/testimonials/", "Testimonials"), ("/contact/", "Contact"),
+               ("/subscribe/", "Follow"), ("/changelog/", "Changelog")]
 
 
 def footer_html() -> str:
     """The shared footer — index.html carries the same markup by hand."""
-    main = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_NAV)
     more = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in FOOTER_MORE)
     links = "\n".join(f'        <a href="{h}">{t}</a>' for h, t in LEGAL_LINKS)
     return f"""<footer class="site-footer ps-footer">
     <div class="ps-footer-row">
-        <a class="ps-footer-mark" href="/">Paddy<span>Speaks</span></a>
-        <nav class="ps-footer-nav" aria-label="Sections">
-{main}
-        </nav>
+        <a class="ps-footer-mark" href="/" aria-label="PaddySpeaks home">Paddy<span>Speaks</span></a>
+        <p class="ps-footer-line">Ideas for a more thoughtful world.</p>
         <p class="ps-footer-social">
             <a href="{YOUTUBE}" target="_blank" rel="noopener" aria-label="PaddySpeaks on YouTube">{ICON_YOUTUBE}</a>
             <a href="{LINKEDIN}" target="_blank" rel="noopener" aria-label="Paddy Iyer on LinkedIn">{ICON_LINKEDIN}</a>
@@ -150,7 +149,7 @@ def footer_html() -> str:
     <nav class="ps-footer-legal" aria-label="Site information" data-ps-legal>
 {links}
     </nav>
-    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer &middot; Ideas for a more thoughtful world.</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer</p>
 </footer>"""
 
 
