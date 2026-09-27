@@ -130,7 +130,8 @@ Audit, change log and rationale: **`docs/DE-L5-HANDBOOK-AUDIT.md`** and
 
 The homepage (`index.html`) is **hand-crafted**. Since 2026-09-27 it is
 **radically sparse** (`docs/HOMEPAGE-MAP-REDESIGN.md` §12): hero (one painting,
-one line, "Explore ↓") → **five ways in** as typeset rows (Read · Learn ·
+no wordmark — the header has it — the h1 "Ideas for a more thoughtful and
+compassionate world.", "Explore ↓") → **five ways in** as typeset rows (Read · Learn ·
 Prepare · Find · Explore — the centrepiece) → **one** featured story → three
 registry-stamped numbers that prove the depth → a search field with About /
 Mentoring / Contact under it → footer. That is the whole page. Nothing else

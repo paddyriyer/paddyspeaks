@@ -341,7 +341,7 @@ replaced it on the same branch.
 
 | | Section | What it is |
 |---|---|---|
-| 1 | Hero | The painting across the full width; the words in its calm lower-left under a cream wash. "PaddySpeaks · Ideas for a more thoughtful world. · Essays, timeless wisdom, career tools and things I build." One link: *Explore ↓*. |
+| 1 | Hero | The painting across the full width; the words on its calm right side under a cream wash. No wordmark (the header has it — the owner's call, 2026-09-27: "we are not marketing"). The h1 is the site's one line, "Ideas for a more thoughtful and compassionate world.", then "Essays, timeless wisdom, career tools and things I build." One link: *Explore ↓*. |
 | 2 | Five ways in | "What did you come here to do? — Five ways in. One library." Five typeset rows: 01 READ · 02 LEARN · 03 PREPARE · 04 FIND (opens search) · 05 EXPLORE. Number in the way's colour, title, one line, one text CTA; hairlines between; the whole row is the link; the arrow nudges 4 px on hover. No icons, no boxes. |
 | 3 | Worth your time | One story only (*Every Arrow Is a Decision*) with its own panel, then a quiet *View all writings →*. |
 | 4 | Depth | Three numbers, each a `data-ps-stat` stamp and a link: interview questions → `/interview.app/`, sacred texts → `/sacred/`, working experiments → `/explore/`. Typography only. |
