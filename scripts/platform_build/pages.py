@@ -137,7 +137,7 @@ def footer_html() -> str:
     <nav class="ps-footer-utility" aria-label="More from PaddySpeaks" data-ps-legal>
 {utility}
     </nav>
-    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer &middot; Ideas for a more thoughtful world.</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks &middot; Paddy Iyer &middot; Ideas for a more thoughtful and compassionate world.</p>
 </footer>"""
 
 
