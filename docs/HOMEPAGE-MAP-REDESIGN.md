@@ -200,9 +200,8 @@ views (`lib/ps-sacred.js`), the devotional-music entry, the Data Lab index and
 the Privacy Console tool card.
 
 **New on the homepage** (`lib/ps-home.css`, `images/home/`): hero with an
-SVG landscape (4 KB), five doorway cards with line icons, Worth Reading (one
-480×600 crop of the feature's own artwork and three 144px thumbnails, all
-WebP, all lazy), four gateway panels and three experiment cards with small SVG
+SVG landscape (4 KB), five doorway cards with line icons, Worth Reading (the
+feature's image and three 144px thumbnails, all WebP, all lazy), four gateway panels and three experiment cards with small SVG
 illustrations (1–2 KB each), the about card, the closing search +
 *Surprise me*.
 
@@ -283,6 +282,17 @@ A first-time visitor, on the first screen and a half:
 5. *Articles?* — **Read** (nav, card, *View all writings*).
 6. *Interview preparation?* — **Prepare** (nav, card, gateway).
 7. *Sacred texts?* — **Sacred** (nav, card, Timeless Wisdom).
+
+### Featured story
+
+Since 2026-09-27 the feature is *Every Arrow Is a Decision*. Its image is panel
+4 ("Deleted? Not really.") of the ten-panel overview Paddy supplied for the
+essay, cropped with the panel number removed (`images/home/feature-every-arrow.webp`,
+272×490). It is shown whole (`object-fit: contain`), never cropped, because it
+is a UI story whose rows carry the point. Panel 5 repeats the headline and
+panel 1 carries a real company's logo, so neither was used. To change the
+feature later: swap the `<article class="ps-feature">` text and image, and
+keep the list below it at three.
 
 ## 11. Follow-ups
 
