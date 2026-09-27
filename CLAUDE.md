@@ -177,7 +177,8 @@ the owner's request on 2026-09-27). Markup in `index.html` (by hand) and
 layout in `lib/ps-nav.js`. Do not fork the navigation. **Never remove or
 demote an item the owner asked for (Mentoring was once dropped by a redesign
 and had to be restored) — ask first.** JobSignal and the Atlas are reached
-from the Prepare gateway, `/explore/`, search and the footer. Hand-crafted pages
+from the Prepare gateway, `/explore/`, search and the footer. The footer never
+repeats a header link (the header is sticky); it holds only what the header does not. Hand-crafted pages
 that are not rendered by `pages.py` (today `resume.html` and
 `visual-resume.html`) get the same header and footer written between
 `<!-- ps:header -->` / `<!-- ps:footer -->` markers by `build.py chrome` —

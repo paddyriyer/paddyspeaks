@@ -184,7 +184,7 @@ wordmark, and YouTube / LinkedIn moved to the footer as icons.
   "Free mentoring" link. Paddy had added Mentoring to the header on
   2026-09-24; the redesign should have asked before demoting it, and said so
   plainly rather than in a closing note. Restored: Mentoring is back in the
-  header (between Explore and About) and the footer's section row, and the
+  header (between Explore and About), and the
   homepage carries Paddy's sentence with *Book a Mentoring Conversation →* as
   a full-width strip between the Prepare/Wisdom row and the Technology/
   Philosophy row. CLAUDE.md now says never to remove or demote an item the
@@ -194,6 +194,14 @@ wordmark, and YouTube / LinkedIn moved to the footer as icons.
   wrap, and the header stops being sticky there so it does not take 144 px of
   a small screen. The Menu button `lib/ps-nav.js` injects is hidden; nothing
   hides behind a control.
+- **The footer does not repeat the header** (2026-09-27, the owner's call).
+  The header is sticky on every page that uses it, so the footer carries only
+  what the header does not: the wordmark, one line, YouTube and LinkedIn; then
+  JobSignal · Atlas · Resume · Visual résumé · Testimonials · Contact · Follow
+  · Changelog; then the policies (Corrections · Privacy · Terms · Disclaimer ·
+  Copyright). No link appears twice. `FOOTER_MORE` / `LEGAL_LINKS` in
+  `pages.py`; `index.html` carries the same markup. Pages outside `pages.py`
+  keep their own footers and the legal row `lib/ps-platform.js` adds.
 
 ## 6. Components
 
