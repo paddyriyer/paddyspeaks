@@ -44,6 +44,7 @@ NAV = [
     ("prepare", "Prepare", "/interview.app/"),
     ("learn", "Sacred", "/sacred/"),
     ("build", "Explore", "/explore/"),
+    ("mentoring", "Mentoring", "/mentoring/"),   # added at the owner's request 2026-09-24; restored 2026-09-27
     ("about", "About", "/about.html"),
 ]
 
@@ -103,6 +104,8 @@ def nav_html(active: str | None) -> str:
         cur = ' aria-current="page"' if key == active else ""
         if key == "about":
             items.append(f'    <a href="{href}" class="ps-nav-about"{cur}>{label}</a>')
+        elif key == "mentoring":
+            items.append(f'    <a href="{href}" class="ps-nav-mentoring" title="Thirty minutes of free mentoring"{cur}>{label}</a>')
         else:
             items.append(f'    <a href="{href}" data-journey="{key}"{cur}>{label}</a>')
     items.append(
@@ -119,8 +122,8 @@ def header_html(active: str | None) -> str:
 
 
 FOOTER_NAV = [("/articles/", "Read"), ("/interview.app/", "Prepare"), ("/sacred/", "Sacred"),
-              ("/explore/", "Explore"), ("/about.html", "About")]
-FOOTER_MORE = [("/jobs/", "JobSignal"), ("/mentoring/", "Mentoring"), ("/atlas/", "Atlas"),
+              ("/explore/", "Explore"), ("/mentoring/", "Mentoring"), ("/about.html", "About")]
+FOOTER_MORE = [("/jobs/", "JobSignal"), ("/atlas/", "Atlas"),
                ("/resume.html", "Resume"), ("/visual-resume.html", "Visual résumé"),
                ("/testimonials/", "Testimonials"), ("/contact/", "Contact")]
 
