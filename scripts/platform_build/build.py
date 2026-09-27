@@ -11,6 +11,8 @@ Steps (run in this order by `all`):
     pages      render corrections / changelog lists into their pages (P0.3, P1.7)
     chrome     the shared header/footer (from pages.py) into hand-crafted pages
                that mark <!-- ps:header --> / <!-- ps:footer --> (the resumes)
+    homecss    lib/ps-home-base.css: the slice of style.css the homepage needs,
+               so the homepage does not block on the 135 KB shared stylesheet
     assets     ?v=<content hash> on style.css / lib/ps-* links in index.html, so
                new HTML never meets a cached old stylesheet
     search     data/search/*.json universal search index (P1.2)
@@ -31,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from platform_build import checks, registry, stamp  # noqa: E402
 from platform_build.common import dump_json, read_json, write_if_changed  # noqa: E402
 
-STEPS = ["registry", "stamp", "pages", "chrome", "assets", "search", "graph", "feeds", "api"]
+STEPS = ["registry", "stamp", "pages", "chrome", "homecss", "assets", "search", "graph", "feeds", "api"]
 
 
 def step_registry(write: bool) -> list[str]:
@@ -57,7 +59,7 @@ def step_stamp(write: bool) -> list[str]:
 
 
 # Step name → module, where they differ.
-MODULES = {"search": "search_index", "graph": "graph", "feeds": "feeds", "api": "api", "pages": "pages", "chrome": "chrome", "assets": "assets"}
+MODULES = {"search": "search_index", "graph": "graph", "feeds": "feeds", "api": "api", "pages": "pages", "chrome": "chrome", "homecss": "homecss", "assets": "assets"}
 
 
 def _optional(name):

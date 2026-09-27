@@ -147,7 +147,14 @@ field), no illustrations, no icons in the five rows.
 
 Its styles live in `lib/ps-home.css` (homepage only, scoped to `body.ps-home`)
 and its behaviour in `lib/ps-home.js`. Do not restyle it through `style.css`,
-which ~190 other pages share. The `<head>` carries a small script that
+which ~190 other pages share. **The homepage does not link `style.css`** (135 KB,
+render-blocking, 5% used): it links `lib/ps-home-base.css`, which
+`build.py homecss` GENERATES from style.css through a selector allowlist in
+`scripts/platform_build/homecss.py` — never edit the slice; if the homepage
+needs another style.css rule, add its selector to the allowlist. The hero
+painting is encoded by `python3 scripts/hero_images.py` (Pillow; AVIF + WebP,
+desktop sizes plus a pre-cropped phone band) — re-run it when
+`images/hero image.png` changes. The `<head>` carries a small script that
 forwards old links (`/#archive`, `/#sacred-texts`, `/#data-lab`,
 `index.html#technology` …, ~140 pages use them) to their new pages — keep it.
 

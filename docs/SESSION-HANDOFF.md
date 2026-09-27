@@ -27,17 +27,36 @@ clones fresh each time). CLAUDE.md points here._
   - Analytics untouched all day: `lib/ps.js` + pixel unchanged on `/`; new
     pages get both from `pages.py`. No new events.
   - Hero painting is Paddy's third (two people sitting together at dawn),
-    uploaded as `images/hero image.png` and encoded to
-    `images/home/hero-painting-{720,1200,1916}.webp`. The words sit
+    uploaded as `images/hero image.png` and encoded by
+    `python3 scripts/hero_images.py` (needs Pillow) to
+    `images/home/hero-painting-{1200,1916}.{avif,webp}` for desktop and
+    `images/home/hero-mobile-{720,1080,1525}.{avif,webp}` — a pre-cropped
+    band — for everything up to 960px, served through a `<picture>` with
+    matching AVIF preloads. The words sit
     centre-left in the quiet sky between the figures and the sunrise
     (`.ps-hero-inner` is padded `31vw`, not the gutter; the offset must live
     on the container, because `.ps-hero-line { margin: 0 … }` wins over any
     margin on the children). Below 960 px the painting is a band and the
     words follow it, with a deliberate crop (figures left edge, sunrise
     right) rather than the desktop image centred. If the
-    painting changes again, re-encode all three sizes and re-check where the
-    words land. The header was lightened at the same time (smaller wordmark,
-    muted links) so it reads as a signature.
+    painting changes again, run the script (re-check `MOBILE_CROP` if the
+    composition moved), commit the files and re-check where the words land.
+    The header was lightened at the same time (smaller wordmark, muted links)
+    so it reads as a signature.
+  - **Homepage mobile performance (2026-09-27, after Paddy's Lighthouse run
+    scored 81):** the homepage no longer links `style.css` (135 KB, of which
+    it used 5%, render-blocking). It links `lib/ps-home-base.css`, GENERATED
+    from style.css by `build.py homecss` (selector allowlist in
+    `scripts/platform_build/homecss.py`; `check` fails when stale). The hero
+    ships as AVIF with a WebP fallback and a phone-sized crop (above). Local
+    Lighthouse mobile: 90 → 98, FCP 2.1 → 1.4 s, LCP 3.4 → 2.3 s; the page is
+    pixel-identical outside the hero at 375/412/768/961/1440. Still open and
+    not fixable from the repo: cache lifetimes (GitHub Pages sends
+    `max-age=600`; a Cloudflare Cache Rule for `/lib/*` and `/images/*` — all
+    fingerprinted or immutable — would clear Lighthouse's 175 KB warning).
+    The DevTools run's "Minify JavaScript 171 KiB / main-thread 3.0 s" did not
+    reproduce (the site's JS is 63 KB, TBT 0 ms); most likely browser
+    extensions — compare with PageSpeed Insights or an Incognito run.
   - **Open:** confirm the first Analytics Health run after 00:19 UTC 27 Sep is
     green (a check-in is armed; cron `23 * * * *` but GitHub delays it).
   - **Adding an article changed:** deck card goes in
