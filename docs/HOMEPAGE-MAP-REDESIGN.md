@@ -74,7 +74,7 @@ Homepage order (each section answers: what is this, why care, where next):
 1. **Hero** — kicker "Ideas · Technology · Careers · Timeless wisdom", the
    wordmark as `h1`, one sentence naming what is here and who made it, two
    actions: *Explore PaddySpeaks* (navy, jumps to the doorways) and *Find
-   something* (outlined, opens search). A quiet landscape illustration on the
+   something* (outlined, opens search). Paddy's painting of a sunrise over a lake sits on the
    right fades into the page; it is decorative (`alt=""`).
 2. **Where would you like to go? — Five ways in · One library** — five tinted
    cards: Read (blue), Sacred (terracotta), Prepare (teal), Find (sand) and
@@ -200,7 +200,7 @@ views (`lib/ps-sacred.js`), the devotional-music entry, the Data Lab index and
 the Privacy Console tool card.
 
 **New on the homepage** (`lib/ps-home.css`, `images/home/`): hero with an
-SVG landscape (4 KB), five doorway cards with line icons, Worth Reading (the
+painting (WebP at 720 / 1200 / 1916 px, served by `srcset`; 35–164 KB), five doorway cards with line icons, Worth Reading (the
 feature's image and three 144px thumbnails, all WebP, all lazy), four gateway panels and three experiment cards with small SVG
 illustrations (1–2 KB each), the about card, the closing search +
 *Surprise me*.
@@ -307,9 +307,9 @@ keep the list below it at three.
   `.health-card*`, `.interview-hero-card`) and the `.masthead` / `.top-bar`
   rules in `lib/ps-chrome.css` are no longer used by the shared header. Removing
   shared CSS is a separate, reviewable change.
-- The hero and gateway illustrations are hand-drawn SVGs (1–4 KB each), in the
-  mockup's spirit rather than copies of its paintings. If Paddy commissions
-  final artwork, swap the files in `images/home/` — the markup does not change.
+- The hero is Paddy's painting (2026-09-27). The gateway and experiment
+  illustrations are still hand-drawn SVGs (1–2 KB each); if final artwork is
+  commissioned, swap the files in `images/home/` — the markup does not change.
 - "Three decades" in *Behind PaddySpeaks* follows Paddy's own mentoring page
   ("more than three decades"); `docs/ABOUT-PAGE-AUDIT.md` still lists the
   career length as awaiting confirmation.
