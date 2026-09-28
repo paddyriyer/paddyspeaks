@@ -337,6 +337,14 @@ P.cite = function (ids, label) {
 };
 
 /* ── roles: one truth, four ways to act on it ──────────────────── */
+/* Vocabulary follows the perspective: the same record is an “exposure” to a
+ * board, an “issue” to a manager, a “gap” to counsel and a “finding” to an
+ * engineer. P.word(k, plural) returns the current role's word. */
+P.currentPerspective = function () { return P.persona ? P.perspectiveOf(P.persona.id) : null; };
+P.word = function (k, plural) {
+  var pers = P.currentPerspective(), w = (pers && pers.words[k]) || k;
+  return plural ? w + 's' : w;
+};
 P.perspectiveOf = function (personaId) {
   for (var i = 0; i < NS.perspectives.length; i++) if (NS.perspectives[i].roles.indexOf(personaId) >= 0) return NS.perspectives[i];
   return NS.perspectives[0];

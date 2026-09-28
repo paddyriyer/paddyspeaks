@@ -51,6 +51,23 @@ function chainChips(x, col, max) {
   return ids.length ? ids.slice(0, max || 4).map(function (i) { return chip(i); }).join(' ') + (ids.length > (max || 4) ? ' <span class="dim small">+' + (ids.length - (max || 4)) + '</span>' : '') : '<span class="dim">—</span>';
 }
 
+/* The disclosure is the same material in the order each perspective needs it. */
+var PARTS = {
+  options: function (x, st, dec) {
+    return dec ? '<h4>' + esc(dec.d.question) + '</h4><p><b>Recommended:</b> ' + esc(dec.d.recommendText) + '</p>' + P.optionsTable(dec) +
+      (dec.d.dissent ? '<p class="small"><b>Dissent:</b> ' + esc(dec.d.dissent) + '</p>' : '') + (dec.d.uncertainty ? '<p class="small"><b>Uncertain:</b> ' + esc(dec.d.uncertainty) + '</p>' : '')
+      : '<h4>' + esc(P.word('decision')) + '</h4><p>' + unk('No decision has been opened for this promise') + '</p>';
+  },
+  evidence: function (x, st) { return '<h4>' + esc(cap(P.word('control'))) + ' or evidence that failed</h4>' + failedEvidence(st); },
+  risk: function (x) { return '<h4>Residual risk, explained</h4>' + P.riskHTML(x.explain); },
+  chain: function (x) { return '<h4>From promise to owner</h4>' + P.chainHTML(x.p.id); },
+  findings: function (x, st) { return st.open.length ? '<h4>Open ' + esc(P.word('finding', true)) + '</h4><ul class="evl">' + st.open.map(function (f) { return '<li>' + P.sev(f.sev) + ' ' + chip(f.id, f.id) + ' ' + esc(f.title) + '<div class="small dim">owner ' + P.ownerHTML(f.owner) + ' · due ' + esc(f.due ? P.hdate(f.due) : '—') + ' · detected by ' + esc(f.detector) + '</div></li>'; }).join('') + '</ul>' : ''; },
+  test: function (x, st, dec) { return dec ? '<h4>The test that proves the fix</h4><p>' + esc(dec.d.test.text) + '</p><p class="small">via ' + chip(dec.d.test.control) + ' · today: <span class="ev-r ev-' + esc(dec.d.testResult) + '">' + esc(dec.d.testResult) + '</span> ' + (dec.test ? P.freshTag(dec.test.last, 'Last test') : '') + '</p>' : ''; }
+};
+var ORDER_BY = { lead: ['options', 'risk', 'evidence', 'chain'], own: ['findings', 'options', 'evidence', 'chain'], over: ['evidence', 'test', 'risk', 'options', 'chain'], build: ['test', 'evidence', 'findings', 'chain', 'options'] };
+var SUMMARY = { lead: 'Options, trade-offs and the full chain', own: 'Open issues, due dates, options and the chain', over: 'Evidence, tests and the full chain', build: 'The failing test, the evidence and the chain' };
+function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+
 /* One priority item: everything required to understand and act, progressively disclosed. */
 P.priorityCard = function (x, i, pers) {
   var st = x.state, dec = x.dec, conseq = dec ? dec.d.consequence : (st.open[0] && st.open[0].human) || '';
@@ -68,13 +85,8 @@ P.priorityCard = function (x, i, pers) {
       '<div class="wide"><dt>Residual risk</dt><dd>' + P.riskHTML(x.explain, { brief: true }) + '</dd></div>' +
     '</dl>' +
     '<div class="pri-act"><span class="act-v">' + esc(x.action.verb) + '</span> ' + esc(x.action.text) + '</div>' +
-    '<details class="pri-more"><summary>Options, evidence and the full chain</summary>' +
-      (dec ? '<h4>' + esc(dec.d.question) + '</h4><p><b>Recommended:</b> ' + esc(dec.d.recommendText) + '</p>' + P.optionsTable(dec) +
-        (dec.d.dissent ? '<p class="small"><b>Dissent:</b> ' + esc(dec.d.dissent) + '</p>' : '') + (dec.d.uncertainty ? '<p class="small"><b>Uncertain:</b> ' + esc(dec.d.uncertainty) + '</p>' : '')
-        : '<p>' + unk('No decision has been opened for this promise') + '</p>') +
-      '<h4>Control or evidence that failed</h4>' + failedEvidence(st) +
-      '<h4>Residual risk, explained</h4>' + P.riskHTML(x.explain) +
-      '<h4>From promise to owner</h4>' + P.chainHTML(x.p.id) +
+    '<details class="pri-more"><summary>' + esc(SUMMARY[pers ? pers.id : 'lead']) + '</summary>' +
+      (ORDER_BY[pers ? pers.id : 'lead']).map(function (k) { return PARTS[k](x, st, dec); }).join('') +
       '<div class="btn-row">' + (dec ? '<a class="btn" href="#/decisions/' + esc(dec.d.id) + '">Open the decision memo</a>' : '') + '<a class="btn" href="#/promises/' + esc(x.p.id) + '">Open the promise</a><button class="btn" data-act="investigate" data-id="' + esc(x.p.id) + '">Start an investigation here</button></div>' +
     '</details></article>';
 };
@@ -129,20 +141,21 @@ P.homeV2 = function (persona) {
     : '<div class="hm-who"><span>Viewing as <b>everyone</b></span><span class="dim">Pick a role to rank these by the decisions you can make.</span><button class="chip" data-act="changePersona">Choose a role</button></div>';
   var team = persona && persona.team ? '<label class="small muted hm-team">Your team <select id="teamSel">' + NS.teams.filter(function (x) { return x.id !== 't_privacy'; }).map(function (x) { return '<option value="' + x.id + '"' + (x.id === P.state.team ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' : '';
   var shown = items.slice(0, persona ? 4 : 5), rest = items.slice(shown.length);
+  var empty = !items.length ? '<div class="empty-state"><h3>Every published promise is kept, with fresh evidence.</h3><p>Nothing needs a decision. The indicators below will say when that changes.</p></div>' : '';
   var set = IND[pers ? pers.id : 'lead'];
   return '<section class="hm-hero">' + who +
-      '<p class="eyebrow">Northstar · synthetic demo data · ' + esc(P.hdate(NS.TODAY)) + '</p>' +
+      '<p class="eyebrow">Northstar · synthetic demo data · records as of ' + esc(P.hdate(NS.TODAY)) + ' · <a href="#/help">what the terms mean</a></p>' +
       '<h1 class="hm-q">' + esc(q) + '</h1>' +
       '<p class="hm-a"><b>' + items.length + ' of ' + all + ' promises</b> are not demonstrably kept — ' + broken + ' broken. <b>' + owed.length + ' decisions are owed</b>' + (late ? ', ' + late + ' past due' : '') + '. ' + weakEv + ' of ' + NS.controls.length + ' controls have failing, stale or no evidence.</p>' + team +
       '<nav class="hm-jump" aria-label="The four questions"><a href="#q1">1 · Promise at risk</a><a href="#q2">2 · Who is affected</a><a href="#q3">3 · Decision owed</a><a href="#q4">4 · Proof of the fix</a></nav>' +
     '</section>' +
     '<section class="hm-sec" aria-labelledby="q1"><h2 id="q1" class="hm-h"><span>1</span> What promise is at risk?</h2>' +
       (pers ? '<p class="hm-lens">Ordered for ' + esc(pers.name.toLowerCase()) + ': ' + esc({ lead: 'most people and broken promises first; decisions you approve rise to the top.', own: 'your team’s items and unowned items first, then by due date.', over: 'weakest evidence first — what you would have to challenge before attesting.', build: 'failing controls and tests first — what you can fix and prove.' }[pers.id]) + '</p>' : '') +
-      shown.map(function (x, i) { return P.priorityCard(x, i, pers); }).join('') +
+      empty + shown.map(function (x, i) { return P.priorityCard(x, i, pers); }).join('') +
       (rest.length ? '<details class="hm-rest"><summary>' + rest.length + ' more promise' + (rest.length > 1 ? 's' : '') + ' at risk or unproven</summary>' + rest.map(function (x, i) { return P.priorityCard(x, i + shown.length, pers); }).join('') + '</details>' : '') +
     '</section>' +
     '<section class="hm-sec" aria-labelledby="q2"><h2 id="q2" class="hm-h"><span>2</span> Who or what is affected?</h2>' + affected(items) + '</section>' +
-    '<section class="hm-sec" aria-labelledby="q3"><h2 id="q3" class="hm-h"><span>3</span> Which decision is owed, by whom, by when?</h2>' + decisionsTable() + '</section>' +
+    '<section class="hm-sec" aria-labelledby="q3"><h2 id="q3" class="hm-h"><span>3</span> Which ' + esc(P.word('decision')) + ' is owed, by whom, by when?</h2>' + decisionsTable() + '</section>' +
     '<section class="hm-sec" aria-labelledby="q4"><h2 id="q4" class="hm-h"><span>4</span> What evidence proves the fix?</h2>' + proofTable() + '</section>' +
     '<section class="hm-sec" aria-labelledby="qi"><h2 id="qi" class="hm-h hm-h-sm">Indicators' + (pers ? ' for ' + esc(pers.name.toLowerCase()) : '') + '</h2><p class="small dim">Each shows its trend, what it is out of, the target, how much of the estate its detector can see, and who owns it. Open one for the records behind it.</p>' +
       '<div class="inds">' + set.map(function (id) { return P.indicatorHTML(id); }).join('') + '</div></section>' +
@@ -231,4 +244,26 @@ P.passports.decision = function (d) {
     '<dt>Recommended</dt><dd>' + esc(x.rec.id + ' · ' + x.rec.title) + '</dd><dt>Proven when</dt><dd>' + esc(d.test.text) + '</dd></dl>' +
     '<div class="btn-row"><a class="btn" href="#/decisions/' + esc(d.id) + '">Open the decision memo</a></div>';
 };
+})();
+
+/* ── Help: definitions in plain language ──────────────────────── */
+(function () {
+var P = window.PCC, esc = P.esc;
+var TERMS = [
+  ['Promise', 'A plain-language commitment Northstar has made to people, with where it was made. Everything else in the Command Center exists to show whether promises are kept.'],
+  ['Broken · At risk · Unproven · Kept', 'Broken: an open high-severity finding or an open incident contradicts the promise. At risk: another open finding or a failing control. Unproven: the controls behind it are untested or their evidence is older than 30 days. Kept: every control passed a test in the last 30 days.'],
+  ['Decision', 'The choice a broken promise requires. It moves from owed → decided → verifying (the fix is shipped, the test has not yet proven it) → closed (proven). Each has an owner, an approver, a due date, options with trade-offs, and the test that proves the fix.'],
+  ['Due date and SLA', 'The due date is the earliest due date of the findings behind a decision. The SLA is how long a decision may stay owed: 14 days for high severity, 30 for medium, 60 for low, counted from when it was opened.'],
+  ['Residual risk', 'Exposure (sensitivity, scale, identifiability, linkability, retention, access, third parties, novelty, geography) reduced by safeguards that are actually tested. Shown as a band — high, medium, low — with its drivers, its safeguards and what is unknown. Three or more unknown inputs widen the band into a range.'],
+  ['Confidence', 'How much of the input is known. High: nothing material is unknown. Medium: one or two unknowns. Low: three or more (for example no owner, no declared retention, unmapped flows, untested controls).'],
+  ['Evidence freshness', 'How long ago a control was last tested. Fresh: 7 days or less. Aging: up to 30 days. Stale: older. Never tested: no test exists — which is itself a finding.'],
+  ['Enforcement levels', 'L0 policy (a document) · L1 manual review · L2 static check · L3 deployment gate · L4 runtime enforcement · L5 continuous audit. Higher levels are harder to bypass by accident.'],
+  ['The chain', 'Promise → product or feature → purpose → person or identity → data → system → data flow → vendor or model → jurisdiction → control → evidence → finding → decision → owner. An empty link is a gap, and gaps are findings.'],
+  ['Indicator', 'A count with the rule that produced it, what it is out of, its target, its trend over eight weeks, how much of the estate its detector can see (coverage) and who owns it. Every indicator opens the records behind it.'],
+  ['Synthetic data', 'Northstar, its people, systems, vendors and incidents are invented. Nothing describes a real organisation or person. Regulation mappings are orientation, not legal advice.']
+];
+P.views.help = { title: 'Help', render: function () {
+  return P.pageHead('Help', 'What the terms mean', 'Definitions used across the Command Center. Keyboard: “/” or Ctrl/⌘ K opens search, Tab moves through controls, Enter opens a record, Escape closes the drawer.') +
+    '<dl class="glossary">' + TERMS.map(function (t) { return '<dt>' + esc(t[0]) + '</dt><dd>' + esc(t[1]) + '</dd>'; }).join('') + '</dl>';
+} };
 })();

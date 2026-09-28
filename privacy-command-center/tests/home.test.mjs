@@ -100,6 +100,23 @@ export default [
     assert(open && closed, 'drawer opens with Enter and closes with Escape');
     assert(exp, 'details expand from the keyboard');
   } },
+  { name: 'role changes vocabulary and the order evidence is shown in', async run({ page, assert }) {
+    const get = async (role) => { const p = await page('overview?as=' + role); const r = await p.evaluate(() => { const d = document.querySelector('.pri details'); d.open = true; return { sum: d.querySelector('summary').textContent, first: d.querySelector('h4').textContent, q3: document.querySelector('#q3').textContent }; }); await p.closeAll(); return r; };
+    const lead = await get('exec'), over = await get('counsel'), build = await get('swe');
+    assert(lead.sum !== over.sum && over.sum !== build.sum, 'disclosure summary differs by perspective');
+    assert(/Evidence|safeguard|control/i.test(over.first), 'oversight sees evidence first, got ' + over.first);
+    assert(/test that proves/i.test(build.first), 'builders see the failing test first, got ' + build.first);
+    assert(/determination/.test(over.q3) && /decision/.test(lead.q3), 'oversight says determination, leadership says decision');
+  } },
+  { name: 'unknown records and broken routes show a clear state, never a blank page', async run({ page, assert }) {
+    const p = await page('promises/PR-NOPE');
+    const t = await p.evaluate(() => document.querySelector('main').innerText);
+    await p.go('help'); const h = await p.evaluate(() => document.querySelectorAll('.glossary dt').length);
+    const errs = p.errors.slice(); await p.closeAll();
+    assert(/not found/i.test(t) && /PR-NOPE/.test(t), 'missing promise explained');
+    assert(h >= 8, 'glossary defines the terms');
+    assert(!errs.length, 'no page errors: ' + errs.join('|'));
+  } },
   { name: 'mobile: no horizontal overflow on the main journeys at 390px', async run({ page, assert }) {
     for (const r of ['overview?as=cpo', 'overview?as=em', 'promises', 'promises/PR-LOC', 'chain?from=PR-OPTOUT']) {
       const p = await page(r, { width: 390 });

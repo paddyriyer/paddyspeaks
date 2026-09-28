@@ -293,8 +293,14 @@ function render() {
   if (!view && segs[1] && P.views[segs[0] + '/:id']) { view = P.views[segs[0] + '/:id']; args = segs; key = segs[0]; }
   view = view || P.views[segs[0]] || P.views.overview;
   var main = document.getElementById('view');
-  main.innerHTML = view.render(args, r.q) + '';
-  if (view.mount) view.mount(main, args, r.q);
+  /* Error state: a view that cannot render says so, names the route, and offers a way back. */
+  try { main.innerHTML = view.render(args, r.q) + ''; if (view.mount) view.mount(main, args, r.q); }
+  catch (err) {
+    main.innerHTML = '<section class="err-state" role="alert"><p class="eyebrow">Something went wrong</p><h1>This view could not be drawn</h1>' +
+      '<p>The page <code>#/' + esc(r.path) + '</code> hit an error while reading the synthetic records: <code>' + esc(err && err.message || err) + '</code>. Nothing was changed.</p>' +
+      '<p><a class="btn" href="#/overview">Back to the Command Center</a></p></section>';
+    if (window.console) console.error(err);
+  }
   main.querySelectorAll('.tbl-wrap,.canvas,.memo table,.heat').forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1 && !el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', el.getAttribute('role') || 'region'); if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Scrollable content'); } });
   document.querySelectorAll('.side a').forEach(function (a) { var on = a.getAttribute('data-route') === key || (key === 'overview' && a.getAttribute('data-route') === 'overview'); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   var title = (view.title || 'Command Center');
