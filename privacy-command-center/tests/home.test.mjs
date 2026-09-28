@@ -120,6 +120,7 @@ export default [
   { name: 'mobile: no horizontal overflow on the main journeys at 390px', async run({ page, assert }) {
     for (const r of ['overview?as=cpo', 'overview?as=em', 'promises', 'promises/PR-LOC', 'chain?from=PR-OPTOUT']) {
       const p = await page(r, { width: 390 });
+      await p.evaluate(() => document.fonts.ready); await p.waitForTimeout(150);
       const o = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
       clean(p, r); await p.closeAll();
       assert(o <= 0, r + ': overflows by ' + o + 'px at 390');
