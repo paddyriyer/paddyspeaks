@@ -254,13 +254,16 @@ P.pageHead = function (eyebrow, title, lede, right) { return '<div class="page-h
 /* ── navigation ──────────────────────────────────────────── */
 P.NAV = [
   ['', [['overview', 'Command Center']]],
-  ['Explore', [['explore/org', 'Organization'], ['explore/products', 'Products & Features'], ['explore/systems', 'Systems'], ['explore/data', 'Data'], ['explore/graph', 'Knowledge Graph'], ['explore/person', 'One Person'], ['explore/identities', 'Identities'], ['explore/flows', 'Data Flows'], ['explore/vendors', 'Vendor Egress'], ['explore/geo', 'Geography']]],
-  ['Privacy', [['privacy/risks', 'Risk Radar'], ['privacy/worstday', 'Worst Day'], ['privacy/reviews', 'Reviews'], ['privacy/consent', 'Consent'], ['privacy/purpose', 'Purpose'], ['privacy/retention', 'Retention'], ['privacy/deletion', 'Forget Me'], ['privacy/rights', 'User Rights'], ['privacy/tracking', 'Tracking'], ['privacy/ai', 'AI / ML'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat Models']]],
-  ['Assurance', [['assurance/controls', 'Enforcement Ladder'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & Insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'], ['assurance/evidence', 'Evidence']]],
-  ['Governance', [['governance/regulations', 'Policies & Regulations'], ['governance/vendors', 'Vendor Register'], ['governance/maturity', 'Maturity']]],
-  ['Report', [['report/executive', 'Executive'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / Legal']]]
+  ['Decide', [['promises', 'Promises'], ['decisions', 'Decision memos'], ['privacy/reviews', 'Privacy reviews'], ['privacy/risks', 'Risk radar'], ['privacy/worstday', 'Worst Day']]],
+  ['Investigate', [['chain', 'Chain explorer'], ['explore/person', 'One Person'], ['explore/graph', 'Knowledge graph'], ['explore/identities', 'Identities'], ['explore/flows', 'Lineage & flows'],
+    ['explore/vendors', 'Vendors & egress'], ['explore/geo', 'Geography'], ['explore/org', 'Organization'], ['explore/products', 'Products & features'], ['explore/systems', 'Systems'], ['explore/data', 'Data']]],
+  ['Operate', [['observability', 'Observability'], ['privacy/consent', 'Consent'], ['privacy/deletion', 'Deletion'], ['privacy/retention', 'Retention'], ['privacy/rights', 'Individual rights'],
+    ['privacy/purpose', 'Purpose'], ['privacy/ai', 'AI & agents'], ['privacy/tracking', 'Tracking'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat models']]],
+  ['Prove', [['assurance/controls', 'Controls & evidence'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'],
+    ['governance/regulations', 'Policies & regulations'], ['governance/vendors', 'Vendor register'], ['governance/maturity', 'Maturity']]],
+  ['Report', [['report/executive', 'Executive memo'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / legal'], ['report/investigation', 'Investigation report']]]
 ];
-var NAV_COUNT = { 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
+var NAV_COUNT = { 'promises': ['promises', 'hot'], 'decisions': ['owed', 'hot'], 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
 function renderNav() {
   var h = P.forYouNav ? P.forYouNav() : '';
   P.NAV.forEach(function (g) {
@@ -285,10 +288,19 @@ function parseHash() {
 function render() {
   var r = parseHash(); P.route = r;
   var segs = r.path.split('/'), key = segs.slice(0, 2).join('/');
-  var view = P.views[key] || P.views[segs[0]] || P.views.overview;
+  var view = P.views[key], args = segs.slice(2);
+  /* `section/:id` routes (promises/PR-LOC, decisions/D-101) receive the id as args[1]. */
+  if (!view && segs[1] && P.views[segs[0] + '/:id']) { view = P.views[segs[0] + '/:id']; args = segs; key = segs[0]; }
+  view = view || P.views[segs[0]] || P.views.overview;
   var main = document.getElementById('view');
-  main.innerHTML = view.render(segs.slice(2), r.q) + '';
-  if (view.mount) view.mount(main, segs.slice(2), r.q);
+  /* Error state: a view that cannot render says so, names the route, and offers a way back. */
+  try { main.innerHTML = view.render(args, r.q) + ''; if (view.mount) view.mount(main, args, r.q); }
+  catch (err) {
+    main.innerHTML = '<section class="err-state" role="alert"><p class="eyebrow">Something went wrong</p><h1>This view could not be drawn</h1>' +
+      '<p>The page <code>#/' + esc(r.path) + '</code> hit an error while reading the synthetic records: <code>' + esc(err && err.message || err) + '</code>. Nothing was changed.</p>' +
+      '<p><a class="btn" href="#/overview">Back to the Command Center</a></p></section>';
+    if (window.console) console.error(err);
+  }
   main.querySelectorAll('.tbl-wrap,.canvas,.memo table,.heat').forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1 && !el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', el.getAttribute('role') || 'region'); if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Scrollable content'); } });
   document.querySelectorAll('.side a').forEach(function (a) { var on = a.getAttribute('data-route') === key || (key === 'overview' && a.getAttribute('data-route') === 'overview'); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   var title = (view.title || 'Command Center');
@@ -306,7 +318,7 @@ P.open = function (id, opts) {
   if (!opts.fromStack && P.state.drawerStack[P.state.drawerStack.length - 1] !== id) { P.state.drawerStack.push(id); if (P.state.drawerStack.length > 8) P.state.drawerStack.shift(); }
   pushTrail(id);
   var fn = P.passports[e.type] || P.passports.generic;
-  drawerBody.innerHTML = fn(e.obj, e) + connected(id);
+  drawerBody.innerHTML = fn(e.obj, e) + (P.chainHTML ? '<section class="pp-sec"><h3>From promise to owner</h3>' + P.chainHTML(id) + '</section>' : '') + connected(id);
   drawerBody.scrollTop = 0;
   var st = P.state.drawerStack;
   drawerCrumb.innerHTML = st.slice(-4).map(function (x, i, a) { var last = i === a.length - 1; return last ? '<span>' + esc(TYPE_LABEL[ENT[x].type]) + '</span>' : '<button data-stack="' + (st.length - a.length + i) + '">' + esc(shortName(x)) + '</button><span class="sep">›</span>'; }).join('');
