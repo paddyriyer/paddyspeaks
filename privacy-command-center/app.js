@@ -269,6 +269,7 @@ function renderNav() {
   P.NAV.forEach(function (g) {
     if (g[0]) h += '<h2>' + esc(g[0]) + '</h2>';
     g[1].forEach(function (it) {
+      if (!P.views[it[0]] && !P.views[it[0].split('/')[0]]) return; /* a module not built yet never shows a dead link */
       var c = NAV_COUNT[it[0]], n = c ? P.metric(c[0]).items().length : null;
       h += '<a href="#/' + it[0] + '" data-route="' + it[0] + '">' + esc(it[1]) + (n ? '<span class="ct ' + c[1] + '">' + n + '</span>' : '') + '</a>';
     });
