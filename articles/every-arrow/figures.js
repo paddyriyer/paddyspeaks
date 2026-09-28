@@ -420,17 +420,19 @@
     D.harms.forEach(function (h) { var s = el('span', null, esc(h)); s.setAttribute('data-h', h); hw.appendChild(s); });
     var btns = choices(host, I.map(function (it) { return esc(it[0]); }), 'Technical issues', 'tablist', function (i) { sel(i); EA.changed('harm'); });
     btns.forEach(function (b) { b.className = 'tog'; b.setAttribute('aria-controls', 'harmChain'); });
-    function sel(i) {
+    /* The first render is shown whole: content never waits on a timer to become legible
+     * (a late fade let axe read #hc3 at a quarter opacity). Only a reader's own pick animates. */
+    function sel(i, still) {
       cur = i; timers.forEach(clearTimeout); timers = []; pick(btns, i);
       var it = I[i], cs = [$('#hc1'), $('#hc2'), $('#hc3')];
-      cs.forEach(function (c, k) { c.classList.remove('on'); c.querySelector('p').textContent = it[k]; });
-      cs.forEach(function (c, k) { timers.push(setTimeout(function () { c.classList.add('on'); }, RM ? 0 : 80 + k * 380)); });
+      cs.forEach(function (c, k) { c.querySelector('p').textContent = it[k]; if (!still) c.classList.remove('on'); else c.classList.add('on'); });
+      if (!still) cs.forEach(function (c, k) { timers.push(setTimeout(function () { c.classList.add('on'); }, RM ? 0 : 80 + k * 380)); });
       $$('#harms span').forEach(function (s) { s.classList.toggle('on', it[3].indexOf(s.getAttribute('data-h')) >= 0); });
       $('#harmFix').innerHTML = '<span>The control</span>' + esc(it[4]);
     }
-    sel(0);
+    sel(0, true);
     EA.fig('harm', {
-      get: function () { return String(cur); }, set: function (s) { sel(clamp(s, I.length)); }, reset: function () { sel(0); },
+      get: function () { return String(cur); }, set: function (s) { sel(clamp(s, I.length), true); }, reset: function () { sel(0, true); },
       read: function () { var it = I[cur]; return '<b>' + esc(it[0]) + '</b> → ' + esc(it[1].toLowerCase()) + ' → ' + esc(it[2]) + ' Control: ' + esc(it[4]); }
     });
   })();
