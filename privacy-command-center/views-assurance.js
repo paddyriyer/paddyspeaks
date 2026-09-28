@@ -4,25 +4,6 @@
 var P = window.PCC, NS = window.NS, esc = P.esc, chip = P.chip, fmtN = P.fmtN, unk = P.unk;
 var V = P.views;
 
-/* ════════════ ENFORCEMENT LADDER ════════════ */
-var RUNG_DESC = ['“Don’t log PII.” Easy to write, easy to ignore.', 'A human reads the design.', 'A linter or scanner flags it.', 'The diff is blocked if a sensitive column loses its policy.', 'Enforced in production on every request (purpose checks, tokens, mTLS).', 'Daily scans: new joins, access spikes, TTL drift.'];
-V['assurance/controls'] = { title: 'Enforcement Ladder', render: function (s, q) {
-  var dom = q.d || 'all', cs = NS.controls.filter(function (c) { return dom === 'all' || c.domain === dom; });
-  var domains = P.uniq(NS.controls.map(function (c) { return c.domain; }));
-  var ladder = P.LEVELS.map(function (l, i) {
-    var here = cs.filter(function (c) { return c.level === i; });
-    return '<div class="rung" style="--stair:' + ((5 - i) * 26) + 'px;' + (i === 0 ? 'border-color:rgba(192,71,15,.45)' : i >= 4 ? 'border-color:rgba(11,125,96,.35)' : '') + '"><div class="rn">L' + i + '</div><div class="rt">' + l + '</div><div class="rd">' + RUNG_DESC[i] + '</div><div class="cnt ' + (i === 0 && here.length ? 'bad' : i >= 4 ? 'ok' : '') + '">' + here.length + '</div>' +
-      here.map(function (c) { return '<button class="ctl-chip ' + c.health + '" data-ent="' + c.id + '">' + esc(c.name) + '<small>' + esc(c.domain) + ' · ' + c.health + '</small></button>'; }).join('') + '</div>';
-  }).join('');
-  var heat = '<div class="heat" style="grid-template-columns:minmax(110px,150px) repeat(6,minmax(0,1fr))"><span></span>' + P.LEVELS.map(function (l, i) { return '<span class="hh">L' + i + '</span>'; }).join('') + domains.map(function (d) { var on = dom === d; return '<span class="hr' + (on ? ' on' : '') + '">' + esc(d) + '</span>' + P.LEVELS.map(function (l, i) { var n = NS.controls.filter(function (c) { return c.domain === d && c.level === i; }).length; return '<button class="hc' + (on ? ' on' : '') + '" aria-label="' + esc(d + ' L' + i + ': ' + n) + '" data-go="assurance/controls?d=' + encodeURIComponent(d) + '" style="background:' + (n ? (i === 0 ? 'rgba(192,71,15,.18)' : 'rgba(11,125,96,' + (0.08 + i * 0.05) + ')') : 'var(--panel)') + ';color:' + (n ? (i === 0 ? 'var(--exp)' : 'var(--ctl)') : 'var(--muted)') + ';font-weight:700">' + (n || '') + '</button>'; }).join(''); }).join('') + '</div>';
-  var n = cs.length, byL = P.LEVELS.map(function (l, i) { return cs.filter(function (c) { return c.level === i; }).length; });
-  return P.pageHead('Assurance', 'Privacy control enforcement ladder', 'Move privacy from documents into machines. Every rung up is harder to build and harder to bypass. Rule of thumb: every hard gate should trace back to a real postmortem.') +
-    '<div class="stat-row card" style="margin-bottom:14px">' + [['Only in documents', byL[0], 'bad'], ['Human-enforced', byL[1], ''], ['Static checks', byL[2], ''], ['Deployment gates', byL[3], ''], ['Runtime', byL[4], 'ok'], ['Continuously audited', byL[5], 'ok'], ['Machine-enforced', P.pct(byL[2] + byL[3] + byL[4] + byL[5], n) + '%', ''], ['Failing', cs.filter(function (c) { return c.health === 'failing'; }).length, 'bad']].map(function (x) { return '<div class="stat"><div class="sv ' + x[2] + '">' + x[1] + '</div><div class="sl">' + x[0] + '</div></div>'; }).join('') + '</div>' +
-    '<div class="toolbar"><div class="seg" role="group" aria-label="Domain" style="flex-wrap:wrap"><button data-go="assurance/controls" aria-pressed="' + (dom === 'all') + '">All</button>' + domains.map(function (d) { return '<button data-go="assurance/controls?d=' + encodeURIComponent(d) + '" aria-pressed="' + (dom === d) + '">' + esc(d) + '</button>'; }).join('') + '</div></div>' +
-    '<div class="ladder" style="margin-bottom:10px">' + ladder + '</div><div class="callout" style="margin-bottom:14px"><b>The gap: pre-deploy ≠ runtime.</b> A deployment gate proves the design was checked. Only rungs 4–5 prove what happens in production.</div>' +
-    '<div class="card"><div class="card-h"><h2 class="sec">Enforcement by domain</h2><span class="sub">where privacy still lives on paper</span></div>' + heat + '</div>';
-} };
-
 /* ════════════ AUDITS ════════════ */
 V['assurance/audits'] = { title: 'Audits', render: function () {
   var T = NS.assumptionTests;
@@ -62,13 +43,6 @@ V['assurance/drift'] = { title: 'Drift', render: function () {
     '<div class="drift-list">' + NS.drift.map(function (d) {
       return '<div class="card flat" style="margin-bottom:10px;border-left:3px solid ' + (d.sev === 'HIGH' ? 'var(--exp)' : d.sev === 'GOOD' ? 'var(--ctl)' : d.sev === 'MEDIUM' ? 'var(--med)' : 'var(--line3)') + '"><div class="card-h" style="margin-bottom:6px"><div><span class="mono small dim">' + esc(d.t.replace('T', ' ')) + ' · ' + esc(d.type.toUpperCase()) + '</span><div style="font-weight:650;font-size:14.5px;margin-top:2px">' + esc(d.text) + '</div></div>' + P.sev(d.sev) + '</div><div class="diff"><div class="m">− ' + esc(d.before) + '</div><div class="p">+ ' + esc(d.after) + '</div></div><div class="chips" style="margin-top:8px">' + d.entities.map(function (e) { return chip(e); }).join('') + '</div></div>';
     }).join('') + '</div>';
-} };
-
-/* ════════════ EVIDENCE ════════════ */
-V['assurance/evidence'] = { title: 'Evidence', render: function () {
-  return P.pageHead('Assurance', 'Evidence locker', 'What proves each control works, and what produced each finding. A control with no evidence is an assertion.') +
-    '<div class="tbl-wrap" style="margin-bottom:14px"><table class="tbl"><thead><tr><th>Control</th><th>Level</th><th>Health</th><th>Evidence</th><th>Owner</th></tr></thead><tbody>' + NS.controls.slice().sort(function (a, b) { return b.level - a.level; }).map(function (c) { return '<tr class="click" data-ent="' + c.id + '" tabindex="0"><td><b>' + esc(c.name) + '</b><div class="small dim">' + esc(c.domain) + ' · ' + esc(c.scope) + '</div></td><td>' + P.lvl(c.level) + '</td><td class="' + (c.health === 'working' ? 'ok' : c.health === 'failing' ? 'bad' : 'unknown') + '">' + c.health + '</td><td class="small">' + esc(c.evidence) + '</td><td class="small">' + esc(P.name(c.owner)) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Finding</th><th>Produced by</th><th>Opened</th></tr></thead><tbody>' + NS.findings.map(function (f) { return '<tr class="click" data-ent="' + f.id + '" tabindex="0"><td><span class="mono small">' + f.id + '</span> ' + esc(f.title) + '</td><td class="mono small">' + esc(f.detector) + '</td><td class="small">' + esc(f.opened) + '</td></tr>'; }).join('') + '</tbody></table></div>';
 } };
 
 /* ════════════ REGULATIONS ════════════ */
