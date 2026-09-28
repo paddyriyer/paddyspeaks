@@ -12,90 +12,8 @@ function isOpen(f) { return f.status !== 'accepted' && f.status !== 'closed' && 
 /* stat tiles that carry their rule */
 function statRow(stats, cls) { return '<div class="stat-row pv-stats' + (cls ? ' ' + cls : '') + '">' + stats.map(function (x) { return '<div class="stat"><div class="sv' + (x[3] ? ' ' + x[3] : '') + '">' + x[1] + '</div><div class="sl">' + esc(x[0]) + '</div><div class="sr">' + esc(x[2]) + '</div></div>'; }).join('') + '</div>'; }
 
-/* ════════════ RISK RADAR ════════════ */
-V['privacy/risks'] = { title: 'Risk Radar', render: function (s, q) {
-  var rs = P.risksSorted(), sel = q.r && P.get(q.r) ? P.get(q.r).obj : rs[0];
-  var head = NS.riskFactors.map(function (f) { return '<th title="' + esc(f.label) + '" class="rot"><span>' + esc(f.label.replace(' / regulatory exposure', '').replace('Ability to ', '')) + '</span></th>'; }).join('');
-  var rows = rs.map(function (r) {
-    var c = P.riskCalc(r);
-    return '<tr class="click' + (r === sel ? ' sel' : '') + '" data-go="privacy/risks?r=' + r.id + '" tabindex="0"><td><b>' + esc(r.name) + '</b><div class="small dim mono">' + r.id + '</div></td><td class="num"><b>' + c.residual + '</b></td><td>' + P.sev(c.rating) + '</td>' + NS.riskFactors.map(function (f) { var v = r.f[f.k], as = f.kind === 'assurance'; var bg = as ? 'rgba(11,125,96,' + (0.08 + v / 5 * 0.6) + ')' : 'rgba(192,71,15,' + (0.06 + v / 5 * 0.7) + ')'; return '<td class="hm" style="background:' + bg + '">' + v + '</td>'; }).join('') + '</tr>';
-  }).join('');
-  return P.pageHead('Privacy', 'Executive privacy risk radar', 'No mysterious score. Nine exposure factors (coral) and three assurance factors (teal), each scored 0–5 with a stated reason; a deeper shade means a higher score. Residual = exposure × (1 − 0.6 × assurance). Click a row to see WHY.') +
-    '<div class="tbl-wrap" style="margin-bottom:14px"><table class="tbl riskt"><thead><tr><th>Asset</th><th class="num">Residual</th><th>Rating</th>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-    P.riskWhy(sel) + '<div class="btn-row">' + chip(sel.asset) + sel.findings.map(function (f) { return chip(f); }).join('') + '<a class="btn" href="#/report/executive?r=' + sel.id + '">Write the executive memo →</a></div>' +
-    '<style>.riskt th.rot{height:92px;vertical-align:bottom;white-space:nowrap;padding:4px}.riskt th.rot span{display:inline-block;writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px}.riskt td.hm{text-align:center;font:600 12px var(--mono);padding:9px 4px;min-width:28px}.riskt tr.sel td{box-shadow:inset 0 1px 0 var(--info),inset 0 -1px 0 var(--info)}</style>';
-} };
-
-/* ════════════ WORST DAY — BREACH BUDGET ════════════ */
-/* key custody: who could decrypt a stolen copy */
-function custodyOf(s) { return /per-user|\bdevices?\b/i.test(s) ? 0.2 : /vault|separate/i.test(s) ? 0.55 : 1; }
-function custodyLabel(c) { return c <= 0.2 ? 'per-user or device keys' : c <= 0.55 ? 'separate vault' : 'company-held'; }
-/* vendors and subprocessors reachable from the dataset's system (or its parent
- * service) along flows that carry one of the dataset's fields */
-function vendorCopies(d) {
-  var names = d.fields.map(function (f) { return f[0]; });
-  var carries = function (fl) { return fl.fields.some(function (x) { return x.split(/[^A-Za-z0-9_]+/).some(function (t) { return names.indexOf(t) >= 0; }); }); };
-  var sys = P.get(d.system) ? P.get(d.system).obj : null, start = [d.system].concat(sys && sys.parent ? [sys.parent] : []);
-  var seen = {}, queue = start.slice(), out = [];
-  start.forEach(function (x) { seen[x] = 1; });
-  while (queue.length) {
-    var at = queue.shift();
-    NS.flows.forEach(function (fl) { if (fl.from !== at || seen[fl.to] || !carries(fl)) return; seen[fl.to] = 1; if (isVendor(fl.to)) out.push(fl.to); queue.push(fl.to); });
-  }
-  return out;
-}
-function wdAsset(w) {
-  var d = P.get(w.ds).obj, risk = NS.risks.filter(function (r) { return r.asset === d.id; })[0], v = vendorCopies(d);
-  return { d: d, risk: risk, people: d.people, fields: d.fields.length, sens: P.dsTier(d), days: d.age, ident: risk ? risk.f.ident : null, link: risk ? risk.f.link : null,
-    key: d.keyOwner, custody: custodyOf(d.keyOwner + ' ' + d.encryption), vendors: v.length, vendorIds: v, infer: w.infer };
-}
+/* Risk radar and Worst Day live in views-investigate.js. */
 function ext(a, o) { var r = {}; Object.keys(a).forEach(function (k) { r[k] = a[k]; }); Object.keys(o).forEach(function (k) { r[k] = o[k]; }); return r; }
-var DESIGNS = [
-  ['CURRENT', 'Current design', 'as built today', function (a) { return a; }],
-  ['MINIMIZED', 'Minimised', 'fewer fields: −1 tier, −1 linkability, one fewer vendor copy', function (a) { return ext(a, { fields: Math.max(2, Math.round(a.fields * 0.45)), sens: Math.max(1, a.sens - 1), link: Math.max(1, a.link - 1), vendors: Math.max(0, a.vendors - 1) }); }],
-  ['SHORT RETENTION', 'Short retention', 'nothing older than 30 d', function (a) { return ext(a, { days: Math.min(a.days, 30) }); }],
-  ['TOKENIZED', 'Tokenised', '−2 identifiability, −2 linkability; keys move to a separate vault unless custody is already stronger', function (a) { return ext(a, { ident: Math.max(1, a.ident - 2), link: Math.max(1, a.link - 2), key: a.custody <= 0.55 ? a.key : 'token vault (separate team)', custody: Math.min(a.custody, 0.55) }); }],
-  ['ISOLATED', 'Isolated + per-user keys', 'a breach reaches 20% of people; linkability 1; no vendor copies; per-user keys', function (a) { return ext(a, { people: a.people * 0.2, link: 1, vendors: 0, key: a.custody <= 0.2 ? a.key : 'per-user keys (HSM)', custody: Math.min(a.custody, 0.2) }); }],
-  ['ON-DEVICE', 'On-device', 'nothing held on the server', function () { return { people: 0, fields: 0, sens: 0, days: 0, ident: 0, link: 0, key: 'the person\'s device', custody: 0.2, vendors: 0 }; }]
-];
-P.state.worst = P.state.worst || (NS.worstDay[0] && NS.worstDay[0].ds);
-/* DAMAGE = collected × kept × identifiable × key — the same four terms as the headline */
-function damage(a) {
-  if (!a.people) return { collected: 0, kept: 0, ident: 0, key: 0, total: 0 };
-  var identS = a.ident == null ? 5 : a.ident, linkS = a.link == null ? 5 : a.link;
-  var collected = Math.log10(a.people + 1) * (a.sens + 1), kept = Math.max(0.2, Math.log10((a.days || 0) + 1) / 2.7), ident = (identS + 1) * (1 + linkS / 5), key = a.custody * (1 + 0.25 * a.vendors);
-  return { collected: collected, kept: kept, ident: ident, key: key, total: collected * kept * ident * key };
-}
-function f2(x) { return (Math.round(x * 100) / 100).toString(); }
-V['privacy/worstday'] = { title: 'Worst Day', render: function () {
-  var ids = NS.worstDay.map(function (w) { return w.ds; });
-  if (ids.indexOf(P.state.worst) < 0) P.state.worst = ids[0];
-  var id = P.state.worst, a = wdAsset(NS.worstDay[ids.indexOf(id)]), d = a.d;
-  var base = damage(a), bt = base.total;
-  var cols = DESIGNS.map(function (x) {
-    var b = x[3](a), dm = damage(b).total, rel = bt ? dm / bt : 0, r = Math.min(110, 14 + 96 * Math.sqrt(rel)), pctTxt = Math.round(rel * 100) + '%';
-    var col = rel > 0.6 ? '#c42d49' : rel > 0.25 ? '#c0470f' : rel > 0.02 ? '#946300' : '#0b7d60';
-    var label = r >= 40 ? '<text x="120" y="129" fill="#1d2430" font-size="26" font-weight="700" text-anchor="middle">' + pctTxt + '</text>' : '<text x="120" y="' + (120 + r + 28).toFixed(1) + '" fill="#1d2430" font-size="24" font-weight="700" text-anchor="middle">' + pctTxt + '</text>';
-    return '<div class="wd-col' + (x[0] === 'CURRENT' ? ' cur' : '') + '"><div class="mono small dim">' + x[0] + '</div><svg viewBox="0 0 240 240" width="100%" style="max-width:220px" role="img" aria-label="' + esc(x[1]) + ' blast radius ' + Math.round(rel * 100) + ' percent of today"><circle cx="120" cy="120" r="112" fill="none" stroke="#e7e1d5" stroke-dasharray="2 5"/><circle cx="120" cy="120" r="' + r.toFixed(1) + '" fill="' + col + '" fill-opacity=".22" stroke="' + col + '"/>' + label + '</svg>' +
-      '<div class="small dim wd-rule">' + esc(x[2]) + '</div>' +
-      '<ul class="wd-l"><li><span>people</span><b>' + (b.people ? fmtN(Math.round(b.people)) : '0') + '</b></li><li><span>oldest</span><b>' + (b.days ? fmtDays(b.days) : '—') + '</b></li><li><span>sensitivity</span><b>' + (b.sens ? 'T' + b.sens : '—') + '</b></li><li><span>identifiable</span><b>' + (b.ident == null ? unk() : b.ident + '/5') + '</b></li><li><span>linkable</span><b>' + (b.link == null ? unk() : b.link + '/5') + '</b></li><li><span>vendors w/ copies</span><b>' + b.vendors + '</b></li><li><span>key holder</span><b class="small">' + esc(b.key) + '</b></li></ul></div>';
-  }).join('');
-  var rk = a.risk ? ' <span class="small dim">(risk ' + chip(a.risk.id, a.risk.id) + ')</span>' : '';
-  return P.pageHead('Privacy · show me my worst day', 'The breach budget', 'You can’t promise zero. You can decide, before launch, the most a failure could ever cost. <span class="mono small">DAMAGE = WHAT YOU COLLECTED × HOW LONG YOU KEPT IT × HOW IDENTIFIABLE × WHO HOLDS THE KEY</span>') +
-    '<div class="toolbar"><label class="small muted" for="wdSel">If this were compromised today:</label><select id="wdSel">' + ids.map(function (k) { return '<option value="' + k + '"' + (k === id ? ' selected' : '') + '>' + esc(P.get(k).obj.name) + ' — ' + esc(P.name(P.get(k).obj.system)) + '</option>'; }).join('') + '</select></div>' +
-    '<div class="grid g-main" style="margin-bottom:14px"><div class="card"><h2 class="sec" style="margin-bottom:10px">What an attacker, a subpoena or a new product idea could reach</h2>' + P.kv([
-      ['Personal data exposed', d.fields.map(function (f) { return '<span class="mono small">' + esc(f[0]) + '</span>'; }).join(', ')], ['How old', d.age == null ? unk() : fmtDays(d.age)], ['How sensitive', P.tier(a.sens)],
-      ['How identifiable', (a.ident == null ? unk() : a.ident + ' / 5') + ' — ' + P.dsIds(d).map(P.name).map(esc).join(', ') + rk], ['How linkable', (a.link == null ? unk() : a.link + ' / 5') + rk], ['People affected', fmtN(d.people)],
-      ['Who holds the keys', esc(d.keyOwner) + ' <span class="small dim">(' + custodyLabel(a.custody) + ')</span>'],
-      ['Vendors with copies', (a.vendors ? P.chips(a.vendorIds) : 'none') + '<div class="small dim">Rule: vendors and subprocessors reachable from ' + esc(P.name(d.system)) + ' (or its parent service) along flows that carry one of this dataset’s fields.</div>'],
-      ['What can be inferred', a.infer.map(function (x) { return '<span class="warn">' + esc(x) + '</span>'; }).join(' · ')]]) + '</div>' +
-    '<div class="card"><h2 class="sec" style="margin-bottom:8px">The same event, six designs</h2><p class="small muted">Each column applies one architectural change to the current design. The ring is the blast radius relative to today.</p>' +
-      '<p class="mono small dim" style="margin:8px 0">Today: collected ' + f2(base.collected) + ' × kept ' + f2(base.kept) + ' × identifiable ' + f2(base.ident) + ' × key ' + f2(base.key) + ' = ' + f2(base.total) + '</p>' +
-      '<div class="callout" style="margin-top:10px">The only data that can’t be subpoenaed, breached, or sold is data you never kept.</div>' + P.chip(id, 'Open the passport') + '</div></div>' +
-    '<div class="wd">' + cols + '</div>' +
-    '<p class="small dim" style="margin-top:10px">Illustrative model, with the same four terms as the headline. <span class="mono">collected</span> = log₁₀(people) × (tier + 1) · <span class="mono">kept</span> = max(0.2, log₁₀(days + 1) ÷ 2.7) · <span class="mono">identifiable</span> = (identifiability + 1) × (1 + linkability ÷ 5), both scores from the asset’s Risk Radar entry · <span class="mono">key</span> = custody × (1 + 0.25 × vendors with copies), custody 1 company-held, 0.55 separate vault, 0.2 per-user or device keys. Architecture changes the blast radius more than any policy.</p>' +
-    '<style>.wd{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.wd-col{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--panel);text-align:center}.wd-col.cur{border-color:rgba(192,71,15,.5)}.wd-rule{min-height:3.2em;margin:2px 0 4px;line-height:1.35}.wd-l{list-style:none;padding:0;margin:6px 0 0;text-align:left;font-size:12px}.wd-l li{display:flex;justify-content:space-between;gap:6px;padding:3px 0;border-bottom:1px solid var(--line)}.wd-l span{color:var(--dim)}@media(max-width:1100px){.wd{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:600px){.wd{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>';
-}, mount: function (root) { root.querySelector('#wdSel').addEventListener('change', function () { P.state.worst = this.value; P._keepScroll = true; P.render(); }); } };
 
 /* ════════════ REVIEWS + WORKBENCH ════════════ */
 /* What a feature touches: its systems (and their children), datasets, flows,
@@ -153,65 +71,7 @@ function miniDFD(sysIds, flows) {
 }
 P.miniDFD = miniDFD;
 
-/* ════════════ PURPOSE LIMITATION ════════════ */
-/* every observed use of a dataset, by purpose:
- *  · flows leaving its system (their declared purpose)
- *  · flows flagged purpose_change: the purposes their recipient holds data for
- *  · models trained on it (the model's purpose)
- *  · PURPOSE DRIFT findings: the purposes of the flows / other datasets they cite */
-function purposeUses() {
-  var use = {};
-  function add(ds, p, ent, why, find) { var u = (use[ds] = use[ds] || {}); (u[p] = u[p] || []).push({ ent: ent, why: why, find: find || null }); }
-  NS.datasets.forEach(function (d) {
-    NS.flows.filter(function (f) { return f.from === d.system; }).forEach(function (f) {
-      add(d.id, f.purpose, f.id, 'flow to ' + P.name(f.to));
-      if ((f.flags || []).indexOf('purpose_change') >= 0) NS.datasets.filter(function (x) { return x.system === f.to; }).forEach(function (x) { x.purposes.forEach(function (p) { if (d.purposes.indexOf(p) < 0) add(d.id, p, f.id, 'recipient ' + P.name(f.to) + ' holds ' + x.name + ' for ' + p); }); });
-    });
-    NS.models.filter(function (m) { return m.training.indexOf(d.id) >= 0; }).forEach(function (m) { add(d.id, m.purpose, m.id, 'trains ' + m.name); });
-  });
-  NS.findings.filter(function (f) { return /PURPOSE DRIFT/.test(f.kind) && isOpen(f); }).forEach(function (f) {
-    var dss = f.entities.filter(function (e) { return typeOf(e) === 'dataset'; }), src = dss[0]; if (!src) return;
-    var ps = f.entities.filter(function (e) { return typeOf(e) === 'flow'; }).map(function (e) { return P.get(e).obj.purpose; }).concat([].concat.apply([], dss.slice(1).map(function (x) { return P.get(x).obj.purposes; })));
-    uniq(ps).forEach(function (p) { add(src, p, f.id, f.id + ' · ' + f.title, f.id); });
-  });
-  return use;
-}
-function driftFindingsFor(uses) { return uniq([].concat.apply([], (uses || []).map(function (u) { return u.find ? [u.find] : []; }))); }
-V['privacy/purpose'] = { title: 'Purpose', render: function () {
-  var use = purposeUses(), drifts = NS.findings.filter(function (f) { return /PURPOSE DRIFT/.test(f.kind) && isOpen(f); });
-  var mat = NS.datasets.filter(function (d) { return P.dsTier(d) >= 2; });
-  var cols = NS.purposes.map(function (p) { return { id: p.id, label: p.label }; }).concat([{ id: 'unknown', label: 'Unknown purpose' }]);
-  var grid = '<div class="tbl-wrap"><table class="tbl pm"><thead><tr><th>Dataset</th>' + cols.map(function (p) { return '<th class="rot" title="' + esc(p.id) + '"><span>' + esc(p.label) + '</span></th>'; }).join('') + '</tr></thead><tbody>' + mat.map(function (d) {
-    return '<tr><td>' + chip(d.id) + (d.purposes.length ? '' : '<div class="small">' + unk('no declared purpose') + '</div>') + '</td>' + cols.map(function (p) {
-      var dec = d.purposes.indexOf(p.id) >= 0, us = use[d.id] && use[d.id][p.id], fnd = driftFindingsFor(us);
-      var cls = p.id === 'unknown' ? (us ? 'unk' : '') : fnd.length || (us && !dec) ? 'drift' : dec && us ? 'ok' : dec ? 'dec' : '';
-      var sym = cls === 'unk' ? '?' : cls === 'drift' ? '✗' : cls === 'ok' ? '●' : cls === 'dec' ? '○' : '';
-      var tip = (dec ? 'declared' : 'not declared') + (us ? ' · used: ' + us.map(function (u) { return u.why; }).join('; ') : '');
-      var target = fnd[0] || (us && us[0].ent);
-      return '<td class="pc ' + cls + '"' + (target ? ' data-ent="' + target + '" role="button" tabindex="0" aria-label="' + esc(d.name + ' × ' + p.label + ': ' + tip) + '"' : '') + ' title="' + esc(tip) + '">' + sym + '</td>';
-    }).join('') + '</tr>';
-  }).join('') + '</tbody></table></div>';
-  var cards = drifts.map(function (f) {
-    var src = f.entities.filter(function (e) { return typeOf(e) === 'dataset'; })[0], d = src ? P.get(src).obj : null;
-    if (!d) return '<div class="card">' + chip(f.id, f.id) + ' ' + unk('no source dataset recorded') + '</div>';
-    var tokens = [].concat.apply([], f.entities.filter(function (e) { return typeOf(e) === 'flow'; }).map(function (e) { return P.get(e).obj.fields; }).concat(f.entities.filter(function (e) { return typeOf(e) === 'dataset' && e !== src; }).map(function (e) { return P.get(e).obj.fields.map(function (x) { return x[0]; }); }))).join(' ');
-    var fields = d.fields.filter(function (x) { return x[2] !== 'attr' || x[1] >= 3; }).filter(function (x) { return tokens.indexOf(x[0]) >= 0; }).map(function (x) { return x[0]; });
-    if (!fields.length) fields = d.fields.filter(function (x) { return x[1] >= 3; }).map(function (x) { return x[0]; });
-    var u = use[d.id] || {};
-    var lines = Object.keys(u).map(function (p) {
-      var fnd = driftFindingsFor(u[p]), dec = d.purposes.indexOf(p) >= 0, ok = p === 'unknown' ? null : !fnd.length && dec;
-      var ents = uniq(u[p].map(function (x) { return x.ent; })).filter(function (e) { return e !== f.id && fnd.indexOf(e) < 0; });
-      return P.check(ok, '<b>' + esc(P.get(p) ? P.get(p).obj.label : p) + '</b>' + (dec ? ' <span class="small dim">declared</span>' : ' <span class="small bad">not declared</span>') + ' ' + ents.map(function (e) { return chip(e); }).join(' ') + fnd.map(function (x) { return ' ' + chip(x, x); }).join(''));
-    }).join('');
-    return '<div class="card"><div class="card-h" style="margin-bottom:6px"><span class="mono" style="font-size:13px">' + esc(fields.join(' · ') || d.name) + '</span>' + P.sev(f.sev) + '</div><div class="small muted" style="margin-bottom:8px">' + esc(f.title) + '</div><div class="small dim" style="margin:4px 0 10px">ORIGINAL PURPOSE ' + (d.purposes.length ? d.purposes.map(function (p) { return '<span class="tag sev-GOOD">' + esc(p) + '</span>'; }).join(' ') : unk('none declared')) + '</div><div class="small dim" style="margin-bottom:4px">CURRENT USES</div><ul class="checks pv-uses">' + lines + '</ul><div class="tag sev-HIGH" style="margin-top:10px">PURPOSE DRIFT DETECTED</div><div style="margin-top:8px">' + chip(d.id) + ' ' + chip(f.id, f.id) + '</div></div>';
-  }).join('');
-  return P.pageHead('Privacy', 'Purpose limitation engine', 'Data carries its purpose with it, and every new use has to show its ticket. Purpose is evaluated when data is <b>used</b>, not merely when it is collected.') +
-    '<p class="small dim" style="margin:0 0 10px">One card per open PURPOSE DRIFT finding (' + drifts.length + '). Uses come from flows leaving the dataset’s system, the recipients of flows flagged as a purpose change, models trained on it, and the findings themselves.</p>' +
-    '<div class="grid g3" style="margin-bottom:14px">' + cards + '</div>' +
-    '<div class="card"><div class="card-h"><h2 class="sec">Declared vs actual use</h2><span class="sub">○ declared · ● declared and used · <span class="bad">✗ used without declaration, or flagged by a purpose-drift finding</span> · <span class="unknown">? used for an unknown purpose</span></span></div>' + grid + '</div>' +
-    '<div class="callout" style="margin-top:14px">Four questions for every new use: What did the person understand? What was the original purpose (in metadata, not memory)? Did the purpose change — a new purpose needs a new basis? Can they revoke, and does revocation reach every copy? Enforcement today: ' + chip('c_purpose_runtime') + ' runs at query time for Pulse only; everywhere else it is ' + chip('c_purpose_fs') + ' — a human approval.</div>' +
-    '<style>.pm th.rot{height:140px;vertical-align:bottom;padding:4px;text-transform:none;letter-spacing:0}.pm th.rot span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;white-space:nowrap}.pm td.pc{text-align:center;font-size:13px;min-width:30px}.pm td.pc.ok{color:var(--ctl)}.pm td.pc.dec{color:var(--dim)}.pm td.pc.drift{color:var(--exp);background:rgba(192,71,15,.12);cursor:pointer;font-weight:700}.pm td.pc.unk{color:var(--unk);outline:1px dashed rgba(99,70,201,.6);outline-offset:-3px;cursor:pointer;font-weight:700}</style>';
-} };
+/* Consent lives in views-operate.js; purpose in views-investigate.js. */
 
 /* ════════════ TRACKING OBSERVATORY ════════════ */
 function isThird(t) { return /third/.test(t.party); }
@@ -237,28 +97,7 @@ V['privacy/tracking'] = { title: 'Tracking', render: function () {
     '<style>.th th.rot{height:165px;vertical-align:bottom;padding:4px;text-transform:none;letter-spacing:0}.th th.rot span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px;white-space:nowrap}.th td.tc{text-align:center;min-width:24px;color:var(--dim)}.th td.tc.o{color:var(--info);cursor:pointer}.th td.tc.m{color:var(--med);background:rgba(148,99,0,.1);cursor:pointer}.th td.tc.b{color:var(--exp);background:rgba(192,71,15,.16);cursor:pointer}</style>';
 } };
 
-/* ════════════ AI / ML ════════════ */
-/* where the model actually runs: an outside provider makes it a third-party model, whatever the record says */
-function hostingOf(m) { return m.provider !== 'in-house' && m.hosting !== 'ON DEVICE' ? 'THIRD-PARTY MODEL' : m.hosting; }
-V['privacy/ai'] = { title: 'AI / ML', render: function () {
-  var arch = ['ON DEVICE', 'ISOLATED PRIVATE CLOUD', 'INTERNAL CLOUD', 'THIRD-PARTY MODEL'];
-  var AC = { 'ON DEVICE': '#0b7d60', 'ISOLATED PRIVATE CLOUD': '#1f6ac0', 'INTERNAL CLOUD': '#7a5200', 'THIRD-PARTY MODEL': '#b3400b' };
-  var ai8 = [['Purpose', 'Collected to run a feature; now useful to train a model.'], ['Deletion', 'You can delete a row; not easily what a model learned from it.'], ['Consent', 'Permission to post was never permission to train.'], ['Inference', 'Models guess what you never shared.'], ['Context', 'A helpful assistant needs mail, messages and calendar in one place.'], ['Boundaries', 'Permissions were per app; an agent acts across all of them.'], ['Input = command', 'A page or email can carry instructions that make an agent leak.'], ['Retention', 'Prompts are records.']];
-  return P.pageHead('Privacy', 'AI / ML privacy center', 'Every AI and ML system, where it thinks, what leaves, what is kept, and whether it can forget. On device when it can, verifiable private cloud when it must, an outside model only when the person says yes. A model whose provider is outside Northstar is filed as third-party, whatever its record says.') +
-    '<div class="archbar">' + arch.map(function (a) { var ms = NS.models.filter(function (m) { return hostingOf(m) === a; }), moved = NS.models.filter(function (m) { return m.hosting === a && hostingOf(m) !== a; }); return '<div class="ab" style="border-top:3px solid ' + AC[a] + '"><div class="mono small" style="color:' + AC[a] + '">' + a + '</div><div class="small dim" style="margin:2px 0 8px">' + { 'ON DEVICE': 'Nothing leaves the phone', 'ISOLATED PRIVATE CLOUD': 'Sealed servers you can check', 'INTERNAL CLOUD': 'The company can see it, by policy', 'THIRD-PARTY MODEL': 'The provider can see it, by contract' }[a] + '</div>' + (ms.length ? ms.map(function (m) { return chip(m.id); }).join('') : '<span class="dim small">—</span>') + moved.map(function (m) { return '<div class="small">' + unk('recorded here: ' + m.name) + ' <span class="dim">— runs on ' + esc(m.provider) + '</span></div>'; }).join('') + '</div>'; }).join('') + '</div>' +
-    '<div class="grid g2" style="margin:14px 0">' + NS.models.map(function (m) {
-      var f = P.findingsFor(m.id), h = hostingOf(m), mis = h !== m.hosting;
-      var delF = f.filter(function (x) { return isOpen(x) && /UNKNOWN RETENTION|DELETION/.test(x.kind); });
-      var path = m.deletionPath, delCell = /unknown/.test(path) ? unk() : /^none/.test(path) ? '<span class="bad">' + esc(path) + '</span>' + (delF.length ? ' ' + delF.map(function (x) { return chip(x.id, x.id); }).join(' ') : '') : delF.length ? '<span class="warn">recorded: ' + esc(path) + '</span> ' + unk('unconfirmed — ' + delF.map(function (x) { return x.id; }).join(', ')) : esc(path);
-      var third = m.thirdParty.filter(function (v) { return P.get(v); });
-      return '<div class="card"><div class="card-h"><div><button class="chip" data-ent="' + m.id + '" style="font-size:14px;font-weight:650;color:var(--text)">' + esc(m.name) + '</button><div class="small dim" style="margin-top:4px">' + esc(m.provider) + ' · ' + esc(P.name(m.team)) + '</div></div><span class="tag" style="color:' + AC[h] + ';border-color:' + AC[h] + '">' + esc(h) + '</span></div>' +
-        (mis ? '<div class="callout unk" style="margin:6px 0 8px;padding:8px 10px">' + unk('Hosting record disagrees') + ' Recorded as ' + esc(m.hosting) + ', but the model runs on ' + esc(m.provider) + ' (third party).</div>' : '') +
-        P.kv([['Training data', m.training.length ? P.chips(m.training) : '—'], ['Third parties', third.length ? P.chips(third) : 'none'], ['Provenance', m.provenance === 'documented' ? '<span class="ok">documented</span>' : m.provenance === 'unknown' ? unk() : '<span class="warn">partial</span>'], ['Prompt logging', /full/.test(m.promptLogging) ? '<span class="bad">' + esc(m.promptLogging) + '</span>' : esc(m.promptLogging)], ['Trains on user input', m.trainsOnUserInput == null ? unk() : m.trainsOnUserInput ? (m.hosting === 'ON DEVICE' ? 'yes — federated, DP' : '<span class="bad">yes</span>') : 'no'], ['Deletion path', delCell], ['Memorisation testing', /not tested/.test(m.memorization) ? '<span class="bad">not tested</span>' : esc(m.memorization)], ['Review', esc(m.review)]]) +
-        (f.length ? '<div style="margin-top:8px">' + f.map(function (x) { return chip(x.id, x.id); }).join(' ') + '</div>' : '') + '</div>';
-    }).join('') + '</div>' +
-    '<div class="card"><h2 class="sec" style="margin-bottom:10px">AI breaks eight assumptions privacy was built on</h2><div class="grid g4">' + ai8.map(function (x, i) { return '<div><div class="mono small dim">' + (i + 1) + ' · ' + esc(x[0].toUpperCase()) + '</div><div class="small">' + esc(x[1]) + '</div></div>'; }).join('') + '</div></div>' +
-    '<style>.archbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.ab{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px}@media(max-width:860px){.archbar{grid-template-columns:repeat(2,minmax(0,1fr))}}</style>';
-} };
+/* AI & agents lives in views-investigate.js. */
 
 /* ════════════ PETs + DP ════════════ */
 var THREATS = [['breach', 'An outsider steals the store'], ['insider', 'An insider or curious employee'], ['linkability', 'Contexts get stitched together'], ['re-identification', 'Someone singles out a person in a release'], ['partner', 'A partner over-collects or reuses'], ['surveillance', 'Behaviour observed that people expected to stay private'], ['membership inference', 'Someone learns whether a person is in the data'], ['secondary use', 'Future us / scope creep']];
