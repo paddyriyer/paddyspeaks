@@ -274,7 +274,7 @@ P.riskWhy = function (r) {
   return '<div class="card flat" style="margin:12px 0"><div class="card-h"><h3 style="margin:0">' + P.sev(c.rating) + ' ' + esc(r.name) + '</h3></div>' + (P.explainRisk ? P.riskHTML(P.explainRisk(r, (P.promisesFor ? P.promisesFor(r.id)[0] : null)), { brief: true }) : '') +
     '<div class="g2 grid"><div><div class="small dim" style="margin-bottom:4px">WHY</div><ul class="checks">' + r.why.map(function (w) { return '<li><span class="ic bad">+</span><span>' + esc(w) + '</span></li>'; }).join('') + '</ul></div>' +
     '<div><div class="small dim" style="margin-bottom:4px">MITIGATING CONTROLS</div><ul class="checks">' + r.mitigating.map(function (m) { return P.check(m[1], esc(m[0])); }).join('') + '</ul></div></div>' +
-    '<div class="bars" style="margin-top:12px">' + rows + '</div>' +
-    '<p class="mono small dim" style="margin:10px 0 0">exposure = Σ nine exposure factors = ' + c.exposure + ' / 45 · assurance = (control + delete + verify) / 15 = ' + c.assurance.toFixed(2) + '<br>residual = exposure × (1 − 0.6 × assurance) = ' + c.residual + ' → HIGH ≥ 26 · MEDIUM ≥ 16</p></div>';
+    '<details style="margin-top:12px"><summary class="small">How the band is scored — ordinal ratings, not measurements</summary><div class="bars" style="margin-top:8px">' + rows + '</div>' +
+    '<p class="mono small dim" style="margin:10px 0 0">exposure = Σ nine exposure factors = ' + c.exposure + ' / 45 · assurance = (control + delete + verify) / 15 = ' + c.assurance.toFixed(2) + '<br>residual = exposure × (1 − 0.6 × assurance) = ' + c.residual + ' → HIGH ≥ 26 · MEDIUM ≥ 16</p><p class="small dim" style="margin:6px 0 0">The ratings are judgements on a 0–5 scale; the formula only sorts risks into bands. Read the band and its explanation above, not the number.</p></details></div>';
 };
 })();

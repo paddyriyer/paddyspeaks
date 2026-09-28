@@ -223,7 +223,7 @@ V['chain'] = { title: 'Chain explorer', render: function (s, q) {
   P.pushTrail(from);
   return P.pageHead('Investigate', 'Chain explorer', 'Start anywhere — a promise, a person’s identifier, a system, a vendor, a product, a risk or a consent consumer — and follow the complete chain from promise to owner. Every item opens its record; empty links in the chain are findings.', sel) +
     '<p class="small">Starting from ' + P.chip(from) + ' · ' + P.cite([from], 'Anchor') + '</p>' +
-    '<div class="chx" role="list">' + cols + '</div>';
+    '<div class="chx">' + cols + '</div>';
 }, mount: function (root) {
   var s = root.querySelector('#chainFrom'); if (s) s.addEventListener('change', function () { P.go('chain?from=' + encodeURIComponent(s.value)); });
 } };

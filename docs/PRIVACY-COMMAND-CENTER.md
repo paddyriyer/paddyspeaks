@@ -143,9 +143,18 @@ behaviour tests". The suites cover:
 | `data.js` | Northstar: BUs, teams, products, features, systems, datasets (fields with tier and role), identifiers + joins, vendors + subprocessors, **flows** (every arrow is a privacy object), models, controls (enforcement level 0–5 + health), findings (each with a `detector`), explainable risks, incidents, drift, consent consumers, deletion targets, reviews, 8-question answers, trackers, PETs, DP ledger, regulations, maturity, access events, regions/transfers, the hypothetical person, and field-guide extras (handshake patterns, assumption tests, contextual-integrity notes). |
 | `app.js` | Core: entity registry, **knowledge graph** (typed edges derived from the collections), org lookups, the six north-star questions per dataset (`P.six`), the risk model (`P.riskCalc`), all metrics (`P.METRICS`), router, drawer, trail, nav. |
 | `passports.js` | The Privacy Passport per entity type (dataset is the full one). |
-| `views-explore.js` | Overview, Organization, Products, Systems, Data, Knowledge Graph, One Person, Identities, Data Flows, Vendor Egress, Geography. |
-| `views-privacy.js` | Risk Radar, Worst Day, Reviews + Workbench, Consent, Purpose, Retention, Forget Me, User Rights, Tracking, AI/ML, PETs & DP, Threat Models. |
-| `views-assurance.js` | Enforcement Ladder, Audits, Access & Insider, Incidents, Drift, Evidence, Regulations, Vendor Register, Maturity, and the four reports. |
+| `data-ops.js` | Promises, decisions, control tests, indicators, perspectives, and Dana (see the operating model above). |
+| `data-operate.js` | Consent pipeline and Dana's revocation trace, deletion trace (every location, including copies the orchestrator does not know), canaries, legal holds, crypto-shred limits, retention policy, rights reach, observability history. |
+| `data-ai.js` | Dataset origins, flow transforms, schema changes, purpose history, AI models and the conversation data they hold, fictional agents, vendor operations, Worst Day scenarios and safeguards. |
+| `model.js` | The operating model: chain, promise state, risk explanation, decisions, indicators, priorities, role vocabulary. |
+| `views-home.js` | Home (four questions), Promises, Chain explorer, Help. |
+| `views-decide.js` | Decision register and memos, investigation report, trail → memo, print. |
+| `views-operate.js` | Observability, Consent (revocation replay), Deletion (proof per location), Retention, Individual rights. |
+| `views-investigate.js` | Lineage & flows, Purpose, Vendors (both routes), Geography, AI & agents, Worst Day, Risk radar. |
+| `views-prove.js` | One Person, Controls & evidence, Privacy reviews and workbench. |
+| `views-explore.js` | Organization, Products, Systems, Data, Knowledge Graph, Identities. |
+| `views-privacy.js` | Tracking, PETs & DP, Threat Models (plus shared helpers such as `P.miniDFD`, `P.reviewBlockers`). |
+| `views-assurance.js` | Audits, Access & Insider, Incidents, Drift, Regulations, Maturity, and the engineering / audit / legal reports. |
 | `intel.js` | Universal search (`/` or ⌘K), the analyst, and the 10-step guided investigation (HIGH RISK → Checkout → Fraud → flow → join → vendor → purpose → finding → mitigations → enforcement). |
 
 Vanilla JS, no libraries. The only browser storage is the chosen persona
@@ -179,8 +188,10 @@ Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
 - **Tier defaults** (guide p. 18): `P.tierControls` checks T2/T3/T4 default
   controls against a dataset. The Data page can switch requirements off
   (`P.tierOff`) to show how an organisation would customise them.
-- **Worst Day** follows the guide's breach budget (DAMAGE = collected × kept ×
-  identifiable × key holder). The model is labelled illustrative on the page.
+- **Worst Day** follows the guide's breach budget (collected × kept ×
+  identifiable × who holds the key), but shows a band (Contained → Critical),
+  never a decimal. Three failures (outsider, insider, vendor) and seven
+  safeguards; switching one shows what it buys. Labelled illustrative.
 
 ## Essay ↔ Command Center
 
@@ -241,7 +252,8 @@ are shown as UNKNOWN, never as met.
 ## Adding to the demo
 
 Add the entity to the right collection in `data.js` and reference it by id.
-Edges, metrics, search results and passports pick it up automatically. A new
-flow shows on the flow map only if its endpoints have coordinates in `FP`
-(`views-explore.js`). Keep everything fictional. Never use a real company as a
+Edges, metrics, search results and passports pick it up automatically; the
+lineage and egress maps lay themselves out. Records added only to the module
+files (`data-operate.js`, `data-ai.js`) appear on their pages but are not yet
+registered for search or passports. Keep everything fictional. Never use a real company as a
 Northstar vendor.

@@ -111,7 +111,7 @@ export default [
     assert(/D-101/.test(d.cover) && d.decided === 'owed', 'points to the existing decision instead of duplicating it');
   } },
   { name: 'print media hides chrome, opens details, and adds the date and disclaimer', async run({ page, assert }) {
-    for (const route of ['decisions/D-102', 'report/investigation?t=PR-HEALTH,PRV-0229,D-102', 'overview?as=cpo']) {
+    for (const route of ['decisions/D-102', 'report/investigation?t=PR-HEALTH,PRV-0229,D-102', 'overview?as=cpo', 'explore/person', 'privacy/deletion', 'privacy/ai', 'assurance/controls']) {
       const p = await page(route);
       await p.emulateMedia({ media: 'print' });
       const r = await p.evaluate(() => {
@@ -142,6 +142,22 @@ export default [
       assert(buf.slice(0, 5).toString() === '%PDF-', route + ': not a PDF');
       assert(pages >= 1, route + ': no pages');
       assert(pages <= expect + 1 && pages >= Math.max(1, expect - 1), `${route}: ${pages} PDF pages for ${Math.round(h)}px of print content (≈${expect} pages) — blank or missing pages`);
+    }
+  } },
+  /* Module pages are long and dense, so the height estimate is only an upper bound here:
+   * a page that must not split can push the next record over, but a run of blank pages
+   * (the failure this guards) would blow well past it. Lost content is caught above, by
+   * the check that no closed <details> hides anything in print. */
+  { name: 'module pages print without runaway or blank pages', async run({ page, assert }) {
+    for (const route of ['explore/person', 'privacy/deletion', 'privacy/ai', 'assurance/controls', 'privacy/consent']) {
+      const p = await page(route, { width: Math.round(PAGE_W) });
+      const buf = await p.pdf({ preferCSSPageSize: true, printBackground: true });
+      await p.emulateMedia({ media: 'print' });
+      const h = await p.evaluate(() => { window.PCC.printPrepare(); const H = document.documentElement.scrollHeight; window.PCC.printRestore(); return H; });
+      clean(p, route); await p.closeAll();
+      const pages = pdfPages(buf), expect = Math.ceil(h / PAGE_H);
+      assert(buf.slice(0, 5).toString() === '%PDF-' && pages >= 1, route + ': no PDF');
+      assert(pages <= expect + Math.ceil(expect * 0.2) + 1, `${route}: ${pages} PDF pages for ≈${expect} pages of print content — blank pages`);
     }
   } },
 ];

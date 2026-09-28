@@ -1,6 +1,6 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-28 (Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-28 (Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
@@ -114,7 +114,27 @@ clones fresh each time). CLAUDE.md points here._
   - **Adding an article changed:** deck card goes in
     `content/pages/articles.html`; the homepage only optionally features it.
 
-- **NEWEST (2026-09-26): Privacy Command Center + “Every Arrow Is a Decision”.**
+- **NEWEST (2026-09-28): Privacy Command Center redesign** (PRs #884, #885, #886
+  and the follow-up on `claude/sweet-lamport-z2003u`). Home now answers four
+  questions: which promise is at risk, who is affected, which decision is owed
+  (by whom, by when), and what evidence proves the fix. Everything follows one
+  chain, Promise → … → Decision → Owner. Four role perspectives change the
+  ranking, vocabulary and evidence order. New modules:
+  - decision memos (print/PDF);
+  - One Person;
+  - controls & evidence;
+  - reviews workbench;
+  - observability, consent replay, deletion proof, rights;
+  - lineage, AI & agents, vendors, Worst Day bands.
+
+  Reference: `docs/PRIVACY-COMMAND-CENTER.md` ("The operating model") and
+  `privacy-command-center/README.md`. Tests: `node privacy-command-center/tests/run.mjs`
+  (run in the Accessibility workflow). Open follow-ups:
+  - module-only records (`data-operate.js`, `data-ai.js`) are not yet in search
+    or passports;
+  - the "For you" nav can repeat a link that also appears in its group.
+
+- **EARLIER (2026-09-26): Privacy Command Center + “Every Arrow Is a Decision”.**
   Built from Paddy's field guide (`docs/Privacy_Engineering_Visual_Field_Guide.*`).
   `/privacy-command-center/` is Data Lab demo 01 (synthetic Northstar data). It
   has a privacy knowledge graph, explainable risk, every flow as a privacy
