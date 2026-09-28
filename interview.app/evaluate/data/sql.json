@@ -15100,6 +15100,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly builds the tree bottom-up, starting from leaf nodes (employees with no subordinates) and accumulating salary as it traverses upward to managers. Each recursive iteration adds the employee's own salary to their manager's accumulated subtree cost. Option 1 doesn't aggregate costs, Option 2 inefficiently recalculates via a correlated subquery, and Option 4 double-counts costs by summing an already-aggregated column after grouping, leading to exponential growth in the result."
+    },
+    {
+      "id": "sql-new-141",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "You have a `payment_records(payment_id INT, user_id INT, amount DECIMAL, refund_amount DECIMAL, status TEXT)` table. You need to calculate net revenue per user, treating missing refund amounts as 0 and excluding records where status is 'PENDING'. Which query correctly handles NULLs in refund_amount?",
+      "options": [
+        "SELECT user_id, SUM(amount - refund_amount) FROM payment_records WHERE status != 'PENDING' GROUP BY user_id;",
+        "SELECT user_id, SUM(amount - COALESCE(refund_amount, 0)) FROM payment_records WHERE status != 'PENDING' GROUP BY user_id;",
+        "SELECT user_id, SUM(amount - NULLIF(refund_amount, 0)) FROM payment_records WHERE status != 'PENDING' GROUP BY user_id;",
+        "SELECT user_id, SUM(COALESCE(amount - refund_amount, 0)) FROM payment_records WHERE status != 'PENDING' GROUP BY user_id;"
+      ],
+      "answer": 1,
+      "explanation": "COALESCE(refund_amount, 0) replaces NULL refund amounts with 0, allowing correct arithmetic. NULLIF converts 0 to NULL (opposite effect), and option 0 would return NULL if any refund_amount is NULL, skewing the sum."
+    },
+    {
+      "id": "sql-new-142",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "In Snowflake, you have a table `logs(log_id INT, timestamp TIMESTAMP_TZ, message STRING)` with data in UTC. You need to aggregate logs by day in Pacific Time for a report. Which approach is most efficient in Snowflake?",
+      "options": [
+        "SELECT DATE(CONVERT_TIMEZONE('UTC', 'America/Los_Angeles', timestamp)) as pst_date, COUNT(*) FROM logs GROUP BY pst_date;",
+        "SELECT DATE(timestamp AT TIME ZONE 'America/Los_Angeles') as pst_date, COUNT(*) FROM logs GROUP BY pst_date;",
+        "SELECT CAST(timestamp AT TIME ZONE 'America/Los_Angeles' AS DATE) as pst_date, COUNT(*) FROM logs GROUP BY pst_date;",
+        "SELECT DATE_TRUNC('day', timestamp AT TIME ZONE 'America/Los_Angeles') as pst_date, COUNT(*) FROM logs GROUP BY pst_date;"
+      ],
+      "answer": 2,
+      "explanation": "CAST(timestamp AT TIME ZONE 'timezone' AS DATE) directly converts timezone-aware timestamps to dates in Snowflake, which is both idiomatic and efficient. Option 0 uses CONVERT_TIMEZONE (older syntax), option 1 keeps time component, and option 3 over-specifies with DATE_TRUNC."
+    },
+    {
+      "id": "sql-new-143",
+      "type": "single",
+      "topic": "Date arithmetic",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "You have a `contracts(contract_id INT, start_date DATE, duration_months INT, last_renewed DATE)` table. You need to find contracts expiring within 30 days, accounting for automatic monthly renewals that reset the expiration every renewal. Assuming renewals happen on the contract anniversary, which query correctly calculates the next expiration?",
+      "options": [
+        "SELECT contract_id FROM contracts WHERE DATEADD(MONTH, duration_months, last_renewed) BETWEEN CURRENT_DATE AND DATEADD(DAY, 30, CURRENT_DATE);",
+        "SELECT contract_id FROM contracts WHERE DATEADD(MONTH, duration_months, COALESCE(last_renewed, start_date)) BETWEEN CURRENT_DATE AND DATEADD(DAY, 30, CURRENT_DATE);",
+        "SELECT contract_id FROM contracts WHERE DATE_ADD(last_renewed, INTERVAL duration_months MONTH) BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL 30 DAY);",
+        "SELECT contract_id FROM contracts WHERE start_date + INTERVAL duration_months MONTH BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL 30 DAY;"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 correctly uses COALESCE to handle NULL last_renewed values (contracts never renewed), adding duration_months to determine expiration. Option 0 ignores NULL renewal dates. Options 2-3 use non-standard date arithmetic syntax or ignore renewal logic."
+    },
+    {
+      "id": "sql-new-144",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "In Snowflake, you're querying `warehouse_usage(query_id STRING, warehouse_name STRING, execution_time_ms INT, bytes_scanned INT64)` with 5+ billion rows. You want to rank warehouses by efficiency (bytes per millisecond) but only for the top 100 busiest warehouses. Which approach minimizes compute cost?",
+      "options": [
+        "WITH ranked_wh AS (SELECT warehouse_name, SUM(bytes_scanned) as total_bytes FROM warehouse_usage GROUP BY warehouse_name ORDER BY total_bytes DESC LIMIT 100) SELECT warehouse_name, SUM(bytes_scanned) / SUM(execution_time_ms) as efficiency FROM warehouse_usage WHERE warehouse_name IN (SELECT warehouse_name FROM ranked_wh) GROUP BY warehouse_name ORDER BY efficiency DESC;",
+        "SELECT warehouse_name, SUM(bytes_scanned) / SUM(execution_time_ms) as efficiency, ROW_NUMBER() OVER (ORDER BY SUM(bytes_scanned) DESC) as rn FROM warehouse_usage GROUP BY warehouse_name HAVING rn <= 100 ORDER BY efficiency DESC;",
+        "WITH ranked_wh AS (SELECT warehouse_name, SUM(bytes_scanned) as total_bytes, ROW_NUMBER() OVER (ORDER BY SUM(bytes_scanned) DESC) as rn FROM warehouse_usage GROUP BY warehouse_name) SELECT warehouse_name, total_bytes / SUM(execution_time_ms) as efficiency FROM ranked_wh WHERE rn <= 100 GROUP BY warehouse_name ORDER BY efficiency DESC;",
+        "SELECT warehouse_name, bytes_scanned / execution_time_ms as efficiency FROM warehouse_usage QUALIFY ROW_NUMBER() OVER (PARTITION BY warehouse_name ORDER BY bytes_scanned DESC) <= (SELECT COUNT(DISTINCT warehouse_name) FROM warehouse_usage ORDER BY SUM(bytes_scanned) LIMIT 100) ORDER BY efficiency DESC;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 uses a CTE to identify top 100 warehouses first, then filters the full table\u2014this prunes data early before computing aggregates, minimizing bytes scanned. Option 1 uses invalid HAVING syntax on window functions. Option 2 uses QUALIFY without proper filtering logic. Option 3 is inefficient with nested aggregates."
     }
   ]
 }

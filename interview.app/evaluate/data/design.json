@@ -6280,6 +6280,54 @@
       ],
       "answer": 3,
       "explanation": "Z-order clustering in Iceberg is applied during write time to new data files, but historical queries over pre-clustered data won't benefit. After 3 months of writes, the manifest likely contains thousands of snapshots and intermediate versions, causing the metadata layer to bloat\u2014each query reads metadata to determine which files to scan. Running `VACUUM SNAPSHOTS` removes expired snapshots, dramatically reducing metadata I/O. The other options mischaracterize Iceberg's clustering mechanism or Snowflake integration."
+    },
+    {
+      "id": "ds-new-101",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "You are designing a real-time payment processing pipeline using Kafka and Spark Streaming that must guarantee exactly-once delivery to a financial ledger table in Snowflake. Payments arrive at ~50k/sec. Which combination of design choices minimizes duplicate transactions while maintaining end-to-end exactly-once semantics?",
+      "options": [
+        "Use Kafka idempotent producer, Spark Streaming with checkpointing, and Snowflake MERGE with a unique constraint on transaction ID",
+        "Use Kafka transactions, Spark Structured Streaming with Append mode, and append-only ledger table with deduplication on read",
+        "Use Kafka consumer offset management, Spark micro-batch with output mode Complete, and Snowflake UPSERT on transaction timestamp",
+        "Use Kafka auto.offset.reset=earliest, Spark Streaming with no checkpointing, and relying solely on Snowflake unique indexes"
+      ],
+      "answer": 0,
+      "explanation": "Exactly-once semantics requires idempotent producers (Kafka), fault-tolerant state management (Spark checkpointing), and idempotent writes (MERGE with unique constraint). Option 1 correctly chains all three layers. Option 2 loses exactly-once in Append mode. Option 3 uses Complete mode which is inefficient at scale. Option 4 lacks fault tolerance and offsets can be lost."
+    },
+    {
+      "id": "ds-new-102",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "A Delta Lake table on S3 containing 2 years of historical data (18TB, 450M partitions by day) experiences a latency spike: read queries take 3\u00d7 longer. The table has frequent MERGE operations (hourly upserts). Metadata queries show 2.8M Delta transaction log files. Which intervention should you prioritize to restore query performance?",
+      "options": [
+        "Run OPTIMIZE on the entire table and then VACUUM with a 1-hour retention policy to compact files and clean up stale logs",
+        "Increase S3 request rate limits and enable S3 Transfer Acceleration to reduce list operation latency",
+        "Convert the table to Apache Iceberg format to replace Delta's transaction log with manifest files",
+        "Archive the 18TB of historical data to a separate S3 bucket and implement a two-tier query strategy with a warm cache"
+      ],
+      "answer": 0,
+      "explanation": "The root cause is transaction log bloat (2.8M files) from frequent MERGE operations. OPTIMIZE compacts data files, reducing read amplification, and VACUUM removes stale log entries, dramatically improving metadata refresh performance. Option 1 directly addresses the core bottleneck. Option 2 doesn't solve the log bloat problem. Option 3 is a migration, not optimization. Option 4 is over-engineering when compaction will resolve the issue."
+    },
+    {
+      "id": "ds-new-103",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "Your dbt project has 450 models across 8 functional domains. Data quality tests are inconsistently applied: some domains test every column, others none. Downstream dashboards fail unexpectedly when upstream data contracts change. Which dbt architectural pattern best prevents this while scaling to 1000+ models?",
+      "options": [
+        "Implement domain-specific packages with a shared contract layer (YAML configs defining required columns, types, and freshness), apply generic tests via macros, and use dbt Cloud API to enforce upstream test passage before downstream runs",
+        "Create a single centralized dbt_project.yml with all tests and disable incremental models to ensure full table recalculations catch all data drift",
+        "Use dbt's global_execute blocks to dynamically generate tests for every column across all models without explicit test definitions",
+        "Implement a post-load Python script that validates all models against a data catalog, bypassing dbt's native test framework for more flexibility"
+      ],
+      "answer": 0,
+      "explanation": "The pattern of shared contract layers (data contracts), systematic test coverage via macros, and CI/CD enforcement (dbt Cloud API gates) directly addresses both consistency and scale. Option 0 follows Databricks and Stripe best practices for multi-domain ownership. Option 1 sacrifices performance with full recalculations. Option 2 avoids dbt's declarative approach. Option 3 introduces technical debt and bypasses version control for tests."
     }
   ]
 }

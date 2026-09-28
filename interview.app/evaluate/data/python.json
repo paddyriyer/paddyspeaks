@@ -8372,6 +8372,54 @@
       ],
       "answer": 1,
       "explanation": "Option 1 uses a non-existent 'file' type. Option 2 uses Protocol (structural subtyping) to define the expected interface for file-like objects, which is the idiomatic Python approach for duck typing. Options 3 and 4 are too permissive and defeat the purpose of type hints for catching bugs. Protocol enables mypy to verify that passed objects have the required 'read()' method."
+    },
+    {
+      "id": "py-new-131",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "You have a pandas DataFrame with 50 million rows and need to apply a custom function to compute a new column. Testing shows that `df['new_col'] = df['existing_col'].apply(lambda x: expensive_function(x))` takes 8 minutes. Which approach would most significantly improve performance?",
+      "options": [
+        "Use `df['new_col'] = df['existing_col'].map(expensive_function)` since map is vectorized",
+        "Use `df['new_col'] = df['existing_col'].apply(expensive_function, convert_dtype=False)` to reduce type conversions",
+        "Rewrite the function using NumPy operations and apply it via `numpy.vectorize()` wrapped in apply",
+        "Use `df['new_col'] = df['existing_col'].apply(expensive_function, raw=True)` and pass raw NumPy arrays to the function"
+      ],
+      "answer": 3,
+      "explanation": "The `raw=True` parameter passes NumPy arrays instead of Series objects to the function, bypassing pandas' Series construction overhead on each iteration. This can provide 2-4x speedup for expensive element-wise operations. The other options don't fundamentally address the bottleneck of apply's per-element iteration overhead."
+    },
+    {
+      "id": "py-new-132",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "You're processing event data where each event is a dict with a 'type' key and optional nested metadata. Using Python 3.10+ pattern matching, you need to extract specific fields differently based on event structure. What is a limitation of using `match` statements for this use case at scale?",
+      "options": [
+        "Pattern matching is slower than equivalent if-elif chains because it evaluates all patterns sequentially",
+        "Pattern matching doesn't support nested dict unpacking with capture groups, requiring extra variable assignments",
+        "Pattern matching is not JIT-compiled and incurs interpreter overhead that makes it unsuitable for processing >1M events/sec",
+        "The match statement doesn't allow OR patterns (e.g., `case 'type_a' | 'type_b'`) making multi-branch logic verbose"
+      ],
+      "answer": 2,
+      "explanation": "While pattern matching is elegant for logic clarity, it's pure Python bytecode without JIT compilation. For high-throughput data pipelines processing millions of events, hand-optimized if-elif chains with early returns often outperform match statements. The other options are factually incorrect: pattern matching short-circuits after first match, supports dict unpacking, and explicitly supports OR patterns with the pipe operator."
+    },
+    {
+      "id": "py-new-133",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "You're building a data pipeline that reads from multiple S3 buckets concurrently using context managers. Your code uses `with s3_client(bucket1) as client1, s3_client(bucket2) as client2:` syntax. If `s3_client(bucket2).__enter__()` raises an exception, what happens to the resource from bucket1?",
+      "options": [
+        "Both context managers' __exit__ methods are skipped; bucket1's resource leaks",
+        "Only bucket1's __exit__ is called; bucket2's context manager is never entered",
+        "Both __exit__ methods are called in reverse order, but bucket1's may mask bucket2's exception",
+        "Python raises a RuntimeError because nested context managers don't support exception handling"
+      ],
+      "answer": 1,
+      "explanation": "When an exception occurs during `__enter__` of bucket2, the entire compound with statement fails before bucket2 is fully entered. Python calls `__exit__` on bucket1 (already entered) in reverse order, properly cleaning up bucket1's resource. Bucket2 never enters its context, so its `__exit__` is never called. This is the correct behavior and prevents resource leaks."
     }
   ]
 }
