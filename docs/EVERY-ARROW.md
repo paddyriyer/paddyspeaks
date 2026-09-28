@@ -146,6 +146,7 @@ EA_DEPS=/tmp/ea node articles/every-arrow/tests/browser.mjs
 ## 5 · Tests and CI
 - **Validate Content**: `build.mjs --check` (generated parts current, PDF not older than its source, counts agree) and `tests/structure.mjs` (figure contract, chapters, legacy anchors, dates, Command Center map both ways, shared vocabulary, sourcing caveats, storage keys).
 - **Accessibility**: the repo's axe ratchet (essay and Command Center are strict) plus `tests/browser.mjs`: every figure by mouse or keyboard, reset, deep links, JS off and scripts blocked, reduced motion, reading paths, 320–1920 px overflow, axe in full/exec/no-script modes at 1280 and 390, print media, and the PDF (no page under 300 characters, "Page N of M", edition in the header).
+- **A reveal never dims text.** Animate position or a frame, never the opacity of something a reader has to read. After #888 merged, the Accessibility job on main failed because axe caught the harm chain's third card (`#hc3`) at opacity .25→1 on a slow runner. The fix: the `.hc` text stays at full contrast and only the border and position move. `browser.mjs` now also runs axe on the harm chain mid-reveal, 60 ms after a switch.
 
 ## 6 · Open for Paddy
 - The full path is honestly ~64 minutes (edition 1 claimed 29 for less). The executive path is ~9. If that is too long, the cheapest cuts are the Scene 19/20 figures' prose and some field notes.
