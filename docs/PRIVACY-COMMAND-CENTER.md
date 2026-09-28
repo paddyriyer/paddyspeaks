@@ -85,6 +85,14 @@ how it **proves** it:
   it sees first, and its vocabulary.
 - **`person`** (Dana): the fictional person that One Person, consent and
   deletion all follow.
+- **`NS.personProfile`** (in `views-prove.js`): Dana's facts. Each is tagged by
+  origin — collected, observed, derived, inferred or obtained externally — with
+  its dataset, fields, join path and the levers that would remove it. It also
+  lists the systems an access-request export reads.
+- **`NS.reviewDetails`** (in `views-prove.js`): requester, sign-off date and launch
+  conditions per review. Reviews are citable records (type `review`). The
+  **re-review rule**: 90, 180 or 365 days after sign-off by risk, or at once when a
+  drift event touches the feature's scope.
 - Module data lives in:
   - `data-operate.js`: the consent pipeline, deletion traces and rights reach;
   - `data-ai.js`: AI agents and AI-data lineage.
