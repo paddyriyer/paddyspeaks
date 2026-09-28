@@ -6,9 +6,12 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
 - **`/privacy-command-center/`**: an interactive privacy observability,
   engineering and governance platform for a fictional company, Northstar.
   Synthetic data only, labelled in the header and footer of every screen.
-- **`/articles/every-arrow-is-a-decision.html`**: the visual essay (15 scenes
-  and seven corner-case trails). It is self-contained, and its facts use the
-  guide's own wording and sources.
+- **`/articles/every-arrow-is-a-decision.html`**: the visual essay. Since
+  2026-09-28 it is **edition 2**: five chapters, 23 scenes, eight corner-case
+  trails, following Dana through Northstar. Its code lives in
+  `articles/every-arrow/`, and it reads Northstar's numbers from this demo's
+  `data.js` (via the generated `articles/every-arrow/northstar.js`). Read
+  **`docs/EVERY-ARROW.md`** before editing it.
 
 ## The one rule
 
@@ -190,9 +193,20 @@ Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
   never a decimal. Three failures (outsider, insider, vendor) and seven
   safeguards; switching one shows what it buys. Labelled illustrative.
 
+## Essay ↔ Command Center
+
+- **Dana** is the same person in both. The essay's “Collected, derived, inferred”
+  table reads `NS.persona.facts` (each with an `origin`) through the generated
+  `articles/every-arrow/northstar.js`; One Person here reads `NS.personProfile`.
+- `P.ESSAY` in `app.js` maps 20 pages to essay scenes; each page shows "Read the
+  explanation in the essay". The essay's `D.pccMap` (`articles/every-arrow/data.js`)
+  is the other half; `articles/every-arrow/tests/structure.mjs` fails if they differ.
+- Editing `data.js` here changes numbers in the essay: run
+  `node scripts/every_arrow/build.mjs` (and `--pdf`), or CI fails.
+
 ## Corner-case trails (the essay)
 
-One engine (the last inline script in the essay) replays seven dated stories. Each
+One engine (`articles/every-arrow/trails.js`) replays eight dated stories. Each
 is `T.<id> = { steps, habits, world(step, habits) }`. `world()` derives
 everything on screen from the state: the artifact, its trail, who holds it,
 the counters. Habit switches change the state, and while any habit is on each
@@ -208,7 +222,8 @@ a counter can't disagree with its story. Mount one with
 | `family` | 06 | A private purchase, an inference, household linking, the family TV |
 | `optout` | 08 | Opt-out at 01:58 during a job that read consent at 00:00; retries, segments, partner |
 | `forget` | 09 | Deletion with partial failures, a premature "deleted" email, a restore that resurrects |
-| `auth` | 11 | Dana's week: leaked password, push fatigue, real-time phishing, SIM-swap recovery, 2FA phone reused for ads. Preceded by the sign-in methods × attacks matrix (`.authm`) |
+| `auth` | 18 | Dana's week: leaked password, push fatigue, real-time phishing, SIM-swap recovery, 2FA phone reused for ads. Preceded by the sign-in methods × attacks matrix (`.authm`) |
+| `nova` | 17 | One sentence to Nova: retrieval, the model provider, logs, memory, an agent purchase, a training run, the deletion |
 
 Each corner case sits in `<div class="cc" id="cc-<id>">` (02·B is `#s02b`).
 The dashboard's Audits page links its assumption tests to these anchors via
