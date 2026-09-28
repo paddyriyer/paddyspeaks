@@ -1,6 +1,6 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-28 (Every Arrow edition 2; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-28 (Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
@@ -21,6 +21,43 @@ clones fresh each time). CLAUDE.md points here._
   Command Center's One Person is now Dana, and 20 of its pages link back to the
   essay. Read **`docs/EVERY-ARROW.md`**. Open for Paddy: reading length, the new
   card/feature wording, and the share image (still edition 1's).
+- **NEWEST (2026-09-28): `/ic-flightdeck/` is now a multi-persona cockpit.**
+  Full documentation: **`docs/FLIGHTDECK.md`** — read it before touching
+  anything in `ic-flightdeck/`.
+  - Five decks, each built around a different decision, sharing one shell:
+    IC (Maya Rao) · Team (Daniel Kim, EM) · Workforce (People & Skills) ·
+    Agent Control Tower (AI platform) · Executive Briefing. **Not four copies
+    of one dashboard** — that is the controlling rule.
+  - `ic-flightdeck/index.html` (~530 KB) is the shell + the IC deck; the other
+    four are lazily injected classic scripts (`p-team.js`, `p-workforce.js`,
+    `p-tower.js`, `p-exec.js`). ES modules do **not** work here — the demo has
+    to open from `file://` too, and modules are CORS-blocked there.
+  - Routing is `#persona/view`; a bare `#view` still means the IC deck, so no
+    existing link broke. A deck that fails to load shows an honest empty state.
+  - **Privacy is the architecture, not a claim**: seniority moves a viewer
+    outward (more aggregation), never inward (more intimate detail). A VP has
+    no path to Maya's private cockpit because the model has no such path. Each
+    deck states what it does *not* contain.
+  - Guardrails carried into every layer: no ranking, no leaderboards, no
+    layoff prediction, no termination/salary/promotion recommendations, no
+    productivity inferred from keystrokes or commit counts. Exposure is framed
+    as task change, never human worth.
+  - Verified before push: 55 views × 5 personas render clean at 1500px and
+    400px with 0 page errors and 0 element overflow; 29 charts construct;
+    axe-core reports 0 serious/critical across all decks at 1280px and 390px;
+    `build.py check` and `validate_content.py` both pass.
+  - Two recurring traps, both now fixed and both worth remembering: a number
+    printed in a chart's series colour fails contrast (map through `textInk()`),
+    and a grid item defaults to `min-width:auto` so a wide scroll container
+    stretches its whole track (`.grid>*{min-width:0}`).
+  - Still open: Chart.js has never been seen rendering from this sandbox (the
+    CDN is blocked here) — the branch preview is the first place to confirm it.
+    Ten older IC pages (Tickets, Code, Incidents, Calendar, Decisions,
+    Learning, Travel, Time Off, Commitments, Projects) still carry the earlier
+    text-first treatment. Whether `/ic-flightdeck/` should join the axe page
+    list in `scripts/a11y/axe-check.mjs` is the owner's call — it is shared CI
+    config.
+
 - **NEWEST (2026-09-27, evening): the homepage is radically sparse.** Merged
   in #878 (after #873 map, #874 feature, #875 painting, #876 Mentoring, #877
   footer — all the same day). Read **`docs/HOMEPAGE-MAP-REDESIGN.md`** §12.

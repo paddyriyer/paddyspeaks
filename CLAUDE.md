@@ -93,6 +93,31 @@ or `jobsignal/`.
   index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
+## FlightDeck (`/ic-flightdeck/`)
+
+Read **`docs/FLIGHTDECK.md`** before touching `ic-flightdeck/`. A self-contained
+static demo (its own CSS; it does not use `style.css` and is not rendered by
+`pages.py`). Five cockpits share one shell: IC, Team, Workforce, Agent Control
+Tower, Executive.
+
+- **Four personas, four different cockpits — never four copies of one
+  dashboard.** Each deck is built around the decision its persona makes.
+- **Seniority never widens what anyone can see.** Authority moves a viewer
+  outward (aggregation), never inward (personal detail). No path exists from
+  any deck into an employee's private cockpit. Every deck says what it does
+  not contain.
+- **No ranking, ever** — no leaderboards, no layoff prediction, no
+  termination/salary/promotion recommendations, no productivity inferred from
+  keystrokes, commits or hours online. Exposure is task change, never human
+  worth.
+- `index.html` is the shell + the IC deck; `p-team.js`, `p-workforce.js`,
+  `p-tower.js`, `p-exec.js` are **classic** scripts injected on demand (ES
+  modules are CORS-blocked under `file://`). Routing is `#persona/view`; a bare
+  `#view` still means IC.
+- **Text wears text tokens, never a chart's series colour** (`textInk()`), and
+  dimming is never a state signal — both failed contrast audits before.
+- All demo data is fictional. No real person's information belongs in it.
+
 ## Privacy Command Center (`/privacy-command-center/`) and the privacy essay
 
 Read **`docs/PRIVACY-COMMAND-CENTER.md`** before touching `privacy-command-center/`
