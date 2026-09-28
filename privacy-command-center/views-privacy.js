@@ -6,17 +6,11 @@ var V = P.views;
 
 /* ── small shared helpers ─────────────────────────────────── */
 function pl(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
-/* nearest-rank percentile: always a value that is actually in the data */
-function nearestRank(arr, q) { var a = arr.filter(function (x) { return x != null; }).sort(function (x, y) { return x - y; }); if (!a.length) return null; return a[Math.max(0, Math.ceil(q * a.length) - 1)]; }
 function typeOf(id) { var e = P.get(id); return e ? e.type : null; }
 function isVendor(id) { var t = typeOf(id); return t === 'vendor' || t === 'subprocessor'; }
 function isOpen(f) { return f.status !== 'accepted' && f.status !== 'closed' && f.status !== 'mitigated'; }
-/* a chart that keeps readable type on a phone: fixed min width, scrolls sideways */
-function scrollFig(label, svg) { return '<div class="pv-scroll" tabindex="0" role="region" aria-label="' + esc(label) + '">' + svg + '</div>'; }
 /* stat tiles that carry their rule */
 function statRow(stats, cls) { return '<div class="stat-row pv-stats' + (cls ? ' ' + cls : '') + '">' + stats.map(function (x) { return '<div class="stat"><div class="sv' + (x[3] ? ' ' + x[3] : '') + '">' + x[1] + '</div><div class="sl">' + esc(x[0]) + '</div><div class="sr">' + esc(x[2]) + '</div></div>'; }).join('') + '</div>'; }
-/* keep an SVG label inside the viewBox: flip to the left of x when it would overflow */
-function svgLabel(x, y, text, W, fill, size) { var w = text.length * size * 0.6, right = x + 9 + w <= W - 2; return '<text x="' + (right ? x + 9 : x - 9).toFixed(1) + '" y="' + y + '" fill="' + fill + '" font-size="' + size + '" text-anchor="' + (right ? 'start' : 'end') + '">' + esc(text) + '</text>'; }
 
 /* ════════════ RISK RADAR ════════════ */
 V['privacy/risks'] = { title: 'Risk Radar', render: function (s, q) {
@@ -229,67 +223,6 @@ function miniDFD(sysIds, flows) {
 }
 P.miniDFD = miniDFD;
 
-/* ════════════ CONSENT ════════════ */
-var REVOKE_STEPS = [['Collection stops', 'cc1'], ['API reads stop', 'cc3'], ['Warehouse reads stop', 'cc5'], ['Scheduled jobs receive the update', 'cc7'], ['Cached consent expires', 'cc4'], ['Derived data handled', 'cc10'], ['ML features updated', 'cc14'], ['Vendors notified', 'cc11'], ['Audit evidence generated', null]];
-function revStepsHTML() { return REVOKE_STEPS.map(function (st, i) { return '<li data-i="' + i + '"><span class="ic dim">·</span><span>' + esc(st[0]) + (st[1] ? ' <span class="small dim">— ' + esc(P.name(st[1])) + '</span>' : '') + '</span></li>'; }).join(''); }
-V['privacy/consent'] = { title: 'Consent', render: function () {
-  var cs = NS.consentConsumers, live = cs.filter(function (c) { return c.p50 != null; });
-  var p50 = nearestRank(live.map(function (c) { return c.p50; }), 0.5), p95 = nearestRank(live.map(function (c) { return c.p95; }), 0.95), p99 = Math.max.apply(null, live.map(function (c) { return c.p99; }));
-  var never = cs.filter(function (c) { return c.p50 == null; }), staleC = never.filter(function (c) { return c.stale; });
-  var stale = staleC.reduce(function (s, c) { return s + c.stale; }, 0), staleMax = staleC.reduce(function (m, c) { return Math.max(m, c.stale); }, 0);
-  var W = 760, rowH = 30, H = cs.length * rowH + 40, x0 = 230, xs = function (v) { return x0 + (Math.log10(Math.max(v, 0.05)) + 1.4) / (6.2 + 1.4) * (W - x0 - 60); };
-  var s = '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" style="min-width:560px" role="group" aria-label="Consent propagation latency per consumer">';
-  [[0.1, '100 ms'], [1, '1 s'], [60, '1 min'], [3600, '1 h'], [86400, '1 d'], [604800, '7 d']].forEach(function (t) { var x = xs(t[0]); s += '<line x1="' + x + '" x2="' + x + '" y1="10" y2="' + (H - 24) + '" stroke="#e7e1d5"/><text x="' + x + '" y="' + (H - 8) + '" fill="#6b6457" font-size="12" text-anchor="middle">' + t[1] + '</text>'; });
-  cs.forEach(function (c, i) {
-    var y = 20 + i * rowH;
-    s += '<g class="node" data-ent="' + c.id + '" tabindex="0" role="button" aria-label="' + esc(c.name) + '"><text x="' + (x0 - 10) + '" y="' + (y + 4) + '" fill="' + (c.p50 == null ? '#b3400b' : '#3a4250') + '" font-size="13" text-anchor="end">' + esc(c.name) + '</text>';
-    if (c.p50 == null) s += '<line x1="' + x0 + '" x2="' + (W - 4) + '" y1="' + y + '" y2="' + y + '" stroke="#c0470f" stroke-dasharray="3 4" stroke-opacity=".6"/><text x="' + (W - 4) + '" y="' + (y - 5) + '" fill="#b3400b" font-size="11.5" text-anchor="end">never · ' + esc(c.mode) + '</text>';
-    else {
-      s += '<line x1="' + xs(c.p50) + '" x2="' + xs(c.p99) + '" y1="' + y + '" y2="' + y + '" stroke="#0b7d60" stroke-opacity=".5" stroke-width="2"/><circle cx="' + xs(c.p95) + '" cy="' + y + '" r="3" fill="none" stroke="#0b7d60"/><circle cx="' + xs(c.p50) + '" cy="' + y + '" r="5" fill="#0b7d60"/>';
-      var lx = xs(c.p99), w = c.mode.length * 11.5 * 0.6;
-      s += lx + 9 + w <= W - 2 ? '<text x="' + (lx + 9).toFixed(1) + '" y="' + (y + 4) + '" fill="#6b6457" font-size="11.5">' + esc(c.mode) + '</text>' : '<text x="' + (xs(c.p50) - 9).toFixed(1) + '" y="' + (y + 4) + '" fill="#6b6457" font-size="11.5" text-anchor="end">' + esc(c.mode) + '</text>';
-    }
-    s += '</g>';
-  });
-  s += '</svg>';
-  return P.pageHead('Privacy', 'Consent command center', 'Consent is <b>state</b>, not a checkbox: who, purpose, scope, source, timestamp, expiry, version, jurisdiction. Every state change must reach every copy — including the ones in flight.') +
-    '<div class="grid g-main" style="margin-bottom:14px"><div class="card"><div class="card-h"><h2 class="sec">Consent propagation latency</h2><span class="sub">dot P50 · ring P95 · bar to P99 · log scale</span></div>' + scrollFig('Consent propagation latency chart', s) + '</div>' +
-    '<div class="card"><div class="stat-row" style="margin-bottom:12px"><div class="stat"><div class="sv">' + P.fmtSecs(p50) + '</div><div class="sl">P50</div></div><div class="stat"><div class="sv">' + P.fmtSecs(p95) + '</div><div class="sl">P95</div></div><div class="stat"><div class="sv">' + P.fmtSecs(p99) + '</div><div class="sl">P99</div></div><div class="stat"><div class="sv bad">' + never.length + '</div><div class="sl">never receive it</div></div></div>' +
-    '<p class="small dim mono" style="margin:0 0 12px">Nearest-rank percentiles, so each figure is a value one consumer actually has: P50 = median of consumer P50s; P95 = 95th percentile of consumer P95s; P99 = worst consumer P99 — over the ' + live.length + ' consumers that propagate at all.</p>' +
-    '<div class="callout warn"><b>Up to ' + fmtN(stale) + ' people</b> are being processed on stale consent by ' + pl(staleC.length, 'consumer') + '. The consumers overlap — one person can sit in several — so the true number is between ' + fmtN(staleMax) + ' (the largest single consumer) and ' + fmtN(stale) + ' (their sum).<ul class="pv-list">' + staleC.map(function (c) { return '<li>' + chip(c.id) + ' <b>' + fmtN(c.stale) + '</b> <span class="small dim">' + esc(c.mode) + '</span></li>'; }).join('') + '</ul></div>' + stateMachine() + '</div></div>' +
-    '<div class="card"><div class="card-h"><h2 class="sec">Simulate a revocation</h2><button class="btn danger" id="revoke">Revoke advertising consent for one person</button></div><ul class="checks" id="revSteps">' + revStepsHTML() + '</ul></div>';
-}, mount: function (root) {
-  root.querySelector('#revoke').addEventListener('click', function () {
-    var btn = this, list = root.querySelector('#revSteps'); btn.disabled = true;
-    list.innerHTML = revStepsHTML();
-    var lis = list.querySelectorAll('li'), failed = 0, reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    lis.forEach(function (li, i) {
-      setTimeout(function () {
-        var id = REVOKE_STEPS[i][1], c = id ? P.get(id).obj : null, ic = li.querySelector('.ic'), cls, mark, note;
-        if (c) {
-          var ok = c.p50 != null, slow = ok && c.p50 > 3600;
-          if (!ok) failed++;
-          cls = ok ? (slow ? 'warn' : 'ok') : 'bad'; mark = ok ? (slow ? '~' : '✓') : '✗'; note = ok ? 'after ' + P.fmtSecs(c.p50) + ' (P50)' : 'NEVER — ' + esc(c.mode);
-        } else if (failed) { cls = 'bad'; mark = '!'; note = 'receipt written, but it records ' + pl(failed, 'step') + ' that never propagated — the revocation is not complete'; }
-        else { cls = 'ok'; mark = '✓'; note = 'receipt written: every step confirmed'; }
-        ic.className = 'ic ' + cls; ic.textContent = mark;
-        li.lastChild.insertAdjacentHTML('beforeend', ' <span class="small ' + cls + '">' + note + '</span>');
-        if (i === lis.length - 1) btn.disabled = false;
-      }, reduce ? 0 : 380 * (i + 1));
-    });
-  });
-} };
-function stateMachine() {
-  return '<svg viewBox="0 0 420 182" width="100%" style="margin-top:12px" role="img" aria-label="Consent state machine: unknown, granted, revoked, expired"><defs><marker id="smA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b6457"/></marker></defs>' +
-    [['UNKNOWN', 20, 70, '#6346c9'], ['GRANTED', 160, 20, '#0b7d60'], ['REVOKED', 300, 70, '#b3400b'], ['EXPIRED', 160, 120, '#7a5200']].map(function (n) { return '<rect x="' + n[1] + '" y="' + n[2] + '" width="100" height="30" rx="15" fill="#fffdf9" stroke="' + n[3] + '"' + (n[0] === 'UNKNOWN' ? ' stroke-dasharray="4 3"' : '') + '/><text x="' + (n[1] + 50) + '" y="' + (n[2] + 19) + '" fill="' + n[3] + '" font-size="11.5" font-weight="700" text-anchor="middle" font-family="JetBrains Mono">' + n[0] + '</text>'; }).join('') +
-    '<path d="M120,78 L160,42" stroke="#6b6457" marker-end="url(#smA)"/><text x="100" y="52" fill="#5b5448" font-size="10.5">opt in</text>' +
-    '<path d="M260,40 L300,72" stroke="#6b6457" marker-end="url(#smA)"/><text x="284" y="48" fill="#5b5448" font-size="10.5">revoke</text>' +
-    '<path d="M300,94 C260,110 250,40 262,36" fill="none" stroke="#6b6457" stroke-dasharray="3 3" marker-end="url(#smA)"/><text x="304" y="116" fill="#5b5448" font-size="10.5">re-consent</text>' +
-    '<path d="M210,50 L210,118" stroke="#6b6457" marker-end="url(#smA)"/><text x="204" y="90" fill="#5b5448" font-size="10.5" text-anchor="end">scope ends</text>' +
-    '<path d="M160,135 C110,150 90,110 170,52" fill="none" stroke="#6b6457" stroke-dasharray="3 3" marker-end="url(#smA)"/><text x="36" y="152" fill="#5b5448" font-size="10.5">re-prompt</text>' +
-    '<text x="20" y="176" fill="#5b5448" font-size="10.5">default: no processing</text></svg>';
-}
-
 /* ════════════ PURPOSE LIMITATION ════════════ */
 /* every observed use of a dataset, by purpose:
  *  · flows leaving its system (their declared purpose)
@@ -349,147 +282,6 @@ V['privacy/purpose'] = { title: 'Purpose', render: function () {
     '<div class="callout" style="margin-top:14px">Four questions for every new use: What did the person understand? What was the original purpose (in metadata, not memory)? Did the purpose change — a new purpose needs a new basis? Can they revoke, and does revocation reach every copy? Enforcement today: ' + chip('c_purpose_runtime') + ' runs at query time for Pulse only; everywhere else it is ' + chip('c_purpose_fs') + ' — a human approval.</div>' +
     '<style>.pm th.rot{height:140px;vertical-align:bottom;padding:4px;text-transform:none;letter-spacing:0}.pm th.rot span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;white-space:nowrap}.pm td.pc{text-align:center;font-size:13px;min-width:30px}.pm td.pc.ok{color:var(--ctl)}.pm td.pc.dec{color:var(--dim)}.pm td.pc.drift{color:var(--exp);background:rgba(192,71,15,.12);cursor:pointer;font-weight:700}.pm td.pc.unk{color:var(--unk);outline:1px dashed rgba(99,70,201,.6);outline-offset:-3px;cursor:pointer;font-weight:700}</style>';
 } };
-
-/* ════════════ RETENTION OBSERVATORY ════════════ */
-function classes() { var out = {}; uniq(Object.keys(NS.datasetClass).map(function (k) { return NS.datasetClass[k]; })).forEach(function (c) { out[c] = NS.datasets.filter(function (d) { return d.class === c; }).map(function (d) { return d.id; }); }); var none = NS.datasets.filter(function (d) { return !d.class; }).map(function (d) { return d.id; }); if (none.length) out.unclassified = none; return out; }
-V['privacy/retention'] = { title: 'Retention', render: function () {
-  var CL = classes(), W = 780, x0 = 210, FS = 13, xs = function (d) { return x0 + Math.log10(Math.max(d, 1)) / Math.log10(4000) * (W - x0 - 30); };
-  var rows = []; Object.keys(CL).forEach(function (c) { rows.push(['h', c]); CL[c].forEach(function (id) { rows.push(['d', id]); }); });
-  var H = rows.length * 24 + 40, y = 16;
-  var s = '<svg width="100%" viewBox="0 0 ' + W + ' ' + H + '" style="min-width:560px" role="group" aria-label="Required versus actual retention per dataset, log scale">';
-  [[1, '1 d'], [7, '1 wk'], [30, '30 d'], [90, '90 d'], [365, '1 yr'], [1095, '3 yr'], [3650, '10 yr']].forEach(function (t) { var x = xs(t[0]); s += '<line x1="' + x + '" x2="' + x + '" y1="10" y2="' + (H - 22) + '" stroke="#e7e1d5"/><text x="' + x + '" y="' + (H - 6) + '" fill="#6b6457" font-size="' + FS + '" text-anchor="middle">' + t[1] + '</text>'; });
-  rows.forEach(function (r) {
-    if (r[0] === 'h') { s += '<text x="8" y="' + (y + 13) + '" fill="#5b5448" font-size="11" font-family="JetBrains Mono" letter-spacing="1">' + esc(r[1].toUpperCase()) + '</text>'; y += 24; return; }
-    var d = P.get(r[1]).obj, rt = d.retention, cy = y + 9;
-    s += '<g class="node" data-ent="' + d.id + '" tabindex="0" role="button" aria-label="' + esc(d.name) + '"><text x="' + (x0 - 10) + '" y="' + (cy + 4) + '" fill="#3a4250" font-size="' + FS + '" text-anchor="end">' + esc(d.name.length > 27 ? d.name.slice(0, 26) + '…' : d.name) + '</text>';
-    if (rt.actual == null) s += '<text x="' + x0 + '" y="' + (cy + 4) + '" fill="#6346c9" font-size="11">UNKNOWN RETENTION</text><rect x="' + (x0 + 128) + '" y="' + (cy - 5) + '" width="' + (W - x0 - 158) + '" height="10" rx="5" fill="none" stroke="#6346c9" stroke-dasharray="4 3"/>';
-    else if (rt.actual === 0) s += '<text x="' + x0 + '" y="' + (cy + 4) + '" fill="#5b5448" font-size="11">' + esc(rt.note || 'source lifetime') + '</text>';
-    else {
-      var hasReq = rt.required != null && rt.required > 0, over = hasReq && rt.actual > rt.required, col = rt.required == null ? '#6346c9' : over ? '#c0470f' : '#0b7d60';
-      if (hasReq) s += '<line x1="' + xs(rt.required) + '" x2="' + xs(rt.actual) + '" y1="' + cy + '" y2="' + cy + '" stroke="' + (over ? '#c0470f' : '#0b7d60') + '" stroke-width="3" stroke-opacity=".5"/><line x1="' + xs(rt.required) + '" x2="' + xs(rt.required) + '" y1="' + (cy - 7) + '" y2="' + (cy + 7) + '" stroke="#0b7d60" stroke-width="2"/>';
-      s += '<circle cx="' + xs(rt.actual) + '" cy="' + cy + '" r="5" fill="' + col + '"' + (rt.required == null ? ' fill-opacity=".25" stroke="#6346c9" stroke-dasharray="2 2"' : rt.ttl ? '' : ' stroke="#1d2430" stroke-dasharray="2 2"') + '/>';
-      if (rt.required == null) s += svgLabel(xs(rt.actual), cy + 4, 'no requirement', W, '#6346c9', 11);
-      else if (over) s += svgLabel(xs(rt.actual), cy + 4, Math.round(rt.actual / rt.required) + '× need', W, '#b3400b', 11);
-    }
-    s += '</g>'; y += 24;
-  });
-  s += '</svg>';
-  var det = [];
-  NS.datasets.forEach(function (d) {
-    var r = d.retention, known = r.actual != null, req = r.required != null;
-    if (!known || (!req && r.note == null)) det.push(['UNKNOWN RETENTION', d.id]);
-    if (!r.ttl && r.note == null && known) det.push(['NO TTL', d.id]);
-    if (known && req && r.required > 0 && r.actual > r.required) det.push(['TTL DRIFT', d.id]);
-    if ((d.class === 'raw' || d.class === 'events') && known && req && r.actual > 180 && r.actual > r.required) det.push(['RAW DATA TOO OLD', d.id]);
-    if (!d.owner) det.push(['ORPHANED DATA', d.id]);
-    if (d.kind === 'log' && known && r.actual > 30 && d.fields.some(function (f) { return f[1] >= 2 && f[2] !== 'attr' || /url|prompt/.test(f[0]); })) det.push(['PII IN LONG-LIVED LOGS', d.id]);
-  });
-  NS.vendors.forEach(function (v) { if (v.retention.contract != null && v.retention.actual != null && v.retention.actual > v.retention.contract) det.push(['VENDOR RETENTION MISMATCH', v.id]); });
-  /* backups: expiry must be enforced, within its requirement, and deletions must be re-applied (verified) */
-  var backups = NS.datasets.filter(function (d) { return d.class === 'backups'; });
-  var bad = backups.filter(function (d) { var r = d.retention; return !r.ttl || r.actual == null || r.required == null || r.actual > r.required || !d.deletionVerified; });
-  bad.forEach(function (d) { det.push(['BACKUP VIOLATIONS', d.id]); });
-  if (!bad.length) det.push(['BACKUP VIOLATIONS', null]);
-  var backupOk = backups.length ? 'none — ' + backups.map(function (d) { return d.name + ' expires at ' + fmtDays(d.retention.actual) + ' (TTL enforced, requirement ' + fmtDays(d.retention.required) + '); deletion verified: ' + d.deletion; }).join('; ') : null;
-  var groups = {}; det.forEach(function (x) { (groups[x[0]] = groups[x[0]] || []).push(x[1]); });
-  return P.pageHead('Privacy', 'Retention observatory', 'Retention is a risk multiplier: every extra day is another day for breach, subpoena, misuse, inference and scope creep. Raw, derived, aggregate, logs, backups, events and ML data are tracked separately.') +
-    '<div class="q-line"><strong>After the decision is made, do we still need the raw event?</strong> Raw events: keep days, not years. Derived features: keep what the decision needs. Aggregates: keep, with identifiers expired.</div>' +
-    '<div class="grid g-main"><div class="card"><div class="card-h"><h2 class="sec">Required vs actual</h2><span class="sub">teal tick = required · dot = oldest record · dashed dot = no TTL · <span class="unknown">violet = no requirement or unknown</span></span></div>' + scrollFig('Required versus actual retention chart', s) + '</div>' +
-    '<div class="card"><h2 class="sec" style="margin-bottom:10px">Detections</h2>' + Object.keys(groups).map(function (g) { var ids = groups[g].filter(Boolean); return '<div style="margin-bottom:10px"><div class="card-h" style="margin-bottom:4px"><span class="mono small ' + (/UNKNOWN|ORPHAN/.test(g) ? 'unknown' : ids.length ? 'bad' : 'ok') + '" style="border:0">' + g + '</span><span class="mono small">' + ids.length + '</span></div>' + (ids.length ? P.chips(ids) : g === 'BACKUP VIOLATIONS' ? (backupOk ? '<span class="small ok">' + esc(backupOk) + '</span>' : unk('no backup dataset registered')) : '<span class="small ok">none</span>') + '</div>'; }).join('') + '</div></div>';
-} };
-
-/* ════════════ FORGET ME ════════════ */
-var FM_COL = { verified: '#0b7d60', waiting: '#946300', failed: '#c0470f', unknown: '#6346c9' };
-V['privacy/deletion'] = { title: 'Forget Me', render: function () {
-  var T = NS.deletionTargets, n = T.length, v = T.filter(function (t) { return t[3] === 'verified'; }).length, sysN = uniq(T.map(function (t) { return t[0]; })).length;
-  /* copies the orchestrator does not know about: failed assumption tests that say so */
-  var extra = NS.assumptionTests.filter(function (t) { return t.result === 'fail' && /not in (the )?deletion orchestrator/i.test(t.where); });
-  var legend = '<div class="legend" style="justify-content:center;margin-top:10px"><span><i style="background:' + FM_COL.verified + '"></i>verified</span><span><i style="background:' + FM_COL.waiting + '"></i>waiting (vendor)</span><span><i style="background:' + FM_COL.failed + '"></i>failed</span><span><i class="dash"></i>unknown</span><span><i style="background:#d3cbbb"></i>not started</span></div>';
-  return P.pageHead('Privacy · the real burn button', 'Forget me', 'Design every system as if “Forget me” had to work. One request fans out to every place the data was ever copied — primary, replicas, caches, streams, warehouse, logs, indexes, backups, feature stores, models, CRM, vendors. Miss one and the promise breaks.') +
-    '<div class="grid g-main"><div class="card"><div class="canvas" id="fmCanvas" tabindex="0" role="region" aria-label="Deletion fan-out diagram" style="background:var(--bg2);border:0"></div>' + legend + '</div>' +
-    '<div class="card"><div class="forget"><button class="forget-btn" id="fmBtn">Forget me</button><div class="small muted">Simulates one person\'s deletion across Northstar</div></div>' +
-    '<div class="stat-row" style="justify-content:center;margin:16px 0" id="fmStats"><div class="stat"><div class="sv">' + n + '</div><div class="sl">locations (' + pl(sysN, 'system') + ')</div></div><div class="stat"><div class="sv ok">' + P.pct(v, n) + '%</div><div class="sl">verified deletion coverage</div></div></div>' +
-    '<div id="fmLog" class="small"></div>' +
-    extra.map(function (t) { return '<div class="callout unk" style="margin-top:12px"><b>+1 copy the orchestrator does not know about:</b> ' + esc(t.where) + ' ' + chip(t.ent) + ' <span class="small dim">(assumption test “' + esc(t.k) + '”: ' + esc(t.result) + ')</span>. If deletion cannot be proven, the uncertainty is a finding.</div>'; }).join('') +
-    '<div class="small muted" style="margin-top:12px">Mechanisms in use: tombstones · hard delete · soft-delete expiry · crypto-shredding · cache invalidation · vendor deletion API · attestation · retries · verification scan (canary IDs re-queried at T+72h).</div></div></div>';
-}, mount: function (root) {
-  var T = NS.deletionTargets, el = root.querySelector('#fmCanvas'), W = 640, H = 560, cx = W / 2, cy = H / 2, R = 225, col = FM_COL;
-  function draw(state) {
-    var s = '<svg viewBox="-80 0 ' + (W + 160) + ' ' + H + '" width="100%" style="min-width:560px;max-width:' + (W + 160) + 'px;display:block;margin:auto" role="group" aria-label="Deletion fan-out to ' + T.length + ' locations">';
-    T.forEach(function (t, i) {
-      var a = -Math.PI / 2 + i * 2 * Math.PI / T.length, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a), st = state[i], c = st && col[st] ? col[st] : st === 'pending' ? '#9aa1ac' : '#d3cbbb';
-      s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + c + '" stroke-opacity="' + (st ? 0.55 : 0.25) + '"' + (st === 'unknown' ? ' stroke-dasharray="4 3"' : '') + (st === 'pending' ? ' class="flowdash" stroke-dasharray="4 4"' : '') + '/>';
-      var anchor = Math.cos(a) > 0.15 ? 'start' : Math.cos(a) < -0.15 ? 'end' : 'middle', dx = anchor === 'start' ? 11 : anchor === 'end' ? -11 : 0, dy = anchor === 'middle' ? (Math.sin(a) > 0 ? 22 : -13) : 4;
-      s += '<g class="node" data-ent="' + t[0] + '" tabindex="0" role="button" aria-label="' + esc(t[1] + ': ' + (st && st !== 'pending' ? st : 'not started')) + '"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="7" fill="' + (st && st !== 'pending' ? c : '#f6f3ec') + '" stroke="' + c + '"' + (st === 'unknown' ? ' fill-opacity="0" stroke-dasharray="2 2"' : '') + '/><text x="' + (x + dx).toFixed(1) + '" y="' + (y + dy).toFixed(1) + '" fill="#3a4250" font-size="12" text-anchor="' + anchor + '">' + esc(t[1]) + '</text></g>';
-    });
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="56" fill="#f6f3ec" stroke="#b9b1a0"/><text x="' + cx + '" y="' + (cy - 4) + '" fill="#1d2430" font-size="12" font-weight="700" text-anchor="middle">DELETION</text><text x="' + cx + '" y="' + (cy + 12) + '" fill="#1d2430" font-size="12" font-weight="700" text-anchor="middle">ORCHESTRATOR</text>';
-    el.innerHTML = s + '</svg>';
-  }
-  var init = T.map(function () { return null; }); draw(init);
-  root.querySelector('#fmBtn').addEventListener('click', function () {
-    var btn = this; btn.disabled = true;
-    var state = T.map(function () { return 'pending'; }); draw(state);
-    var log = root.querySelector('#fmLog'); log.innerHTML = '<div class="mono dim">DELETE REQUEST → DELETION ORCHESTRATOR · ' + T.length + ' locations</div>';
-    var order = T.map(function (t, i) { return i; }).sort(function (a, b) { var r = { verified: 0, waiting: 1, failed: 2, unknown: 3 }; return r[T[a][3]] - r[T[b][3]] || a - b; });
-    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    order.forEach(function (i, k) {
-      setTimeout(function () {
-        state[i] = T[i][3]; draw(state);
-        if (T[i][3] !== 'verified') log.insertAdjacentHTML('beforeend', '<div><span class="' + (T[i][3] === 'waiting' ? 'warn' : T[i][3] === 'unknown' ? 'unknown' : 'bad') + '" style="border:0">' + T[i][3].toUpperCase() + '</span> ' + esc(T[i][1]) + ' — ' + esc(T[i][2]) + '</div>');
-        if (k === order.length - 1) {
-          var c = {}; T.forEach(function (t) { c[t[3]] = (c[t[3]] || 0) + 1; });
-          root.querySelector('#fmStats').innerHTML = [['verified', 'ok'], ['waiting', 'warn'], ['failed', 'bad'], ['unknown', 'unknown']].map(function (x) { return '<div class="stat"><div class="sv ' + x[1] + '" style="border:0">' + (c[x[0]] || 0) + '</div><div class="sl">' + x[0] + (x[0] === 'waiting' ? ' (vendor)' : '') + '</div></div>'; }).join('') + '<div class="stat"><div class="sv">' + P.pct(c.verified || 0, T.length) + '%</div><div class="sl">verified coverage</div></div>';
-          btn.disabled = false;
-        }
-      }, reduce ? 0 : 140 * (k + 1));
-    });
-  });
-} };
-
-/* ════════════ USER RIGHTS ════════════ */
-function deadlineFor(x) { var rs = NS.rightsDeadlines; for (var i = 0; i < rs.length; i++) if (rs[i].region === x.region && (rs[i].rights === '*' || rs[i].rights.indexOf(x.type) >= 0)) return rs[i]; return null; }
-function rightsRows() {
-  return NS.rightsRequests.map(function (x) {
-    var dl = deadlineFor(x), elapsed = x.status === 'open' ? P.daysSince(x.received) : x.took;
-    var late = dl != null && x.status !== 'refused' && elapsed > dl.days;
-    return { x: x, dl: dl, elapsed: elapsed, late: late };
-  });
-}
-V['privacy/rights'] = { title: 'User Rights', render: function () {
-  var R = rightsRows(), open = R.filter(function (r) { return r.x.status === 'open'; }), done = R.filter(function (r) { return r.x.status === 'complete'; }), refused = R.filter(function (r) { return r.x.status === 'refused'; });
-  var med = nearestRank(done.map(function (r) { return r.x.took; }), 0.5), p95 = nearestRank(done.map(function (r) { return r.x.took; }), 0.95);
-  var late = R.filter(function (r) { return r.late; }), lateDone = done.filter(function (r) { return r.late; }), noDl = R.filter(function (r) { return !r.dl; });
-  var unver = done.filter(function (r) { return !r.x.verified; });
-  var delay = {}, delayN = 0; done.forEach(function (r) { if (r.x.delay) { delay[r.x.delay] = (delay[r.x.delay] || 0) + 1; delayN++; } });
-  var dk = Object.keys(delay).sort(function (a, b) { return delay[b] - delay[a] || (a < b ? -1 : 1); }), maxD = dk.length ? delay[dk[0]] : 1;
-  var vendDelay = dk.filter(isVendor).reduce(function (s, k) { return s + delay[k]; }, 0);
-  var BINS = 11, hist = []; for (var b = 0; b < BINS; b++) { var inBin = done.filter(function (r) { return Math.min(BINS - 1, Math.floor(r.x.took / 5)) === b; }); hist.push([inBin.filter(function (r) { return !r.late; }).length, inBin.filter(function (r) { return r.late; }).length]); }
-  var hmax = Math.max.apply(null, hist.map(function (h) { return h[0] + h[1]; }).concat([1]));
-  var lateDl = uniq(lateDone.map(function (r) { return r.dl.days; })).sort(function (a, b) { return a - b; });
-  var sorted = R.slice().sort(function (a, b) { var k = function (r) { return r.x.status === 'open' ? (r.late ? 0 : 1) : r.late ? 2 : r.x.status === 'refused' ? 3 : 4; }; return k(a) - k(b) || (b.elapsed - a.elapsed); });
-  var all = !!P.state.rightsAll, shown = all ? sorted : sorted.slice(0, 24);
-  var stats = [
-    ['Open requests', open.length, 'Requests with status open.'],
-    ['Median completion', med == null ? unk() : med + ' d', 'Nearest-rank median of days to complete, over ' + done.length + ' completed requests.'],
-    ['P95 completion', p95 == null ? unk() : p95 + ' d', 'Nearest-rank 95th percentile of the same.'],
-    ['Deadline misses', late.length, 'Completed after, or still open past, that request’s own deadline (table below).', 'bad'],
-    ['Completion not verified', unver.length, 'Completed requests with no verification scan proving the data is gone.', 'bad'],
-    ['Refused — identity not verified', refused.length, 'Identity check failed, so the request was refused and closed; nothing was disclosed or deleted.']
-  ];
-  return P.pageHead('Privacy', 'User rights operations', 'Access · delete · correct · port · opt out · object · limit sensitive use. Every right is a system requirement in disguise; the hard prerequisite behind all of them is lineage — you cannot delete what you cannot find.') +
-    '<div class="card" style="margin-bottom:14px">' + statRow(stats) + (noDl.length ? '<p class="small" style="margin:8px 0 0">' + unk(pl(noDl.length, 'request') + ' with no deadline rule') + '</p>' : '') + '</div>' +
-    '<div class="grid g2" style="margin-bottom:14px"><div class="card"><h2 class="sec" style="margin-bottom:10px">Completion time (days)</h2><div class="hist" role="img" aria-label="Completion time histogram: ' + lateDone.length + ' of ' + done.length + ' completed requests were late">' + hist.map(function (h, i) { var t = h[0] + h[1]; return '<div class="hb" title="' + (i * 5) + (i === BINS - 1 ? '+' : '–' + (i * 5 + 4)) + ' d: ' + t + ' (' + h[1] + ' late)"><span class="hs"><span style="height:' + (h[1] / hmax * 100) + '%;background:var(--exp)"></span><span style="height:' + (h[0] / hmax * 100) + '%;background:var(--info)"></span></span><em>' + (i === BINS - 1 ? (i * 5) + '+' : i * 5) + '</em></div>'; }).join('') + '</div>' +
-      '<p class="small dim">Coral: completed after that request’s own deadline' + (lateDl.length ? ' (' + lateDl.map(function (d) { return d + ' d'; }).join(', ') + ' in these cases)' : '') + '. ' + lateDone.length + ' of ' + done.length + ' completed requests were late.</p></div>' +
-    '<div class="card"><h2 class="sec" style="margin-bottom:10px">Systems causing delay</h2>' + (dk.length ? '<div class="bars">' + dk.map(function (k) { return '<div class="br"><span>' + chip(k) + '</span><span class="track"><span class="fill" style="width:' + (delay[k] / maxD * 100) + '%;background:' + (isVendor(k) ? 'var(--exp)' : 'var(--med)') + '"></span></span><span class="mono small" style="text-align:right">' + delay[k] + '</span></div>'; }).join('') + '</div><p class="small dim">Rule: the system each completed request waited on longest. Vendors in coral. Largest single cause: ' + esc(P.name(dk[0])) + ' (' + delay[dk[0]] + ' of ' + delayN + '); vendors account for ' + vendDelay + ' of ' + delayN + '.</p>' : '<p class="small ok">No completed request recorded a delay.</p>') + '</div></div>' +
-    '<div class="card" style="margin-bottom:14px"><h2 class="sec" style="margin-bottom:8px">Deadlines used (simplified — orientation, not legal advice)</h2><div class="tbl-wrap"><table class="tbl"><thead><tr><th>Region</th><th>Rights</th><th class="num">Deadline</th><th class="num">Extension</th><th>Identity check</th><th>Basis</th></tr></thead><tbody>' + NS.rightsDeadlines.map(function (d) { return '<tr><td class="mono small">' + esc(d.region) + '</td><td class="small">' + (d.rights === '*' ? 'all others' : esc(d.rights.join(', '))) + '</td><td class="num">' + d.days + ' d</td><td class="num">' + (d.ext ? '+' + d.ext + ' d' : '—') + '</td><td class="small">' + (d.verify ? 'required' : 'not required') + '</td><td class="small">' + esc(d.basis) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' +
-    '<div class="card-h" style="margin-bottom:8px"><span class="small muted">Showing ' + shown.length + ' of ' + R.length + ' requests — open and overdue first.</span>' + (R.length > 24 ? '<button class="btn" id="rrAll" aria-expanded="' + all + '">' + (all ? 'Show fewer' : 'Show all ' + R.length) + '</button>' : '') + '</div>' +
-    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Request</th><th>Right</th><th>Region</th><th>Identity</th><th>Received</th><th class="num">Days</th><th class="num">Deadline</th><th>Status</th><th>Delayed by</th></tr></thead><tbody>' + shown.map(function (r) {
-      var x = r.x, st = x.status === 'open' ? (r.late ? '<span class="bad">open · overdue</span>' : '<span class="dim">open</span>') : x.status === 'refused' ? '<span class="warn">refused · identity not verified</span>' : x.verified ? '<span class="ok">complete · verified</span>' : '<span class="warn">complete · not verified</span>';
-      return '<tr><td class="mono small">' + x.id + '</td><td>' + esc(x.type) + '</td><td class="mono small">' + esc(x.region) + '</td><td class="small ' + (x.idv === 'failed' ? 'bad' : 'dim') + '">' + esc(x.idv) + '</td><td class="mono small">' + esc(x.received) + '</td><td class="num ' + (r.late ? 'bad' : '') + '">' + r.elapsed + ' d</td><td class="num">' + (r.dl ? r.dl.days + ' d' : unk()) + '</td><td>' + st + '</td><td>' + (x.delay ? chip(x.delay) : '<span class="dim">—</span>') + '</td></tr>';
-    }).join('') + '</tbody></table></div>' +
-    '<p class="small dim">“Days” is days open for open requests, and days to complete or refuse for closed ones. “Delayed by” is recorded only when a request completes.</p>' +
-    '<style>.hist{display:grid;grid-template-columns:repeat(11,1fr);gap:4px;height:150px;align-items:end}.hb{display:flex;flex-direction:column;justify-content:flex-end;height:100%;text-align:center}.hs{display:flex;flex-direction:column;justify-content:flex-end;height:100%}.hs span{display:block}.hs span:first-child{border-radius:4px 4px 0 0}.hb em{font:10px var(--mono);color:var(--dim);font-style:normal;margin-top:4px}</style>';
-}, mount: function (root) { var b = root.querySelector('#rrAll'); if (b) b.addEventListener('click', function () { P.state.rightsAll = !P.state.rightsAll; P._keepScroll = true; P.render(); }); } };
 
 /* ════════════ TRACKING OBSERVATORY ════════════ */
 function isThird(t) { return /third/.test(t.party); }
