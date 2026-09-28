@@ -25,7 +25,7 @@ function dueHTML(dec) {
   if (!dec) return unk('no decision opened');
   if (!dec.due) return unk('no due date');
   return '<b>' + esc(P.hdate(dec.due)) + '</b> <span class="' + (dec.overdue ? 'bad' : 'dim') + '">(' + esc(P.rel(dec.due)) + ')</span>' +
-    (dec.d.status === 'owed' ? ' · SLA ' + dec.slaDays + ' days' + (dec.slaBreached ? ' <span class="bad">breached</span>' : '') : '');
+    (dec.d.status === 'owed' && dec.slaDue ? '<div class="small">decision SLA: ' + dec.slaDays + ' days from opening → ' + esc(P.hdate(dec.slaDue)) + (dec.slaBreached ? ' <span class="bad">· breached</span>' : '') + '</div>' : '');
 }
 function optionRow(o, rec) {
   return '<tr' + (rec ? ' class="rec"' : '') + '><th scope="row">' + (rec ? '<span class="rec-tag">Recommended</span>' : '') + esc(o.id + ' · ' + o.title) + '</th>' +
