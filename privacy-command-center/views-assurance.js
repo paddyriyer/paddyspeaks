@@ -96,13 +96,7 @@ V['governance/regulations'] = { title: 'Policies & Regulations', render: functio
     }).join('');
 } };
 
-/* ════════════ VENDOR REGISTER ════════════ */
-V['governance/vendors'] = { title: 'Vendor Register', render: function () {
-  var I = P.vendorIssues().sort(function (a, b) { return b.issues.length - a.issues.length; });
-  return P.pageHead('Governance', 'Vendor privacy register', 'For any partner integration, name the handshake pattern first — token, relay, proof, permission or aggregate — then the data, the retention and the contract. “None” means the partner receives the person.') +
-    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Vendor</th><th>Handshake</th><th>Tier</th><th class="num">People</th><th>Retention (contract / actual)</th><th>Contract</th><th>Deletion</th><th>Opt-out</th><th>Privacy review</th><th>Detections</th></tr></thead><tbody>' +
-    I.map(function (x) { var v = x.v, hs = NS.handshakes[v.id]; return '<tr class="click" data-ent="' + v.id + '" tabindex="0"><td><b>' + esc(v.name) + '</b><div class="small dim">' + esc(v.role) + '</div></td><td><span class="tag ' + (hs === 'NONE' ? 'sev-HIGH' : 'sev-GOOD') + '">' + hs + '</span></td><td>' + P.tier(v.tier) + '</td><td class="num">' + fmtN(v.people) + '</td><td class="mono small">' + (v.retention.contract == null ? unk('unknown') : P.fmtDays(v.retention.contract)) + ' / ' + (v.retention.actual == null ? unk('unknown') : P.fmtDays(v.retention.actual)) + '</td><td class="small nowrap">' + (v.contract ? esc(v.contract.expires) : unk('none')) + '</td><td>' + (v.deletionApi ? '<span class="ok">API</span>' : '<span class="bad">none</span>') + '</td><td>' + (v.optOutPropagates ? '<span class="ok">yes</span>' : '<span class="bad">no</span>') + '</td><td class="small nowrap">' + (v.privacyReview ? (P.daysSince(v.privacyReview) > 365 ? '<span class="bad">' + esc(v.privacyReview) + '<br>over a year ago</span>' : esc(v.privacyReview)) : unk('never')) + '</td><td class="small det">' + (x.issues.length ? x.issues.map(function (i) { return '<span class="tag ' + (/unknown/.test(i) ? 'k-UNKNOWN' : 'sev-HIGH') + '" style="margin:1px">' + esc(i) + '</span>'; }).join(' ') : '<span class="ok">none</span>') + '</td></tr>'; }).join('') + '</tbody></table></div>';
-} };
+/* The vendor register lives in views-investigate.js. */
 
 /* ════════════ MATURITY ════════════ */
 V['governance/maturity'] = { title: 'Maturity', render: function () {
