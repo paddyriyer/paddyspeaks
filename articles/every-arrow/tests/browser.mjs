@@ -161,6 +161,13 @@ try {
     ok(wide.length === 0, `${width}px: elements wider than the viewport: ${wide}`);
     ok(errors.length === 0, `${width}px: page errors ${errors}`);
     if (width === 1280 || width === 390) await axe(page, `full ${width}`);
+    if (width === 1280) {
+      /* A reveal must never dim text: axe once caught #hc3 mid-fade on a slow
+         runner. Audit the harm chain while its cards are still arriving. */
+      await page.click('#harmPick [role="tab"]:nth-child(2)');
+      await page.waitForTimeout(60);
+      await axe(page, 'harm chain mid-reveal');
+    }
     if (width === 390) {
       await page.click('#tocToggle');
       ok(await page.$eval('#tocList', (e) => e.offsetHeight > 200), '390px: the contents sheet does not open');
