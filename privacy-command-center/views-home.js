@@ -52,6 +52,7 @@ function chainChips(x, col, max) {
 }
 
 /* The disclosure is the same material in the order each perspective needs it. */
+var TEST_WORD = { fail: 'still failing', pending: 'not yet proven', unknown: 'cannot be run yet', pass: 'passing' };
 var PARTS = {
   options: function (x, st, dec) {
     return dec ? '<h4>' + esc(dec.d.question) + '</h4><p><b>Recommended:</b> ' + esc(dec.d.recommendText) + '</p>' + P.optionsTable(dec) +
@@ -62,7 +63,8 @@ var PARTS = {
   risk: function (x) { return '<h4>Residual risk, explained</h4>' + P.riskHTML(x.explain); },
   chain: function (x) { return '<h4>From promise to owner</h4>' + P.chainHTML(x.p.id); },
   findings: function (x, st) { return st.open.length ? '<h4>Open ' + esc(P.word('finding', true)) + '</h4><ul class="evl">' + st.open.map(function (f) { return '<li>' + P.sev(f.sev) + ' ' + chip(f.id, f.id) + ' ' + esc(f.title) + '<div class="small dim">owner ' + P.ownerHTML(f.owner) + ' · due ' + esc(f.due ? P.hdate(f.due) : '—') + ' · detected by ' + esc(f.detector) + '</div></li>'; }).join('') + '</ul>' : ''; },
-  test: function (x, st, dec) { return dec ? '<h4>The test that proves the fix</h4><p>' + esc(dec.d.test.text) + '</p><p class="small">via ' + chip(dec.d.test.control) + ' · today: <span class="ev-r ev-' + esc(dec.d.testResult) + '">' + esc(dec.d.testResult) + '</span> ' + (dec.test ? P.freshTag(dec.test.last, 'Last test') : '') + '</p>' : ''; }
+  /* The decision's test asks whether the fix holds; the control can run and pass its own check while the fix still fails. */
+  test: function (x, st, dec) { return dec ? '<h4>The test that proves the fix</h4><p>' + esc(dec.d.test.text) + '</p><p class="small">via ' + chip(dec.d.test.control) + ' · the fix today: <span class="ev-r ev-' + esc(dec.d.testResult) + '">' + esc(TEST_WORD[dec.d.testResult] || dec.d.testResult) + '</span>' + (dec.test ? ' · the control itself last ran ' + P.freshTag(dec.test.last, 'Last test') + ' (' + esc(dec.test.result) + ')' : '') + '</p>' : ''; }
 };
 var ORDER_BY = { lead: ['options', 'risk', 'evidence', 'chain'], own: ['findings', 'options', 'evidence', 'chain'], over: ['evidence', 'test', 'risk', 'options', 'chain'], build: ['test', 'evidence', 'findings', 'chain', 'options'] };
 var SUMMARY = { lead: 'Options, trade-offs and the full chain', own: 'Open issues, due dates, options and the chain', over: 'Evidence, tests and the full chain', build: 'The failing test, the evidence and the chain' };

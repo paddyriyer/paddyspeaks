@@ -20,6 +20,119 @@ graph, cites the entities it used, and labels each statement FACT, INFERENCE,
 RECOMMENDATION or UNKNOWN. UNKNOWN is shown as a finding (violet, dashed)
 everywhere, and never left blank.
 
+## The operating model (redesign, 2026-09-28)
+
+The Command Center was rebuilt in place to answer one question better than any
+inventory: **where are we breaking a promise to a person, what decision is
+required now, and can we prove the fix?** `privacy-command-center/README.md` is
+the short product guide. This section is the reference.
+
+### The chain
+
+Every record sits on one chain, and every page and passport shows it
+(`P.chain(id)`, `P.chainHTML`, `#/chain?from=<id>`):
+
+```
+Promise → Product/feature → Purpose → Person/identity → Data → System → Data flow
+        → Vendor/model → Jurisdiction → Control → Evidence → Finding → Decision → Owner
+```
+
+An empty link is shown as a gap, and a gap is a finding.
+
+### Information architecture
+
+| Group | Routes | Answers |
+|---|---|---|
+| Home | `overview` (`?as=<role>`, `?all=1`) | The four questions: which promise is at risk, who is affected, which decision is owed (by whom, by when), and what evidence proves the fix. |
+| Decide | `promises`, `promises/<id>`, `decisions`, `decisions/<id>` (memo), `decisions/new?t=<trail>`, `privacy/reviews`, `privacy/risks`, `privacy/worstday` | What we promised, what is owed, the options and the call. |
+| Investigate | `chain`, `explore/person` (One Person), `explore/graph`, `explore/identities`, `explore/flows` (lineage), `explore/vendors`, `explore/geo`, `explore/org`, `explore/products`, `explore/systems`, `explore/data` | Follow any record to everything it touches. |
+| Operate | `observability`, `privacy/consent`, `privacy/deletion`, `privacy/retention`, `privacy/rights`, `privacy/purpose`, `privacy/ai`, `privacy/tracking`, `privacy/pets`, `privacy/threats` | Is the machinery working today? |
+| Prove | `assurance/controls`, `assurance/audits`, `assurance/access`, `assurance/incidents`, `assurance/drift`, `governance/regulations`, `governance/vendors`, `governance/maturity` | Tests, evidence, freshness, exceptions. |
+| Report | `report/executive` (memo), `report/engineering`, `report/audit`, `report/legal`, `report/investigation?t=<trail>` | Printable, dated, with the synthetic-data disclaimer. |
+| Help | `help` | Glossary: every term the product uses. |
+
+A nav item whose view is missing is never rendered, so the menu never has a dead link.
+
+### Data model
+
+`data.js` holds what Northstar **has**. `data-ops.js` holds what it **owes** and
+how it **proves** it:
+
+- **`promises`**: the text, where it was made, the audience, and the
+  features, purposes, datasets, controls, findings and incidents it relies on,
+  plus its risk, decision and owner. State is derived by `P.promiseState`:
+  - BROKEN when an open HIGH finding or an incident contradicts it;
+  - AT RISK when any finding is open or a control fails;
+  - UNPROVEN when a control test is missing or stale;
+  - KEPT only when all evidence is fresh and passing.
+- **`decisions`**: the question and the human consequence, plus:
+  - an owner and an approver;
+  - the stage (`owed | decided | verifying | closed`);
+  - at least two options, each with privacy, product and cost effects, and with
+    pros, cons and a trade-off;
+  - the recommendation, dissent and uncertainty;
+  - `test`, the check that proves the fix, tied to a control.
+
+  The due date is the earliest due date among its open findings. The SLA
+  derives from severity: 14, 30 or 60 days. Recording a decision writes to
+  in-memory `P.state.decisionLog` and can be undone. Nothing about it is stored.
+- **`controlTests`**: one for every control, with last, result, method,
+  evidence, next and exceptions. Freshness, from `P.freshness`, is fresh up to 7
+  days, aging up to 30, then stale; a control with no test is *never tested*.
+- **`indicators`**: target, direction, owner, coverage `{v, of}` and seven
+  weekly values. The current value is always computed from `P.METRICS`.
+- **`perspectives`**: the four role groups, what each can decide, the evidence
+  it sees first, and its vocabulary.
+- **`person`** (Dana): the fictional person that One Person, consent and
+  deletion all follow.
+- **`NS.personProfile`** (in `views-prove.js`): Dana's facts. Each is tagged by
+  origin — collected, observed, derived, inferred or obtained externally — with
+  its dataset, fields, join path and the levers that would remove it. It also
+  lists the systems an access-request export reads.
+- **`NS.reviewDetails`** (in `views-prove.js`): requester, sign-off date and launch
+  conditions per review. Reviews are citable records (type `review`). The
+  **re-review rule**: 90, 180 or 365 days after sign-off by risk, or at once when a
+  drift event touches the feature's scope.
+- Module data lives in:
+  - `data-operate.js`: the consent pipeline, deletion traces and rights reach;
+  - `data-ai.js`: AI agents and AI-data lineage.
+
+**Residual risk is never a bare number.** `P.explainRisk` returns five things:
+1. a band;
+2. the likely impact, given as a range when confidence is low;
+3. the drivers;
+4. the safeguards, each with its evidence level;
+5. the unknowns and the confidence.
+
+### Role-to-decision matrix
+
+| Perspective | Roles | Verb | Can decide | Sees first | Words: finding · control · decision |
+|---|---|---|---|---|---|
+| Leadership | CPO, CISO, CTO, Executive | Decide | Accept, refuse or fund a trade-off; set the owner of an orphan decision | people affected, consequence, options, cost | exposure · safeguard · decision |
+| Managers & owners | Engineering Manager, Product Manager, Data Governance | Assign | Owners, sprint scope, launch holds, retention schedules | due dates, blockers, their teams' systems | issue · control · decision |
+| Oversight | Privacy Counsel, Compliance, Internal Audit | Challenge | Attest, dispute evidence, require a re-test, legal basis | legal basis, control tests, freshness | gap · control · determination |
+| Builders | Privacy, Data, Software, Security, AI/ML engineers | Fix | The implementation and the test that proves it | systems, flows, code paths, the failing test | finding · control · decision |
+
+Every role sees the same records. The role changes the ranking
+(`P.priorities`), the words (`P.word`), the order of the disclosure sections in
+each priority card, and the action verb. It never hides a finding.
+
+### Tests
+
+`node privacy-command-center/tests/run.mjs` runs `tests/*.test.mjs` in headless
+Chromium. The Accessibility workflow runs it as "Privacy Command Center
+behaviour tests". The suites cover:
+- role switching;
+- search traceability;
+- consent propagation;
+- deletion verification;
+- risk explanations;
+- decision-memo creation;
+- AI-data lineage;
+- print and PDF (no blank pages, date and disclaimer);
+- keyboard use;
+- 390px layout.
+
 ## Files
 
 | File | What |
