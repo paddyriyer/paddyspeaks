@@ -297,6 +297,13 @@ NS.indicators = {
   owed:        { target: 0, dir: 'down', owner: 't_privacy', history: [4, 5, 5, 6, 7, 7, 7], coverage: { v: 1, of: 'decisions opened' } }
 };
 
+/* ── one person ───────────────────────────────────────────────────────────
+ * Dana is the fictional person the One Person view, rights requests, deletion
+ * traces and search all refer to. Her identifiers are the persona's starting
+ * points in data.js; nothing here describes a real individual. */
+NS.person = { id: 'u_dana', name: 'Dana R.', note: 'Fictional customer. Not a real person.', identifiers: NS.persona.starts.slice(), since: '2019-04-11',
+  products: ['p_storefront', 'p_checkout', 'p_pulse', 'p_nova', 'p_help'] };
+
 /* ── operating perspectives ───────────────────────────────────────────────
  * Every role sees the same records. The perspective decides which decisions
  * the role can make, the words used, and the evidence shown first. */

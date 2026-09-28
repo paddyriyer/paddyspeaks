@@ -23,6 +23,8 @@ var ENT = P.ENT;
 P.TYPE_LABEL.promise = 'Promise';
 P.TYPE_LABEL.decision = 'Decision';
 function reg(id, type, obj, name) { ENT[id] = { id: id, type: type, obj: obj, name: name }; }
+P.TYPE_LABEL.person = 'Person';
+reg(NS.person.id, 'person', NS.person, NS.person.name + ' (fictional)');
 NS.promises.forEach(function (p) { reg(p.id, 'promise', p, p.text); });
 NS.decisions.forEach(function (d) { reg(d.id, 'decision', d, d.id + ' · ' + d.question); });
 function edge(a, b, rel) { if (ENT[a] && ENT[b] && a !== b) P.EDGES.push({ a: a, b: b, rel: rel, x: null }); }
@@ -260,6 +262,7 @@ P.chain = function (id) {
   else if (t === 'product') { add('product', id); NS.datasets.forEach(function (d) { if (d.product === id) add('data', d.id); }); }
   else if (t === 'flow') { add('flow', id); add('system', o.from); add('recipient', o.to); add('control', o.control); NS.datasets.forEach(function (d) { if (d.system === o.from) add('data', d.id); }); }
   else if (t === 'vendor' || t === 'subprocessor' || t === 'model') { add('recipient', id); P.flowsTo(id).forEach(function (f) { add('flow', f.id); add('system', f.from); NS.datasets.forEach(function (d) { if (d.system === f.from) add('data', d.id); }); }); if (t === 'model') o.training.forEach(function (d) { add('data', d); }); }
+  else if (t === 'person') { o.identifiers.forEach(function (i) { add('identity', i); NS.datasets.forEach(function (d) { if (P.dsIds(d).indexOf(i) >= 0) add('data', d.id); }); }); }
   else if (t === 'identifier') { add('identity', id); NS.datasets.forEach(function (d) { if (P.dsIds(d).indexOf(id) >= 0) add('data', d.id); }); }
   else if (t === 'control') { add('control', id); NS.findings.forEach(function (f) { if (f.entities.indexOf(id) >= 0) seedFindings.push(f.id); }); }
   else if (t === 'purpose') { add('purpose', id); NS.datasets.forEach(function (d) { if (d.purposes.indexOf(id) >= 0) add('data', d.id); }); }
