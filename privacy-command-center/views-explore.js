@@ -355,60 +355,6 @@ function drawGraph(el, focus, depth, dir) {
   if (focus) svg.addEventListener('click', function (ev) { var g = ev.target.closest('.node'); if (!g) return; var id = g.getAttribute('data-ent'); if (id !== focus) setTimeout(function () { P._keepScroll = true; P.go('explore/graph?focus=' + id + '&depth=' + depth + '&dir=' + dir); setTimeout(function () { P.open(id, { noFocus: true }); }, 30); }, 0); });
 }
 
-/* ════════════ ONE PERSON — WHAT COULD WE KNOW? ════════════ */
-P.personLevers = P.personLevers || {};
-var FACT_COL = ['#9aa1ac', '#6b7a93', '#1f6ac0', '#bd5f14', '#c42d49'];
-V['explore/person'] = { title: 'One Person', render: function () {
-  var ps = NS.persona;
-  return P.pageHead('Explore · the killer question', 'What could Northstar know about one person?', 'The graph traverses every permitted join, identifier, inference, vendor and model from two starting identifiers — an email address and a device ID — and shows what could theoretically be combined. Then pull the architectural levers and watch the dossier shrink.') +
-    '<div class="callout" style="margin-bottom:14px"><b>' + esc(ps.name) + '.</b> ' + esc(ps.blurb) + ' <span class="dim">Starting identifiers: ' + ps.starts.map(P.name).join(', ') + '.</span></div>' +
-    '<div class="person"><div><div class="card" style="margin-bottom:14px"><div class="card-h"><h2 class="sec">Portrait assembled by joins</h2><div class="btn-row"><button class="btn primary" id="pTrav">▶ Traverse the graph</button></div></div><div class="canvas" id="pSvg" style="background:var(--bg2)" tabindex="0" role="region" aria-label="Portrait assembled by joins; scrolls sideways on small screens"></div><div class="legend" style="margin-top:8px" aria-label="Fact colour key">' + FACT_COL.map(function (c, i) { return '<span><i style="background:' + c + '"></i>' + TIERS[i][0] + ' ' + esc(TIERS[i][1].toLowerCase()) + '</span>'; }).join('') + '<span><i style="background:transparent;border:1.5px dashed #6346c9"></i>unknowable to Northstar</span><span class="dim">Tab to a fact; Enter opens its dataset.</span></div></div>' +
-    '<div class="card"><div class="card-h"><h2 class="sec">The dossier</h2><span class="sub" id="pCount"></span></div><ul class="dossier" id="pList"></ul></div></div>' +
-    '<div><div class="card" style="margin-bottom:14px"><h2 class="sec" style="margin-bottom:10px">Architecture levers</h2><div style="display:grid;gap:8px" id="pLev">' + ps.levers.map(function (l) { return '<label class="lever' + (P.personLevers[l.id] ? ' on' : '') + '"><input type="checkbox" data-lever="' + l.id + '"' + (P.personLevers[l.id] ? ' checked' : '') + '><span><b>' + esc(l.label) + '</b><br><span class="small muted">' + esc(l.note) + '</span></span></label>'; }).join('') + '</div></div>' +
-    '<div class="card"><h2 class="sec" style="margin-bottom:10px">Who else can learn it</h2><ul class="checks">' + ps.outside.map(function (o) { return '<li><span class="ic bad">→</span><span><button class="chip" data-ent="' + o.via + '">' + esc(o.who) + '</button><br><span class="small muted">' + esc(o.what) + '</span></span></li>'; }).join('') + '</ul></div></div></div>';
-}, mount: function (root) {
-  var ps = NS.persona, list = root.querySelector('#pList'), svgEl = root.querySelector('#pSvg');
-  function blocked(f) { return f.blockedBy.some(function (b) { return P.personLevers[b]; }); }
-  function draw(reveal) {
-    var shown = reveal == null ? ps.facts.length : reveal;
-    list.innerHTML = ps.facts.map(function (f, i) {
-      var g = blocked(f), cls = f.kind === 'UNKNOWABLE' ? 'unkn' : g ? 'gone' : '';
-      return '<li class="' + cls + '" style="' + (i >= shown ? 'opacity:0;transform:translateY(4px)' : '') + '"><span>' + P.kind(f.kind === 'UNKNOWABLE' ? 'UNKNOWABLE' : f.kind) + '</span><div><div>' + esc(f.a) + ' ' + P.tier(f.tier) + (f.origin ? ' <span class="small muted">' + esc(f.origin) + '</span>' : '') + '</div><div class="path">' + (f.path.length ? f.path.map(P.name).join(' → ') + ' → ' : '') + '<button class="chip" data-ent="' + f.ds + '" style="font-size:10.5px;padding:0 6px">' + esc(P.name(f.ds)) + '</button>' + (f.note ? ' · ' + esc(f.note) : '') + (g ? ' · <span class="ok">removed by ' + f.blockedBy.filter(function (b) { return P.personLevers[b]; }).map(function (b) { return ps.levers.filter(function (l) { return l.id === b; })[0].label.toLowerCase(); }).join(', ') + '</span>' : '') + '</div></div></li>';
-    }).join('');
-    var live = ps.facts.filter(function (f) { return f.kind !== 'UNKNOWABLE' && !blocked(f); });
-    root.querySelector('#pCount').innerHTML = '<b style="color:var(--text)">' + live.length + '</b> things known · ' + live.filter(function (f) { return f.kind === 'INFERENCE'; }).length + ' inferred · <span class="bad">' + live.filter(function (f) { return f.tier === 4; }).length + ' special-category</span>';
-    portrait(svgEl, shown);
-  }
-  function portrait(el, shown) {
-    var W = 680, H = 470, cx = W / 2, cy = H / 2 - 6, ids = P.uniq([].concat.apply(ps.starts.slice(), ps.facts.map(function (f) { return f.path; })));
-    var PX = 44, s = '<svg viewBox="' + (-PX) + ' 0 ' + (W + 2 * PX) + ' ' + H + '" width="100%" style="max-width:' + (W + 2 * PX) + 'px;min-width:600px;display:block;margin:auto" role="group" aria-label="Identifiers and facts joined around one person">';
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="175" fill="none" stroke="#e7e1d5" stroke-dasharray="2 5"/><circle cx="' + cx + '" cy="' + cy + '" r="100" fill="none" stroke="#e7e1d5" stroke-dasharray="2 5"/>';
-    var ip = {}; ids.forEach(function (id, i) { var a = -Math.PI / 2 + i * 2 * Math.PI / ids.length; ip[id] = { x: cx + 100 * Math.cos(a), y: cy + 100 * Math.sin(a) }; });
-    ps.facts.forEach(function (f, i) {
-      var a = -Math.PI / 2 + (i + 0.5) * 2 * Math.PI / ps.facts.length, x = cx + 175 * Math.cos(a) * 1.3, y = cy + 175 * Math.sin(a);
-      var vis = i < shown, g = blocked(f), unkn = f.kind === 'UNKNOWABLE';
-      var col = unkn ? '#6346c9' : FACT_COL[f.tier];
-      var from = f.path.length ? ip[f.path[f.path.length - 1]] : { x: cx, y: cy };
-      if (vis && !unkn) s += '<line x1="' + from.x.toFixed(1) + '" y1="' + from.y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="' + col + '" stroke-opacity="' + (g ? 0.08 : 0.5) + '"' + (f.kind === 'INFERENCE' ? ' stroke-dasharray="3 3"' : '') + '/>';
-      var rr = 4 + f.tier * 1.4, ca = Math.cos(a), anc = ca > 0.15 ? 'start' : ca < -0.15 ? 'end' : 'middle';
-      var lx = anc === 'start' ? x + rr + 4 : anc === 'end' ? x - rr - 4 : x, ly = anc === 'middle' ? (Math.sin(a) < 0 ? y - rr - 5 : y + rr + 12) : y + 3.5;
-      var short = f.a.length > 20 ? f.a.slice(0, 19).replace(/[\s,(-]+$/, '') + '…' : f.a;
-      var desc = 'Fact ' + (i + 1) + ': ' + f.a + ' — ' + (unkn ? 'unknowable to Northstar' : f.kind.toLowerCase() + ', tier T' + f.tier + ', from ' + P.name(f.ds)) + (g ? ' — removed by a lever' : '');
-      s += '<g class="node" opacity="' + (vis ? (g ? 0.3 : 1) : 0) + '" style="transition:opacity .4s"' + (vis ? ' data-ent="' + f.ds + '" tabindex="0" role="button" aria-label="' + esc(desc) + '"' : ' aria-hidden="true"') + '><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + rr.toFixed(1) + '" fill="' + col + '"' + (unkn ? ' fill-opacity="0" stroke="#6346c9" stroke-dasharray="2 2"' : '') + '/><text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" fill="#3a4250" font-size="9.5" text-anchor="' + anc + '"' + (g ? ' text-decoration="line-through"' : '') + '>' + esc(short) + '</text><title>' + esc(desc) + '</title></g>';
-    });
-    ids.forEach(function (id) { var p = ip[id]; s += '<line x1="' + cx + '" y1="' + cy + '" x2="' + p.x.toFixed(1) + '" y2="' + p.y.toFixed(1) + '" stroke="#6346c9" stroke-opacity=".35"/><g class="node" data-ent="' + id + '" tabindex="0" role="button" aria-label="' + esc(P.name(id)) + '"><circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="13" fill="#f6f3ec" stroke="#6346c9"/><text x="' + p.x.toFixed(1) + '" y="' + (p.y + 25).toFixed(1) + '" fill="#6346c9" font-size="9.5" text-anchor="middle">' + esc(P.name(id).replace(/ \(.*\)/, '')) + '</text></g>'; });
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="26" fill="#e9f0fa" stroke="#1d2430"/><text x="' + cx + '" y="' + (cy + 5) + '" fill="#1d2430" font-size="13" font-weight="700" text-anchor="middle">' + esc(ps.name) + '</text>';
-    el.innerHTML = s + '<text x="10" y="' + (H - 10) + '" fill="#6b6457" font-size="10">inner ring: identifiers · outer ring: facts & inferences (colour = tier; dashed = inference) · hypothetical person</text></svg>';
-  }
-  root.querySelectorAll('[data-lever]').forEach(function (cb) { cb.addEventListener('change', function () { P.personLevers[cb.getAttribute('data-lever')] = cb.checked; cb.closest('.lever').classList.toggle('on', cb.checked); draw(); }); });
-  root.querySelector('#pTrav').addEventListener('click', function () {
-    var i = 0; draw(0); var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) { draw(); return; }
-    var t = setInterval(function () { if (!list.isConnected) { clearInterval(t); return; } i++; draw(i); if (i >= ps.facts.length) clearInterval(t); }, 260);
-  });
-  draw();
-} };
-
 /* ════════════ IDENTITY & LINKABILITY ════════════ */
 var CLS = ['GLOBAL DURABLE', 'CROSS-APP', 'PER-VENDOR', 'PURPOSE-SCOPED', 'ROTATING', 'EPHEMERAL', 'NONE'];
 var CLS_COL = { 'GLOBAL DURABLE': '#c42d49', 'CROSS-APP': '#c0470f', 'PER-VENDOR': '#946300', 'PURPOSE-SCOPED': '#0b7d60', 'ROTATING': '#1f6ac0', 'EPHEMERAL': '#4f78a8', 'NONE': '#6b6457' };

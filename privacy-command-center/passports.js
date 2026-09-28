@@ -271,7 +271,7 @@ P.riskWhy = function (r) {
     var v = r.f[f.k], w = v / 5 * 100, as = f.kind === 'assurance';
     return '<div class="br"><span>' + esc(f.label) + (as ? ' <span class="dim small">(assurance)</span>' : '') + '</span><span class="track"><span class="fill" style="width:' + w + '%;background:' + (as ? 'var(--ctl)' : 'var(--exp)') + '"></span></span><span class="mono small" style="text-align:right">' + v + ' / 5</span></div>';
   }).join('');
-  return '<div class="card flat" style="margin:12px 0"><div class="card-h"><h3 style="margin:0">' + P.sev(c.rating) + ' ' + esc(r.name) + '</h3><span class="mono small dim">residual ' + c.residual + '</span></div>' +
+  return '<div class="card flat" style="margin:12px 0"><div class="card-h"><h3 style="margin:0">' + P.sev(c.rating) + ' ' + esc(r.name) + '</h3></div>' + (P.explainRisk ? P.riskHTML(P.explainRisk(r, (P.promisesFor ? P.promisesFor(r.id)[0] : null)), { brief: true }) : '') +
     '<div class="g2 grid"><div><div class="small dim" style="margin-bottom:4px">WHY</div><ul class="checks">' + r.why.map(function (w) { return '<li><span class="ic bad">+</span><span>' + esc(w) + '</span></li>'; }).join('') + '</ul></div>' +
     '<div><div class="small dim" style="margin-bottom:4px">MITIGATING CONTROLS</div><ul class="checks">' + r.mitigating.map(function (m) { return P.check(m[1], esc(m[0])); }).join('') + '</ul></div></div>' +
     '<div class="bars" style="margin-top:12px">' + rows + '</div>' +

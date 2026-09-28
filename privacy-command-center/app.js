@@ -254,18 +254,22 @@ P.pageHead = function (eyebrow, title, lede, right) { return '<div class="page-h
 /* ── navigation ──────────────────────────────────────────── */
 P.NAV = [
   ['', [['overview', 'Command Center']]],
-  ['Explore', [['explore/org', 'Organization'], ['explore/products', 'Products & Features'], ['explore/systems', 'Systems'], ['explore/data', 'Data'], ['explore/graph', 'Knowledge Graph'], ['explore/person', 'One Person'], ['explore/identities', 'Identities'], ['explore/flows', 'Data Flows'], ['explore/vendors', 'Vendor Egress'], ['explore/geo', 'Geography']]],
-  ['Privacy', [['privacy/risks', 'Risk Radar'], ['privacy/worstday', 'Worst Day'], ['privacy/reviews', 'Reviews'], ['privacy/consent', 'Consent'], ['privacy/purpose', 'Purpose'], ['privacy/retention', 'Retention'], ['privacy/deletion', 'Forget Me'], ['privacy/rights', 'User Rights'], ['privacy/tracking', 'Tracking'], ['privacy/ai', 'AI / ML'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat Models']]],
-  ['Assurance', [['assurance/controls', 'Enforcement Ladder'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & Insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'], ['assurance/evidence', 'Evidence']]],
-  ['Governance', [['governance/regulations', 'Policies & Regulations'], ['governance/vendors', 'Vendor Register'], ['governance/maturity', 'Maturity']]],
-  ['Report', [['report/executive', 'Executive'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / Legal']]]
+  ['Decide', [['promises', 'Promises'], ['decisions', 'Decision memos'], ['privacy/reviews', 'Privacy reviews'], ['privacy/risks', 'Risk radar'], ['privacy/worstday', 'Worst Day']]],
+  ['Investigate', [['chain', 'Chain explorer'], ['explore/person', 'One Person'], ['explore/graph', 'Knowledge graph'], ['explore/identities', 'Identities'], ['explore/flows', 'Lineage & flows'],
+    ['explore/vendors', 'Vendors & egress'], ['explore/geo', 'Geography'], ['explore/org', 'Organization'], ['explore/products', 'Products & features'], ['explore/systems', 'Systems'], ['explore/data', 'Data']]],
+  ['Operate', [['observability', 'Observability'], ['privacy/consent', 'Consent'], ['privacy/deletion', 'Deletion'], ['privacy/retention', 'Retention'], ['privacy/rights', 'Individual rights'],
+    ['privacy/purpose', 'Purpose'], ['privacy/ai', 'AI & agents'], ['privacy/tracking', 'Tracking'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat models']]],
+  ['Prove', [['assurance/controls', 'Controls & evidence'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'],
+    ['governance/regulations', 'Policies & regulations'], ['governance/vendors', 'Vendor register'], ['governance/maturity', 'Maturity']]],
+  ['Report', [['report/executive', 'Executive memo'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / legal'], ['report/investigation', 'Investigation report']]]
 ];
-var NAV_COUNT = { 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
+var NAV_COUNT = { 'promises': ['promises', 'hot'], 'decisions': ['owed', 'hot'], 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
 function renderNav() {
   var h = P.forYouNav ? P.forYouNav() : '';
   P.NAV.forEach(function (g) {
     if (g[0]) h += '<h2>' + esc(g[0]) + '</h2>';
     g[1].forEach(function (it) {
+      if (!P.views[it[0]] && !P.views[it[0].split('/')[0]]) return; /* a module not built yet never shows a dead link */
       var c = NAV_COUNT[it[0]], n = c ? P.metric(c[0]).items().length : null;
       h += '<a href="#/' + it[0] + '" data-route="' + it[0] + '">' + esc(it[1]) + (n ? '<span class="ct ' + c[1] + '">' + n + '</span>' : '') + '</a>';
     });
@@ -286,7 +290,7 @@ P.ESSAY = {
   'governance/vendors': ['vendors', 'A vendor is an arrow you can’t see the end of'], 'privacy/ai': ['ai', 'AI, ML and agents'],
   'assurance/access': ['signin', 'Signing in'], 'privacy/worstday': ['worst', 'Decide the worst case before launch'],
   'privacy/pets': ['pets', 'PETs are answers; start with the threat'], 'assurance/drift': ['change', 'The review was right on the day it was signed'],
-  'assurance/evidence': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response']
+  'observability': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response']
 };
 function essayLink(key) {
   var e = P.ESSAY[key]; if (!e) return '';
@@ -305,10 +309,19 @@ function parseHash() {
 function render() {
   var r = parseHash(); P.route = r;
   var segs = r.path.split('/'), key = segs.slice(0, 2).join('/');
-  var view = P.views[key] || P.views[segs[0]] || P.views.overview;
+  var view = P.views[key], args = segs.slice(2);
+  /* `section/:id` routes (promises/PR-LOC, decisions/D-101) receive the id as args[1]. */
+  if (!view && segs[1] && P.views[segs[0] + '/:id']) { view = P.views[segs[0] + '/:id']; args = segs; key = segs[0]; }
+  view = view || P.views[segs[0]] || P.views.overview;
   var main = document.getElementById('view');
-  main.innerHTML = view.render(segs.slice(2), r.q) + essayLink(key);
-  if (view.mount) view.mount(main, segs.slice(2), r.q);
+  /* Error state: a view that cannot render says so, names the route, and offers a way back. */
+  try { main.innerHTML = view.render(args, r.q) + essayLink(key); if (view.mount) view.mount(main, args, r.q); }
+  catch (err) {
+    main.innerHTML = '<section class="err-state" role="alert"><p class="eyebrow">Something went wrong</p><h1>This view could not be drawn</h1>' +
+      '<p>The page <code>#/' + esc(r.path) + '</code> hit an error while reading the synthetic records: <code>' + esc(err && err.message || err) + '</code>. Nothing was changed.</p>' +
+      '<p><a class="btn" href="#/overview">Back to the Command Center</a></p></section>';
+    if (window.console) console.error(err);
+  }
   main.querySelectorAll('.tbl-wrap,.canvas,.memo table,.heat').forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1 && !el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', el.getAttribute('role') || 'region'); if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Scrollable content'); } });
   document.querySelectorAll('.side a').forEach(function (a) { var on = a.getAttribute('data-route') === key || (key === 'overview' && a.getAttribute('data-route') === 'overview'); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   var title = (view.title || 'Command Center');
@@ -326,7 +339,7 @@ P.open = function (id, opts) {
   if (!opts.fromStack && P.state.drawerStack[P.state.drawerStack.length - 1] !== id) { P.state.drawerStack.push(id); if (P.state.drawerStack.length > 8) P.state.drawerStack.shift(); }
   pushTrail(id);
   var fn = P.passports[e.type] || P.passports.generic;
-  drawerBody.innerHTML = fn(e.obj, e) + connected(id);
+  drawerBody.innerHTML = fn(e.obj, e) + (P.chainHTML ? '<section class="pp-sec"><h3>From promise to owner</h3>' + P.chainHTML(id) + '</section>' : '') + connected(id);
   drawerBody.scrollTop = 0;
   var st = P.state.drawerStack;
   drawerCrumb.innerHTML = st.slice(-4).map(function (x, i, a) { var last = i === a.length - 1; return last ? '<span>' + esc(TYPE_LABEL[ENT[x].type]) + '</span>' : '<button data-stack="' + (st.length - a.length + i) + '">' + esc(shortName(x)) + '</button><span class="sep">›</span>'; }).join('');
@@ -371,13 +384,37 @@ function pushTrail(id) {
   var t = P.state.trail; if (t[t.length - 1] === id) return;
   t.push(id); if (t.length > 14) t.shift(); renderTrail();
 }
+/* The trail is also a document: its ids travel in a link (?t=id1,id2,…) that
+ * reopens it as an investigation report or as a draft decision memo. */
+P.trailHash = function (route, ids) { return '#/' + route + '?t=' + (ids || P.state.trail).map(encodeURIComponent).join(','); };
+P.setTrail = function (ids) { P.state.trail = uniq(ids.filter(function (id) { return ENT[id]; })).slice(-14); renderTrail(); };
+P.renderTrail = function () { renderTrail(); };
 function renderTrail() {
   var t = P.state.trail, el = document.getElementById('trail');
-  el.innerHTML = '<span class="tl">TRAIL</span>' + (t.length ? t.map(function (id, i) { return (i ? '<span class="sep">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '<button class="chip" data-act="clearTrail" style="margin-left:6px">clear</button>'
-    : '<span class="empty">Your investigation path appears here. Every click is recorded, so you can explain how you got to a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>');
-  if (t.length) el.scrollLeft = el.scrollWidth; /* keep the newest step in view; leave the help text at its start */
+  el.setAttribute('role', 'region');
+  if (!t.length) {
+    el.innerHTML = '<span class="tl">TRAIL</span><span class="empty">Your investigation path appears here. Every record you open is recorded, so you can explain — and print — how you reached a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>';
+    return;
+  }
+  el.innerHTML = '<span class="tl" aria-hidden="true">TRAIL</span>' +
+    '<div class="trail-steps" id="trailSteps" role="region" tabindex="0" aria-label="Investigation steps, oldest first (' + t.length + ')">' + t.map(function (id, i) { return (i ? '<span class="sep" aria-hidden="true">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '</div>' +
+    '<div class="trail-acts"><a class="chip trail-act" href="' + esc(P.trailHash('report/investigation')) + '" title="Open this trail as an auditable investigation report">Report</a>' +
+      '<a class="chip trail-act" href="' + esc(P.trailHash('decisions/new')) + '" title="Turn this trail into a draft decision memo">Draft memo</a>' +
+      '<button class="chip trail-act" data-act="shareTrail" title="Copy a link that reproduces this trail">Copy link</button>' +
+      '<button class="chip trail-act" data-act="clearTrail">Clear</button><span class="sr-only" role="status" id="trailMsg"></span></div>';
+  var s = document.getElementById('trailSteps'); s.scrollLeft = s.scrollWidth; /* keep the newest step in view */
 }
 P.acts.clearTrail = function () { P.state.trail = []; renderTrail(); };
+P.acts.shareTrail = function (btn) {
+  var url = location.href.split('#')[0] + P.trailHash('report/investigation');
+  var done = function () { var m = document.getElementById('trailMsg'); if (m) m.textContent = 'Link copied. It reopens this trail as an investigation report.'; btn.textContent = 'Copied ✓'; setTimeout(function () { if (btn.isConnected) btn.textContent = 'Copy link'; }, 2400); };
+  var show = function () {
+    P.openHTML('Share this investigation', '<p class="pp-type">Share</p><h2 class="pp-title">A link to this investigation</h2><p class="small muted">Anyone who opens it sees the same ' + P.state.trail.length + ' steps as an investigation report. Nothing is stored; the trail travels in the link.</p>' +
+      '<label class="small" for="trailLink">Link</label><input id="trailLink" class="trail-link" readonly value="' + esc(url) + '">', 'Share');
+    var i = document.getElementById('trailLink'); if (i) { i.focus(); i.select(); }
+  };
+  try { if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(done, show); else show(); } catch (e) { show(); }
+};
 
 /* ── side nav (mobile) ───────────────────────────────────── */
 function closeSide() { var s = document.getElementById('side'); s.classList.remove('open'); document.getElementById('scrim').hidden = true; document.getElementById('menuBtn').setAttribute('aria-expanded', 'false'); }

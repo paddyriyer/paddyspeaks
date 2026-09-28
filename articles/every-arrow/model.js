@@ -122,7 +122,7 @@
       { id: 'purpose', t: 'Purpose-mismatched reads allowed', v: String(mism.length), unit: 'caught after the fact', target: '0 — denied at read, not found later', status: mism.length ? 'breach' : 'ok',
         rule: 'Access events flagged “purpose mismatch” by the audit scan (a runtime purpose check would have denied them).', detail: mism.map(function (a) { return a.who + ' → ' + a.what; }).join('; '), route: 'privacy/purpose' },
       { id: 'evidence', t: 'Evidence freshness', v: (NS.datasets.length - stale.length) + ' / ' + NS.datasets.length, unit: 'datasets audited in the last year', target: 'All personal datasets audited within 365 days', status: stale.length ? 'breach' : 'ok',
-        rule: 'Datasets with a last audit on record within 365 days of ' + today + '.', detail: stale.length + ' with no audit, or an audit older than a year.', route: 'assurance/evidence' },
+        rule: 'Datasets with a last audit on record within 365 days of ' + today + '.', detail: stale.length + ' with no audit, or an audit older than a year.', route: 'assurance/controls' },
       { id: 'vendor', t: 'Vendor acknowledgements', v: att.length + ' / ' + vend.length, unit: 'vendors attested this year', target: 'Every vendor attests deletion and retention yearly', status: att.length === vend.length ? 'ok' : 'breach',
         rule: 'Vendors (infrastructure excluded) with a deletion/retention attestation within 365 days.', detail: vend.length - att.length + ' without a current attestation.', route: 'governance/vendors' },
       { id: 'controls', t: 'Control health', v: ch.working + ' / ' + NS.controls.length, unit: 'controls working', target: 'Failing and unknown controls each have an owner and a date', status: ch.failing || ch.unknown ? 'breach' : 'ok',

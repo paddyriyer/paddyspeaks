@@ -72,23 +72,23 @@ Owner · Reviewer · Approver · Expiry (a date or a trigger) · Evidence (what 
 
 - One person, no name → [One Person](https://paddyspeaks.com/privacy-command-center/#/explore/person) — Every fact and inference about Dana, with its join path
 - Two harmless tables → [Identities](https://paddyspeaks.com/privacy-command-center/#/explore/identities) — Identifiers, their scope, and the joins between them
-- Eight questions → [Reviews](https://paddyspeaks.com/privacy-command-center/#/privacy/reviews) — The eight answers per feature, and launch blockers
-- Every arrow → [Data Flows](https://paddyspeaks.com/privacy-command-center/#/explore/flows) — Every flow as a privacy object, including unreviewed ones
+- Eight questions → [Privacy reviews](https://paddyspeaks.com/privacy-command-center/#/privacy/reviews) — The eight answers per feature, and launch blockers
+- Every arrow → [Lineage & flows](https://paddyspeaks.com/privacy-command-center/#/explore/flows) — Every flow as a privacy object, including unreviewed ones
 - Purpose at use → [Purpose](https://paddyspeaks.com/privacy-command-center/#/privacy/purpose) — Purpose findings and mismatched reads
-- Harm, not just breach → [Threat Models](https://paddyspeaks.com/privacy-command-center/#/privacy/threats) — LINDDUN across the riskiest flows
+- Harm, not just breach → [Threat models](https://paddyspeaks.com/privacy-command-center/#/privacy/threats) — LINDDUN across the riskiest flows
 - The burn button → [Tracking](https://paddyspeaks.com/privacy-command-center/#/privacy/tracking) — SDKs and pixels, and whether they ask
-- The enforcement ladder → [Enforcement Ladder](https://paddyspeaks.com/privacy-command-center/#/assurance/controls) — Each control’s rung and health
+- The enforcement ladder → [Controls & evidence](https://paddyspeaks.com/privacy-command-center/#/assurance/controls) — Each control’s rung and health
 - Consent is state → [Consent](https://paddyspeaks.com/privacy-command-center/#/privacy/consent) — Propagation latency per consumer
-- Rights as workflows → [User Rights](https://paddyspeaks.com/privacy-command-center/#/privacy/rights) — Requests, deadlines and slow systems
+- Rights as workflows → [Individual rights](https://paddyspeaks.com/privacy-command-center/#/privacy/rights) — Requests, deadlines and slow systems
 - Retention → [Retention](https://paddyspeaks.com/privacy-command-center/#/privacy/retention) — Declared versus observed age per dataset
-- Forget me → [Forget Me](https://paddyspeaks.com/privacy-command-center/#/privacy/deletion) — Deletion verification across every system
-- Vendors → [Vendor Register](https://paddyspeaks.com/privacy-command-center/#/governance/vendors) — Vendors, subprocessors, transfers and attestations
-- AI, ML and agents → [AI / ML](https://paddyspeaks.com/privacy-command-center/#/privacy/ai) — The model and agent inventory
-- Signing in → [Access & Insider](https://paddyspeaks.com/privacy-command-center/#/assurance/access) — Unusual access and break-glass use
+- Forget me → [Deletion](https://paddyspeaks.com/privacy-command-center/#/privacy/deletion) — Deletion verification across every system
+- Vendors → [Vendor register](https://paddyspeaks.com/privacy-command-center/#/governance/vendors) — Vendors, subprocessors, transfers and attestations
+- AI, ML and agents → [AI & agents](https://paddyspeaks.com/privacy-command-center/#/privacy/ai) — The model and agent inventory
+- Signing in → [Access & insider](https://paddyspeaks.com/privacy-command-center/#/assurance/access) — Unusual access and break-glass use
 - Your worst day → [Worst Day](https://paddyspeaks.com/privacy-command-center/#/privacy/worstday) — Blast-radius simulation per dataset
 - PETs and budgets → [PETs & DP](https://paddyspeaks.com/privacy-command-center/#/privacy/pets) — Control alternatives and the ε ledger
 - Change breaks reviews → [Drift](https://paddyspeaks.com/privacy-command-center/#/assurance/drift) — Privacy-impacting changes and the reviews they reopen
-- Privacy observability → [Evidence](https://paddyspeaks.com/privacy-command-center/#/assurance/evidence) — Control health and evidence freshness
+- Privacy observability → [Observability](https://paddyspeaks.com/privacy-command-center/#/observability) — Privacy SLOs, control health and evidence freshness
 - Incident response → [Incidents](https://paddyspeaks.com/privacy-command-center/#/assurance/incidents) — Incidents, broken assumptions and guards
 
 Northstar and Dana are fictional; Northstar's data is synthetic. Nothing here is legal advice.

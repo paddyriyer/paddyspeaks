@@ -106,16 +106,20 @@ for (const t of pcc.assumptionTests) if (t.essay) ok(new RegExp(`id="${t.essay}"
 
 /* ── 5 · the Command Center, in both directions ─────────────────── */
 const app = read('privacy-command-center/app.js');
-const navRoutes = new Set([...app.matchAll(/\['([a-z]+\/[a-z]+)', '/g)].map((m) => m[1]));
+const navBlock = app.slice(app.indexOf('P.NAV = ['), app.indexOf('];', app.indexOf('P.NAV = [')));
+const navRoutes = new Set([...navBlock.matchAll(/\['([a-z]+(?:\/[a-z]+)?)', '/g)].map((m) => m[1]));
+const navLabel = Object.fromEntries([...navBlock.matchAll(/\['([a-z]+(?:\/[a-z]+)?)', '([^']+)'\]/g)].map((m) => [m[1], m[2]]));
 const essayBlock = app.slice(app.indexOf('P.ESSAY = {'), app.indexOf('};', app.indexOf('P.ESSAY = {')));
-const essayMap = Object.fromEntries([...essayBlock.matchAll(/'([a-z]+\/[a-z]+)': \['([\w-]+)', /g)].map((m) => [m[1], m[2]]));
+const essayMap = Object.fromEntries([...essayBlock.matchAll(/'([a-z]+(?:\/[a-z]+)?)': \['([\w-]+)', /g)].map((m) => [m[1], m[2]]));
 for (const [anchor, , route] of D.pccMap) {
   ok(navRoutes.has(route), `pccMap: route ${route} is not a Command Center page`);
+  ok(navLabel[route] === D.pccMap.find((m) => m[2] === route)[3], `pccMap: ${route} is called “${navLabel[route]}” in the Command Center, not “${D.pccMap.find((m) => m[2] === route)[3]}”`);
   ok(essayMap[route] === anchor, `Command Center page ${route} must link back to #${anchor} (P.ESSAY)`);
   ok(new RegExp(`id="${anchor}"`).test(html), `pccMap: #${anchor} is not in the essay`);
 }
 for (const [route, anchor] of Object.entries(essayMap)) ok(D.pccMap.some((m) => m[2] === route && m[0] === anchor), `P.ESSAY has ${route} → #${anchor}, which data.js pccMap lacks`);
-for (const m of html.matchAll(/href="\/privacy-command-center\/#\/([a-z]+\/[a-z]+)"/g)) ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`);
+for (const m of html.matchAll(/href="\/privacy-command-center\/#\/([a-z]+(?:\/[a-z]+)?)">In the Command Center: <b>([^<]+)<\/b>/g)) { ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`); ok(navLabel[m[1]] === m[2].replace(/&amp;/g, '&'), `essay calls ${m[1]} “${m[2]}”; the Command Center calls it “${navLabel[m[1]]}”`); }
+for (const m of html.matchAll(/href="\/privacy-command-center\/#\/([a-z]+(?:\/[a-z]+)?)"/g)) ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`);
 ok(pcc.persona.name === 'Dana', 'the Command Center’s One Person should be Dana, the essay’s person');
 
 /* ── 6 · one vocabulary: Northstar names the essay uses exist in the dataset ── */

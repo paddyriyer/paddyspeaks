@@ -4,25 +4,6 @@
 var P = window.PCC, NS = window.NS, esc = P.esc, chip = P.chip, fmtN = P.fmtN, unk = P.unk;
 var V = P.views;
 
-/* ════════════ ENFORCEMENT LADDER ════════════ */
-var RUNG_DESC = ['“Don’t log PII.” Easy to write, easy to ignore.', 'A human reads the design.', 'A linter or scanner flags it.', 'The diff is blocked if a sensitive column loses its policy.', 'Enforced in production on every request (purpose checks, tokens, mTLS).', 'Daily scans: new joins, access spikes, TTL drift.'];
-V['assurance/controls'] = { title: 'Enforcement Ladder', render: function (s, q) {
-  var dom = q.d || 'all', cs = NS.controls.filter(function (c) { return dom === 'all' || c.domain === dom; });
-  var domains = P.uniq(NS.controls.map(function (c) { return c.domain; }));
-  var ladder = P.LEVELS.map(function (l, i) {
-    var here = cs.filter(function (c) { return c.level === i; });
-    return '<div class="rung" style="--stair:' + ((5 - i) * 26) + 'px;' + (i === 0 ? 'border-color:rgba(192,71,15,.45)' : i >= 4 ? 'border-color:rgba(11,125,96,.35)' : '') + '"><div class="rn">L' + i + '</div><div class="rt">' + l + '</div><div class="rd">' + RUNG_DESC[i] + '</div><div class="cnt ' + (i === 0 && here.length ? 'bad' : i >= 4 ? 'ok' : '') + '">' + here.length + '</div>' +
-      here.map(function (c) { return '<button class="ctl-chip ' + c.health + '" data-ent="' + c.id + '">' + esc(c.name) + '<small>' + esc(c.domain) + ' · ' + c.health + '</small></button>'; }).join('') + '</div>';
-  }).join('');
-  var heat = '<div class="heat" style="grid-template-columns:minmax(110px,150px) repeat(6,minmax(0,1fr))"><span></span>' + P.LEVELS.map(function (l, i) { return '<span class="hh">L' + i + '</span>'; }).join('') + domains.map(function (d) { var on = dom === d; return '<span class="hr' + (on ? ' on' : '') + '">' + esc(d) + '</span>' + P.LEVELS.map(function (l, i) { var n = NS.controls.filter(function (c) { return c.domain === d && c.level === i; }).length; return '<button class="hc' + (on ? ' on' : '') + '" aria-label="' + esc(d + ' L' + i + ': ' + n) + '" data-go="assurance/controls?d=' + encodeURIComponent(d) + '" style="background:' + (n ? (i === 0 ? 'rgba(192,71,15,.18)' : 'rgba(11,125,96,' + (0.08 + i * 0.05) + ')') : 'var(--panel)') + ';color:' + (n ? (i === 0 ? 'var(--exp)' : 'var(--ctl)') : 'var(--muted)') + ';font-weight:700">' + (n || '') + '</button>'; }).join(''); }).join('') + '</div>';
-  var n = cs.length, byL = P.LEVELS.map(function (l, i) { return cs.filter(function (c) { return c.level === i; }).length; });
-  return P.pageHead('Assurance', 'Privacy control enforcement ladder', 'Move privacy from documents into machines. Every rung up is harder to build and harder to bypass. Rule of thumb: every hard gate should trace back to a real postmortem.') +
-    '<div class="stat-row card" style="margin-bottom:14px">' + [['Only in documents', byL[0], 'bad'], ['Human-enforced', byL[1], ''], ['Static checks', byL[2], ''], ['Deployment gates', byL[3], ''], ['Runtime', byL[4], 'ok'], ['Continuously audited', byL[5], 'ok'], ['Machine-enforced', P.pct(byL[2] + byL[3] + byL[4] + byL[5], n) + '%', ''], ['Failing', cs.filter(function (c) { return c.health === 'failing'; }).length, 'bad']].map(function (x) { return '<div class="stat"><div class="sv ' + x[2] + '">' + x[1] + '</div><div class="sl">' + x[0] + '</div></div>'; }).join('') + '</div>' +
-    '<div class="toolbar"><div class="seg" role="group" aria-label="Domain" style="flex-wrap:wrap"><button data-go="assurance/controls" aria-pressed="' + (dom === 'all') + '">All</button>' + domains.map(function (d) { return '<button data-go="assurance/controls?d=' + encodeURIComponent(d) + '" aria-pressed="' + (dom === d) + '">' + esc(d) + '</button>'; }).join('') + '</div></div>' +
-    '<div class="ladder" style="margin-bottom:10px">' + ladder + '</div><div class="callout" style="margin-bottom:14px"><b>The gap: pre-deploy ≠ runtime.</b> A deployment gate proves the design was checked. Only rungs 4–5 prove what happens in production.</div>' +
-    '<div class="card"><div class="card-h"><h2 class="sec">Enforcement by domain</h2><span class="sub">where privacy still lives on paper</span></div>' + heat + '</div>';
-} };
-
 /* ════════════ AUDITS ════════════ */
 V['assurance/audits'] = { title: 'Audits', render: function () {
   var T = NS.assumptionTests;
@@ -62,13 +43,6 @@ V['assurance/drift'] = { title: 'Drift', render: function () {
     '<div class="drift-list">' + NS.drift.map(function (d) {
       return '<div class="card flat" style="margin-bottom:10px;border-left:3px solid ' + (d.sev === 'HIGH' ? 'var(--exp)' : d.sev === 'GOOD' ? 'var(--ctl)' : d.sev === 'MEDIUM' ? 'var(--med)' : 'var(--line3)') + '"><div class="card-h" style="margin-bottom:6px"><div><span class="mono small dim">' + esc(d.t.replace('T', ' ')) + ' · ' + esc(d.type.toUpperCase()) + '</span><div style="font-weight:650;font-size:14.5px;margin-top:2px">' + esc(d.text) + '</div></div>' + P.sev(d.sev) + '</div><div class="diff"><div class="m">− ' + esc(d.before) + '</div><div class="p">+ ' + esc(d.after) + '</div></div><div class="chips" style="margin-top:8px">' + d.entities.map(function (e) { return chip(e); }).join('') + '</div></div>';
     }).join('') + '</div>';
-} };
-
-/* ════════════ EVIDENCE ════════════ */
-V['assurance/evidence'] = { title: 'Evidence', render: function () {
-  return P.pageHead('Assurance', 'Evidence locker', 'What proves each control works, and what produced each finding. A control with no evidence is an assertion.') +
-    '<div class="tbl-wrap" style="margin-bottom:14px"><table class="tbl"><thead><tr><th>Control</th><th>Level</th><th>Health</th><th>Evidence</th><th>Owner</th></tr></thead><tbody>' + NS.controls.slice().sort(function (a, b) { return b.level - a.level; }).map(function (c) { return '<tr class="click" data-ent="' + c.id + '" tabindex="0"><td><b>' + esc(c.name) + '</b><div class="small dim">' + esc(c.domain) + ' · ' + esc(c.scope) + '</div></td><td>' + P.lvl(c.level) + '</td><td class="' + (c.health === 'working' ? 'ok' : c.health === 'failing' ? 'bad' : 'unknown') + '">' + c.health + '</td><td class="small">' + esc(c.evidence) + '</td><td class="small">' + esc(P.name(c.owner)) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
-    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Finding</th><th>Produced by</th><th>Opened</th></tr></thead><tbody>' + NS.findings.map(function (f) { return '<tr class="click" data-ent="' + f.id + '" tabindex="0"><td><span class="mono small">' + f.id + '</span> ' + esc(f.title) + '</td><td class="mono small">' + esc(f.detector) + '</td><td class="small">' + esc(f.opened) + '</td></tr>'; }).join('') + '</tbody></table></div>';
 } };
 
 /* ════════════ REGULATIONS ════════════ */
@@ -114,39 +88,7 @@ V['governance/maturity'] = { title: 'Maturity', render: function () {
 } };
 
 /* ════════════ REPORTS ════════════ */
-/* Numbers in memos are read from the graph (d = the risk's asset); only judgement is typed. */
-var KEPT = function (d) { return P.fmtDays(d.retention.actual) || 'an undeclared period'; };
-var MEMO = {
-  'R-01': { issue: function (d) { return 'Customer location history is kept ' + KEPT(d) + ' against a ' + P.fmtDays(d.retention.required) + ' need, readable by ' + d.accessServices + ' services, and flows into advertising audiences.'; }, like: 'Misuse already observed (ads). Breach likelihood moderate; regulatory scrutiny high (sensitive PI).', cons: 'Where people sleep and work, available to anyone who compromises one store — and already shaping ads they never agreed to.',
-    opts: [['A · Enforce a 30-day TTL and block the ads read', '−70% records; removes the secondary use', 'None visible to customers', '1 eng-week'], ['B · Store only the chosen pickup point, not coordinates', '−95%; no movement history exists', 'Loses “recent locations” shortcut', '3 eng-weeks'], ['C · Compute nearest pickup on the device', '−100% server-side location', 'Same experience; slower cold start', 'One quarter']], rec: 'A this week; B next sprint; C on the roadmap.', resid: 'Home/work inference remains possible from shipping addresses (separate, lower risk).' },
-  'R-02': { issue: function (d) { return 'An unowned identity-resolution job links health-app IDs to advertising IDs for ' + fmtN(d.people) + ' people with no declared purpose.'; }, like: 'Linkage is happening now; any analyst with warehouse access can query it.', cons: 'Health behaviour can alter an advertising profile. A logged-out “anonymous” device becomes named.',
-    opts: [['A · Freeze the job and block purpose-scoped IDs', 'Stops new cross-context joins', 'Unified customer view paused', '2 eng-days'], ['B · Assign an owner, declare purposes per edge, delete edges older than need', 'Removes most of the graph', 'Marketing match rates drop', '3 eng-weeks'], ['C · Shut it down', 'Removes the exposure', 'No unified view', '1 eng-week']], rec: 'A today; then B with a named owner, or C if no one will own it.', resid: 'Existing downstream copies in the ads warehouse must be purged separately.' },
-  'R-03': { issue: 'Fraud signals — device fingerprint and risk band — are consumed by the Marketing Audience Builder and exported to an ad partner.', like: function (d, r) { var dates = r.findings.map(function (f) { return P.get(f).obj.opened; }).concat(NS.accessEvents.filter(function (e) { return e.data === d.id; }).map(function (e) { return e.t.slice(0, 10); })).sort(); return 'Happening since at least ' + dates[0] + ' (earliest evidence); approved by a human as “analytics”.'; }, cons: 'People flagged as risky can be excluded from offers, or targeted differently, by advertisers who never see why.',
-    opts: [['A · Remove the advertising consumer', 'Ends the secondary use', 'Lookalike model loses one feature', '2 eng-days'], ['B · Fraud-scoped identifier + runtime purpose enforcement at the feature store', 'Makes the drift impossible, not just forbidden', 'None', '4 eng-weeks'], ['C · Aggregate fraud bands before any non-fraud read', 'Reduces linkability', 'Coarser marketing signal', '2 eng-weeks']], rec: 'A now, B this quarter.', resid: 'Existing exports at AdReach: request deletion with attestation.' },
-  'R-04': { issue: function (d) { return 'Assistant prompts and outputs are logged in full for ' + KEPT(d) + ', readable by ' + d.accessPeople + ' staff, and were added to a training set.'; }, like: 'Exposure is continuous; a breach of the log store is the likeliest path.', cons: 'What people confide to an assistant — symptoms, money, relationships — becomes a record and a training example.',
-    opts: [['A · 30-day TTL + redact before logging', '−90% stored prompts', 'Less debugging history', '2 eng-weeks'], ['B · Separate opt-in for training; memorisation tests', 'Restores purpose limitation', 'Smaller fine-tune set', '1 month'], ['C · Stateless serving (no prompt retention)', 'Nothing to breach', 'Harder quality evaluation', 'One quarter']], rec: 'A and B now; evaluate C.', resid: function () { var v = P.get('v_lumen').obj; return v.name + ' keeps a ' + P.fmtDays(v.retention.contract) + ' abuse window by contract.'; } },
-  'R-05': { issue: function () { var v = P.get('v_clearsight').obj; return 'Full browsing URLs with account IDs go to an analytics vendor that keeps them ' + P.fmtDays(v.retention.actual) + ' against a ' + P.fmtDays(v.retention.contract) + ' contract, and cannot delete.'; }, like: 'Continuous; vendor retention already exceeds contract.', cons: 'A browsing history — clinics, lawyers, job boards — tied to a named account, held by a third party.',
-    opts: [['A · Strip query strings, drop account ID', 'Removes identity and most sensitive detail', 'Per-user funnels lost', '1 eng-week'], ['B · Derive category on device; send daily counts', 'No URLs leave the device', 'Coarser analytics', '4 eng-weeks'], ['C · Stop the export', 'Removes the exposure', 'No extension analytics', '1 day']], rec: 'C until A ships; B next.', resid: function () { return P.fmtDays(P.get('v_clearsight').obj.retention.actual) + ' of historic URLs at the vendor with no deletion API.'; } }
-};
-V['report/executive'] = { title: 'Executive Report', render: function (s, q) {
-  var rid = q.r && MEMO[q.r] ? q.r : null;
-  if (!rid && q.f) { NS.risks.forEach(function (r) { if (!rid && r.findings.indexOf(q.f) >= 0 && MEMO[r.id]) rid = r.id; }); }
-  rid = rid || 'R-01';
-  var r = P.get(rid).obj, c = P.riskCalc(r), d = P.get(r.asset).obj, m = {};
-  Object.keys(MEMO[rid]).forEach(function (k) { var v = MEMO[rid][k]; m[k] = typeof v === 'function' ? v(d, r) : v; });
-  /* The decision is due when the most urgent finding behind it is due. */
-  var dues = r.findings.map(function (f) { return P.get(f) && P.get(f).obj.due; }).filter(Boolean).sort();
-  var memo = '<div class="memo"><div class="mh">Privacy decision memo · Northstar (synthetic) · ' + esc(NS.TODAY) + '</div><h2>' + esc(r.name) + ': decision needed</h2>' +
-    '<div class="mh">Issue</div><p style="margin:0">' + esc(m.issue) + '</p>' +
-    '<table style="margin-top:12px"><tr><th>People affected</th><th>Data</th><th>Exposure</th><th>Scale</th></tr><tr><td>' + fmtN(d.people) + ' ' + esc(d.subjects.toLowerCase()) + '</td><td>' + esc(d.fields.filter(function (f) { return f[1] >= 3; }).map(function (f) { return f[0]; }).join(', ') || d.fields.map(function (f) { return f[0]; }).slice(0, 4).join(', ')) + '</td><td>Residual risk ' + c.residual + ' (' + c.rating + ')</td><td>' + d.accessPeople + ' people, ' + d.accessServices + ' services</td></tr></table>' +
-    '<div class="mh">Likelihood</div><p style="margin:0">' + esc(m.like) + '</p><div class="mh">Customer consequence</div><p style="margin:0">' + esc(m.cons) + '</p>' +
-    '<div class="mh">Options</div><table><tr><th>Option</th><th>Privacy reduction</th><th>Product impact</th><th>Engineering cost</th></tr>' + m.opts.map(function (o) { return '<tr><td><b>' + esc(o[0]) + '</b></td><td>' + esc(o[1]) + '</td><td>' + esc(o[2]) + '</td><td>' + esc(o[3]) + '</td></tr>'; }).join('') + '</table>' +
-    '<div class="mh">Residual risk</div><p style="margin:0">' + esc(m.resid) + '</p><div class="mh">Recommendation</div><p style="margin:0"><b>' + esc(m.rec) + '</b></p>' +
-    '<div class="dec">DECISION REQUIRED by ' + (dues.length ? esc(dues[0]) : unk('no due date set')) + ' — owner: ' + (d.owner ? esc(P.name(d.owner)) : unk('UNASSIGNED')) + '</div>' +
-    '<div class="src">Evidence: ' + [r.asset].concat(r.findings).join(' · ') + ' · generated from the privacy graph; option costs are estimates from the owning team.</div></div>';
-  return P.pageHead('Report', 'Executive privacy memo', 'Executives receive trade-offs, not schema diagrams: issue, people, data, exposure, scale, likelihood, consequence, options, residual risk, recommendation, decision.') +
-    '<div class="toolbar"><div class="seg" role="group" aria-label="Risk">' + Object.keys(MEMO).map(function (k) { return '<button data-go="report/executive?r=' + k + '" aria-pressed="' + (k === rid) + '">' + esc(P.get(k).obj.name) + '</button>'; }).join('') + '</div><button class="btn" data-act="printMemo">Print</button></div>' + memo;
-} };
+/* The executive memo (report/executive) is rendered by views-decide.js from the decision records. */
 P.acts.printMemo = function () { window.print(); };
 V['report/engineering'] = { title: 'Engineering Report', render: function () {
   var byT = {}; P.openFindings().forEach(function (f) { (byT[f.owner || '__none'] = byT[f.owner || '__none'] || []).push(f); });

@@ -151,13 +151,15 @@ P.acts.pickPersona = function (el) { P.setPersona(el.getAttribute('data-id')); w
 P.acts.changePersona = function () { P.persona = null; save(''); P.renderNav(); var s = document.getElementById('personaSel'); if (s) s.value = ''; P.render(); };
 
 /* ── picker ────────────────────────────────────────────── */
+P.personaList = function () { return PERSONAS; };
+P.personaById = function (id) { return byId(id); };
 function picker() {
   return '<section class="pk"><p class="eyebrow">Northstar · synthetic demo data</p><h1 class="pk-h">Who’s looking?</h1>' +
     '<p class="lede">Every role owns one question. Pick yours and the Command Center shows the answer, the few things that need you, and where to start. Everything else stays one click away.</p>' +
     GROUPS.map(function (g) {
       return '<h2 class="pk-g">' + esc(g) + '</h2><div class="pk-grid">' + PERSONAS.filter(function (p) { return p.group === g; }).map(function (p) {
-        var n = p.team ? P.openFindings().filter(function (f) { return f.owner === P.state.team; }).length : p.items(P.state.team).length;
-        return '<button class="pk-card" data-act="pickPersona" data-id="' + p.id + '"><span class="pk-name">' + esc(p.name) + '</span><span class="pk-q">“' + esc(p.q) + '”</span><span class="pk-n">' + n + ' item' + (n === 1 ? '' : 's') + ' need' + (n === 1 ? 's' : '') + ' this role →</span></button>';
+        var top = P.priorities(p.id, P.state.team)[0], pers = P.perspectiveOf(p.id);
+        return '<button class="pk-card" data-act="pickPersona" data-id="' + p.id + '"><span class="pk-name">' + esc(p.name) + '</span><span class="pk-q">“' + esc(p.q) + '”</span><span class="pk-n">' + esc(pers.name) + ' · ' + esc(pers.verb) + (top ? ': ' + esc(top.p.id) : '') + ' →</span></button>';
       }).join('') + '</div>';
     }).join('') +
     '<p class="small dim" style="margin-top:22px"><a href="#/overview?all=1">Skip — show the full Command Center for everyone</a></p></section>';
@@ -191,13 +193,13 @@ function home(p) {
 }
 
 P.views.overview = { title: 'Command Center', render: function (s, q) {
-  if (q && q.all) return P.fullOverview.render();
+  if (q && q.all) return P.homeV2(null);
   /* #/overview?as=ciso works on any navigation, not only a fresh load. */
   if (q && q.as && byId(q.as) && (!P.persona || P.persona.id !== q.as)) { P.persona = byId(q.as); save(P.persona.id); var sel = document.getElementById('personaSel'); if (sel) sel.value = P.persona.id; P.setRole(P.persona.hat); setTimeout(P.renderNav, 0); }
-  return P.persona ? home(P.persona) : picker();
+  return P.persona ? P.homeV2(P.persona) : picker();
 }, mount: function (root, s, q) {
   var ts = root.querySelector('#teamSel'); if (ts) ts.addEventListener('change', function () { P.state.team = ts.value; P._keepScroll = true; P.render(); });
-  if ((q && q.all) || P.persona) { if (P.fullOverview.mount) P.fullOverview.mount(root); }
+  if (P.homeMount) P.homeMount(root, q);
   var d = root.querySelector('.ph-more'); if (d) d.addEventListener('toggle', function () { if (d.open && P.fullOverview.mount) P.fullOverview.mount(root); });
 } };
 })();
