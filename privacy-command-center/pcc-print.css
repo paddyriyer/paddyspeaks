@@ -1,1 +1,113 @@
-/* pcc-print.css */
+/* Print & PDF for the whole Privacy Command Center (linked with media="print").
+ *
+ *  - app chrome is hidden: top bar, side nav, trail, drawer, analyst, palette, tour, footer rows
+ *  - the page uses the full sheet width; the screen's fixed offsets and 100vh minimums are removed
+ *  - every <details> prints open (::details-content, plus views-decide.js opens them on beforeprint)
+ *  - tables, SVG charts and legends print whole; scrolling boxes become static
+ *  - no forced page breaks except before top-level report sections, and only after content
+ *  - a header (page title, generation date) and a footer line carry the synthetic-data disclaimer,
+ *    and every page's margin repeats it with the page number */
+@page{
+  size:A4;margin:16mm 14mm 18mm 14mm;
+  @bottom-left{content:"Northstar is fictional · synthetic demo data · Privacy Command Center";font:8pt 'Inter',system-ui,sans-serif;color:#6b6457}
+  @bottom-right{content:"Page " counter(page) " of " counter(pages);font:8pt 'Inter',system-ui,sans-serif;color:#6b6457}
+}
+
+/* ── chrome off ─────────────────────────────────────────────── */
+.top,.side,.scrim,.trail,.drawer,.analyst,.palette,.tour,.pcc-foot,.skip-link,.ps-skip-link,
+.ps-footer-legal,.ps-footer-min,.ps-legal,#psLegal,.menu-btn,.analyst-btn,
+.toolbar,.btn-row,.btn,.cx-open,.dm-form,.ind-d,.hm-jump,.hm-who .chip,[data-act="tour"],noscript{display:none!important}
+
+html,body{background:#fff!important;color:#1b1d22!important;overflow:visible!important;height:auto!important;font-size:10.5pt}
+body{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body::before,body::after{display:none!important;content:none!important}
+main,#view{position:static!important;margin:0!important;padding:0!important;min-height:0!important;max-width:none!important;width:auto!important;overflow:visible!important}
+*{box-shadow:none!important;text-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;animation:none!important;transition:none!important}
+.card,.pri,.memo,.dm-opt,.dm-form,.hm-hero{background:#fff!important}
+a{color:inherit;text-decoration:none}
+
+/* ── print-only header & footer line ────────────────────────── */
+.pcc-print-only{display:block!important}
+.pcc-print-head{display:flex!important;flex-wrap:wrap;justify-content:space-between;gap:2px 16px;margin:0 0 10pt;padding:0 0 6pt;border-bottom:1px solid #b9b1a0;font:600 8.5pt 'Inter',system-ui,sans-serif;color:#4f5968}
+.pcc-print-head .pph-t{color:#1b1d22;flex-basis:100%;font-size:9.5pt}
+.pcc-print-head .pph-s{color:#7a5200}
+.pcc-print-foot{margin:14pt 0 0;padding:6pt 0 0;border-top:1px solid #b9b1a0;font-size:8pt;color:#4f5968;break-inside:avoid}
+.pcc-print-foot p{margin:0}
+
+/* ── details: open, with the summary kept as a label ────────── */
+details::details-content{content-visibility:visible!important;display:block!important;height:auto!important}
+details > summary{list-style:none;font-weight:650;cursor:default}
+details > summary::-webkit-details-marker{display:none}
+details > summary::marker{content:""}
+
+/* ── layout: one column where the screen used a sidebar ─────── */
+.grid.g-main,.g-main,.ph-grid,.org-grid,.person{grid-template-columns:minmax(0,1fr)!important}
+.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.chainx ol{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.chx{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;overflow:visible!important}
+.page-head{margin-bottom:10pt}
+h1{font-size:18pt}
+h1,h2,h3,h4,h5,.dm-h,.hm-h,.card-h,summary{break-after:avoid;page-break-after:avoid}
+p,li,dd{orphans:3;widows:3}
+
+/* ── things that must not split ─────────────────────────────── */
+.card,.pri,.dm-opt,.dm-next,.dm-final,.dm-quote,.dm-kv > div,.ir-step,.rx,.chainx li,.cx,.ind,.stat,.stat-row,
+.tbl tr,.memo table,.memo .dec,figure,svg,.legend,.callout,.dr-note,.dm-banner,.ir-disc,.pri-f > div,.evl li,.why-l li{break-inside:avoid;page-break-inside:avoid}
+/* a card taller than a page must still be allowed to break, or it would leave the page blank */
+.card:has(table),.pri,.hm-sec,.ph-more-b{break-inside:auto;page-break-inside:auto}
+
+/* ── scrolling boxes become static ──────────────────────────── */
+.tbl-wrap,.canvas,.heat,.xv-scroll,.org-pane,.drawer-body,.chx,.palette-results,.memo table{overflow:visible!important;max-height:none!important;height:auto!important;border-radius:0}
+.tbl th{position:static!important}
+table{width:100%!important}
+thead{display:table-header-group}
+tfoot{display:table-footer-group}
+.tbl th,.tbl td{padding:4pt 5pt}
+.tbl td.det{min-width:0}
+/* charts and diagrams: scale to the sheet, keep their legends */
+.canvas svg,svg[viewBox]{max-width:100%!important;min-width:0!important;height:auto}
+.canvas{border:1px solid #d5cfc2}
+.legend{display:flex!important}
+.spark{width:84px;height:22px}
+
+/* chips print as quiet inline labels */
+.chip{border-color:#d5cfc2!important;background:#fff!important;color:#1b1d22!important;white-space:normal!important;max-width:none!important;overflow:visible!important}
+.cx-more{color:#4f5968}
+
+/* ── decision memo ──────────────────────────────────────────── */
+.dm,.ir,.dm-pick{max-width:none!important}
+.dm-pick{display:none!important}
+.dm-head{padding-bottom:8pt}
+.dm-title{font-size:17pt;margin-bottom:8pt}
+.dm-steps li span{background:#fff}
+.dm-steps li.now span{background:#1b1d22!important;color:#fff!important}
+.dm-sec{padding:10pt 0 8pt}
+.dm-h{font-size:12.5pt;margin-bottom:6pt}
+.dm-opts{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8pt}
+.dm-opt{padding:8pt}
+.dm-pc{grid-template-columns:minmax(0,1fr)!important}
+.dm-kv > div{grid-template-columns:150px minmax(0,1fr)}
+.dm-foot{margin-top:8pt}
+
+/* ── investigation report ───────────────────────────────────── */
+.ir-sec{padding:10pt 0 8pt}
+.ir-step{padding:7pt 0}
+.ir-url{word-break:break-all;color:#4f5968;margin:4pt 0 0}
+.ir-disc{border-color:#b9b1a0}
+
+/* ── register ───────────────────────────────────────────────── */
+.dreg td:first-child{min-width:0}
+.dreg td,.dreg th{font-size:9pt}
+
+/* ── the classic home extras and other long views ───────────── */
+.hm-hero{padding-top:0}
+.hm-sec{margin-bottom:14pt}
+.inds{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+
+/* short tables (the memo's findings and controls) move as a whole, so a header never sits alone */
+.tbl-wrap:has(> table.dm-t){break-inside:avoid;page-break-inside:avoid}
+.chip{border-radius:5px!important}
+.pcc-print-foot{font-size:7.5pt;margin-top:10pt}
+/* memos and reports end with their own disclaimer, and every page margin repeats it:
+ * the footer line would only add a page of its own */
+body:has(#view .dm, #view .ir) .pcc-print-foot{display:none!important}

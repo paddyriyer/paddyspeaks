@@ -364,13 +364,37 @@ function pushTrail(id) {
   var t = P.state.trail; if (t[t.length - 1] === id) return;
   t.push(id); if (t.length > 14) t.shift(); renderTrail();
 }
+/* The trail is also a document: its ids travel in a link (?t=id1,id2,…) that
+ * reopens it as an investigation report or as a draft decision memo. */
+P.trailHash = function (route, ids) { return '#/' + route + '?t=' + (ids || P.state.trail).map(encodeURIComponent).join(','); };
+P.setTrail = function (ids) { P.state.trail = uniq(ids.filter(function (id) { return ENT[id]; })).slice(-14); renderTrail(); };
+P.renderTrail = function () { renderTrail(); };
 function renderTrail() {
   var t = P.state.trail, el = document.getElementById('trail');
-  el.innerHTML = '<span class="tl">TRAIL</span>' + (t.length ? t.map(function (id, i) { return (i ? '<span class="sep">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '<button class="chip" data-act="clearTrail" style="margin-left:6px">clear</button>'
-    : '<span class="empty">Your investigation path appears here. Every click is recorded, so you can explain how you got to a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>');
-  if (t.length) el.scrollLeft = el.scrollWidth; /* keep the newest step in view; leave the help text at its start */
+  el.setAttribute('role', 'region');
+  if (!t.length) {
+    el.innerHTML = '<span class="tl">TRAIL</span><span class="empty">Your investigation path appears here. Every record you open is recorded, so you can explain — and print — how you reached a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>';
+    return;
+  }
+  el.innerHTML = '<span class="tl" aria-hidden="true">TRAIL</span>' +
+    '<div class="trail-steps" id="trailSteps" role="region" tabindex="0" aria-label="Investigation steps, oldest first (' + t.length + ')">' + t.map(function (id, i) { return (i ? '<span class="sep" aria-hidden="true">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '</div>' +
+    '<div class="trail-acts"><a class="chip trail-act" href="' + esc(P.trailHash('report/investigation')) + '" title="Open this trail as an auditable investigation report">Report</a>' +
+      '<a class="chip trail-act" href="' + esc(P.trailHash('decisions/new')) + '" title="Turn this trail into a draft decision memo">Draft memo</a>' +
+      '<button class="chip trail-act" data-act="shareTrail" title="Copy a link that reproduces this trail">Copy link</button>' +
+      '<button class="chip trail-act" data-act="clearTrail">Clear</button><span class="sr-only" role="status" id="trailMsg"></span></div>';
+  var s = document.getElementById('trailSteps'); s.scrollLeft = s.scrollWidth; /* keep the newest step in view */
 }
 P.acts.clearTrail = function () { P.state.trail = []; renderTrail(); };
+P.acts.shareTrail = function (btn) {
+  var url = location.href.split('#')[0] + P.trailHash('report/investigation');
+  var done = function () { var m = document.getElementById('trailMsg'); if (m) m.textContent = 'Link copied. It reopens this trail as an investigation report.'; btn.textContent = 'Copied ✓'; setTimeout(function () { if (btn.isConnected) btn.textContent = 'Copy link'; }, 2400); };
+  var show = function () {
+    P.openHTML('Share this investigation', '<p class="pp-type">Share</p><h2 class="pp-title">A link to this investigation</h2><p class="small muted">Anyone who opens it sees the same ' + P.state.trail.length + ' steps as an investigation report. Nothing is stored; the trail travels in the link.</p>' +
+      '<label class="small" for="trailLink">Link</label><input id="trailLink" class="trail-link" readonly value="' + esc(url) + '">', 'Share');
+    var i = document.getElementById('trailLink'); if (i) { i.focus(); i.select(); }
+  };
+  try { if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(done, show); else show(); } catch (e) { show(); }
+};
 
 /* ── side nav (mobile) ───────────────────────────────────── */
 function closeSide() { var s = document.getElementById('side'); s.classList.remove('open'); document.getElementById('scrim').hidden = true; document.getElementById('menuBtn').setAttribute('aria-expanded', 'false'); }
