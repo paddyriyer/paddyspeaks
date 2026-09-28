@@ -6328,6 +6328,54 @@
       ],
       "answer": 0,
       "explanation": "The pattern of shared contract layers (data contracts), systematic test coverage via macros, and CI/CD enforcement (dbt Cloud API gates) directly addresses both consistency and scale. Option 0 follows Databricks and Stripe best practices for multi-domain ownership. Option 1 sacrifices performance with full recalculations. Option 2 avoids dbt's declarative approach. Option 3 introduces technical debt and bypasses version control for tests."
+    },
+    {
+      "id": "ds-new-104",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "You are implementing a CDC pipeline from PostgreSQL to Snowflake using Debezium. The source table has a composite primary key (customer_id, transaction_id), and you observe duplicate records appearing in Snowflake after a network failure and Debezium restart. The target table uses UNIQUE (customer_id, transaction_id) with ON CONFLICT DO UPDATE. Which root cause and fix combination is most likely correct?",
+      "options": [
+        "Root cause: Debezium snapshot mode re-read committed transactions. Fix: Configure snapshot.mode=incremental with snapshot.locking.mode=exclusive.",
+        "Root cause: Snowflake MERGE lacked idempotent row matching; Debezium resent events with old LSN values. Fix: Add a message_timestamp column and use it as tiebreaker in MERGE WHEN MATCHED clauses.",
+        "Root cause: UNIQUE constraint does not prevent duplicates during concurrent writes if transaction isolation is READ COMMITTED. Fix: Use UNIQUE DEFERRABLE INITIALLY DEFERRED on source and enable snapshot.isolation.mode=snapshot.",
+        "Root cause: PostgreSQL WAL replication lag caused Debezium to fetch uncommitted changes. Fix: Configure slot.retention.ms and enable only.committed=true in Debezium connector properties."
+      ],
+      "answer": 3,
+      "explanation": "The only.committed=true property ensures Debezium only emits changes from committed transactions, preventing uncommitted reads and LSN duplication. This, combined with slot.retention.ms, guarantees the connector restarts from the last committed LSN and avoids re-emitting events. Options 1-2 address non-root causes (snapshot mode is for initial sync, MERGE tiebreaker is wrong pattern), and option 3 confuses DDL constraints with isolation levels."
+    },
+    {
+      "id": "ds-new-105",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "A Kafka topic contains user events produced by 15 different microservices. Over 18 months, the schema evolved: v1 (3 fields) \u2192 v2 (add 5 fields, remove 1) \u2192 v3 (rename 2 fields, add nested object). Consumers downstream must support all three schema versions simultaneously. Using a schema registry (Confluent Schema Registry), which approach avoids breaking downstream consumers?",
+      "options": [
+        "Use PROTOBUF with generic message type; store version in __schema_version header. Consumers auto-negotiate via reflection.",
+        "Publish all versions to separate topics (user-events-v1, v2, v3) and merge at consumption layer using a facade consumer.",
+        "Use AVRO with schema references and reader schema resolution; add removed fields back with default values in later versions.",
+        "Enforce strict schema compatibility mode (BACKWARD_TRANSITIVE) and require all producers to upgrade to v3 before topics accept new messages."
+      ],
+      "answer": 2,
+      "explanation": "AVRO schema references combined with reader schema resolution (available in Schema Registry) allow consumers to use any version as their reader schema while the broker stores the canonical writer schema. Adding back removed fields with defaults maintains backward compatibility. Option 1 is manual and doesn't leverage schema registry. Option 2 creates operational overhead (15+ topics). Option 4 breaks existing producers and is too restrictive."
+    },
+    {
+      "id": "ds-new-106",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "A payments ETL writes idempotent transactions to an Iceberg table using transaction_id as the idempotency key. The job uses MERGE to upsert; if a payment with the same transaction_id appears in the source again, the amount field is overwritten. However, refunds (negative amounts) occasionally replay with a 1-2 hour delay after initial processing, causing the dashboard to show incorrect net revenue. How should you redesign the idempotency pattern?",
+      "options": [
+        "Add a process_timestamp column and use it in the MERGE condition; only update if new process_timestamp > old process_timestamp.",
+        "Use transaction_id + operation_type (CHARGE vs REFUND) as composite idempotency key; store refund as separate row to preserve original charge.",
+        "Implement event sourcing: store all immutable transaction events (with event_id UUID) and maintain a separate materialized view that derives net balance from event log.",
+        "Create a staging table with a unique constraint on (transaction_id, idempotency_salt), where salt = HASH(amount, direction); reject duplicates with different amounts."
+      ],
+      "answer": 2,
+      "explanation": "Event sourcing decouples transaction recording from aggregation, allowing refunds to be applied chronologically without overwriting original charges. This is the correct pattern for financial data where audit trails and replay semantics matter. Option 0 (timestamp tie-breaking) doesn't solve the semantic issue of refunds vs charges. Option 1 treats refunds as independent rows but breaks transaction_id uniqueness. Option 3 (idempotency_salt) adds complexity without solving the fundamental issue that MERGE overwrites instead of accumulating."
     }
   ]
 }

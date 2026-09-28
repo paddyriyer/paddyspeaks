@@ -1373,6 +1373,38 @@
       ],
       "answer": 1,
       "explanation": "Tableau User Filters require manual mapping of individual usernames to data values, which breaks down with hierarchical organizational structures. A scalable solution combines database-level RLS (or a permission table joined at query time) with Tableau's identity store integration, allowing managers' access to inherit from their team membership rather than explicit user lists."
+    },
+    {
+      "id": "dash-new-031",
+      "type": "single",
+      "topic": "non-additive measures",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "A dashboard displays 'Inventory Level' (stock count at end of day) broken down by warehouse and product. When users drill from the company total down to individual warehouses, the sum of warehouse-level inventory equals the company total. However, when they further drill to product-level within a warehouse, the product totals no longer sum to the warehouse total shown in the previous view. What is the most likely root cause?",
+      "options": [
+        "The underlying fact table is at the transaction grain, requiring a DISTINCT count on inventory snapshots that aren't filtered identically at each aggregation level",
+        "A slowly-changing dimension (SCD Type 2) is joining products with multiple valid rows, causing duplicated inventory counts when expanding the drill path",
+        "The incremental refresh pipeline loaded only today's delta, so historical inventory snapshots are missing from the detail layer",
+        "A stale cache on the dashboard server is serving old warehouse aggregates while the product detail query hits the fresh database"
+      ],
+      "answer": 0,
+      "explanation": "Inventory level is non-additive\u2014you cannot sum snapshots across time or drill levels without careful grain alignment. When drilling, if the fact table is stored at transaction grain (e.g., multiple receipt/adjustment records per day per product), a DISTINCT on the date and product is needed at each level. If this filtering logic differs by drill path, aggregates diverge. SCD Type 2 (option 1 alternative) creates duplicates but affects all drill levels consistently; caching and incremental load issues would cause different discrepancies."
+    },
+    {
+      "id": "dash-new-032",
+      "type": "single",
+      "topic": "aggregate awareness",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "Your BI platform supports aggregate tables: a 2-billion-row `daily_transactions_fact` and a pre-aggregated `monthly_revenue_agg` (8,000 rows). A dashboard query requests 'Total Revenue by Month for the last 24 months' with no further drill-down capability. The BI engine's aggregate awareness feature is enabled. Which scenario would cause the query planner to incorrectly query the detail fact table instead of the aggregate?",
+      "options": [
+        "The `monthly_revenue_agg` table has a different column name (e.g., 'revenue_usd' vs. 'transaction_amount') and the mapping is not registered in the BI tool's aggregate metadata",
+        "A WHERE clause filters by `customer_segment = 'Premium'`, but the aggregate was built without storing segment information, only total revenue",
+        "The query includes a SUM(revenue) and COUNT(DISTINCT transaction_id), and the aggregate only pre-computes the revenue sum",
+        "The dashboard's query cache is warm, so the planner skips metadata checks and returns the cached result directly"
+      ],
+      "answer": 2,
+      "explanation": "Aggregate awareness requires that all requested measures exist in the aggregate table. If the query asks for both SUM(revenue) and COUNT(DISTINCT transaction_id), but the aggregate only pre-computes revenue sum, the planner must hit the detail table to calculate the distinct count. Options 0 and 1 are metadata/filtering issues that also prevent aggregate use but are less about measure availability. Option 3 (cache) is orthogonal\u2014aggregate awareness is a query-planning optimization, not a caching mechanism."
     }
   ]
 }

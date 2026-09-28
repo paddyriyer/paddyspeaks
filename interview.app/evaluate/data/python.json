@@ -8420,6 +8420,54 @@
       ],
       "answer": 1,
       "explanation": "When an exception occurs during `__enter__` of bucket2, the entire compound with statement fails before bucket2 is fully entered. Python calls `__exit__` on bucket1 (already entered) in reverse order, properly cleaning up bucket1's resource. Bucket2 never enters its context, so its `__exit__` is never called. This is the correct behavior and prevents resource leaks."
+    },
+    {
+      "id": "py-new-134",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "You're building a data pipeline that needs to manage temporary S3 connections and ensure cleanup happens even if processing fails. You implement a custom context manager using `__enter__` and `__exit__`. However, your `__exit__` method returns `True` after logging an exception. What happens when an exception occurs inside the `with` block?",
+      "options": [
+        "The exception is re-raised after cleanup runs",
+        "The exception is suppressed and execution continues after the with block",
+        "The context manager raises a RuntimeError",
+        "The exception is logged but the program terminates immediately"
+      ],
+      "answer": 1,
+      "explanation": "When `__exit__` returns `True`, it tells Python to suppress the exception\u2014execution continues after the `with` block. Returning `False` or `None` (the default) allows the exception to propagate. This is useful for handlers that explicitly decide to suppress certain errors, but dangerous if you suppress exceptions unintentionally."
+    },
+    {
+      "id": "py-new-135",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-09-28",
+      "prompt": "You're using `multiprocessing.Pool` to parallelize data transformation across 8 worker processes. You notice that worker processes consume increasing memory over time, eventually hitting the pod's memory limit. The workers process independent, stateless transformations. What is the most likely cause and best fix?",
+      "options": [
+        "Use `Pool.imap()` instead of `Pool.map()` to stream results and enable garbage collection between batches",
+        "Increase the number of workers from 8 to 16 to distribute memory load",
+        "Switch to `threading.ThreadPool` which shares memory across workers",
+        "Implement explicit `gc.collect()` calls inside each worker function"
+      ],
+      "answer": 0,
+      "explanation": "`Pool.map()` loads all results into memory before returning, while `imap()` is lazy and returns an iterator. For large datasets, `imap()` allows workers to complete and garbage collect between batches. More workers would worsen the issue; ThreadPool won't help with CPU-bound tasks; and manual gc.collect() is a band-aid that doesn't address the root batching problem."
+    },
+    {
+      "id": "py-new-136",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-09-28",
+      "prompt": "You're processing event logs from multiple sources using Python 3.10+ pattern matching. Your events are tuples with structure `(source, event_type, payload)`. You write a match statement that handles `('api', 'error', int())` and `('db', 'timeout', _)`. What happens if you receive `('api', 'error', 'not_an_int')`?",
+      "options": [
+        "It matches the first pattern and extracts `'not_an_int'` as the int value",
+        "It falls through without matching any pattern (no case matches)",
+        "It raises a TypeError because the payload is not an integer",
+        "It matches using the default case if one exists"
+      ],
+      "answer": 1,
+      "explanation": "Pattern matching with `int()` checks if the value matches the integer type/class\u2014it doesn't perform type coercion. Since `'not_an_int'` is a string, not an int, the first pattern doesn't match. The execution falls through to subsequent patterns or the default case. Pattern matching is strict: `int()` matches int objects only, not strings."
     }
   ]
 }
