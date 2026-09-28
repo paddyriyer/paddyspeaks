@@ -1174,27 +1174,28 @@ var transfers = [
 
 /* ── Hypothetical person for "what could we know?" ──────────── */
 var persona = {
-  name: 'Hypothetical person "A."', blurb: 'Uses Storefront, Checkout, Pulse and Nova on one phone; has 2FA on; opened one support chat. Not a real person.',
+  name: 'Dana', blurb: 'Dana uses Storefront, Checkout, Pulse and Nova on one phone; has 2FA on; opened one support chat. Not a real person: she is the fictional customer followed through the essay “Every Arrow Is a Decision”.',
   starts: ['i_email', 'i_device'],
-  /* facts: attribute, source dataset, join path (identifier chain), kind FACT/INFERENCE, tier, blockers: controls that would remove it */
+  /* facts: origin (provided | observed | derived | inferred — how Northstar came to hold it), attribute, source dataset,
+     join path (identifier chain), kind FACT/INFERENCE, tier, blockers: controls that would remove it */
   facts: [
-    { a: 'Name, email, postal address, date of birth', ds: 'd_profile', path: ['i_email', 'i_customer'], kind: 'FACT', tier: 3, blockedBy: [] },
-    { a: 'Phone number (given for 2FA)', ds: 'd_phone2fa', path: ['i_customer', 'i_phone'], kind: 'FACT', tier: 2, blockedBy: [] },
-    { a: 'Every purchase for 7 years, with amounts', ds: 'd_txn', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
-    { a: 'Where they stood at each purchase (precise)', ds: 'd_purchase', path: ['i_customer', 'i_device'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
-    { a: 'Home and work locations', ds: 'd_lochist', path: ['i_customer'], kind: 'INFERENCE', tier: 3, blockedBy: ['ttl'] },
-    { a: '18 months of movement history', ds: 'd_lochist', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['ttl'] },
-    { a: '"Likely a parent" (from basket)', ds: 'd_orders_wh', path: ['i_customer'], kind: 'INFERENCE', tier: 3, blockedBy: ['purpose'] },
-    { a: 'Fraud risk band', ds: 'd_fraudfeat', path: ['i_customer', 'i_device', 'i_fp'], kind: 'INFERENCE', tier: 2, blockedBy: ['purpose', 'scoped'] },
-    { a: 'Which Pulse screens they open (cycle, symptoms)', ds: 'd_pulseinstall', path: ['i_device', 'i_pulse'], kind: 'FACT', tier: 4, blockedBy: ['scoped'] },
-    { a: '"Health interest" advertising segment', ds: 'd_audience', path: ['i_device', 'i_maid'], kind: 'INFERENCE', tier: 4, blockedBy: ['scoped', 'purpose'] },
-    { a: 'What they asked the assistant (400 days)', ds: 'd_prompts', path: ['i_customer', 'i_convo'], kind: 'FACT', tier: 3, blockedBy: ['ttl'] },
-    { a: 'Health topics mentioned to the assistant', ds: 'd_prompts', path: ['i_customer'], kind: 'INFERENCE', tier: 4, blockedBy: ['ttl', 'purpose'] },
-    { a: 'Their support conversation, verbatim', ds: 'd_transcripts', path: ['i_email'], kind: 'FACT', tier: 3, blockedBy: [] },
-    { a: 'Websites visited via the browser extension', ds: 'd_browse', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
-    { a: 'When they reset their password (from logs)', ds: 'd_applogs', path: ['i_email'], kind: 'FACT', tier: 2, blockedBy: ['ttl'] },
-    { a: 'Linked advertising ID across apps', ds: 'd_identity_graph', path: ['i_customer', 'i_maid'], kind: 'INFERENCE', tier: 2, blockedBy: ['scoped'] },
-    { a: 'Their messages', ds: 'd_msgmeta', path: [], kind: 'UNKNOWABLE', tier: 3, blockedBy: [], note: 'End-to-end encrypted, rotating pseudonym, no join path. Architecture made this unknowable to Northstar.' }
+    { origin: 'provided', a: 'Name, email, postal address, date of birth', ds: 'd_profile', path: ['i_email', 'i_customer'], kind: 'FACT', tier: 3, blockedBy: [] },
+    { origin: 'provided', a: 'Phone number (given for 2FA)', ds: 'd_phone2fa', path: ['i_customer', 'i_phone'], kind: 'FACT', tier: 2, blockedBy: [] },
+    { origin: 'observed', a: 'Every purchase for 7 years, with amounts', ds: 'd_txn', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
+    { origin: 'observed', a: 'Where they stood at each purchase (precise)', ds: 'd_purchase', path: ['i_customer', 'i_device'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
+    { origin: 'inferred', a: 'Home and work locations', ds: 'd_lochist', path: ['i_customer'], kind: 'INFERENCE', tier: 3, blockedBy: ['ttl'] },
+    { origin: 'observed', a: '18 months of movement history', ds: 'd_lochist', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['ttl'] },
+    { origin: 'inferred', a: '"Likely a parent" (from basket)', ds: 'd_orders_wh', path: ['i_customer'], kind: 'INFERENCE', tier: 3, blockedBy: ['purpose'] },
+    { origin: 'derived', a: 'Fraud risk band', ds: 'd_fraudfeat', path: ['i_customer', 'i_device', 'i_fp'], kind: 'INFERENCE', tier: 2, blockedBy: ['purpose', 'scoped'] },
+    { origin: 'observed', a: 'Which Pulse screens they open (cycle, symptoms)', ds: 'd_pulseinstall', path: ['i_device', 'i_pulse'], kind: 'FACT', tier: 4, blockedBy: ['scoped'] },
+    { origin: 'inferred', a: '"Health interest" advertising segment', ds: 'd_audience', path: ['i_device', 'i_maid'], kind: 'INFERENCE', tier: 4, blockedBy: ['scoped', 'purpose'] },
+    { origin: 'provided', a: 'What they asked the assistant (400 days)', ds: 'd_prompts', path: ['i_customer', 'i_convo'], kind: 'FACT', tier: 3, blockedBy: ['ttl'] },
+    { origin: 'inferred', a: 'Health topics mentioned to the assistant', ds: 'd_prompts', path: ['i_customer'], kind: 'INFERENCE', tier: 4, blockedBy: ['ttl', 'purpose'] },
+    { origin: 'provided', a: 'Their support conversation, verbatim', ds: 'd_transcripts', path: ['i_email'], kind: 'FACT', tier: 3, blockedBy: [] },
+    { origin: 'observed', a: 'Websites visited via the browser extension', ds: 'd_browse', path: ['i_customer'], kind: 'FACT', tier: 3, blockedBy: ['minimise'] },
+    { origin: 'observed', a: 'When they reset their password (from logs)', ds: 'd_applogs', path: ['i_email'], kind: 'FACT', tier: 2, blockedBy: ['ttl'] },
+    { origin: 'derived', a: 'Linked advertising ID across apps', ds: 'd_identity_graph', path: ['i_customer', 'i_maid'], kind: 'INFERENCE', tier: 2, blockedBy: ['scoped'] },
+    { origin: 'provided', a: 'Their messages', ds: 'd_msgmeta', path: [], kind: 'UNKNOWABLE', tier: 3, blockedBy: [], note: 'End-to-end encrypted, rotating pseudonym, no join path. Architecture made this unknowable to Northstar.' }
   ],
   outside: [
     { who: 'AdReach Network', what: 'hashed email, advertising ID, segments incl. fraud band', via: 'fl11' },
@@ -1221,7 +1222,7 @@ var handshakes = { v_clearsight: 'NONE', v_adreach: 'NONE', v_parcelry: 'PERMISS
 var assumptionTests = [
   { k: 'Revocation mid-job', q: 'Batch started before the opt-out', result: 'fail', where: 'Audience Builder nightly run caches consent at 00:00', ent: 'cc7', essay: 'cc-optout' },
   { k: 'Retries & dead letters', q: 'Payload copies nobody deletes', result: 'fail', where: 'purchase-events DLQ holds 41 days of payloads; not in deletion orchestrator', ent: 's_bus', essay: 'cc-optout' },
-  { k: 'Debug logging', q: 'The #1 place raw data leaks', result: 'fail', where: 'Emails in gateway query strings (PRV-0199)', ent: 'PRV-0199', essay: 'cc-debug' },
+  { k: 'Debug logging', q: 'One of the commonest places raw data ends up', result: 'fail', where: 'Emails in gateway query strings (PRV-0199)', ent: 'PRV-0199', essay: 'cc-debug' },
   { k: 'Fallback paths', q: 'Degraded mode skips the filter', result: 'fail', where: 'Consent cache miss → CAPI forwarder defaults to "granted"', ent: 's_capi' },
   { k: 'Exports', q: 'A CSV escapes every control', result: 'fail', where: '2.1M-row profile export by analyst-7731', ent: 'd_profile', essay: 'cc-csv' },
   { k: 'Shared devices', q: 'Notifications reveal to others', result: 'unknown', where: 'Reorder reminders show SKU names on lock screen — not yet tested', ent: 'f_reorder', essay: 'cc-family' },

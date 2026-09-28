@@ -273,6 +273,26 @@ function renderNav() {
   document.getElementById('side').innerHTML = h;
 }
 
+/* ── the essay: each page links back to the scene that explains it ──
+ * Same map as articles/every-arrow/data.js (D.pccMap); a test checks they agree. */
+P.ESSAY_URL = '/articles/every-arrow-is-a-decision.html';
+P.ESSAY = {
+  'explore/person': ['person', 'One person, no name'], 'explore/identities': ['linkability', 'Two harmless tables'],
+  'privacy/reviews': ['review', 'Eight questions'], 'explore/flows': ['arrows', 'Every arrow is a decision'],
+  'privacy/purpose': ['purpose', 'Purpose at the moment of use'], 'privacy/threats': ['harm', 'Think like the adversary, then like the person'],
+  'privacy/tracking': ['burn', 'The burn button'], 'assurance/controls': ['ladder', 'The enforcement ladder'],
+  'privacy/consent': ['consent', 'Consent is state'], 'privacy/rights': ['rights', 'Every right is a distributed workflow'],
+  'privacy/retention': ['retention', 'Retention is a risk multiplier'], 'privacy/deletion': ['forget', 'Design as if “Forget me” had to work'],
+  'governance/vendors': ['vendors', 'A vendor is an arrow you can’t see the end of'], 'privacy/ai': ['ai', 'AI, ML and agents'],
+  'assurance/access': ['signin', 'Signing in'], 'privacy/worstday': ['worst', 'Decide the worst case before launch'],
+  'privacy/pets': ['pets', 'PETs are answers; start with the threat'], 'assurance/drift': ['change', 'The review was right on the day it was signed'],
+  'assurance/evidence': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response']
+};
+function essayLink(key) {
+  var e = P.ESSAY[key]; if (!e) return '';
+  return '<p class="essay-link"><a href="' + P.ESSAY_URL + '#' + e[0] + '">Read the explanation in the essay: <b>' + esc(e[1]) + '</b> &rarr;</a></p>';
+}
+
 /* ── router ──────────────────────────────────────────────── */
 P.route = { path: 'overview', q: {} };
 P.go = function (path) { location.hash = '#/' + path; };
@@ -287,7 +307,7 @@ function render() {
   var segs = r.path.split('/'), key = segs.slice(0, 2).join('/');
   var view = P.views[key] || P.views[segs[0]] || P.views.overview;
   var main = document.getElementById('view');
-  main.innerHTML = view.render(segs.slice(2), r.q) + '';
+  main.innerHTML = view.render(segs.slice(2), r.q) + essayLink(key);
   if (view.mount) view.mount(main, segs.slice(2), r.q);
   main.querySelectorAll('.tbl-wrap,.canvas,.memo table,.heat').forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1 && !el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', el.getAttribute('role') || 'region'); if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Scrollable content'); } });
   document.querySelectorAll('.side a').forEach(function (a) { var on = a.getAttribute('data-route') === key || (key === 'overview' && a.getAttribute('data-route') === 'overview'); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });

@@ -1,11 +1,26 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-27 (homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-28 (Every Arrow edition 2; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-09-28): “Every Arrow Is a Decision” edition 2.** The privacy essay
+  was rebuilt around one argument and one person (Dana) in five chapters — See,
+  Decide, Build, Prove, Field kit — 23 scenes, 33 interactive figures, eight trails.
+  New: accuracy, trade-off/decision records, sensitive contexts, rights as
+  workflows, vendor lifecycle, AI/ML/agents (the Nova trail + a 13-row mechanism
+  table), change detection, privacy SLOs, incident response. Every claim cited
+  inline from primary sources (several edition-1 claims corrected: Kochava settled,
+  BetterHelp refunds, dossier usernames, iDVD anecdote, ATT fines). Executive path
+  (~9 min) and full path (~64 min). The PDF export bug (55 pages, 49 blank) is
+  fixed: a print edition and a committed 79-page PDF with page numbers.
+  Code in `articles/every-arrow/`, build `scripts/every_arrow/build.mjs`, tests
+  `articles/every-arrow/tests/` (in Validate Content and Accessibility). The
+  Command Center's One Person is now Dana, and 20 of its pages link back to the
+  essay. Read **`docs/EVERY-ARROW.md`**. Open for Paddy: reading length, the new
+  card/feature wording, and the share image (still edition 1's).
 - **NEWEST (2026-09-27, evening): the homepage is radically sparse.** Merged
   in #878 (after #873 map, #874 feature, #875 painting, #876 Mentoring, #877
   footer — all the same day). Read **`docs/HOMEPAGE-MAP-REDESIGN.md`** §12.
