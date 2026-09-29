@@ -1,11 +1,93 @@
-# “Every Arrow Is a Decision” — edition 2: audit, architecture and how it is built
+# “Every Arrow Is a Decision” — editions 2 and 3: audit, architecture and how it is built
 
 `/articles/every-arrow-is-a-decision.html` was rebuilt on 2026-09-28 (Claude Code
 session, at Paddy's request) from edition 1 (2026-09-26), Paddy's field guide
 (`docs/Privacy_Engineering_Visual_Field_Guide.pdf`) and the Privacy Command Center.
-This file is the audit of edition 1, the architecture of edition 2, the fact-check
-log, and the rules for editing it. Read it before touching the essay or
+**Edition 3 (2026-09-29)** added Chapter 5, “The house is a data system” — see §0.
+This file is the audit of edition 1, the architecture of editions 2 and 3, the
+fact-check logs, and the rules for editing it. Read it before touching the essay or
 `articles/every-arrow/`. The Command Center side is in `docs/PRIVACY-COMMAND-CENTER.md`.
+
+## 0 · Edition 3: the house is a data system (2026-09-29)
+
+**The request (Paddy):** expand the thesis past the application boundary — the home,
+vehicle, network, room and household are data systems, and some arrows open doors —
+without discarding the strongest edition-2 material; add a Connected Life area to the
+Command Center; then (mid-session) a table of engineering solutions, one per problem.
+
+**The enlarged model.** Enterprise privacy draws Person → Data → System → Vendor. The
+household adds: Person → Household → Place → Device → Sensor → Account → Network →
+Cloud → Integration → Vendor → Inference → Automation → Physical action. Every arrow
+answers **fourteen questions** (who initiated it, who it is about, who consented, raw
+data, inferable data, local/cloud, joining identity, boundaries crossed, physical
+action, who can read or replay, retention, revocation, failure behaviour, evidence).
+`null` = nobody at Northstar can answer = a finding.
+
+**One dataset.** The household lives in `privacy-command-center/data-life.js`
+(`NS.life`) and reaches the essay through the generated `northstar.js` (`EA_NS.life`):
+people and their eight roles (device owner, administrator, data subject, household
+member, guest, bystander, installer, vendor operator), places, rooms, devices,
+sensors (`sense`), accounts, networks (8 contexts × 8 tracked things), 11 arrows, 6
+routines, 23 physical-action paths in 10 capabilities, 10 inferences (the inference
+registry), 6 transitions × 6 layers × 3 levels of care, 8 offboarding workflows, and
+the 10 **engineering answers** (`L.solutions`, Paddy's table). The same file also adds
+Northstar Home to the organisation: a BU, teams, product, 7 features, 10 systems, 7
+datasets, 14 flows, two fictional partners (Keystone Monitoring, CodeHand), 7 controls
+and tests, 11 findings (PRV-0301…0311), risk R-10, promises PR-DOOR and PR-HOMEDATA,
+decisions D-110 and D-111.
+
+**Real platforms.** Dana's household owns devices from real ecosystems (a voice
+assistant, a phone maker's home app, a thermostat ecosystem, Matter). In the dataset
+they are described by kind, never as Northstar vendors or systems (CLAUDE.md rule).
+The essay names them only where it cites their own documentation, and says which
+behaviour is configurable. **It never says assistants exchange recordings**: the
+structure test fails on that claim, and requires the sentence saying none of the
+join paths needs it. Matter multi-admin shares device state and commands, not audio.
+
+| Scene | Figure (`house.js`) | Human moment | Core line |
+|---|---|---|---|
+| 24 One home. Three clouds. | `model` (the graph grows, 14 answers) · `homegraph` (12 join mechanisms → 6 household facts) | Tuesday, 6 p.m.: three ecosystems, one house | Alexa does not need to whisper to Siri. The identity graph can introduce them. |
+| 25 The guest never clicked Accept | `guest` (8 people × 7 rooms on the plan) | Ines, the babysitter, 15:30 | The account owner agreed. Everyone else was just in range. |
+| 26 When privacy opens the door | `door` (8 cases through identity → authentication → authorisation → automation → action → record; apply the control) | 20 Oct outage; a deleted code still works | When software controls a door, privacy architecture becomes physical architecture. |
+| 27 The routine nobody reviewed | `routine` (actions × 5 controls; compounding risk, simplified model) | 20 Sep 16:52 disarm; 23 Sep “Prenatal appointment” read aloud | A routine is a program with the keys. |
+| 28 The network is a witness | `network` (8 networks × DNS / private address / VPN) | 3 Oct, clinic portal on library Wi-Fi | The network may not read every letter, but it can still see the envelope… |
+| 29 The house made an inference | `infer` (10 streams → 10 claims, with registry fields) | Ruth's “late mornings” | The house doesn't have to be told. That is why it has to be governed. |
+| 30 The old owner still has the keys | `oldkeys` (6 transitions × 3 levels of care × 6 layers) | 14 Oct, Theo's old phone becomes Mira's | A factory reset clears the device. The keys live everywhere else. |
+
+Then **The rest of a connected life** (17-row field guide: cars and rentals, wearables,
+TVs, printers, trackers, sync and mirroring, family accounts, USB charging, resale,
+tenants, recovery, stalkerware and abuse, monitoring, break-glass, end of support,
+agents) and **The engineering answers** (Paddy's table, with the essay scene and
+Command Center page for each). The essay now ends on the thesis — a person does not
+live inside one application — and the five closing lines ending “Every arrow is still
+a decision.” The structure test checks both.
+
+**Fact-check (2026-09-29).** Four research passes checked ~50 claims against primary
+sources; the egress proxy blocked the primary domains, so every item was confirmed
+through search listings of the primary page (said in the Sources note). Corrections
+that shaped the text: Amazon ended the local-processing option on three Echo models
+(28 Mar 2025); Alexa's own help does not say voice ID misrecognises, Google's does
+(“a voice that sounds like yours…”); Amazon Household is now Amazon Family; the FTC's
+public-Wi-Fi advice says connecting is “usually safe”; juice jacking has no confirmed
+cases (FCC) but ChoiceJacking (2025) is real and patched; the FTC rental-car advice
+dates from 2016; the NYC tenant law bans tracking tenants *outside the building*;
+GM/OnStar order finalised January 2026; ECH is RFC 9849 (March 2026); CDT's figures
+come from “Hidden Harms” (2022) — the essay cites “Off Task” (2023) instead. Re-check
+before a major revision: the Alexa/Gemini help pages (changing with Alexa+ and Gemini
+for Home), the FTC Wi-Fi page date, Cyber Trust Mark status (ioXt since April 2026).
+
+**Visual direction.** Plans, chains, receipts and tables — no padlocks, holograms or
+stock drama. The requested **warm editorial photography** (real homes, libraries,
+cars) was not generated: invented photographs would be illustrations posing as
+documentary images. Open for Paddy — a shot list, if he wants to commission or take
+them: a kitchen counter with a speaker and a school bag (scene 24); a front door at
+15:30 with a key-code pad (25); a lock and a phone on a hall table (26); a garage
+entry at dusk (27); a library table with a laptop (28); an older woman's kitchen in
+morning light (29); a phone being handed from an adult to a child (30). Each would sit
+above its scene's figure, with the plan or chain as the overlay.
+
+**Numbers.** 6 chapters · 30 scenes · 41 figures · full path ~92 min · executive ~12 min ·
+PDF 112 pages (all stamped by the build).
 
 ## The one idea
 
@@ -114,6 +196,7 @@ a draft at the time), EU AI Act high-risk dates (deferred by the 2026 omnibus).
 | `articles/every-arrow/data.js` | Every figure's data (one source for the interactive and static versions). |
 | `articles/every-arrow/model.js` | The arithmetic (pure functions: SLOs, consent percentiles, change detection, incident meters…). |
 | `articles/every-arrow/trails.js` | The eight corner-case stories and their engine; loadable in Node, so the build writes each trail's static version from the same `world()`. |
+| `articles/every-arrow/house.js` | Chapter 5: teaching data (join mechanisms, door cases, routine model, network view, field guide), pure models, static fallbacks (`EA_HOUSE.statics`, run by the build) and the eight figures. Loads last and calls `EA.ready()`. The household itself is `EA_NS.life`. |
 | `articles/every-arrow/figures.js`, `figures2.js` | Figure controllers (chapters 1–2, 3–4). Each registers `EA.fig(id, {get,set,reset,read})`. |
 | `articles/every-arrow/core.js` | Framework: reading paths, contents, figure registry, deep links, details, print. |
 | `articles/every-arrow/sources.js` | Source registry (build-time only). |

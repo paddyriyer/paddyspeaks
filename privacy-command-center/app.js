@@ -65,6 +65,7 @@ NS.regions.forEach(function (o) { reg(o.id, 'region', o, o.label); });
 reg('n_app', 'endpoint', { id: 'n_app', name: 'Mobile apps (user device)', kind: 'device' });
 reg('n_web', 'endpoint', { id: 'n_web', name: 'Web & browser extension (user device)', kind: 'device' });
 reg('n_dash', 'endpoint', { id: 'n_dash', name: 'Executive dashboards', kind: 'dashboard' });
+(NS.endpoints || []).forEach(function (o) { reg(o.id, 'endpoint', o); }); /* household devices (data-life.js) */
 reg('s_lochist_eu', 'system', { id: 's_lochist_eu', name: 'Location replica (EU)', kind: 'store', team: 't_location', region: 'eu-west', product: 'p_storefront', parent: 's_lochist' });
 NS.flows.forEach(function (f) { reg(f.id, 'flow', f, (ENT[f.from] ? ENT[f.from].name : f.from) + ' → ' + (ENT[f.to] ? ENT[f.to].name : f.to)); });
 P.get = function (id) { return ENT[id]; };
@@ -259,11 +260,13 @@ P.NAV = [
     ['explore/vendors', 'Vendors & egress'], ['explore/geo', 'Geography'], ['explore/org', 'Organization'], ['explore/products', 'Products & features'], ['explore/systems', 'Systems'], ['explore/data', 'Data']]],
   ['Operate', [['observability', 'Observability'], ['privacy/consent', 'Consent'], ['privacy/deletion', 'Deletion'], ['privacy/retention', 'Retention'], ['privacy/rights', 'Individual rights'],
     ['privacy/purpose', 'Purpose'], ['privacy/ai', 'AI & agents'], ['privacy/tracking', 'Tracking'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat models']]],
+  ['Connected Life', [['life/graph', 'Household & places'], ['life/people', 'Who the home observes'], ['life/actions', 'Physical actions'], ['life/routines', 'Automation review'],
+    ['life/networks', 'Network context'], ['life/inferences', 'Home inferences'], ['life/offboarding', 'Offboarding']]],
   ['Prove', [['assurance/controls', 'Controls & evidence'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'],
     ['governance/regulations', 'Policies & regulations'], ['governance/vendors', 'Vendor register'], ['governance/maturity', 'Maturity']]],
   ['Report', [['report/executive', 'Executive memo'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / legal'], ['report/investigation', 'Investigation report']]]
 ];
-var NAV_COUNT = { 'promises': ['promises', 'hot'], 'decisions': ['owed', 'hot'], 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'] };
+var NAV_COUNT = { 'promises': ['promises', 'hot'], 'decisions': ['owed', 'hot'], 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'], 'life/actions': ['physical', 'hot'] };
 function renderNav() {
   var h = P.forYouNav ? P.forYouNav() : '';
   P.NAV.forEach(function (g) {
@@ -290,7 +293,11 @@ P.ESSAY = {
   'governance/vendors': ['vendors', 'A vendor is an arrow you can’t see the end of'], 'privacy/ai': ['ai', 'AI, ML and agents'],
   'assurance/access': ['signin', 'Signing in'], 'privacy/worstday': ['worst', 'Decide the worst case before launch'],
   'privacy/pets': ['pets', 'PETs are answers; start with the threat'], 'assurance/drift': ['change', 'The review was right on the day it was signed'],
-  'observability': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response']
+  'observability': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response'],
+  'life/graph': ['home', 'One home. Three clouds.'], 'life/people': ['guest', 'The guest never clicked Accept'],
+  'life/actions': ['door', 'When privacy opens the door'], 'life/routines': ['routine', 'The routine nobody reviewed'],
+  'life/networks': ['network', 'The network is a witness'], 'life/inferences': ['infer', 'The house made an inference'],
+  'life/offboarding': ['oldkeys', 'The old owner still has the keys']
 };
 function essayLink(key) {
   var e = P.ESSAY[key]; if (!e) return '';

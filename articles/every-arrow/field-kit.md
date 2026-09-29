@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — field kit
 
-From *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition 2.0 (revised 28 September 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition 3.0 (revised 29 September 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 > A privacy policy is a promise written in human language. Privacy engineering is the machinery that makes it remain true after the data starts moving.
@@ -62,11 +62,55 @@ Owner · Reviewer · Approver · Expiry (a date or a trigger) · Evidence (what 
 - [ ] Canary identities checked: opted-out and deleted canaries absent everywhere.
 - [ ] Assumption tests run; failures routed to owners.
 
+### In a connected home
+
+- [ ] Every arrow answers the fourteen questions — who initiated it, who it is about, who agreed, what it can open, what happens offline.
+- [ ] Guest mode, privacy zones and visible sensing by default; no templates of people who never enrolled.
+- [ ] Every physical action on the register, with the identity it needs, step-up confirmation for remote and automated paths, and a receipt.
+- [ ] Codes, installers and extra controllers expire; revocations reach the lock first.
+- [ ] Routines reviewed like code: least privilege, simulated before activation, a kill switch.
+- [ ] Inferences in a registry with expiry, correction and appeal; a list of inferences never computed.
+- [ ] One offboarding action for people, devices, cars and houses — with tombstones that survive restore.
+
 ### When it breaks
 
 - [ ] Stop processing at the source; preserve evidence in place.
 - [ ] Scope people and systems by lineage; brief counsel and the accountable executive early.
 - [ ] Remediate every copy; verify; add the guard; write the record.
+
+## Fourteen questions for every arrow in a connected life
+
+1. Who initiated it?
+2. Who is the data about?
+3. Did that person consent, or only the device owner?
+4. What raw data moves?
+5. What can be inferred after it moves?
+6. Is processing local, cloud-based or both?
+7. Which identity joins it to a person or household?
+8. Which boundaries does it cross?
+9. Can it trigger a physical action?
+10. Who can read or replay its history?
+11. How long does it remain?
+12. How is access revoked?
+13. What happens during an outage, retry or partial failure?
+14. What evidence proves the control worked?
+
+An arrow nobody can answer these for is a finding.
+
+## The engineering answers
+
+| Problem | Engineering solution |
+|---|---|
+| Alexa, Google and Siri contamination | Separate household profiles; Rotating identifiers; Local processing; Explicit integration boundaries; An approved-joins registry |
+| Guests and bystanders | Guest mode by default; Visible sensing indicators; Ephemeral processing; Privacy zones; No retained voice or video without need |
+| Smart locks and garage doors | Passkeys or multi-factor sign-in; Time-limited codes; Step-up confirmation for remote access; Local authorisation; Access receipts; Immediate revocation |
+| Dangerous automation chains | Least-privilege capabilities; Simulation before activation; Human approval for physical actions; Circuit breakers; A household kill switch |
+| Public and shared networks | Treat every network as untrusted; Encrypt traffic; Minimise metadata; Disable unnecessary discovery; Separate IoT and guest networks |
+| Google Docs history | Share clean snapshots; Separate edit and history permissions; Scan historical versions; Impose retention; Provide verifiable redaction |
+| Sensor-fusion inference | An inference registry: source, confidence, purpose, expiry, explanation, correction and appeal |
+| Connected cars | Guest profiles; Opt-in contact sync; Erase on return; An ownership-transfer workflow; Cloud-token revocation |
+| Device resale or household changes | One complete offboarding action covering device, hub, account, integrations, vendors, codes, biometrics and backups |
+| AI agents operating devices | Scoped tools; Short-lived credentials; Action-risk tiers; Human confirmation; Immutable receipts; Rollback; Emergency disablement |
 
 ## In the Privacy Command Center
 
@@ -90,5 +134,12 @@ Owner · Reviewer · Approver · Expiry (a date or a trigger) · Evidence (what 
 - Change breaks reviews → [Drift](https://paddyspeaks.com/privacy-command-center/#/assurance/drift) — Privacy-impacting changes and the reviews they reopen
 - Privacy observability → [Observability](https://paddyspeaks.com/privacy-command-center/#/observability) — Privacy SLOs, control health and evidence freshness
 - Incident response → [Incidents](https://paddyspeaks.com/privacy-command-center/#/assurance/incidents) — Incidents, broken assumptions and guards
+- One home. Three clouds. → [Household & places](https://paddyspeaks.com/privacy-command-center/#/life/graph) — The household graph, every arrow’s fourteen answers, and the engineering answers
+- The guest never clicked Accept → [Who the home observes](https://paddyspeaks.com/privacy-command-center/#/life/people) — Owners, subjects, guests and bystanders, and what each sensor takes
+- When privacy opens the door → [Physical actions](https://paddyspeaks.com/privacy-command-center/#/life/actions) — Every software path that can unlock, open, disarm or start — and its identity
+- The routine nobody reviewed → [Automation review](https://paddyspeaks.com/privacy-command-center/#/life/routines) — Each routine’s trigger, identity, privileges, failure mode and kill switch
+- The network is a witness → [Network context](https://paddyspeaks.com/privacy-command-center/#/life/networks) — What changes when a device moves between networks
+- The house made an inference → [Home inferences](https://paddyspeaks.com/privacy-command-center/#/life/inferences) — The inference registry: source, confidence, purpose, expiry, correction and appeal
+- The old owner still has the keys → [Offboarding](https://paddyspeaks.com/privacy-command-center/#/life/offboarding) — Workflows across device, hub, account, integrations, vendors and backups
 
 Northstar and Dana are fictional; Northstar's data is synthetic. Nothing here is legal advice.

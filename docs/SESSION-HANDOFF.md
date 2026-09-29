@@ -1,11 +1,26 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-28 (Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-29 (Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-09-29): “Every Arrow Is a Decision” edition 3 + Command Center
+  Connected Life.** New Chapter 5, *The house is a data system*: seven scenes (one
+  home three clouds · the guest never clicked Accept · when privacy opens the door ·
+  the routine nobody reviewed · the network is a witness · the house made an
+  inference · the old owner still has the keys), eight figures in
+  `articles/every-arrow/house.js`, a 17-row field guide, Paddy's ten engineering
+  answers, and a new ending (“…And some arrows open the door. Every arrow is still a
+  decision.”). One household dataset — `privacy-command-center/data-life.js` — feeds
+  both the essay (via `northstar.js`) and seven new Command Center pages under
+  **Connected Life** (`#/life/*`), and adds Northstar Home (findings PRV-0301…0311,
+  promises PR-DOOR / PR-HOMEDATA, decisions D-110 / D-111) to the organisation.
+  ~50 new claims fact-checked (through search listings: the proxy blocks primary
+  domains). 6 chapters · 30 scenes · 41 figures · full ~92 min · exec ~12 min · PDF 112
+  pages. Open for Paddy: editorial photography (not generated — shot list in
+  `docs/EVERY-ARROW.md` §0), the longer reading time, the share image.
 - **NEWEST (2026-09-28): “Every Arrow Is a Decision” edition 2.** The privacy essay
   was rebuilt around one argument and one person (Dana) in five chapters — See,
   Decide, Build, Prove, Field kit — 23 scenes, 33 interactive figures, eight trails.

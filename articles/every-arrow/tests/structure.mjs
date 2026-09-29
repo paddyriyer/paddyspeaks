@@ -25,7 +25,7 @@ function ok(cond, msg) { if (cond) passed++; else fails.push(msg); }
 function load(files) { const c = { console }; c.window = c; vm.createContext(c); files.forEach((f) => vm.runInContext(read(f), c, { filename: f })); return c; }
 const ctx = load(['articles/every-arrow/northstar.js', 'articles/every-arrow/data.js', 'articles/every-arrow/trails.js']);
 const D = ctx.EA_DATA, NS = ctx.EA_NS, T = ctx.EA_TRAILS;
-const pcc = load(['privacy-command-center/data.js']).NS;
+const pcc = load(['privacy-command-center/data.js', 'privacy-command-center/data-life.js']).NS;
 
 /* ── 1 · the figure contract ─────────────────────────────────────── */
 const figRe = /<figure class="(fig[^"]*)" id="fig-([\w-]+)"[^>]*>([\s\S]*?)<\/figure>/g;
@@ -56,13 +56,13 @@ for (const [, cls, id, body] of figs) {
 /* every trail story is mounted somewhere */
 for (const k of Object.keys(T)) if (k[0] !== '_') ok(ids.includes('trail-' + k), `trail "${k}" is not in the essay`);
 /* a figure's interactive twin: each registered id has a container */
-const registered = new Set([...read('articles/every-arrow/figures.js').matchAll(/EA\.fig\('([\w-]+)'/g), ...read('articles/every-arrow/figures2.js').matchAll(/EA\.fig\('([\w-]+)'/g)].map((m) => m[1]));
+const registered = new Set([...read('articles/every-arrow/figures.js').matchAll(/EA\.fig\('([\w-]+)'/g), ...read('articles/every-arrow/figures2.js').matchAll(/EA\.fig\('([\w-]+)'/g), ...read('articles/every-arrow/house.js').matchAll(/EA\.fig\('([\w-]+)'/g)].map((m) => m[1]));
 for (const r of registered) ok(ids.includes(r), `figures.js registers "${r}" but the essay has no fig-${r}`);
-for (const id of ids) if (!id.startsWith('trail-')) ok(registered.has(id), `fig-${id} has no controller in figures.js / figures2.js`);
+for (const id of ids) if (!id.startsWith('trail-')) ok(registered.has(id), `fig-${id} has no controller in figures.js / figures2.js / house.js`);
 
 /* ── 2 · scenes, chapters, paths ─────────────────────────────────── */
 const scenes = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"[^>]*data-title="([^"]+)"/g)];
-ok(scenes.length === 23, `expected 23 scenes, found ${scenes.length}`);
+ok(scenes.length === 30, `expected 30 scenes, found ${scenes.length}`);
 for (const [, id] of scenes) {
   const sec = html.slice(html.indexOf(`id="${id}"`), html.indexOf('</section>', html.indexOf(`id="${id}"`)));
   ok(/<div class="brief x">/.test(sec), `#${id}: no executive brief`);
@@ -71,7 +71,7 @@ for (const [, id] of scenes) {
   ok(new RegExp(`href="#${id}"`).test(html), `#${id}: not in the table of contents`);
 }
 const chapters = [...html.matchAll(/<div class="chapter[^"]*" id="(\w+)" data-title="([^"]+)"/g)].map((m) => m[1]);
-ok(chapters.join() === 'see,decide,build,prove,kit', `chapters should be see,decide,build,prove,kit — got ${chapters}`);
+ok(chapters.join() === 'see,decide,build,prove,house,kit', `chapters should be see,decide,build,prove,house,kit — got ${chapters}`);
 for (const c of ['see', 'decide', 'build', 'prove']) {
   const i = html.indexOf(`id="${c}"`), j = html.indexOf('<div class="chapter', i + 10);
   const ch = html.slice(i, j < 0 ? undefined : j);
@@ -87,7 +87,7 @@ const stamps = {};
 for (const m of html.matchAll(/<span data-ea="([\w.]+)">([^<]*)<\/span>/g)) (stamps[m[1]] = stamps[m[1]] || new Set()).add(m[2]);
 for (const [k, v] of Object.entries(stamps)) ok(v.size === 1, `data-ea="${k}" shows different values: ${[...v]}`);
 ok([...(stamps.scenes || [])][0] === String(scenes.length), 'displayed scene count differs from the scenes in the essay');
-ok([...(stamps.chapters || [])][0] === '5', 'displayed chapter count is not 5');
+ok([...(stamps.chapters || [])][0] === '6', 'displayed chapter count is not 6');
 const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
 ok(ld.datePublished === '2026-09-26' && /article:published_time" content="2026-09-26"/.test(html) && /datetime="2026-09-26"/.test(html), 'publication date disagrees between JSON-LD, meta and byline');
 ok(ld.dateModified === /article:modified_time" content="([\d-]+)"/.exec(html)[1], 'modified date disagrees between JSON-LD and meta');
@@ -145,6 +145,45 @@ ok(/does not predict harm/.test(html), 'the worst-day index must say it does not
 const keys = read('data/platform/state-keys.json');
 for (const m of (read('articles/every-arrow/core.js') + html).matchAll(/localStorage\.(?:get|set)Item\("([\w.]+)"/g)) ok(keys.includes(`"${m[1]}"`), `storage key ${m[1]} is not in data/platform/state-keys.json`);
 ok(keys.includes('"ea.path.v1"'), 'ea.path.v1 is not registered in data/platform/state-keys.json');
+
+
+/* ── 9 · chapter 5, the house is a data system ──────────────────── */
+{
+  const L = NS.life;
+  ok(!!L, 'northstar.js carries the household (EA_NS.life) from data-life.js');
+  ok(L.chain.map((c) => c[1]).join(' → ') === 'Person → Household → Place → Device → Sensor → Account → Network → Cloud → Integration → Vendor → Inference → Automation → Physical action', 'the enlarged graph has the thirteen links in order');
+  ok(L.questions.length === 14, 'every arrow answers fourteen questions');
+  ok(L.roles.map((r) => r[1]).join('|') === 'Device owner|Administrator|Data subject|Household member|Guest|Bystander|Installer|Vendor operator', 'the eight household roles');
+  ok(L.capabilities.length === 10, 'the physical-action register covers ten capabilities');
+  for (const a of L.arrows) for (const q of L.questions) ok(q[0] in a, `arrow ${a.id} has no field for “${q[1]}” (use null for UNKNOWN)`);
+  const chap = html.slice(html.indexOf('<div class="chapter" id="house"'), html.indexOf('<div class="chapter kit"'));
+  const want = ['home', 'guest', 'door', 'routine', 'network', 'infer', 'oldkeys'];
+  for (const id of want) {
+    const m = new RegExp(`<section class="scene[^"]*" id="${id}"[\\s\\S]*?</section>`).exec(chap);
+    ok(!!m, `chapter 5 scene #${id} is missing`);
+    if (!m) continue;
+    const b = m[0];
+    ok(/class="brief x"/.test(b), `#${id}: no brief`);
+    ok(/<div class="lede">/.test(b), `#${id}: no human moment (.lede)`);
+    ok(/<dt>The control<\/dt>/.test(b) && /<dt>The evidence<\/dt>/.test(b), `#${id}: no control and evidence`);
+    ok(/class="pcc-link"><a href="\/privacy-command-center\/#\/life\//.test(b), `#${id}: no Connected Life link`);
+    ok(/class="takeaway"/.test(b), `#${id}: no takeaway`);
+  }
+  for (const line of ['Alexa does not need to whisper to Siri', 'The identity graph can introduce them', 'When software controls a door', 'privacy architecture becomes physical architecture', 'The network may not read every letter'])
+    ok(chap.includes(line), `chapter 5 is missing the line “${line}”`);
+  ok(/none of the documented paths below requires one company&rsquo;s assistant to hand a recording/.test(chap), 'chapter 5 must say plainly that the join paths do not need assistants to share recordings');
+  ok(!/(assistants?|Alexa|Siri|Google Assistant)[^.<]{0,80}\b(share|shares|exchange|exchanges|swap|swaps|send|sends)\s+(their\s+)?(voice\s+)?recordings\s+(with|to)\s+(each other|one another|competitors?)/i.test(html), 'the essay must not claim competing assistants share recordings');
+  const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
+  const lines = [...coda.matchAll(/<li[^>]*>([^<]+)<\/li>/g)].map((m) => m[1].trim());
+  ok(lines.join(' | ') === 'Some arrows copy data. | Some arrows create an identity. | Some arrows make an inference. | And some arrows open the door. | Every arrow is still a decision.', 'the essay ends with the five closing lines, in order: ' + lines.join(' | '));
+  ok(/A person does not live inside one application\. They move through rooms, devices, networks, vehicles, accounts and relationships\. Privacy engineering must follow them across all of those boundaries\./.test(coda), 'the final thesis sentence is in the coda');
+  ok(L.solutions.length === 10, 'ten engineering answers');
+  for (const x of L.solutions) ok(new RegExp(`id="${x.essay}"`).test(html), `engineering answer ${x.id} points at #${x.essay}, which is not in the essay`);
+  const sol = /data-static="solutions"[^>]*>([\s\S]*?)<!-- \/static:solutions -->/.exec(html);
+  ok(sol && (sol[1].split('<tbody>')[1].match(/<tr[ >]/g) || []).length === L.solutions.length, 'the solutions table lists every engineering answer');
+  const pccL = pcc.life;
+  ok(pccL && JSON.stringify(pccL.chain) === JSON.stringify(L.chain), 'essay and Command Center read the same household (regenerate northstar.js)');
+}
 
 if (fails.length) { console.error(fails.map((f) => '✗ ' + f).join('\n')); console.error(`\n${fails.length} failed, ${passed} passed`); process.exit(1); }
 console.log(`✓ every-arrow structure: ${passed} checks passed (${figs.length} figures, ${scenes.length} scenes)`);
