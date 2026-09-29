@@ -571,6 +571,6 @@
     }
   }
   document.querySelectorAll(".tl[data-trail]").forEach(mount);
-  /* trails.js loads last: every figure has mounted, so a deep link can now scroll. */
-  if (window.EA && window.EA.ready) window.EA.ready();
+
+  /* EA.ready() is called by house.js, the last figure script. */
 })(typeof window !== "undefined" ? window : globalThis);

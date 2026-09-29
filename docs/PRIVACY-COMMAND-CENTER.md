@@ -50,6 +50,7 @@ An empty link is shown as a gap, and a gap is a finding.
 | Decide | `promises`, `promises/<id>`, `decisions`, `decisions/<id>` (memo), `decisions/new?t=<trail>`, `privacy/reviews`, `privacy/risks`, `privacy/worstday` | What we promised, what is owed, the options and the call. |
 | Investigate | `chain`, `explore/person` (One Person), `explore/graph`, `explore/identities`, `explore/flows` (lineage), `explore/vendors`, `explore/geo`, `explore/org`, `explore/products`, `explore/systems`, `explore/data` | Follow any record to everything it touches. |
 | Operate | `observability`, `privacy/consent`, `privacy/deletion`, `privacy/retention`, `privacy/rights`, `privacy/purpose`, `privacy/ai`, `privacy/tracking`, `privacy/pets`, `privacy/threats` | Is the machinery working today? |
+| Connected Life | `life/graph` (`?a=<arrow>`), `life/people`, `life/actions` (`?cap=`, `?weak=1`), `life/routines`, `life/networks` (`?from=&to=`), `life/inferences`, `life/offboarding` (`?t=&care=`) | The household as a data system: who is observed, every path that can open a door, routines as programs, networks as witnesses, the inference registry, offboarding across six layers. |
 | Prove | `assurance/controls`, `assurance/audits`, `assurance/access`, `assurance/incidents`, `assurance/drift`, `governance/regulations`, `governance/vendors`, `governance/maturity` | Tests, evidence, freshness, exceptions. |
 | Report | `report/executive` (memo), `report/engineering`, `report/audit`, `report/legal`, `report/investigation?t=<trail>` | Printable, dated, with the synthetic-data disclaimer. |
 | Help | `help` | Glossary: every term the product uses. |
@@ -155,6 +156,9 @@ behaviour tests". The suites cover:
 | `views-explore.js` | Organization, Products, Systems, Data, Knowledge Graph, Identities. |
 | `views-privacy.js` | Tracking, PETs & DP, Threat Models (plus shared helpers such as `P.miniDFD`, `P.reviewBlockers`). |
 | `views-assurance.js` | Audits, Access & Insider, Incidents, Drift, Regulations, Maturity, and the engineering / audit / legal reports. |
+| `data-life.js` | **Connected Life.** Adds Northstar Home to the organisation (BU, teams, product, features, systems, datasets, flows, Keystone and CodeHand, controls + tests, findings PRV-0301…0311, R-10, PR-DOOR, PR-HOMEDATA, D-110, D-111, drift) and defines `NS.life`: Dana's household, the enlarged chain, the fourteen questions, roles, places, rooms, devices, sensors, accounts, networks, arrows, routines, the physical-action register, inferences, transitions, workflows and the engineering answers. The essay reads the same records via `northstar.js`. |
+| `views-life.js` | The seven Connected Life pages, the household's passports (person, place, device, account, network, automation, physical action, home inference), `P.lifeSensed`, `P.lifeInfer`, `P.routineRisk`, `P.solutionState`, and the hidden `physical` metric (nav badge on Physical actions). |
+| `pcc-life.css` | Styles for those pages. |
 | `intel.js` | Universal search (`/` or ⌘K), the analyst, and the 10-step guided investigation (HIGH RISK → Checkout → Fraud → flow → join → vendor → purpose → finding → mitigations → enforcement). |
 
 Vanilla JS, no libraries. The only browser storage is the chosen persona
@@ -198,7 +202,7 @@ Theme: warm paper, matching the site. Paddy asked for no dark backgrounds.
 - **Dana** is the same person in both. The essay's “Collected, derived, inferred”
   table reads `NS.persona.facts` (each with an `origin`) through the generated
   `articles/every-arrow/northstar.js`; One Person here reads `NS.personProfile`.
-- `P.ESSAY` in `app.js` maps 20 pages to essay scenes; each page shows "Read the
+- `P.ESSAY` in `app.js` maps 27 pages to essay scenes (the seven Connected Life pages map to Chapter 5); each page shows "Read the
   explanation in the essay". The essay's `D.pccMap` (`articles/every-arrow/data.js`)
   is the other half; `articles/every-arrow/tests/structure.mjs` fails if they differ.
 - Editing `data.js` here changes numbers in the essay: run
@@ -257,3 +261,37 @@ lineage and egress maps lay themselves out. Records added only to the module
 files (`data-operate.js`, `data-ai.js`) appear on their pages but are not yet
 registered for search or passports. Keep everything fictional. Never use a real company as a
 Northstar vendor.
+
+## Connected Life (2026-09-29)
+
+The household as a data system — the Command Center half of the essay's Chapter 5.
+All records are in `data-life.js`; every page is computed from them.
+
+- **Rule kept from the start:** Northstar is fictional and no real company is a
+  Northstar vendor or system. Dana's household owns devices from real ecosystems, so
+  those appear only as *the ecosystem a household device belongs to*, described by
+  kind (“Voice assistant (Theo’s account)”, “Thermostat ecosystem”), never as a
+  vendor, and no record claims how a real company processes data. Anything that runs
+  outside Northstar (another Matter controller, a TV maker, a carmaker) is marked
+  `outside` and its unknowns are shown as UNKNOWN.
+- **Physical actions are a register, not a list.** Each path states capability,
+  device, path, who can invoke it, identity required, assurance (strong / medium /
+  weak / none / unknown), confirmation, offline behaviour, audit, owner and finding.
+  The `physical` metric counts paths that can unlock, open, disarm or start on weak,
+  no or unknown identity.
+- **Routines are reviewed like code** (`P.routineRisk`, a simplified model: the most
+  consequential action on the weakest identity). Every routine shows the fourteen
+  review fields in a fixed order; the test enforces it.
+- **The inference registry**: source, confidence (simplified model), purpose,
+  never-uses, explanation, correction, appeal and expiry — and entries that say they
+  should never be computed.
+- **Engineering answers** (`L.solutions`) show a status computed from the Northstar
+  control tests behind each one (`P.solutionState`): in place / partly / not yet, or
+  UNKNOWN when no control tests it.
+- **Tests:** `tests/life.test.mjs` — nav group, each page renders and links to its
+  essay scene, the 13-link chain and 14 answers (UNKNOWN shown), 8 roles, 10
+  capabilities with filters and the nav badge, the routine fields, network compare,
+  inference and offboarding completeness, axe (WCAG 2.2 AA, 1280 and 390) and 390px
+  overflow. The site-wide axe ratchet only visits the overview, so these pages are
+  checked here.
+

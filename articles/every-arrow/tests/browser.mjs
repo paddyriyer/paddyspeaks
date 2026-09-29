@@ -39,7 +39,12 @@ const ACT = {
   burn: ['click', '#burnBtn'], ladder: ['key', '#rungs [aria-selected="true"]'], consent: ['click', '#cGrant'],
   rights: ['key', '#rightsPick [aria-selected="true"]'], retention: ['key', '#ret'], forget: ['click', '#forgetStores button'],
   vendor: ['key', '#vendorStages [aria-selected="true"]'], worst: ['key', '#designs [aria-selected="true"]'], pets: ['key', '#threats [aria-selected="true"]'],
-  dp: ['click', '#lgHalf'], change: ['click', '#chgNext'], observe: ['click', '#monPick button'], incident: ['click', '#irSteps .ir-opts button']
+  dp: ['click', '#lgHalf'], change: ['click', '#chgNext'], observe: ['click', '#monPick button'], incident: ['click', '#irSteps .ir-opts button'],
+  /* chapter 5 · the house (house.js) */
+  model: ['key', '#fig-model [role="radio"][aria-checked="true"]'], homegraph: ['click', '#fig-homegraph .hs-toggles button'],
+  guest: ['key', '#fig-guest .hs-radios--people [aria-checked="true"]'], door: ['key', '#fig-door .hs-radios [aria-checked="true"]'],
+  routine: ['click', '#fig-routine .hs-toggles--ctl button'], network: ['key', '#fig-network .hs-radios--nets [aria-checked="true"]'],
+  infer: ['click', '#fig-infer .hs-toggles button'], oldkeys: ['key', '#fig-oldkeys .hs-radios--list [aria-checked="true"]']
 };
 
 async function axe(page, label) {
@@ -142,7 +147,7 @@ try {
   {
     const { ctx, page } = await open({}, '?path=exec');
     const r = await page.evaluate(() => ({ bodies: [...document.querySelectorAll('.scene-body')].filter((b) => b.offsetHeight > 0).length, briefs: [...document.querySelectorAll('.brief')].filter((b) => b.offsetHeight > 0).length }));
-    ok(r.bodies === 0 && r.briefs === 23, `exec path: expected 23 briefs and no scene bodies, got ${r.briefs} briefs, ${r.bodies} bodies`);
+    ok(r.bodies === 0 && r.briefs === 30, `exec path: expected 30 briefs and no scene bodies, got ${r.briefs} briefs, ${r.bodies} bodies`);
     await page.click('#consent [data-open-scene]');
     ok(await page.$eval('#consent .scene-body', (e) => e.offsetHeight > 0), 'exec path: "Read the full scene" did not open the scene');
     await axe(page, 'exec 1280');
@@ -202,9 +207,10 @@ try {
     ok(thin.length === 0, `PDF pages that are blank or nearly blank: ${thin.map(([p, n]) => `p${p} (${n} chars)`).join(', ')}`);
     ok(/Every arrow/i.test(pages[0]), 'PDF page 1 is not the title page');
     ok(pages.every((t, i) => t.includes(`Page ${i + 1} of ${pages.length}`)), 'PDF pages lack “Page N of M” numbering');
-    ok(pages.slice(1).every((t) => /Edition 2\.0/.test(t)), 'PDF running header lacks the edition');
+    const ed = /<meta name="ps:edition" content="([\d.]+)">/.exec(fs.readFileSync(path.join(ROOT, URL_.slice(1)), 'utf8'))[1];
+    ok(pages.slice(1).every((t) => t.includes('Edition ' + ed)), 'PDF running header lacks edition ' + ed);
     const text = pages.join(' ').replace(/\s+/g, '').toLowerCase();
-    for (const w of ['Chapter 1 of 5', 'Chapter 5 of 5', 'Sources', 'The evidence', 'Golle']) ok(text.includes(w.replace(/\s+/g, '').toLowerCase()), `PDF lacks “${w}”`);
+    for (const w of ['Chapter 1 of 6', 'Chapter 5 of 6', 'Chapter 6 of 6', 'The house is a data system', 'Alexa does not need to whisper to Siri', 'Every arrow is still a decision', 'Sources', 'The evidence', 'Golle']) ok(text.includes(w.replace(/\s+/g, '').toLowerCase()), `PDF lacks “${w}”`);
   }
 } finally {
   await browser.close();

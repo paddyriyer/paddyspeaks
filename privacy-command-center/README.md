@@ -76,7 +76,8 @@ It never hides the truth.
 
 ## Extending the synthetic dataset
 
-1. **Add the record** to the right collection in `data.js` or `data-ops.js`, and
+1. **Add the record** to the right collection in `data.js`, `data-ops.js` or — for
+   Northstar Home and the household — `data-life.js`, and
    reference other records by id. The registry, graph edges, chain, search and
    passports pick it up automatically.
 2. **Add a promise** to `NS.promises`: text, where it was made, audience,

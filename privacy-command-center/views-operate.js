@@ -52,6 +52,7 @@ function promiseBar(pid, extra) {
   '</section>';
 }
 function answer(q, a) { return '<div class="op-answer"><p class="op-q">' + esc(q) + '</p><p class="op-a">' + a + '</p></div>'; }
+P.promiseBar = promiseBar; P.answer = answer; /* shared with views-life.js */
 
 /* ════════════ CONSENT: model ════════════ */
 function consumer(id) { return P.get(id).obj; }

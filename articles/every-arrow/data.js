@@ -418,7 +418,14 @@
     ['pets', 'PETs and budgets', 'privacy/pets', 'PETs & DP', 'Control alternatives and the ε ledger'],
     ['change', 'Change breaks reviews', 'assurance/drift', 'Drift', 'Privacy-impacting changes and the reviews they reopen'],
     ['observe', 'Privacy observability', 'observability', 'Observability', 'Privacy SLOs, control health and evidence freshness'],
-    ['incident', 'Incident response', 'assurance/incidents', 'Incidents', 'Incidents, broken assumptions and guards']
+    ['incident', 'Incident response', 'assurance/incidents', 'Incidents', 'Incidents, broken assumptions and guards'],
+    ['home', 'One home. Three clouds.', 'life/graph', 'Household & places', 'The household graph, every arrow’s fourteen answers, and the engineering answers'],
+    ['guest', 'The guest never clicked Accept', 'life/people', 'Who the home observes', 'Owners, subjects, guests and bystanders, and what each sensor takes'],
+    ['door', 'When privacy opens the door', 'life/actions', 'Physical actions', 'Every software path that can unlock, open, disarm or start — and its identity'],
+    ['routine', 'The routine nobody reviewed', 'life/routines', 'Automation review', 'Each routine’s trigger, identity, privileges, failure mode and kill switch'],
+    ['network', 'The network is a witness', 'life/networks', 'Network context', 'What changes when a device moves between networks'],
+    ['infer', 'The house made an inference', 'life/inferences', 'Home inferences', 'The inference registry: source, confidence, purpose, expiry, correction and appeal'],
+    ['oldkeys', 'The old owner still has the keys', 'life/offboarding', 'Offboarding', 'Workflows across device, hub, account, integrations, vendors and backups']
   ];
 
   root.EA_DATA = D;
