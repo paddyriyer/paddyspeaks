@@ -15164,6 +15164,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 uses a CTE to identify top 100 warehouses first, then filters the full table\u2014this prunes data early before computing aggregates, minimizing bytes scanned. Option 1 uses invalid HAVING syntax on window functions. Option 2 uses QUALIFY without proper filtering logic. Option 3 is inefficient with nested aggregates."
+    },
+    {
+      "id": "sql-new-145",
+      "type": "single",
+      "topic": "window functions",
+      "difficulty": "medium",
+      "added_date": "2026-09-29",
+      "prompt": "You have a `transactions(user_id INT, amount DECIMAL, transaction_date DATE)` table. You need to identify transactions where the amount exceeds 150% of that user's average transaction amount in the preceding 30 days (not including the current transaction). Which query correctly solves this?\n\nAssume transaction_date is indexed and you want optimal performance.",
+      "options": [
+        "SELECT user_id, amount, transaction_date FROM transactions WHERE amount > 1.5 * AVG(amount) OVER (PARTITION BY user_id ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING) ORDER BY user_id;",
+        "SELECT user_id, amount, transaction_date FROM transactions WHERE amount > 1.5 * AVG(amount) OVER (PARTITION BY user_id ORDER BY transaction_date ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING);",
+        "SELECT user_id, amount, transaction_date FROM transactions WHERE amount > 1.5 * AVG(amount) OVER (PARTITION BY user_id ORDER BY transaction_date RANGE BETWEEN INTERVAL '30 days' PRECEDING AND CURRENT ROW);",
+        "SELECT user_id, amount, transaction_date FROM transactions WHERE amount > 1.5 * (SELECT AVG(amount) FROM transactions t2 WHERE t2.user_id = transactions.user_id AND t2.transaction_date < transactions.transaction_date AND t2.transaction_date >= transactions.transaction_date - INTERVAL '30 days');"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct because it uses ORDER BY transaction_date with ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING, which properly orders rows by date and excludes the current row from the average calculation. Option A uses ROWS without ORDER BY, causing undefined row ordering. Option C uses RANGE with CURRENT ROW, including the current transaction in the average. Option D is inefficient with a correlated subquery and doesn't properly exclude the current transaction in all SQL dialects."
     }
   ]
 }
