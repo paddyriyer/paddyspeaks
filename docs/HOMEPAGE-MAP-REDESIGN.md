@@ -305,13 +305,13 @@ A first-time visitor, on the first screen and a half:
 
 ### Featured story
 
-Since 2026-09-27 the feature is *Every Arrow Is a Decision*. Since edition 4
-(2026-09-30) its image is a panel in the essay's own type: the sign-in question
-"Who proves you are you?", its arrow, and the four lenses
-(`images/home/feature-every-arrow.webp`, rendered at 544×980 and shown at
-272×490 from `scripts/every_arrow/art/`). It is shown whole (`object-fit:
-contain`), never cropped. The earlier panel ("Deleted? Not really.", from
-Paddy's ten-panel overview for edition 1–3) no longer described the essay. To change the
+Since 2026-09-27 the feature is *Every Arrow Is a Decision*. Since 2026-09-30 its
+image is Paddy's illustration for edition 4 (the four lenses over the Apple and
+Google ecosystems), served from the essay's own files
+(`images/articles/every-arrow-is-a-decision/four-lenses-{768,1152,1536}.webp`).
+It is landscape, so the feature uses `ps-feature--wide` (a wider image column, no
+frame). It is shown whole, never cropped. Earlier panels ("Deleted? Not really.",
+then a typographic panel) no longer described the essay. To change the
 feature later: swap the `<article class="ps-feature">` text and image, and
 keep the list below it at three.
 
