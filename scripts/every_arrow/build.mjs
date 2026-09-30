@@ -264,7 +264,7 @@ const pdfMeta = fs.existsSync(A(`${DIR}/pdf.json`)) ? JSON.parse(fs.readFileSync
 const STAMP = {
   chapters: nChapters, scenes: nScenes, figures: nFigs,
   'read.full': readFull, 'read.exec': readExec,
-  edition: '3.0', revised: '29 September 2026',
+  edition: '3.0', revised: '30 September 2026',
   'pdf.pages': pdfMeta.pages,
   'ns.deletion.total': dt.length,
   'ns.deletion.verified': dt.filter((t) => t[3] === 'verified').length,

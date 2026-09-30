@@ -44,7 +44,7 @@ const ACT = {
   model: ['key', '#fig-model [role="radio"][aria-checked="true"]'], homegraph: ['click', '#fig-homegraph .hs-toggles button'],
   guest: ['key', '#fig-guest .hs-radios--people [aria-checked="true"]'], door: ['key', '#fig-door .hs-radios [aria-checked="true"]'],
   routine: ['click', '#fig-routine .hs-toggles--ctl button'], network: ['key', '#fig-network .hs-radios--nets [aria-checked="true"]'],
-  infer: ['click', '#fig-infer .hs-toggles button'], oldkeys: ['key', '#fig-oldkeys .hs-radios--list [aria-checked="true"]']
+  infer: ['click', '#fig-infer .hs-toggles button'], oldkeys: ['key', '#fig-oldkeys .hs-radios--list [aria-checked="true"]'], account: ['key', '#fig-account .hs-radios [aria-checked="true"]']
 };
 
 async function axe(page, label) {
@@ -147,7 +147,7 @@ try {
   {
     const { ctx, page } = await open({}, '?path=exec');
     const r = await page.evaluate(() => ({ bodies: [...document.querySelectorAll('.scene-body')].filter((b) => b.offsetHeight > 0).length, briefs: [...document.querySelectorAll('.brief')].filter((b) => b.offsetHeight > 0).length }));
-    ok(r.bodies === 0 && r.briefs === 30, `exec path: expected 30 briefs and no scene bodies, got ${r.briefs} briefs, ${r.bodies} bodies`);
+    ok(r.bodies === 0 && r.briefs === 31, `exec path: expected 31 briefs and no scene bodies, got ${r.briefs} briefs, ${r.bodies} bodies`);
     await page.click('#consent [data-open-scene]');
     ok(await page.$eval('#consent .scene-body', (e) => e.offsetHeight > 0), 'exec path: "Read the full scene" did not open the scene');
     await axe(page, 'exec 1280');

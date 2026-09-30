@@ -148,7 +148,7 @@ or `articles/every-arrow-is-a-decision.html`. Both come from Paddy's field guide
 Edition 3 (2026-09-29) of the privacy-engineering essay. Read **`docs/EVERY-ARROW.md`**
 before touching it or `articles/every-arrow/`.
 
-- Six chapters, 30 scenes, one fictional person (Dana) at the fictional Northstar and,
+- Six chapters, 31 scenes, one fictional person (Dana) at the fictional Northstar and,
   in Chapter 5 “The house is a data system”, in her fictional household. Northstar
   numbers and the household come from `privacy-command-center/data.js` and
   `data-life.js` through the GENERATED `articles/every-arrow/northstar.js` — never

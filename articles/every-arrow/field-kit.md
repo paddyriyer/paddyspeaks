@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — field kit
 
-From *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition 3.0 (revised 29 September 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition 3.0 (revised 30 September 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 > A privacy policy is a promise written in human language. Privacy engineering is the machinery that makes it remain true after the data starts moving.
