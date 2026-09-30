@@ -293,7 +293,7 @@
     },
     solutions: function () {
       return table('The engineering answers to the connected-life problems', ['Problem', 'Engineering solution', 'Explained in', 'Runs in the Command Center'], L.solutions.map(function (x) {
-        return { cells: ['<b>' + esc(x.problem) + '</b>', esc(x.parts.join('; ')) + '.', '<a href="#' + esc(x.essay) + '">' + esc(H.anchorName(x.essay)) + '</a>', x.route ? '<a href="/privacy-command-center/#/' + esc(x.route) + '">' + esc(x.route) + '</a>' : '—'] }; }), 'st-t st-t--wide');
+        return { cells: ['<b>' + esc(x.problem) + '</b>', esc(x.parts.join('; ')) + '.', '<a href="#' + esc(x.essay) + '">' + esc(H.anchorName(x.essay)) + '</a>', x.route ? '<a href="/privacy-command-center/v10/#/' + esc(x.route) + '">' + esc(x.route) + '</a>' : '—'] }; }), 'st-t st-t--wide');
     },
     fieldguide: function () {
       return table('The rest of a connected life, one row each', ['Where', 'The moment', 'The mechanism', 'The hidden join or boundary', 'The control', 'The evidence'], H.guide.map(function (g) {

@@ -455,8 +455,8 @@ ph.className = 'pcc-print-only pcc-print-head'; ph.setAttribute('aria-hidden', '
 pf.className = 'pcc-print-only pcc-print-foot'; pf.setAttribute('aria-hidden', 'true');
 if (main && main.parentNode) { main.parentNode.insertBefore(ph, main); main.parentNode.insertBefore(pf, main.nextSibling); }
 function stamp() {
-  var t = document.title.replace(/ — Privacy Command Center$/, '');
-  ph.innerHTML = '<span class="pph-t">Privacy Command Center · ' + esc(t) + '</span><span class="pph-d">' + genLine() + '</span><span class="pph-s">Northstar is fictional · synthetic demo data</span>';
+  var t = document.title.replace(/ — Northstar Privacy Explorer \(v10\)$/, '');
+  ph.innerHTML = '<span class="pph-t">Northstar Privacy Explorer (v10) · ' + esc(t) + '</span><span class="pph-d">' + genLine() + '</span><span class="pph-s">Northstar is fictional · synthetic demo data</span>';
   pf.innerHTML = '<p><b>Synthetic demo data.</b> Northstar is fictional; every system, vendor, person, finding and incident is invented. Regulation mappings are orientation, not legal advice. ' + genLine() + ' · ' + esc(location.href) + '</p>';
 }
 if (main) new MutationObserver(function () { stamp(); }).observe(main, { childList: true });

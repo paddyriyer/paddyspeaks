@@ -6,7 +6,18 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-09-29): “Every Arrow Is a Decision” edition 3 + Command Center
+- **NEWEST (2026-09-30): Privacy Command Center v1.** `/privacy-command-center/`
+  is now the scaled-down product: one graph (`graph.js`), five selectors (persona,
+  surface, journey, question, concern) plus subject and lens, and one workspace
+  (graph, findings, decision). It adds 2026 surfaces: passkeys, browser observers,
+  mail observation, wallet, digital ID and selective disclosure, AI routing, and
+  agent privileges. The old full app moved to `/privacy-command-center/v10/` as
+  "Northstar Privacy Explorer (v10)", `noindex`; old `#/…` links forward there, and
+  the essay links straight to v10. Reference: `privacy-command-center/README.md`.
+  Separately, a private claude.ai page (not in the repo) holds the owner's
+  three-question walkthrough.
+
+- **EARLIER (2026-09-29): “Every Arrow Is a Decision” edition 3 + Command Center
   Connected Life.** New Chapter 5, *The house is a data system*: seven scenes (one
   home three clouds · the guest never clicked Accept · when privacy opens the door ·
   the routine nobody reviewed · the network is a witness · the house made an

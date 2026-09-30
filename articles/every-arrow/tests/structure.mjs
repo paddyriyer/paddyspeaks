@@ -25,7 +25,7 @@ function ok(cond, msg) { if (cond) passed++; else fails.push(msg); }
 function load(files) { const c = { console }; c.window = c; vm.createContext(c); files.forEach((f) => vm.runInContext(read(f), c, { filename: f })); return c; }
 const ctx = load(['articles/every-arrow/northstar.js', 'articles/every-arrow/data.js', 'articles/every-arrow/trails.js']);
 const D = ctx.EA_DATA, NS = ctx.EA_NS, T = ctx.EA_TRAILS;
-const pcc = load(['privacy-command-center/data.js', 'privacy-command-center/data-life.js']).NS;
+const pcc = load(['privacy-command-center/v10/data.js', 'privacy-command-center/v10/data-life.js']).NS;
 
 /* ── 1 · the figure contract ─────────────────────────────────────── */
 const figRe = /<figure class="(fig[^"]*)" id="fig-([\w-]+)"[^>]*>([\s\S]*?)<\/figure>/g;
@@ -105,7 +105,7 @@ for (const a of ['job', 's01', 's02', 's02b', 's03', 's04', 's05', 's06', 's07',
 for (const t of pcc.assumptionTests) if (t.essay) ok(new RegExp(`id="${t.essay}"`).test(html), `Command Center links to #${t.essay}, which the essay no longer has`);
 
 /* ── 5 · the Command Center, in both directions ─────────────────── */
-const app = read('privacy-command-center/app.js');
+const app = read('privacy-command-center/v10/app.js');
 const navBlock = app.slice(app.indexOf('P.NAV = ['), app.indexOf('];', app.indexOf('P.NAV = [')));
 const navRoutes = new Set([...navBlock.matchAll(/\['([a-z]+(?:\/[a-z]+)?)', '/g)].map((m) => m[1]));
 const navLabel = Object.fromEntries([...navBlock.matchAll(/\['([a-z]+(?:\/[a-z]+)?)', '([^']+)'\]/g)].map((m) => [m[1], m[2]]));
@@ -118,8 +118,8 @@ for (const [anchor, , route] of D.pccMap) {
   ok(new RegExp(`id="${anchor}"`).test(html), `pccMap: #${anchor} is not in the essay`);
 }
 for (const [route, anchor] of Object.entries(essayMap)) ok(D.pccMap.some((m) => m[2] === route && m[0] === anchor), `P.ESSAY has ${route} → #${anchor}, which data.js pccMap lacks`);
-for (const m of html.matchAll(/href="\/privacy-command-center\/#\/([a-z]+(?:\/[a-z]+)?)">In the Command Center: <b>([^<]+)<\/b>/g)) { ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`); ok(navLabel[m[1]] === m[2].replace(/&amp;/g, '&'), `essay calls ${m[1]} “${m[2]}”; the Command Center calls it “${navLabel[m[1]]}”`); }
-for (const m of html.matchAll(/href="\/privacy-command-center\/#\/([a-z]+(?:\/[a-z]+)?)"/g)) ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`);
+for (const m of html.matchAll(/href="\/privacy-command-center\/v10\/#\/([a-z]+(?:\/[a-z]+)?)">In the Command Center: <b>([^<]+)<\/b>/g)) { ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`); ok(navLabel[m[1]] === m[2].replace(/&amp;/g, '&'), `essay calls ${m[1]} “${m[2]}”; the Command Center calls it “${navLabel[m[1]]}”`); }
+for (const m of html.matchAll(/href="\/privacy-command-center\/v10\/#\/([a-z]+(?:\/[a-z]+)?)"/g)) ok(navRoutes.has(m[1]), `essay links to Command Center route ${m[1]}, which does not exist`);
 ok(pcc.persona.name === 'Dana', 'the Command Center’s One Person should be Dana, the essay’s person');
 
 /* ── 6 · one vocabulary: Northstar names the essay uses exist in the dataset ── */
@@ -166,7 +166,7 @@ ok(keys.includes('"ea.path.v1"'), 'ea.path.v1 is not registered in data/platform
     ok(/class="brief x"/.test(b), `#${id}: no brief`);
     ok(/<div class="lede">/.test(b), `#${id}: no human moment (.lede)`);
     ok(/<dt>The control<\/dt>/.test(b) && /<dt>The evidence<\/dt>/.test(b), `#${id}: no control and evidence`);
-    ok(/class="pcc-link"><a href="\/privacy-command-center\/#\/life\//.test(b), `#${id}: no Connected Life link`);
+    ok(/class="pcc-link"><a href="\/privacy-command-center\/v10\/#\/life\//.test(b), `#${id}: no Connected Life link`);
     ok(/class="takeaway"/.test(b), `#${id}: no takeaway`);
   }
   for (const line of ['Alexa does not need to whisper to Siri', 'The identity graph can introduce them', 'When software controls a door', 'privacy architecture becomes physical architecture', 'The network may not read every letter'])
