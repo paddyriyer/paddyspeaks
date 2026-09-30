@@ -31,7 +31,7 @@ const BASELINE = path.join(ROOT, 'scripts', 'a11y', 'baseline.json');
 // Pages the platform owns outright: zero serious/critical violations allowed.
 const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', '/copyright/',
   '/changelog/', '/subscribe/', '/atlas/', '/about.html', '/mentoring/',
-  '/privacy-command-center/', '/privacy-command-center/v10/', '/articles/every-arrow-is-a-decision.html',
+  '/privacy-command-center/', '/privacy-command-center/v10/', '/articles/every-arrow-is-a-decision.html', '/articles/every-arrow/edition-3.html',
   '/', '/articles/', '/sacred/', '/explore/'];
 // One representative page per journey, ratcheted against the baseline.
 const LEGACY = ['/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',

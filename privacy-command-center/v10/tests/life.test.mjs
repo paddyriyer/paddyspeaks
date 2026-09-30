@@ -18,7 +18,7 @@ export default [
       const o = await p.evaluate(() => ({ t: document.querySelector('main').innerText, essay: (document.querySelector('main .essay-link a') || {}).href || '', cite: document.querySelectorAll('main .cite').length, err: !!document.querySelector('.err-state'),
         missing: [...document.querySelectorAll('main [data-ent]')].filter((c) => !window.PCC.get(c.dataset.ent)).length }));
       assert(!o.err && noJunk(o.t), r + ': renders without junk');
-      assert(/every-arrow-is-a-decision\.html#(home|guest|door|routine|network|infer|oldkeys)$/.test(o.essay), r + ': links back to its essay scene: ' + o.essay);
+      assert(/every-arrow\/edition-3\.html#(home|guest|door|routine|network|infer|oldkeys)$/.test(o.essay), r + ': links back to its essay scene: ' + o.essay);
       assert(o.cite >= 1 && o.missing === 0, r + ': cites records that resolve');
     }
     clean(p, 'life'); await p.closeAll();

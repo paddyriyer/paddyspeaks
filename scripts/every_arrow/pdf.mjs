@@ -41,7 +41,7 @@ export async function launch() {
   return chromium.launch(opts);
 }
 
-export async function renderPdf(root, out) {
+export async function renderPdf(root, out, url) {
   const server = await serve(root);
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await launch();
@@ -50,7 +50,7 @@ export async function renderPdf(root, out) {
     /* first-party files and the Google Fonts the page names; nothing else */
     await page.route((u) => !(u.href.startsWith(base) || /^https:\/\/fonts\.(googleapis|gstatic)\.com\//.test(u.href)), (r) => r.abort());
     await page.emulateMedia({ media: 'print' });
-    await page.goto(base + '/articles/every-arrow-is-a-decision.html?path=full', { waitUntil: 'networkidle' });
+    await page.goto(base + url, { waitUntil: 'networkidle' });
     await page.evaluate(() => document.fonts && document.fonts.ready);
     await page.evaluate(() => { document.querySelectorAll('details').forEach((d) => { d.open = true; }); });
     await page.pdf({ path: out, format: 'Letter', printBackground: true, preferCSSPageSize: true, tagged: true, outline: true });

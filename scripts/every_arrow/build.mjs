@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 /**
- * Every Arrow Is a Decision — build and check.
+ * Every Arrow Is a Decision — build and check, both editions.
+ *
+ * EDITION 3 is archived at articles/every-arrow/edition-3.html and built by the code
+ * in this file (steps 1–7 below). EDITION 4, the live essay at
+ * articles/every-arrow-is-a-decision.html, is built by edition4.mjs, which this file
+ * runs last — so one command covers both.
  *
  *   node scripts/every_arrow/build.mjs            write: regenerate everything below
  *   node scripts/every_arrow/build.mjs --check    CI: fail if anything is stale or inconsistent
@@ -32,9 +37,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const A = (p) => path.join(ROOT, p);
-const ESSAY = 'articles/every-arrow-is-a-decision.html';
+const ESSAY = 'articles/every-arrow/edition-3.html';   // the archived edition 3 (edition 4 is edition4.mjs)
 const DIR = 'articles/every-arrow';
-const SLUG = 'every-arrow-is-a-decision.html';
 const WPM = 230;            // words per minute for prose
 const FIG_SECONDS = 20;     // time allowed per interactive figure on the full path
 const args = new Set(process.argv.slice(2));
@@ -260,7 +264,7 @@ const nChapters = (html.match(/<div class="chapter[^"]*" id="/g) || []).length;
 const readFull = Math.round(w.full / WPM + nFigs * FIG_SECONDS / 60);
 const readExec = Math.max(1, Math.round(w.exec / WPM));
 const dt = NSX.deletionTargets;
-const pdfMeta = fs.existsSync(A(`${DIR}/pdf.json`)) ? JSON.parse(fs.readFileSync(A(`${DIR}/pdf.json`), 'utf8')) : { pages: 0 };
+const pdfMeta = fs.existsSync(A(`${DIR}/edition-3.pdf.json`)) ? JSON.parse(fs.readFileSync(A(`${DIR}/edition-3.pdf.json`), 'utf8')) : { pages: 0 };
 const STAMP = {
   chapters: nChapters, scenes: nScenes, figures: nFigs,
   'read.full': readFull, 'read.exec': readExec,
@@ -285,21 +289,9 @@ html = html.replace(/((?:href|src)="\/articles\/every-arrow\/([\w.-]+\.(?:css|js
   return `${pre}?v=${crypto.createHash('sha256').update(content).digest('hex').slice(0, 10)}"`;
 });
 
-/* consistency elsewhere on the site */
+/* Site-wide stamps (article_metadata.json, the /articles/ card, the homepage feature) belong to
+ * the live edition and are written by edition4.mjs. */
 const other = [];
-const meta = JSON.parse(fs.readFileSync(A('article_metadata.json'), 'utf8'));
-const me = meta.find((x) => x.slug === SLUG);
-if (me.read_time !== readFull) other.push(['article_metadata.json', () => { me.read_time = readFull; return JSON.stringify(meta, null, 2) + '\n'; }]);
-function fixMinutes(file, anchorRe) {
-  const s = fs.readFileSync(A(file), 'utf8');
-  const i = s.search(anchorRe); if (i < 0) { problems.push(`${file}: cannot find the Every Arrow block`); return; }
-  const tail = s.slice(i), j = tail.search(/\d+ min</);
-  if (j < 0) { problems.push(`${file}: no "N min" near the Every Arrow block`); return; }
-  const cur = parseInt(tail.slice(j), 10);
-  if (cur !== readFull) other.push([file, () => s.slice(0, i) + tail.slice(0, j) + readFull + tail.slice(j + String(cur).length)]);
-}
-fixMinutes('content/pages/articles.html', /href="\/articles\/every-arrow-is-a-decision\.html" class="deck-card"/);
-fixMinutes('index.html', /<p class="ps-meta"><span>Privacy<\/span>/);
 
 /* the printed running header carries the edition and date: keep essay.css in step with the stamps */
 { const css = fs.readFileSync(A(`${DIR}/essay.css`), 'utf8');
@@ -318,7 +310,7 @@ function fieldKit(h) {
   const six = [...h.slice(h.indexOf('id="north-list"')).split('</ol>')[0].matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => text(m[1]));
   const ck = h.slice(h.indexOf('id="kit-checklist"'), h.indexOf('class="kit-dl"'));
   const lists = [...ck.matchAll(/<h3>([^<]+)<\/h3><ul class="check">([\s\S]*?)<\/ul>/g)].map((m) => `### ${text(m[1])}\n\n` + [...m[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => `- [ ] ${text(x[1])}`).join('\n'));
-  return `# Every Arrow Is a Decision — field kit\n\nFrom *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition ${STAMP.edition} (revised ${STAMP.revised}), by Paddy Iyer.\nhttps://paddyspeaks.com/articles/every-arrow-is-a-decision.html\n\n` +
+  return `# Every Arrow Is a Decision — field kit\n\nFrom *Every Arrow Is a Decision: A Visual Field Guide to Privacy Engineering*, edition ${STAMP.edition} (revised ${STAMP.revised}), by Paddy Iyer.\nhttps://paddyspeaks.com/articles/every-arrow/edition-3.html\n\n` +
     `> A privacy policy is a promise written in human language. Privacy engineering is the machinery that makes it remain true after the data starts moving.\n\n` +
     `## The six questions, for every piece of personal data\n\n${six.map((q, i) => `${i + 1}. ${q}`).join('\n')}\n\nIf you cannot answer, the uncertainty is the finding.\n\n` +
     `## The review on one page\n\n| # | Question | Red flag | Evidence to ask for |\n|---|---|---|---|\n${D.eight.map((q, i) => `| ${i + 1}. ${q[0]} | ${q[1]} | ${q[3].replace(/\|/g, '/')} | ${D.eightEvidence[i]} |`).join('\n')}\n\n` +
@@ -338,8 +330,8 @@ if (CHECK) {
     const cur = fs.existsSync(A(f)) ? fs.readFileSync(A(f), 'utf8') : '';
     if (cur !== content) problems.push(`${f} is stale — run: node scripts/every_arrow/build.mjs`);
   }
-  if (!pdfMeta.pages) problems.push(`${DIR}/pdf.json missing — run the build with --pdf`);
-  else if (pdfMeta.source !== sourceHash(html)) problems.push(`${DIR}/every-arrow-is-a-decision.pdf is older than the essay — run: EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`);
+  if (!pdfMeta.pages) problems.push(`${DIR}/edition-3.pdf.json missing — run the build with --pdf`);
+  else if (pdfMeta.source !== sourceHash(html)) problems.push(`${DIR}/edition-3.pdf is older than the essay — run: EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`);
 } else {
   for (const [f, content] of outputs) {
     const cur = fs.existsSync(A(f)) ? fs.readFileSync(A(f), 'utf8') : '';
@@ -347,18 +339,23 @@ if (CHECK) {
   }
   if (args.has('--pdf')) {
     const { renderPdf } = await import('./pdf.mjs');
-    let pages = await renderPdf(ROOT, A(`${DIR}/every-arrow-is-a-decision.pdf`));
+    let pages = await renderPdf(ROOT, A(`${DIR}/edition-3.pdf`), '/' + ESSAY + '?path=full');
     if (pages !== pdfMeta.pages) {
       /* the page count is printed in the essay: stamp it and render once more */
       const h2 = fs.readFileSync(A(ESSAY), 'utf8').replace(/(<span data-ea="pdf\.pages">)\d+(<\/span>)/g, `$1${pages}$2`);
       fs.writeFileSync(A(ESSAY), h2);
-      pages = await renderPdf(ROOT, A(`${DIR}/every-arrow-is-a-decision.pdf`));
+      pages = await renderPdf(ROOT, A(`${DIR}/edition-3.pdf`), '/' + ESSAY + '?path=full');
     }
     const final = fs.readFileSync(A(ESSAY), 'utf8');
-    fs.writeFileSync(A(`${DIR}/pdf.json`), JSON.stringify({ pages, source: sourceHash(final), note: 'Written by scripts/every_arrow/build.mjs --pdf. source = hash of the essay HTML (page count masked) + essay.css.' }, null, 2) + '\n');
+    fs.writeFileSync(A(`${DIR}/edition-3.pdf.json`), JSON.stringify({ pages, source: sourceHash(final), note: 'Written by scripts/every_arrow/build.mjs --pdf. source = hash of the essay HTML (page count masked) + essay.css.' }, null, 2) + '\n');
     console.log(`  rendered PDF: ${pages} pages`);
   }
 }
-console.log(`  ${nChapters} chapters · ${nScenes} scenes · ${nFigs} figures · full ${readFull} min (${w.full} words) · executive ${readExec} min (${w.exec} words)`);
+console.log(`  edition 3 (archived): ${nChapters} chapters · ${nScenes} scenes · ${nFigs} figures · full ${readFull} min (${w.full} words) · executive ${readExec} min (${w.exec} words)`);
+
+/* edition 4, the live essay */
+{ const { buildEdition4 } = await import('./edition4.mjs');
+  const e4 = await buildEdition4({ check: CHECK, pdf: args.has('--pdf') });
+  console.log(e4.log.join('\n')); problems.push(...e4.problems); }
 if (problems.length) { console.error(problems.map((p) => '✗ ' + p).join('\n')); process.exit(1); }
 console.log(CHECK ? '✓ every-arrow: up to date' : '✓ every-arrow: built');
