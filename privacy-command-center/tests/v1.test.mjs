@@ -127,11 +127,11 @@ export default [
   } },
   { name: 'consent: local control passes while the system control fails', async run({ page, assert }) {
     const p = await page(H({ p: 'auditor', s: 'analytics', j: 'revoke', q: 'consent', u: 'person' }));
-    const r = await p.evaluate(() => ({ v: [...document.querySelectorAll('.vd')].map((x) => x.textContent), rows: document.querySelectorAll('.tl .tr').length, fails: document.querySelectorAll('.tl .pill-fail').length, key: document.querySelector('.keyline').textContent }));
+    const r = await p.evaluate(() => ({ v: [...document.querySelectorAll('.vd')].map((x) => x.textContent), rows: document.querySelectorAll('.tl-wide .tr').length, fails: document.querySelectorAll('.tl-wide .pill-fail').length, tallFails: document.querySelectorAll('.tl-tall .pill-fail').length, key: document.querySelector('.keyline').textContent }));
     const want = await p.evaluate(() => window.PG.consent.rows.filter((r) => r.st === 'fail').length);
     clean(p, 'consent', assert); await p.closeAll();
     assert(/LOCAL CONTROL\s*PASS/.test(r.v[0]) && /SYSTEM CONTROL\s*FAIL/.test(r.v[1]), 'local pass, system fail: ' + r.v);
-    assert(r.fails === want, 'failing rows match the data');
+    assert(r.fails === want && r.tallFails === want, 'failing rows match the data, in both layouts');
     assert(/distributed state, not a checkbox/.test(r.key), 'consent is distributed state');
   } },
   { name: 'tenant isolation: filtering is not isolation, and a mostly correct report is still wrong', async run({ page, assert }) {
@@ -231,6 +231,30 @@ export default [
       clean(m, 'mobile ' + h, assert); await m.closeAll();
       assert(o <= 0, (h || 'home') + ': overflows by ' + o + 'px at 390');
     }
+  } },
+  { name: 'on a phone every view fits the screen: nothing is cut off or hidden in a sideways scroll', async run({ page, assert }) {
+    const p = await page('', { width: 390, height: 844 });
+    const bad = await p.evaluate(() => {
+      const G = window.PG, W = document.documentElement.clientWidth, out = [];
+      const views = [];
+      G.surfaces.forEach((s) => window.PCC1.offered(G.questions, 'q', s.id).forEach((q) => window.PCC1.offered(G.journeys, 'j', s.id).forEach((j) => views.push({ page: 'cc', s: s.id, j: j.id, q: q.id }))));
+      views.push({ page: 'reviews' }, { page: 'evidence' }, { page: 'ask' });
+      for (const v of views) {
+        window.PCC1.set(Object.assign({ c: [], u: 'person', l: 'privacy', fm: false }, v));
+        document.querySelectorAll('[data-act="connect"],[data-act="join"],[data-act="combine"]').forEach((b) => b.click());
+        const tag = v.page + (v.q ? ':' + v.s + '/' + v.j + '/' + v.q : '');
+        if (document.documentElement.scrollWidth > W) out.push(tag + ': page scrolls sideways');
+        for (const e of document.querySelectorAll('#main *')) {
+          if (e.closest('.sr-only')) continue;
+          const r = e.getBoundingClientRect();
+          if (r.width && r.height && (r.right > W + 1 || r.left < -1)) { out.push(tag + ': ' + (e.getAttribute('class') || e.tagName) + ' spans ' + Math.round(r.left) + '–' + Math.round(r.right)); break; }
+        }
+        if (out.length > 8) break;
+      }
+      return out;
+    });
+    clean(p, 'phone fit', assert); await p.closeAll();
+    assert(!bad.length, bad.join('\n'));
   } },
   { name: 'the product carries no hiring language, no privacy score, and registers its storage key', async run({ assert }) {
     const text = ['index.html', 'app.js', 'graph.js', 'pcc1.css'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');

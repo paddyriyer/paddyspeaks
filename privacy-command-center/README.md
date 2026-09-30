@@ -109,7 +109,7 @@ The suite checks:
 - Ask privacy (including honest UNKNOWN);
 - saved views;
 - forwarding legacy links;
-- focus mode, the keyboard and phone width;
+- focus mode, the keyboard and phone width (every view at 390px, with nothing cut off or hidden in a sideways scroll: wide drawings have tall phone layouts, tables stack);
 - the absence of hiring language and of any privacy score.
 
 v10 keeps its own suite at `v10/tests/run.mjs`.
