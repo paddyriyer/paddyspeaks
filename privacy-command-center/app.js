@@ -139,22 +139,26 @@
 
   /* identity graph — separate signals, then connect the dots */
   V.identity = function (st) {
-    var I = G.identity, W = 160, H = 56;
-    var pos = { phone: [20, 20], behavior: [20, 130], payment: [20, 240], device: [520, 20], browser: [520, 130], login: [520, 240] };
-    var mid = function (k) { return [pos[k][0] + W / 2, pos[k][1] + H / 2]; }, P = [350, 130];
+    var I = G.identity, H = 56;
     var inS = function (s) { return st.s === 'all' || s.s.indexOf(st.s) >= 0; };
-    var svg = '<svg viewBox="0 0 700 300" class="idg" role="img" aria-labelledby="idgT"><title id="idgT">Six signals about one synthetic person. Connected, shared identifiers turn them into one profile.</title>';
-    I.signals.forEach(function (s) { var m = mid(s.id); svg += '<line class="spoke" x1="' + m[0] + '" y1="' + m[1] + '" x2="' + P[0] + '" y2="' + P[1] + '"/>'; });
-    I.links.forEach(function (l) {
-      var a = mid(l[0]), b = mid(l[1]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, w = l[2].length * 6.6 + 14;
-      svg += '<g class="lk lk-' + l[3] + '"><line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '"/><rect x="' + (mx - w / 2) + '" y="' + (my - 10) + '" width="' + w + '" height="20" rx="4"/><text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle">' + esc(l[2]) + '</text></g>';
-    });
-    svg += '<g class="prof"><rect x="' + (P[0] - 88) + '" y="' + (P[1] - 26) + '" width="176" height="52" rx="10"/><text class="pk" x="' + P[0] + '" y="' + (P[1] - 5) + '" text-anchor="middle">PERSON-LEVEL PROFILE</text><text class="pn" x="' + P[0] + '" y="' + (P[1] + 15) + '" text-anchor="middle">' + esc(name('p_dana')) + '</text></g>';
-    I.signals.forEach(function (s) {
-      var p = pos[s.id];
-      svg += '<g class="sg' + (inS(s) ? '' : ' dim') + '"><rect x="' + p[0] + '" y="' + p[1] + '" width="' + W + '" height="' + H + '" rx="10"/><text class="sl" x="' + (p[0] + 12) + '" y="' + (p[1] + 23) + '">' + esc(s.label) + '</text><text class="sk" x="' + (p[0] + 12) + '" y="' + (p[1] + 42) + '">' + esc(s.key) + '</text></g>';
-    });
-    svg += '</svg>';
+    /* one drawing, two layouts: wide for desktop, tall (two columns, profile below) for phones */
+    function draw(L) {
+      var W = L.w, pos = L.pos, P = L.P, mid = function (k) { return [pos[k][0] + W / 2, pos[k][1] + H / 2]; };
+      var svg = '<svg viewBox="0 0 ' + L.vw + ' ' + L.vh + '" class="idg ' + L.cls + '" role="img" aria-labelledby="' + L.tid + '"><title id="' + L.tid + '">Six signals about one synthetic person. Connected, shared identifiers turn them into one profile.</title>';
+      I.signals.forEach(function (s) { var m = mid(s.id); svg += '<line class="spoke" x1="' + m[0] + '" y1="' + m[1] + '" x2="' + P[0] + '" y2="' + P[1] + '"/>'; });
+      I.links.forEach(function (l) {
+        var a = mid(l[0]), b = mid(l[1]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, w = l[2].length * 6.6 + 14;
+        svg += '<g class="lk lk-' + l[3] + '"><line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '"/><rect x="' + (mx - w / 2) + '" y="' + (my - 10) + '" width="' + w + '" height="20" rx="4"/><text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle">' + esc(l[2]) + '</text></g>';
+      });
+      svg += '<g class="prof"><rect x="' + (P[0] - 88) + '" y="' + (P[1] - 26) + '" width="176" height="52" rx="10"/><text class="pk" x="' + P[0] + '" y="' + (P[1] - 5) + '" text-anchor="middle">PERSON-LEVEL PROFILE</text><text class="pn" x="' + P[0] + '" y="' + (P[1] + 15) + '" text-anchor="middle">' + esc(name('p_dana')) + '</text></g>';
+      I.signals.forEach(function (s) {
+        var p = pos[s.id];
+        svg += '<g class="sg' + (inS(s) ? '' : ' dim') + '"><rect x="' + p[0] + '" y="' + p[1] + '" width="' + W + '" height="' + H + '" rx="10"/><text class="sl" x="' + (p[0] + 12) + '" y="' + (p[1] + 23) + '">' + esc(s.label) + '</text><text class="sk" x="' + (p[0] + 12) + '" y="' + (p[1] + 42) + '">' + esc(s.key) + '</text></g>';
+      });
+      return svg + '</svg>';
+    }
+    var svg = draw({ cls: 'idg-wide', tid: 'idgT', vw: 700, vh: 300, w: 160, P: [350, 130], pos: { phone: [20, 20], behavior: [20, 130], payment: [20, 240], device: [520, 20], browser: [520, 130], login: [520, 240] } }) +
+      draw({ cls: 'idg-tall', tid: 'idgT2', vw: 380, vh: 440, w: 146, P: [190, 400], pos: { phone: [4, 10], behavior: [4, 150], payment: [4, 290], device: [230, 10], browser: [230, 150], login: [230, 290] } });
     var cols = ['collected', 'derived', 'inferred'].map(function (k) { return '<div class="pcol"><div class="eyebrow">' + k + '</div>' + I.profile.filter(function (x) { return x[0] === k; }).map(function (x) { return '<p>' + esc(x[1]) + '</p>'; }).join('') + '</div>'; }).join('');
     return {
       head: 'Separate signals about ' + name('p_dana'),
@@ -230,7 +234,7 @@
   V.ids = function (st) {
     var J = journey(st), seen = J.hops.filter(function (h, i) { return i && h.id && h.id !== 'none'; });
     var everywhere = {};
-    G.journeys.forEach(function (j) { j.hops.forEach(function (h, i) { if (i && h.sc === 'stable' && h.z !== 'device') (everywhere[h.id] = everywhere[h.id] || []).push(j.label); }); });
+    G.journeys.forEach(function (j) { j.hops.forEach(function (h, i) { if (i && h.sc === 'stable' && h.z !== 'device') { var e = everywhere[h.id] = everywhere[h.id] || []; if (e.indexOf(j.label) < 0) e.push(j.label); } }); });
     var multi = Object.keys(everywhere).filter(function (k) { return everywhere[k].length > 1; });
     var SC = { stable: ['st-fail', 'stable'], scoped: ['st-ok', 'scoped'], none: ['st-ok', 'none'] };
     return {
@@ -326,34 +330,36 @@
   };
 
   /* consent timeline — local pass, system fail */
-  function tlSVG(rows, revokedAt) {
-    var X0 = 230, X1 = 960, T1 = 45, tx = function (m) { return X0 + m / T1 * (X1 - X0); }, hh = function (m) { var t = 590 + m; return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + t % 60).slice(-2); };
-    var bottom = 40 + rows.length * 40;
-    var s = '<svg viewBox="0 0 1000 ' + (bottom + 30) + '" class="tl" role="img" aria-labelledby="tlT"><title id="tlT">Consent revoked at ' + hh(revokedAt) + '. Local systems honour it; downstream systems keep acting on old state.</title>';
-    [0, 10, 20, 30, 40].forEach(function (m) { s += '<line class="grid" x1="' + tx(m) + '" x2="' + tx(m) + '" y1="26" y2="' + bottom + '"/><text class="ax" x="' + tx(m) + '" y="' + (bottom + 18) + '" text-anchor="middle">' + hh(m) + '</text>'; });
-    s += '<line class="nowb" x1="' + tx(5) + '" x2="' + tx(5) + '" y1="26" y2="' + bottom + '"/><text class="nowbt" x="' + (tx(5) - 6) + '" y="14" text-anchor="end">BATCH STARTS · ' + hh(5) + '</text>';
-    s += '<line class="nowl" x1="' + tx(revokedAt) + '" x2="' + tx(revokedAt) + '" y1="16" y2="' + bottom + '"/><text class="nowt" x="' + (tx(revokedAt) + 6) + '" y="14">USER REVOKES · ' + hh(revokedAt) + '</text>';
+  function tlSVG(rows, revokedAt, tall) {
+    /* wide: one row per system, time across. tall (phones): the label sits above its track. */
+    var VW = tall ? 420 : 1000, X0 = tall ? 26 : 230, X1 = tall ? 330 : 960, T1 = 45, RH = tall ? 64 : 40, TOP = tall ? 50 : 40, tx = function (m) { return X0 + m / T1 * (X1 - X0); }, hh = function (m) { var t = 590 + m; return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + t % 60).slice(-2); };
+    var bottom = TOP + rows.length * RH - (tall ? 10 : 0);
+    var s = '<svg viewBox="0 0 ' + VW + ' ' + (bottom + 30) + '" class="tl ' + (tall ? 'tl-tall' : 'tl-wide') + '" role="img" aria-labelledby="' + (tall ? 'tlT2' : 'tlT') + '"><title id="' + (tall ? 'tlT2' : 'tlT') + '">Consent revoked at ' + hh(revokedAt) + '. Local systems honour it; downstream systems keep acting on old state.</title>';
+    [0, 10, 20, 30, 40].forEach(function (m) { s += '<line class="grid" x1="' + tx(m) + '" x2="' + tx(m) + '" y1="' + (tall ? 36 : 26) + '" y2="' + bottom + '"/><text class="ax" x="' + tx(m) + '" y="' + (bottom + 18) + '" text-anchor="middle">' + hh(m) + '</text>'; });
+    s += '<line class="nowb" x1="' + tx(5) + '" x2="' + tx(5) + '" y1="' + (tall ? 6 : 26) + '" y2="' + bottom + '"/><text class="nowbt" x="' + (tall ? tx(5) + 6 : tx(5) - 6) + '" y="14"' + (tall ? '' : ' text-anchor="end"') + '>BATCH STARTS · ' + hh(5) + '</text>';
+    s += '<line class="nowl" x1="' + tx(revokedAt) + '" x2="' + tx(revokedAt) + '" y1="' + (tall ? 22 : 16) + '" y2="' + bottom + '"/><text class="nowt" x="' + (tx(revokedAt) + 6) + '" y="' + (tall ? 31 : 14) + '">USER REVOKES · ' + hh(revokedAt) + '</text>';
     rows.forEach(function (r, i) {
-      var y = 48 + i * 40, w = r.p.length * 7.4 + 18, x = tx(r.at) - (r.from != null ? w : w / 2);
-      s += '<g class="tr" data-i="' + i + '"><text class="rl" x="8" y="' + y + '">' + esc(r.n.toUpperCase()) + '</text><text class="rs" x="8" y="' + (y + 15) + '">' + esc(r.note) + '</text>';
-      if (r.from != null) s += '<rect class="batch" x="' + tx(r.from) + '" y="' + (y - 12) + '" width="' + (tx(r.at) - tx(r.from)) + '" height="22" rx="5"/>';
-      s += '<g class="pill pill-' + r.st + '"><rect x="' + x + '" y="' + (y - 11) + '" width="' + w + '" height="21" rx="5"/><text x="' + (x + w / 2) + '" y="' + (y + 4) + '" text-anchor="middle">' + esc(r.p) + '</text></g><text class="ax" x="' + (x + w + 8) + '" y="' + (y + 4) + '">' + (r.from != null ? hh(r.from) + '–' + hh(r.at) : hh(r.at)) + '</text></g>';
+      var y = TOP + 8 + i * RH, ly = tall ? y : y, py = tall ? y + 30 : y, w = r.p.length * 7.4 + 18, x = tx(r.at) - (r.from != null ? w : w / 2);
+      s += '<g class="tr" data-i="' + i + '"><text class="rl" x="8" y="' + ly + '">' + esc(r.n.toUpperCase()) + '</text><text class="rs" x="' + (tall ? 8 + r.n.length * 8 + 8 : 8) + '" y="' + (tall ? ly : ly + 15) + '">' + esc(r.note) + '</text>';
+      if (r.from != null) s += '<rect class="batch" x="' + tx(r.from) + '" y="' + (py - 12) + '" width="' + (tx(r.at) - tx(r.from)) + '" height="22" rx="5"/>';
+      s += '<g class="pill pill-' + r.st + '"><rect x="' + x + '" y="' + (py - 11) + '" width="' + w + '" height="21" rx="5"/><text x="' + (x + w / 2) + '" y="' + (py + 4) + '" text-anchor="middle">' + esc(r.p) + '</text></g><text class="ax" x="' + (x + w + 8) + '" y="' + (py + 4) + '">' + (r.from != null ? hh(r.from) + '–' + hh(r.at) : hh(r.at)) + '</text></g>';
     });
     return s + '</svg>';
   }
+
   V.consent = function () {
     var R = G.consent.rows, local = worst(R.slice(0, 2).map(function (r) { return r.st; })), sys = worst(R.map(function (r) { return r.st; }));
     return {
       head: 'A “no”, followed through the system',
       tools: '<button class="btn ghost" data-act="replay">Replay</button>',
-      body: verdict(local, sys) + '<div class="tlw" tabindex="0" role="region" aria-label="Consent timeline">' + tlSVG(R, G.consent.revokedAt) + '</div><p class="keyline">Consent is distributed state, not a checkbox.</p><p class="aside">The customer said no. The batch job said, “I was already on the freeway.”</p>',
+      body: verdict(local, sys) + '<div class="tlw" tabindex="0" role="region" aria-label="Consent timeline">' + tlSVG(R, G.consent.revokedAt) + tlSVG(R, G.consent.revokedAt, true) + '</div><p class="keyline">Consent is distributed state, not a checkbox.</p><p class="aside">The customer said no. The batch job said, “I was already on the freeway.”</p>',
       mount: function (root) {
         var t = [];
         $('[data-act="replay"]', root).addEventListener('click', function () {
           t.forEach(clearTimeout); t = [];
           var g = $$('.tr', root), order = R.map(function (r, i) { return i; }).sort(function (a, b) { return R[a].at - R[b].at || a - b; });
           g.forEach(function (e) { e.classList.add('hide'); });
-          order.forEach(function (i, k) { t.push(setTimeout(function () { g[i].classList.remove('hide'); }, RM ? 0 : 200 + k * 450)); });
+          order.forEach(function (i, k) { t.push(setTimeout(function () { $$('.tr[data-i="' + i + '"]', root).forEach(function (e) { e.classList.remove('hide'); }); }, RM ? 0 : 200 + k * 450)); });
         });
       }
     };
@@ -738,6 +744,8 @@
     try {
       main.innerHTML = S.page === 'reviews' ? reviewsPage() : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
       if (S.page === 'cc') mountCC();
+      /* each data cell carries its column name, so a phone can show a table as stacked rows */
+      $$('table.rel, table.util, table.priv, table.pkt', main).forEach(function (t) { var hs = $$('thead th', t).map(function (h) { return h.textContent; }); $$('tbody tr', t).forEach(function (r) { $$('td', r).forEach(function (c) { var h = hs[c.cellIndex]; if (h) c.setAttribute('data-h', h); }); }); });
       $$('[data-ev]', main).forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ ev: b.getAttribute('data-ev') }); }); });
       $$('[data-open-ctl]', main).forEach(function (b) { b.addEventListener('click', function () { set({ page: 'cc', q: 'control', c: [b.getAttribute('data-open-ctl')] }); window.scrollTo(0, 0); }); });
       var f = $('#askF'); if (f) f.addEventListener('submit', function (e) { e.preventDefault(); set({ ask: $('#askI').value.trim() }); });
