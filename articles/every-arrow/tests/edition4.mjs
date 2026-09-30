@@ -60,6 +60,9 @@ for (const p of C.products) {
       ok(PG.journeys.some((x) => x.id === q.j), `#${p.id}: journey ${q.j} is not in the Command Center`);
       ok(PG.questions.some((x) => x.id === q.q), `#${p.id}: question ${q.q} is not in the Command Center`);
       ok(['privacy', 'security', 'both'].includes(q.l), `#${p.id}: lens ${q.l}`);
+      /* the v1 surface must offer this journey and question, or the link falls back to the surface default */
+      const rel = PG.relevance && PG.relevance[q.s];
+      if (rel) ok(rel.j.includes(q.j) && rel.q.includes(q.q), `#${p.id}: surface ${q.s} does not offer journey ${q.j} / question ${q.q} (G.relevance)`);
     } else {
       const m = /^\/privacy-command-center\/v10\/#\/([a-z]+\/[a-z]+)$/.exec(u);
       ok(!!m && read('privacy-command-center/v10/views-life.js').includes(`'${m[1]}'`) || read('privacy-command-center/v10/app.js').includes(`'${m && m[1]}'`), `#${p.id}: ${u} is not a Command Center route`);

@@ -268,7 +268,7 @@ const pdfMeta = fs.existsSync(A(`${DIR}/edition-3.pdf.json`)) ? JSON.parse(fs.re
 const STAMP = {
   chapters: nChapters, scenes: nScenes, figures: nFigs,
   'read.full': readFull, 'read.exec': readExec,
-  edition: '3.0', revised: '29 September 2026',
+  edition: '3.0', revised: '30 September 2026',
   'pdf.pages': pdfMeta.pages,
   'ns.deletion.total': dt.length,
   'ns.deletion.verified': dt.filter((t) => t[3] === 'verified').length,
@@ -330,7 +330,7 @@ if (CHECK) {
     const cur = fs.existsSync(A(f)) ? fs.readFileSync(A(f), 'utf8') : '';
     if (cur !== content) problems.push(`${f} is stale — run: node scripts/every_arrow/build.mjs`);
   }
-  if (!pdfMeta.pages) problems.push(`${DIR}/pdf.json missing — run the build with --pdf`);
+  if (!pdfMeta.pages) problems.push(`${DIR}/edition-3.pdf.json missing — run the build with --pdf`);
   else if (pdfMeta.source !== sourceHash(html)) problems.push(`${DIR}/edition-3.pdf is older than the essay — run: EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`);
 } else {
   for (const [f, content] of outputs) {

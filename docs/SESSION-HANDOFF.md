@@ -19,6 +19,15 @@ clones fresh each time). CLAUDE.md points here._
   “What could not be confirmed”, whether to keep the essay listed on /articles/ and
   as the homepage feature (it still is). New artwork (homepage panel, link-preview
   card, cover) was made from the essay's own type in `scripts/every_arrow/art/`.
+- **EARLIER (2026-09-30, PR #894): one account, one life.** PCC v1 gained the
+  question *What if the account is stolen?*, the journey *live on one account* and a
+  takeover view (scammer, extension, infostealer, SIM swap × control). Edition 3 of the essay
+  gained scene 31 (now in the archive, `edition-3.html#account`) *One account. One life.* (`#account`, fig `account` in
+  `house.js`, same records as `graph.js`, test-enforced; fair, cited Apple/Google
+  claims — see `docs/EVERY-ARROW.md` §0b). Also fixed: each PCC surface now offers
+  only its own journeys, questions, concerns and subjects (`G.relevance`) — the
+  owner found "read mail" offered under wallet.
+
 - **EARLIER (2026-09-30): Privacy Command Center v1.** `/privacy-command-center/`
   is now the scaled-down product: one graph (`graph.js`), five selectors (persona,
   surface, journey, question, concern) plus subject and lens, and one workspace
@@ -42,7 +51,7 @@ clones fresh each time). CLAUDE.md points here._
   **Connected Life** (`#/life/*`), and adds Northstar Home (findings PRV-0301…0311,
   promises PR-DOOR / PR-HOMEDATA, decisions D-110 / D-111) to the organisation.
   ~50 new claims fact-checked (through search listings: the proxy blocks primary
-  domains). 6 chapters · 30 scenes · 41 figures · full ~92 min · exec ~12 min · PDF 112
+  domains). 6 chapters · 31 scenes · 42 figures · full ~97 min · exec ~13 min · PDF 116
   pages. Open for Paddy: editorial photography (not generated — shot list in
   `docs/EVERY-ARROW.md` §0), the longer reading time, the share image.
 - **NEWEST (2026-09-28): “Every Arrow Is a Decision” edition 2.** The privacy essay

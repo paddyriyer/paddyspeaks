@@ -140,6 +140,7 @@ join paths needs it. Matter multi-admin shares device state and commands, not au
 | 28 The network is a witness | `network` (8 networks × DNS / private address / VPN) | 3 Oct, clinic portal on library Wi-Fi | The network may not read every letter, but it can still see the envelope… |
 | 29 The house made an inference | `infer` (10 streams → 10 claims, with registry fields) | Ruth's “late mornings” | The house doesn't have to be told. That is why it has to be governed. |
 | 30 The old owner still has the keys | `oldkeys` (6 transitions × 3 levels of care × 6 layers) | 14 Oct, Theo's old phone becomes Mira's | A factory reset clears the device. The keys live everywhere else. |
+| 31 One account. One life. | `account` (4 surfaces on one account → joins; 4 attackers × control; same records as PCC v1 `G.oneLife` / `G.takeover`, test-enforced) | 16 Oct, a forgotten browser extension updates itself | The account is the join key. Protect what comes after the password. |
 
 Then **The rest of a connected life** (17-row field guide: cars and rentals, wearables,
 TVs, printers, trackers, sync and mirroring, family accounts, USB charging, resale,
@@ -173,7 +174,7 @@ entry at dusk (27); a library table with a laptop (28); an older woman's kitchen
 morning light (29); a phone being handed from an adult to a child (30). Each would sit
 above its scene's figure, with the plan or chain as the overlay.
 
-**Numbers.** 6 chapters · 30 scenes · 41 figures · full path ~92 min · executive ~12 min ·
+**Numbers.** 6 chapters · 31 scenes · 42 figures · full path ~97 min · executive ~13 min ·
 PDF 112 pages (all stamped by the build).
 
 ## The one idea
@@ -186,6 +187,29 @@ fictional person, **Dana**, a customer of the fictional company **Northstar**,
 followed from sign-up (3 Sep) to deletion (2 Nov).
 
 ---
+
+## 0b · Scene 31, one account, one life (2026-09-30)
+
+Added at the owner's request ("Chrome shows what I browse, Gmail who I talk to,
+Wallet what I buy … the moment those become one life, and the moment a scammer,
+extension or malware tries to steal it"). Written to be fair to both ecosystems;
+the structure test (§10) enforces the corrections:
+
+- Apple does **not** say "data never leaves the device". It says Private Cloud
+  Compute data is used only for the request, not stored, not accessible to Apple and
+  verifiable; Apple Pay keeps no transaction data tied to the user. iCloud sync is
+  separate; Advanced Data Protection is opt-in (and withdrawn for new UK users in
+  2025 — not stated in the essay; check before adding).
+- Google's policy says it *may combine* data across services. Chrome history
+  reaches the account only if signed in + syncing + included in Web & App Activity
+  (settings). Gmail content not used for ads since 23 Jun 2017. Wallet purchases for
+  ads: US, opt-in, since Nov 2025.
+- The join-key and takeover risk is stated as structural and true of both.
+- App-bound cookie encryption (Jul 2024) is not a complete fix (bypassed within
+  months, Elastic). DBSC GA on Windows, Chrome 146 (Apr 2026). Cyberhaven, 24–25
+  Dec 2024; ~35 extensions (Sekoia). MFA bombing is KrebsOnSecurity's report, not
+  Apple's. Primary pages were confirmed through search listings (proxy-blocked);
+  re-check quotes against the live pages when convenient.
 
 ## 1 · Audit of edition 1
 

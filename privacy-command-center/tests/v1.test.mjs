@@ -38,12 +38,75 @@ export default [
         if (tags.length < 3 || tags.length > 5) out.push(tag + ': ' + tags.length + ' findings');
         if (tags.some((x) => K.indexOf(x) < 0)) out.push(tag + ': unclassified finding');
       };
-      G.questions.forEach((q) => { G.surfaces.forEach((s) => { window.PCC1.set({ page: 'cc', q: q.id, s: s.id, j: s.j, c: [], u: 'person', p: 'reviewer', l: 'privacy' }); check(q.id + '/' + s.id); });
-        G.journeys.forEach((j) => { window.PCC1.set({ q: q.id, s: 'all', j: j.id }); check(q.id + '/j:' + j.id); }); });
+      const O = window.PCC1.offered, byF = {}; G.findings.forEach((f) => { byF[f.id] = f; });
+      G.surfaces.forEach((s) => { O(G.questions, 'q', s.id).forEach((q) => {
+        O(G.journeys, 'j', s.id).forEach((j) => { window.PCC1.set({ page: 'cc', s: s.id, j: j.id, q: q.id, c: [], u: 'person', p: 'reviewer', l: 'privacy' });
+          const st = window.PCC1.state(), tag = q.id + '/' + s.id + '/' + j.id;
+          if (st.q !== q.id || st.j !== j.id) out.push(tag + ': an offered combination was rewritten');
+          check(tag);
+          if (s.id !== 'all' && !window.PCC1.findings().some((id) => byF[id].s.indexOf(s.id) >= 0)) out.push(tag + ': no finding about this surface'); });
+        O(G.subjects, 'u', s.id).forEach((u) => { window.PCC1.set({ s: s.id, j: s.j, q: q.id, u: u.id }); check(q.id + '/' + s.id + '/u:' + u.id); }); }); });
       return out;
     });
     clean(p, 'sweep', assert); await p.closeAll();
     assert(!bad.length, bad.slice(0, 8).join('\n'));
+  } },
+  { name: 'each surface offers only its own journeys, questions, concerns and subjects', async run({ page, assert }) {
+    const p = await page(H({ s: 'pay', j: 'pay', q: 'know', u: 'person' }));
+    const r = await p.evaluate(() => {
+      const G = window.PG, out = [], opts = (id) => [...document.querySelectorAll('#' + id + ' option')].map((o) => o.value);
+      const conc = () => [...document.querySelectorAll('#msPop input')].map((i) => i.value);
+      const pay = { j: opts('selJ'), q: opts('selQ'), u: opts('selU'), c: conc() };
+      G.surfaces.forEach((s) => {
+        window.PCC1.set({ page: 'cc', s: s.id, j: s.j, q: 'know', c: [], u: 'person' });
+        const R = G.relevance[s.id], same = (a, b) => a.length === b.length && a.every((x) => b.indexOf(x) >= 0);
+        if (!R) { if (opts('selJ').length !== G.journeys.length || opts('selQ').length !== G.questions.length) out.push(s.id + ': all surfaces should offer everything'); return; }
+        if (!same(opts('selJ'), R.j)) out.push(s.id + ' journeys ' + opts('selJ'));
+        if (!same(opts('selQ'), R.q)) out.push(s.id + ' questions ' + opts('selQ'));
+        if (!same(opts('selU'), R.u)) out.push(s.id + ' subjects ' + opts('selU'));
+        if (!same(conc(), R.c)) out.push(s.id + ' concerns ' + conc());
+        R.c.forEach((c) => { if (!G.findings.some((f) => f.c.indexOf(c) >= 0 && f.s.indexOf(s.id) >= 0)) out.push(s.id + ': concern ' + c + ' has no finding on this surface'); });
+      });
+      // switching surface drops what no longer belongs
+      window.PCC1.set({ s: 'mail', j: 'mail', q: 'howlearn', c: ['tracking', 'ondevice'], u: 'feature' });
+      window.PCC1.set({ s: 'pay', j: 'pay' });
+      const sw = window.PCC1.state();
+      // presets and change links land on offered combinations
+      const presets = G.saved.map((v) => [v.label, v.s]).concat(G.focus.map((v) => [v.label, v.s]));
+      presets.forEach(([l, x]) => { const R = G.relevance[x.s]; if (R && (R.j.indexOf(x.j) < 0 || R.q.indexOf(x.q) < 0 || R.u.indexOf(x.subj) < 0 || x.c.some((c) => R.c.indexOf(c) < 0))) out.push('preset ' + l + ' is not an offered combination'); });
+      return { out, pay, sw };
+    });
+    const p2 = await page(H({ s: 'pay', j: 'mail', q: 'join', u: 'tenant', c: 'tenant' }));
+    const fixed = await p2.evaluate(() => window.PCC1.state()); await p2.closeAll();
+    clean(p, 'relevance', assert); await p.closeAll();
+    assert(!r.pay.j.includes('mail') && !r.pay.j.includes('report') && r.pay.j.includes('pay'), 'wallet never offers read mail: ' + r.pay.j);
+    assert(!r.pay.q.includes('join') && !r.pay.q.includes('consent') && !r.pay.q.includes('prove'), 'wallet questions: ' + r.pay.q);
+    assert(!r.pay.c.includes('tenant') && !r.pay.c.includes('tracking'), 'wallet concerns: ' + r.pay.c);
+    assert(!r.pay.u.includes('tenant') && !r.pay.u.includes('dataset'), 'wallet subjects: ' + r.pay.u);
+    assert(!r.out.length, r.out.slice(0, 8).join('\n'));
+    assert(r.sw.q === 'know' && r.sw.c.join() === 'ondevice' && r.sw.u === 'person', 'switching surface keeps only what belongs: ' + JSON.stringify(r.sw));
+    assert(fixed.j === 'pay' && fixed.q === 'know' && fixed.u === 'person' && !fixed.c.length, 'a link with a mismatched combination falls back: ' + JSON.stringify(fixed));
+  } },
+  { name: 'one account, one life: the account is the join key, and each control narrows what a thief reaches', async run({ page, assert }) {
+    const p = await page(H({ s: 'ident', j: 'account', q: 'stolen', u: 'person' }));
+    const r = await p.evaluate(() => {
+      const G = window.PG, root = document.getElementById('vis'), got = () => root.querySelectorAll('.tk-s.got').length, out = {};
+      out.facts = root.querySelectorAll('#ol-res li').length;
+      root.querySelector('[data-sf="0"]').click(); root.querySelector('[data-sf="1"]').click();
+      out.factsAfter = root.querySelectorAll('#ol-res li').length;
+      out.attackers = [];
+      G.takeover.forEach((t, i) => {
+        root.querySelector('[data-tk="' + i + '"]').click(); const before = got();
+        document.getElementById('tk-fix').click(); const after = got();
+        out.attackers.push({ id: t.id, before, after, expect: [t.gets.length, t.after.length], remains: /remain/i.test(document.getElementById('tk-res').innerText) });
+      });
+      return out;
+    });
+    const f = await p.evaluate(() => window.PCC1.findings());
+    clean(p, 'takeover', assert); await p.closeAll();
+    assert(r.facts > r.factsAfter, 'turning surfaces off removes the joins they made: ' + r.facts + ' → ' + r.factsAfter);
+    r.attackers.forEach((a) => { assert(a.before === a.expect[0] && a.after === a.expect[1] && a.after < a.before, a.id + ' reach before/after the control: ' + JSON.stringify(a)); assert(a.remains, a.id + ' shows what remains'); });
+    assert(f.includes('f_onelife') && f.includes('f_ext'), 'takeover findings: ' + f);
   } },
   { name: 'the same finding reads differently per persona; the executive sees issue, options, recommendation, residual risk', async run({ page, assert }) {
     const p = await page(H({ s: 'analytics', j: 'revoke', q: 'consent', u: 'person' }));
@@ -141,7 +204,7 @@ export default [
       return { n, out };
     });
     clean(p, 'saved', assert); await p.closeAll();
-    assert(r.n === 12, 'twelve saved views, got ' + r.n);
+    assert(r.n === 14, 'fourteen saved views, got ' + r.n);
     assert(!r.out.length, 'presets apply: ' + r.out);
   } },
   { name: 'links into the earlier explorer forward to v10', async run({ page, assert }) {

@@ -147,7 +147,7 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
 
 Edition 4 (2026-09-30): eight everyday products, as Apple, Google and one other company
 each document them, through four lenses — security, privacy, QA and data governance.
-Edition 3 (the 30-scene field guide) is archived unchanged at
+Edition 3 (the 31-scene field guide, with scene 31 “One account. One life.”) is archived at
 `articles/every-arrow/edition-3.html` (noindex). Read **`docs/EVERY-ARROW.md`** (§E4
 for the live essay) before touching either or `articles/every-arrow/`.
 

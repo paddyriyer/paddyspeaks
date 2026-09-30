@@ -63,7 +63,7 @@ for (const id of ids) if (!id.startsWith('trail-')) ok(registered.has(id), `fig-
 
 /* ── 2 · scenes, chapters, paths ─────────────────────────────────── */
 const scenes = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"[^>]*data-title="([^"]+)"/g)];
-ok(scenes.length === 30, `expected 30 scenes, found ${scenes.length}`);
+ok(scenes.length === 31, `expected 31 scenes, found ${scenes.length}`);
 for (const [, id] of scenes) {
   const sec = html.slice(html.indexOf(`id="${id}"`), html.indexOf('</section>', html.indexOf(`id="${id}"`)));
   ok(/<div class="brief x">/.test(sec), `#${id}: no executive brief`);
@@ -185,6 +185,29 @@ ok(keys.includes('"ea.path.v1"'), 'ea.path.v1 is not registered in data/platform
   ok(sol && (sol[1].split('<tbody>')[1].match(/<tr[ >]/g) || []).length === L.solutions.length, 'the solutions table lists every engineering answer');
   const pccL = pcc.life;
   ok(pccL && JSON.stringify(pccL.chain) === JSON.stringify(L.chain), 'essay and Command Center read the same household (regenerate northstar.js)');
+}
+
+/* ── 10 · one account, one life: fair to every ecosystem, same records as the Command Center ── */
+{
+  const hs = load(['articles/every-arrow/northstar.js', 'articles/every-arrow/sources.js', 'articles/every-arrow/house.js']).EA_HOUSE;
+  const g = load(['privacy-command-center/graph.js']).PG;
+  const strip = (t) => t.map((x) => ({ id: x.id, label: x.label, how: x.how, gets: x.gets, mfa: x.mfa, control: x.control, evidence: x.evidence, after: x.after, residual: x.residual }));
+  ok(JSON.stringify(hs.account.surfaces) === JSON.stringify(g.oneLife.surfaces) && JSON.stringify(hs.account.joins) === JSON.stringify(g.oneLife.joins), 'the essay and the Command Center disagree about what one account joins');
+  ok(JSON.stringify(strip(hs.account.attackers)) === JSON.stringify(strip(g.takeover)), 'the essay and the Command Center disagree about the four attackers');
+  const sc = /<section class="scene" id="account"[\s\S]*?<\/section>/.exec(html);
+  ok(!!sc, 'scene #account is missing');
+  if (sc) {
+    const b = sc[0];
+    ok(/class="brief x"/.test(b) && /<div class="lede">/.test(b) && /class="takeaway"/.test(b), '#account: brief, lede and takeaway');
+    ok(/href="\/privacy-command-center\/#cc\?[^"]*q=stolen/.test(b), '#account: links to the Command Center view');
+    ok(!/never leaves (the|your) device/i.test(b.replace(/often summarised as &ldquo;your data never leaves the device&rdquo;\. That is not what Apple says\./, '')), '#account: do not attribute “never leaves the device” to Apple');
+    ok(/That is not what Apple says/.test(b), '#account: correct the “never leaves the device” summary');
+    ok(!/(reads?|scans?) (her |your )?(Gmail|mail) (content )?(for|to show) ads/i.test(b) && /not been used to personalise ads since 2017/.test(b), '#account: Gmail content is not used for ads (since 2017)');
+    ok(/since November 2025 US users can choose/.test(b) && /off unless they turn it on/.test(b), '#account: Wallet ad use is US, opt-in, since Nov 2025');
+    ok(/applies to both/.test(b), '#account: the join-key risk applies to both ecosystems');
+    ok(/working around it within months/.test(b), '#account: cookie encryption is not presented as a complete fix');
+    ok(/as KrebsOnSecurity reported/.test(b), '#account: MFA bombing is attributed to its reporter, not to Apple');
+  }
 }
 
 if (fails.length) { console.error(fails.map((f) => '✗ ' + f).join('\n')); console.error(`\n${fails.length} failed, ${passed} passed`); process.exit(1); }
