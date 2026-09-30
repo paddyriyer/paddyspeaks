@@ -129,6 +129,18 @@ const lines = [...coda.matchAll(/<li[^>]*>([^<]+)<\/li>/g)].map((m) => m[1].trim
 ok(lines.join(' | ') === 'Some arrows copy data. | Some arrows create an identity. | Some arrows make an inference. | And some arrows open the door. | Every arrow is still a decision.', 'the five closing lines, in order: ' + lines.join(' | '));
 ok(/A person does not live inside one application\./.test(coda) && /Privacy engineering must follow them across all of those boundaries\./.test(coda), 'the closing thesis');
 
+/* ── 5b · the hero illustration: every size exists, and it is described ── */
+{
+  const fig = /<figure class="hero-art">([\s\S]*?)<\/figure>/.exec(html);
+  ok(!!fig, 'the hero illustration is missing');
+  if (fig) {
+    for (const m of fig[1].matchAll(/(\/images\/[\w/.-]+\.(?:avif|webp|png|jpg))/g)) ok(fs.existsSync(path.join(ROOT, m[1])), `hero image ${m[1]} does not exist`);
+    const alt = (/alt="([^"]*)"/.exec(fig[1]) || [, ''])[1];
+    ok(alt.length > 200 && /Security/.test(alt) && /Data governance/.test(alt), 'the hero illustration needs alt text that carries its words (the four lenses and the threats)');
+    ok(/width="\d+" height="\d+"/.test(fig[1]), 'the hero illustration needs width and height (no layout shift)');
+  }
+}
+
 /* ── 6 · a slim page ───────────────────────────────────────────── */
 const js = read('articles/every-arrow/lenses.js');
 ok(!/localStorage|sessionStorage|indexedDB|document\.cookie/.test(js), 'the lens switches store nothing');
