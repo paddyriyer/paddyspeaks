@@ -8484,6 +8484,22 @@
       ],
       "answer": 0,
       "explanation": "lru_cache requires hashable arguments. If the function receives unhashable types like lists or dicts, Python raises a TypeError on the first call or silently degrades performance. This is a common issue in data pipelines where records are passed as mutable structures. Option 1 correctly identifies that unhashable arguments prevent caching entirely, while option 2 conflates eviction (which would still show some benefit) with inability to cache at all."
+    },
+    {
+      "id": "py-new-138",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-09-30",
+      "prompt": "You're building a data validation framework where you need to enforce immutability on a dataclass that represents a database record. The record has 50 fields and you want to prevent accidental mutation after creation. You also need to use the record as a dictionary key in a cache. Which approach is most efficient?\n\n```python\nfrom dataclasses import dataclass\nfrom functools import total_ordering\n\n# Option A\n@dataclass(frozen=True)\nclass Record:\n    id: int\n    name: str\n    value: float\n\n# Option B\n@dataclass(frozen=True, unsafe_hash=True)\nclass Record:\n    id: int\n    name: str\n    value: float\n\n# Option C\n@dataclass(eq=False, frozen=True)\nclass Record:\n    id: int\n    name: str\n    value: float\n    def __hash__(self):\n        return hash((self.id, self.name, self.value))\n\n# Option D\n@dataclass(slots=True)\nclass Record:\n    id: int\n    name: str\n    value: float\n    def __setattr__(self, name, value):\n        raise AttributeError(\"immutable\")\n```",
+      "options": [
+        "Option A - frozen=True alone is sufficient and Pythonic for most use cases",
+        "Option B - frozen=True with unsafe_hash=True enables hashing for dictionary keys",
+        "Option C - Manual __hash__ implementation provides better control over equality semantics",
+        "Option D - slots=True with __setattr__ override is the most memory-efficient approach"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct because frozen=True makes the dataclass immutable, and unsafe_hash=True automatically generates a __hash__ method based on the fields, allowing the record to be used as a dictionary key. Option A won't work for dictionary keys (unhashable by default). Option C is unnecessarily verbose. Option D doesn't prevent hashing from dict keys and __setattr__ override is inefficient compared to frozen=True's C-level implementation."
     }
   ]
 }

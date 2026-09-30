@@ -15180,6 +15180,22 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct because it uses ORDER BY transaction_date with ROWS BETWEEN 30 PRECEDING AND 1 PRECEDING, which properly orders rows by date and excludes the current row from the average calculation. Option A uses ROWS without ORDER BY, causing undefined row ordering. Option C uses RANGE with CURRENT ROW, including the current transaction in the average. Option D is inefficient with a correlated subquery and doesn't properly exclude the current transaction in all SQL dialects."
+    },
+    {
+      "id": "sql-new-146",
+      "type": "single",
+      "topic": "query planning",
+      "difficulty": "hard",
+      "added_date": "2026-09-30",
+      "prompt": "You have a Snowflake table `fact_transactions(transaction_id INT, customer_id INT, product_id INT, amount DECIMAL, transaction_date DATE)` with 2 billion rows. A query joins this table with `dim_customer(customer_id INT, region TEXT)` and `dim_product(product_id INT, category TEXT)` to calculate regional revenue by product category. The query runs in 45 seconds, but your SLA requires it to complete in 10 seconds. After profiling, you notice the query plan shows a full table scan on `fact_transactions` followed by nested loop joins. Which optimization would most likely provide the greatest improvement?\n\nAssume: (1) All tables are currently unsorted, (2) No clustering keys exist, (3) Dimension tables fit in memory, (4) Network bandwidth is not a constraint.",
+      "options": [
+        "Create a clustered index on fact_transactions(customer_id, product_id) and a regular index on dim_customer(customer_id); this converts nested loops to index seeks.",
+        "Apply Snowflake clustering keys to fact_transactions on (customer_id, product_id) and use materialized view replication for both dimension tables; this enables partition pruning and distributed joins.",
+        "Increase the Snowflake warehouse size from Medium to XXLarge; larger clusters parallelize the nested loop joins more efficiently.",
+        "Pre-aggregate fact_transactions by (customer_id, product_id) into a summary table; query the summary instead of the raw fact table."
+      ],
+      "answer": 1,
+      "explanation": "Snowflake clustering keys enable partition pruning and push join predicates down to the storage layer, avoiding full table scans\u2014this is far more impactful than indexes (Snowflake does not use traditional indexes). While option 0 describes optimal indexing, Snowflake's architecture relies on clustering and zone maps instead. Option 2 (scaling) helps parallelism but doesn't eliminate the root cause (full scan + poor join strategy). Option 3 trades query speed for maintenance complexity; clustering is the better first optimization."
     }
   ]
 }
