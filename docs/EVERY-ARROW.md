@@ -87,6 +87,7 @@ certification wording, and Google Wallet’s VRP scope.
 | `articles/every-arrow/four-lenses.md` | **Generated** download. |
 | `articles/every-arrow/every-arrow-is-a-decision.pdf`, `pdf.json` | **Generated** printable edition 4 (`build.mjs --pdf`). |
 | `scripts/every_arrow/edition4.mjs` | Build/check for edition 4; `build.mjs` runs it after the archive. |
+| `scripts/every_arrow/art/` | The artwork, typography only: the homepage feature panel (`images/home/feature-every-arrow.webp`), the link-preview card (`share-card.png`) and the /articles/ cover (`hero.jpg`). Edition 3 keeps its own card, `share-card-edition-3.png`. How to re-render: `render.mjs`'s header. |
 | `articles/every-arrow/tests/edition4.mjs`, `edition4-browser.mjs` | Structure (Validate Content) and browser (Accessibility) tests. |
 
 **To change a claim:** edit `compare.js`, run `node scripts/every_arrow/build.mjs`,

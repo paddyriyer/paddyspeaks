@@ -17,7 +17,8 @@ clones fresh each time). CLAUDE.md points here._
   at `/articles/every-arrow/edition-3.html` (noindex); old anchors forward there and
   v10 links to it. Read `docs/EVERY-ARROW.md` §E4. Open for Paddy: the items under
   “What could not be confirmed”, whether to keep the essay listed on /articles/ and
-  as the homepage feature (it still is), and a new share image.
+  as the homepage feature (it still is). New artwork (homepage panel, link-preview
+  card, cover) was made from the essay's own type in `scripts/every_arrow/art/`.
 - **EARLIER (2026-09-30): Privacy Command Center v1.** `/privacy-command-center/`
   is now the scaled-down product: one graph (`graph.js`), five selectors (persona,
   surface, journey, question, concern) plus subject and lens, and one workspace
