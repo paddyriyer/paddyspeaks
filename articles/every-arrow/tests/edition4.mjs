@@ -138,6 +138,8 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
     const alt = (/alt="([^"]*)"/.exec(fig[1]) || [, ''])[1];
     ok(alt.length > 200 && /Security/.test(alt) && /Data governance/.test(alt), 'the hero illustration needs alt text that carries its words (the four lenses and the threats)');
     ok(/width="\d+" height="\d+"/.test(fig[1]), 'the hero illustration needs width and height (no layout shift)');
+    /* the owner's hero is the first thing on screen: once it sat below the title, deck and paths and was invisible without scrolling */
+    ok(html.indexOf('<figure class="hero-art">') < html.indexOf('<div class="hero-inner">') && html.indexOf('<figure class="hero-art">') > html.indexOf('<div class="masthead">'), 'the hero illustration must sit directly under the masthead, above the title');
   }
 }
 
