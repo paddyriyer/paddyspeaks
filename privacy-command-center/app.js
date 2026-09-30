@@ -32,6 +32,18 @@
     if (byId(G.subjects, q.u)) st.u = q.u;
     if (G.lenses[q.l]) st.l = q.l;
     st.fm = q.fm === '1'; st.ask = q.ask || ''; st.ev = q.ev || 'all';
+    return fit(st);
+  }
+  /* Only what belongs to the surface is offered (G.relevance). A link or preset
+   * that names something else falls back to the surface's own default. */
+  function offered(list, key, s) { var r = G.relevance[s]; return r ? list.filter(function (x) { return r[key].indexOf(x.id) >= 0; }) : list; }
+  function fit(st) {
+    var r = G.relevance[st.s];
+    if (!r) return st;
+    if (r.j.indexOf(st.j) < 0) st.j = byId(G.surfaces, st.s).j;
+    if (r.q.indexOf(st.q) < 0) st.q = offered(G.questions, 'q', st.s)[0].id;
+    st.c = st.c.filter(function (c) { return r.c.indexOf(c) >= 0; });
+    if (r.u.indexOf(st.u) < 0) st.u = r.u[0];
     return st;
   }
   function hashFor(st) {
@@ -42,6 +54,7 @@
   }
   function set(patch) {
     for (var k in patch) S[k] = patch[k];
+    fit(S);
     var h = hashFor(S);
     if (location.hash !== h) history.replaceState(null, '', h);
     render();
@@ -49,10 +62,10 @@
   window.addEventListener('hashchange', function () { S = parse(); render(); });
 
   /* ── resolve the selectors to one view of the graph ─────── */
-  var CTL_BY_CONCERN = { tenant: 'tenant', consent: 'consent', vendor: 'consent', deletion: 'delete', retention: 'delete', access: 'access', minimization: 'pay', agent: 'agent', inference: 'agent', purpose: 'agent', linkability: 'link', tracking: 'link', identity: 'auth', authentication: 'auth', devicetrust: 'auth', recovery: 'auth', disclosure: 'sd', ondevice: 'route', thirdmodel: 'route', logging: 'log' };
+  var CTL_BY_CONCERN = { tenant: 'tenant', consent: 'consent', vendor: 'consent', deletion: 'delete', retention: 'delete', access: 'access', minimization: 'pay', agent: 'agent', inference: 'agent', purpose: 'agent', linkability: 'link', tracking: 'link', identity: 'auth', authentication: 'auth', devicetrust: 'auth', recovery: 'auth', disclosure: 'sd', ondevice: 'route', thirdmodel: 'route', logging: 'log', takeover: 'account' };
   var CTL_BY_SURFACE = { ident: 'auth', web: 'link', mail: 'mail', pay: 'pay', did: 'sd', cloud: 'tenant', analytics: 'consent', ai: 'agent', vendor: 'consent', all: 'tenant' };
-  var CTL_LIST = { auth: ['c_passkey', 'c_rp_scope', 'c_attest', 'c_sync', 'c_session', 'c_recovery'], link: ['c_itp', 'c_link_strip', 'c_id_rotate', 'c_ip_mask'], mail: ['c_remote_content', 'c_relay', 'c_route', 'c_pcc_attest', 'c_no_train'], pay: ['c_tokenize', 'c_local_risk', 'c_ttl'], sd: ['c_sd', 'c_verifier_ret', 'c_issuer_blind'], route: ['c_route', 'c_pcc_attest', 'c_no_train'], agent: ['c_route', 'c_agent_policy', 'c_join_policy', 'c_agent_approval'], log: ['c_url_redact', 'c_iam', 'c_ttl'] };
-  var CTL_TITLE = { auth: 'Sign-in invariant: no shared secret anywhere in the account’s life', link: 'Unlinkability: unrelated sites stay unlinked', mail: 'Mail invariant: reading a message reveals nothing, and content leaves only when needed', pay: 'Payment invariant: prove what is necessary, keep what measurably helps', sd: 'Disclosure invariant: share the attribute, not the identity', route: 'Routing invariant: run where the fewest parties can see it', agent: 'Agent invariant: act only within the task’s purpose', log: 'Logging invariant: telemetry never copies identity' };
+  var CTL_LIST = { auth: ['c_passkey', 'c_rp_scope', 'c_attest', 'c_sync', 'c_session', 'c_recovery'], link: ['c_itp', 'c_link_strip', 'c_id_rotate', 'c_ip_mask'], mail: ['c_remote_content', 'c_relay', 'c_route', 'c_pcc_attest', 'c_no_train'], pay: ['c_tokenize', 'c_local_risk', 'c_ttl'], sd: ['c_sd', 'c_verifier_ret', 'c_issuer_blind'], route: ['c_route', 'c_pcc_attest', 'c_no_train'], agent: ['c_route', 'c_agent_policy', 'c_join_policy', 'c_agent_approval'], log: ['c_url_redact', 'c_iam', 'c_ttl'], account: ['c_passkey', 'c_cookie_enc', 'c_dbsc', 'c_ext_review', 'c_recovery'] };
+  var CTL_TITLE = { auth: 'Sign-in invariant: no shared secret anywhere in the account’s life', link: 'Unlinkability: unrelated sites stay unlinked', mail: 'Mail invariant: reading a message reveals nothing, and content leaves only when needed', pay: 'Payment invariant: prove what is necessary, keep what measurably helps', sd: 'Disclosure invariant: share the attribute, not the identity', route: 'Routing invariant: run where the fewest parties can see it', agent: 'Agent invariant: act only within the task’s purpose', log: 'Logging invariant: telemetry never copies identity', account: 'Account invariant: a stolen password, code, cookie or phone number does not open her life' };
   var DEVICE_J = { signin: 1, browse: 1, mail: 1, pay: 1, age: 1, share: 1, ai: 1 };
   function agentFor(st) { return st.s === 'pay' ? 'ag_support' : 'ag_assist'; }
   function sdVariant(st) { return st.s === 'did' || st.j === 'age' || st.j === 'share' ? 'age' : (st.s === 'mail' || st.s === 'ident' || st.j === 'mail' || st.j === 'signin') ? 'relay' : 'derived'; }
@@ -91,6 +104,7 @@
         v.ctl = st.u === 'tenant' ? 'tenant' : st.u === 'agent' ? 'agent' : st.u === 'credential' ? 'auth' : (c0 && CTL_BY_CONCERN[c0]) || CTL_BY_SURFACE[st.s] || 'tenant';
         v.key = v.ctl === 'consent' ? 'consent' : v.ctl === 'delete' ? 'delete' : G.decisions['ctl-' + v.ctl] ? 'ctl-' + v.ctl : { mail: 'whoknows', pay: 'sd-derived' }[v.ctl] || 'where';
         break;
+      case 'stolen': v.kind = 'takeover'; v.key = 'takeover'; break;
       case 'changed': v.kind = 'changes'; v.key = 'changed'; break;
       case 'worst': v.kind = 'worst'; v.key = 'worst'; break;
     }
@@ -452,6 +466,37 @@
     };
   };
 
+  /* one account, one life — and who tries to steal it */
+  V.takeover = function (st) {
+    var O = G.oneLife, T = G.takeover, on = O.surfaces.map(function () { return true; }), ti = 0, fixed = false;
+    var names = {}; O.surfaces.forEach(function (x) { names[x[0]] = x[1]; });
+    function draw(root) {
+      var have = O.surfaces.filter(function (x, i) { return on[i]; }).map(function (x) { return x[0]; });
+      var facts = O.joins.filter(function (j) { return j.needs.every(function (n) { return have.indexOf(n) >= 0; }); });
+      $$('[data-sf]', root).forEach(function (b, i) { b.setAttribute('aria-pressed', on[i]); });
+      $('#ol-res', root).innerHTML = facts.length ? '<ul class="ol-f">' + facts.map(function (j) { return '<li>' + tag('INFERENCE') + ' ' + esc(j.fact) + ' <span class="cite">' + j.needs.map(function (n) { return esc(names[n]); }).join(' + ') + '</span></li>'; }).join('') + '</ul>' : '<p class="empty">Separate, each surface knows one thing about her.</p>';
+      var t = T[ti], reach = (fixed ? t.after : t.gets);
+      $$('[data-tk]', root).forEach(function (b, i) { b.setAttribute('aria-checked', i === ti); });
+      $('#tk-fix', root).setAttribute('aria-pressed', fixed); $('#tk-fix', root).textContent = fixed ? 'Remove the control' : 'Apply the control';
+      $('#tk-res', root).innerHTML = '<p class="tk-how">' + esc(t.how) + '</p><div class="tk-reach">' + O.surfaces.map(function (x) { var got = reach.indexOf(x[0]) >= 0; return '<span class="tk-s ' + (got ? 'got' : 'safe') + '"><b>' + esc(x[1]) + '</b>' + (got ? 'reached' : 'protected') + '</span>'; }).join('') + '</div>' +
+        '<dl class="tk-d"><div><dt>Why a one-time code does not stop it</dt><dd>' + esc(t.mfa) + '</dd></div><div><dt>The control</dt><dd>' + esc(t.control) + ' ' + stTag(ctlState(t.ctl), name(t.ctl) + ' · ' + freshness(G.controls[t.ctl].last).t) + '</dd></div><div><dt>The evidence</dt><dd>' + esc(t.evidence) + '</dd></div>' + (fixed ? '<div><dt>What remains</dt><dd>' + esc(t.residual) + '</dd></div>' : '') + '</dl>';
+    }
+    return {
+      head: 'One account, one life',
+      body: '<div class="ol"><div class="eyebrow">Surfaces signed in to one account</div><div class="seg ol-t" role="group" aria-label="Surfaces on the account">' + O.surfaces.map(function (x, i) { return '<button data-sf="' + i + '" aria-pressed="true">' + esc(x[1]) + ' <small>' + esc(x[2]) + '</small></button>'; }).join('') + '</div><div id="ol-res" aria-live="polite"></div></div>' +
+        '<div class="tk"><div class="eyebrow">Who tries to steal it</div><div class="seg" role="radiogroup" aria-label="Attacker">' + T.map(function (t, i) { return '<button role="radio" data-tk="' + i + '" aria-checked="' + (i === 0) + '">' + esc(t.label) + '</button>'; }).join('') + '</div> <button class="btn ghost" id="tk-fix" aria-pressed="false">Apply the control</button><div id="tk-res" aria-live="polite"></div></div>' +
+        '<p class="keyline">The account is the join key. Protect what comes after the password: the session, the browser, the recovery path.</p>',
+      mount: function (root) {
+        root.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-sf]'); if (b) { var i = +b.getAttribute('data-sf'); on[i] = !on[i]; draw(root); return; }
+          var r = e.target.closest('[data-tk]'); if (r) { ti = +r.getAttribute('data-tk'); fixed = false; draw(root); return; }
+          if (e.target.closest('#tk-fix')) { fixed = !fixed; draw(root); }
+        });
+        draw(root);
+      }
+    };
+  };
+
   /* what changed */
   var CHANGE_Q = { 'new control failure': 'control', 'new AI tool access': 'agentdo', 'new join': 'join', 'retention increase': 'live', 'new vendor': 'where', 'new destination': 'where', 'new identifier': 'linkid', 'new dataset': 'live' };
   function changesFor(st) { return G.changes.filter(function (c) { return (st.s === 'all' || c[3] === st.s) && (!st.c.length || c[4].some(function (x) { return st.c.indexOf(x) >= 0; })); }); }
@@ -503,10 +548,13 @@
     var cOk = function (f) { return !st.c.length || f.c.some(function (c) { return st.c.indexOf(c) >= 0; }); };
     var score = function (f) { return (f.v.indexOf(q) >= 0 ? 4 : 0) + (st.c.length && cOk(f) ? 2 : 0) + (sOk(f) ? 1 : 0); };
     var pool = G.findings.filter(function (f) { return f.v.indexOf(q) >= 0 && sOk(f) && cOk(f) && lensOk(f); }), note = '';
-    if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0 && lensOk(f) && (sOk(f) || cOk(f)); }));
-    if (pool.length < 3) { pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0; })); if (st.l !== 'both') note = 'Few ' + st.l + '-only findings answer this; related findings are shown.'; }
+    if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0 && lensOk(f) && sOk(f); }));
+    if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0 && (sOk(f) || lensOk(f) && cOk(f)); }));
+    if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0; }));
     pool.sort(function (a, b) { return score(b) - score(a) || ORDER[a.k] - ORDER[b.k]; });
-    return { list: pool.slice(0, st.p === 'executive' ? 3 : 5).sort(function (a, b) { return ORDER[a.k] - ORDER[b.k]; }), note: note };
+    pool = pool.slice(0, st.p === 'executive' ? 3 : 5);
+    if (st.l !== 'both' && pool.some(function (f) { return !lensOk(f); })) note = 'Few ' + st.l + '-only findings answer this; related findings are shown.';
+    return { list: pool.sort(function (a, b) { return ORDER[a.k] - ORDER[b.k]; }), note: note };
   }
   function findingText(f) { return f.text === '{changes}' ? plural(G.changes.length, 'privacy-relevant change') + ' since the ' + G.lastReview + ' review; none went through review.' : f.text; }
   function findingsHTML(st, view) {
@@ -539,12 +587,12 @@
     return '<div class="sent" role="group" aria-label="Lenses">' +
       '<span class="w">I am a</span>' + sel('selP', 'Persona', G.personas, S.p, 'k-p') +
       '<span class="w">looking at</span>' + sel('selS', 'Surface', G.surfaces, S.s) +
-      '<span class="w">when someone</span>' + sel('selJ', 'Journey', G.journeys, S.j) +
-      '<span class="w">asking</span>' + sel('selQ', 'Question', G.questions, S.q, 'k-q') +
+      '<span class="w">when someone</span>' + sel('selJ', 'Journey', offered(G.journeys, 'j', S.s), S.j) +
+      '<span class="w">asking</span>' + sel('selQ', 'Question', offered(G.questions, 'q', S.s), S.q, 'k-q') +
       '<span class="w">concerned with</span><span class="ms"><button type="button" id="selC" class="ms-b" aria-haspopup="true" aria-expanded="false" aria-controls="msPop"><span class="sr-only">Privacy concern: </span>' + esc(cLabel) + '</button>' +
       '<div class="ms-pop" id="msPop" hidden><div class="ms-h"><span class="eyebrow">Privacy concerns</span><button type="button" class="linkbtn" id="msClear">Clear</button></div>' +
-      G.concerns.map(function (c) { return '<label><input type="checkbox" id="cc-' + c.id + '" value="' + c.id + '"' + (S.c.indexOf(c.id) >= 0 ? ' checked' : '') + '> ' + esc(c.label) + '</label>'; }).join('') + '</div></span></div>' +
-      '<div class="refine"><span class="w">about</span>' + sel('selU', 'Subject', G.subjects, S.u) +
+      offered(G.concerns, 'c', S.s).map(function (c) { return '<label><input type="checkbox" id="cc-' + c.id + '" value="' + c.id + '"' + (S.c.indexOf(c.id) >= 0 ? ' checked' : '') + '> ' + esc(c.label) + '</label>'; }).join('') + '</div></span></div>' +
+      '<div class="refine"><span class="w">about</span>' + sel('selU', 'Subject', offered(G.subjects, 'u', S.s), S.u) +
       '<span class="w">through the</span><div class="seg" role="radiogroup" aria-label="Lens">' + ['privacy', 'security', 'both'].map(function (l) { return '<button role="radio" data-l="' + l + '" aria-checked="' + (S.l === l) + '">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>'; }).join('') + '</div><span class="w">lens</span></div>' +
       '<p class="lensq">' + esc(G.lenses[S.l].q) + (G.lenses[S.l].incl ? ' <span>Includes ' + esc(G.lenses[S.l].incl) + '.</span>' : '') + '</p>' +
       (S.l === 'both' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>' : '');
@@ -655,6 +703,11 @@
       var rp = byId(G.journeys, 'signin').hops.filter(function (h) { return h.n === 'Relying party'; })[0];
       return [['FACT', 'The site receives: ' + rp.obs.toLowerCase() + '.', ['sy_rp']], ['FACT', 'Each site gets its own key pair, so the credential does not link sites.', ['c_rp_scope']],
         ['FACT', 'Recovery still falls back to an SMS code.', ['c_recovery']], ['RECOMMENDATION', 'Recover with another device or a recovery key.', ['c_recovery']], ['UNKNOWN', 'Whether session tokens are bound to the device: never tested.', ['c_session']]]; } },
+    { q: 'What happens if someone steals her account?', k: /steal|stolen|takeover|take over|hijack|malware|extension|phish|sim swap|scam/i, a: function () {
+      return G.takeover.map(function (t) { return ['FACT', t.label + ': ' + t.how + ' It reaches ' + t.gets.length + ' of ' + G.oneLife.surfaces.length + ' surfaces. ' + t.mfa, [t.ctl]]; })
+        .concat([['INFERENCE', 'Browser, mail and wallet on one account add up to one life.', ['sy_account', 'in_profile']],
+          ['RECOMMENDATION', 'Passkeys, device-bound sessions, extension review and recovery without SMS.', ['c_passkey', 'c_dbsc', 'c_ext_review', 'c_recovery']],
+          ['UNKNOWN', 'Whether a session was ever copied: nothing records a cookie leaving the device.', ['sy_account']]]); } },
     { q: 'What leaves the device when she uses the assistant?', k: /leave|device|assistant|private compute|on.?device/i, a: function () {
       return G.routing.requests.map(function (r) { return [/Unknown/.test(r.retained) ? 'UNKNOWN' : 'FACT', r.r + ': runs ' + ({ device: 'on device', private: 'in private compute', third: 'at a third party' })[r.zone] + '; leaves: ' + r.leaves.toLowerCase() + '; retained: ' + r.retained.toLowerCase() + '.', [r.zone === 'device' ? 'sy_odm' : r.zone === 'private' ? 'sy_pcc' : 'v_llm']]; })
         .concat([['RECOMMENDATION', 'Ask before any third-party hand-off and send the minimum prompt.', ['c_no_train']]]); } }
@@ -718,5 +771,5 @@
   S = parse();
   if (!/^#(cc|reviews|evidence|ask)/.test(location.hash)) history.replaceState(null, '', hashFor(S));
   render();
-  window.PCC1 = { state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set };
+  window.PCC1 = { offered: offered, state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set };
 })();

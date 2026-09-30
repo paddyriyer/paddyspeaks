@@ -60,6 +60,8 @@
     ds_kyc: ['dataset', 'identity documents', 'copies kept by a verifier'],
     ds_authlog: ['dataset', 'sign-in events', 'time, IP, device class'],
     /* systems */
+    sy_account: ['system', 'Northstar Account', 'one account for browser, mail and wallet'],
+    v_ext: ['vendor', 'PageTools', 'fictional browser extension'],
     sy_bio: ['system', 'biometric unlock', 'Face ID / Touch ID-style, on device'],
     sy_authn: ['system', 'authenticator', 'holds private keys in secure hardware'],
     sy_sync: ['system', 'credential sync', 'end-to-end encrypted'],
@@ -124,6 +126,7 @@
     c_ttl: ['control', 'Retention TTL', ''], c_mask: ['control', 'Warehouse masking', ''], c_iam: ['control', 'Least-privilege IAM', ''],
     c_url_redact: ['control', 'URL redaction before logging', ''], c_join_policy: ['control', 'Cross-domain join policy', ''],
     c_vendor_ack: ['control', 'Vendor deletion acknowledgement', ''],
+    c_dbsc: ['control', 'Device-bound sessions', ''], c_cookie_enc: ['control', 'Cookies encrypted to the browser', ''], c_ext_review: ['control', 'Extension permission review', ''],
     inc_export: ['incident', 'INC-14 export after revocation', '']
   };
   G.node = function (id) { var n = G.nodes[id]; return n ? { id: id, type: n[0], name: n[1], sub: n[2] } : null; };
@@ -140,7 +143,8 @@
     ['c_passkey', 'PROTECTS', 'sy_rp'], ['c_vpd', 'PROTECTS', 'ds_commission'], ['c_consent_read', 'PROTECTS', 'ds_export'], ['c_sd', 'PROTECTS', 'cr_mdl'], ['c_route', 'PROTECTS', 'ds_prompts'],
     ['ds_behavior', 'ENABLES', 'in_profile'], ['ds_customer', 'ENABLES', 'in_profile'], ['ds_loc', 'ENABLES', 'in_home'],
     ['ag_assist', 'ACCESSES', 'ds_mail'], ['ag_assist', 'ACCESSES', 'ds_txn'], ['ag_assist', 'ACCESSES', 'ds_browse'], ['ag_assist', 'ACCESSES', 'ds_loc'], ['ag_assist', 'PRODUCES', 'in_medical'],
-    ['ag_support', 'ACCESSES', 'ds_txn'], ['ag_support', 'PRODUCES', 'in_hardship']
+    ['ag_support', 'ACCESSES', 'ds_txn'], ['ag_support', 'PRODUCES', 'in_hardship'],
+    ['p_dana', 'HAS', 'sy_account'], ['sy_account', 'LINKS', 'ds_browse'], ['sy_account', 'LINKS', 'ds_mailmeta'], ['sy_account', 'LINKS', 'ds_txn'], ['sy_account', 'LINKS', 'cr_passkey'], ['v_ext', 'ACCESSES', 'ds_browse'], ['c_dbsc', 'PROTECTS', 'sy_account']
   ];
 
   /* ── selector vocabulary ───────────────────────────────── */
@@ -162,6 +166,21 @@
     { id: 'ai', label: 'AI / agents', j: 'ai', emph: ['on device', 'private compute', 'third-party models', 'inference', 'tool access', 'cross-domain joins', 'autonomy', 'human approval', 'audit'] },
     { id: 'vendor', label: 'third parties', j: 'revoke', emph: ['egress', 'contracts', 'subprocessors', 'deletion acknowledgement', 'regions', 'model vendors'] }
   ];
+  /* Relevance: each surface offers only the journeys, questions, concerns and
+   * subjects that belong to it (a wallet never offers “read mail”). “all
+   * surfaces” offers everything. The tests check that every combination offered
+   * here is answered by at least one finding on that surface. */
+  G.relevance = {
+    ident: { j: ['signin', 'account', 'share', 'delete'], q: ['know', 'whoknows', 'howlearn', 'prove', 'linkid', 'where', 'live', 'control', 'stolen', 'changed', 'worst'], c: ['identity', 'authentication', 'devicetrust', 'recovery', 'takeover', 'linkability', 'tracking', 'retention'], u: ['person', 'credential'] },
+    web: { j: ['browse', 'account', 'signin'], q: ['know', 'whoknows', 'howlearn', 'prove', 'linkid', 'where', 'control', 'stolen', 'worst'], c: ['identity', 'authentication', 'devicetrust', 'takeover', 'linkability', 'tracking'], u: ['person', 'vendor'] },
+    mail: { j: ['mail', 'account', 'ai'], q: ['know', 'whoknows', 'howlearn', 'linkid', 'where', 'leftdevice', 'whyleft', 'provewithout', 'infer', 'delete', 'live', 'control', 'stolen'], c: ['identity', 'recovery', 'takeover', 'linkability', 'tracking', 'ondevice', 'thirdmodel', 'inference', 'retention', 'vendor'], u: ['person', 'feature', 'vendor'] },
+    pay: { j: ['pay', 'account', 'share'], q: ['know', 'whoknows', 'linkid', 'where', 'leftdevice', 'whyleft', 'provewithout', 'infer', 'agentdo', 'live', 'control', 'stolen'], c: ['identity', 'takeover', 'linkability', 'purpose', 'minimization', 'ondevice', 'inference', 'agent', 'retention'], u: ['person', 'product', 'agent'] },
+    did: { j: ['age', 'share'], q: ['whoknows', 'prove', 'where', 'provewithout', 'live', 'changed', 'worst'], c: ['disclosure', 'linkability', 'retention', 'vendor'], u: ['person', 'credential'] },
+    cloud: { j: ['report', 'delete'], q: ['whoknows', 'where', 'delete', 'live', 'control', 'worst'], c: ['identity', 'minimization', 'access', 'tenant', 'retention', 'deletion', 'logging'], u: ['tenant', 'dataset', 'person'] },
+    analytics: { j: ['revoke', 'delete', 'browse'], q: ['know', 'whoknows', 'linkid', 'where', 'join', 'infer', 'consent', 'delete', 'live', 'control', 'changed', 'worst'], c: ['identity', 'linkability', 'consent', 'purpose', 'minimization', 'inference', 'access', 'retention', 'deletion', 'vendor'], u: ['person', 'dataset', 'vendor'] },
+    ai: { j: ['ai', 'mail'], q: ['where', 'leftdevice', 'whyleft', 'infer', 'agentdo', 'delete', 'live', 'control'], c: ['ondevice', 'thirdmodel', 'inference', 'agent', 'access', 'retention', 'vendor'], u: ['person', 'agent', 'feature'] },
+    vendor: { j: ['revoke', 'delete', 'share'], q: ['whoknows', 'where', 'leftdevice', 'whyleft', 'consent', 'delete', 'live', 'control', 'changed', 'worst'], c: ['disclosure', 'consent', 'thirdmodel', 'retention', 'deletion', 'vendor'], u: ['vendor', 'person', 'dataset'] }
+  };
   G.questions = [
     { id: 'know', label: 'What do we know?' }, { id: 'whoknows', label: 'Who knows it?' }, { id: 'howlearn', label: 'How did they learn it?' },
     { id: 'prove', label: 'How did the user prove identity?' }, { id: 'linkid', label: 'What identifier links this activity?' },
@@ -169,10 +188,10 @@
     { id: 'provewithout', label: 'Can we prove this without revealing that?' }, { id: 'join', label: 'Should these datasets be joined?' },
     { id: 'infer', label: 'What can this system infer?' }, { id: 'agentdo', label: 'What can this agent do?' },
     { id: 'consent', label: 'Did consent propagate?' }, { id: 'delete', label: 'Can we delete it?' }, { id: 'live', label: 'How long does it live?' },
-    { id: 'control', label: 'Did the control really work?' }, { id: 'changed', label: 'What changed?' }, { id: 'worst', label: 'What is our worst day?' }
+    { id: 'control', label: 'Did the control really work?' }, { id: 'stolen', label: 'What if the account is stolen?' }, { id: 'changed', label: 'What changed?' }, { id: 'worst', label: 'What is our worst day?' }
   ];
   G.concerns = [
-    { id: 'identity', label: 'Identity' }, { id: 'authentication', label: 'Authentication' }, { id: 'devicetrust', label: 'Device trust' }, { id: 'recovery', label: 'Account recovery' },
+    { id: 'identity', label: 'Identity' }, { id: 'authentication', label: 'Authentication' }, { id: 'devicetrust', label: 'Device trust' }, { id: 'recovery', label: 'Account recovery' }, { id: 'takeover', label: 'Account takeover' },
     { id: 'linkability', label: 'Linkability' }, { id: 'tracking', label: 'Tracking' }, { id: 'disclosure', label: 'Selective disclosure' },
     { id: 'consent', label: 'Consent' }, { id: 'purpose', label: 'Purpose' }, { id: 'minimization', label: 'Data minimization' },
     { id: 'ondevice', label: 'On-device processing' }, { id: 'thirdmodel', label: 'Third-party model' }, { id: 'inference', label: 'Inference' }, { id: 'agent', label: 'AI / agent' },
@@ -266,6 +285,13 @@
       H('Third-party model', 'third', { mv: 'The prompt, if she approves the hand-off', obs: 'Prompt and any attached context', id: 'Request ID', sc: 'scoped', keep: 'unknown', why: 'A capability we do not run', need: 'unknown', st: 'unk', sec: 'Contract, TLS', ctl: 'c_no_train' }),
       H('Agent tool', 'service', { mv: 'A booking request', obs: 'Dates, destination, payment card', id: 'Account', sc: 'stable', keep: 'yes', why: 'Book the trip', need: 'yes', st: 'warn', sec: 'Tool allowlist', ctl: 'c_agent_policy' }),
       H('Action', 'third', { mv: 'Hotel booking with her name and card', obs: 'Name, stay dates, card', id: 'Name + card token', sc: 'stable', keep: 'yes', why: 'Complete the task', need: 'yes', st: 'fail', sec: 'None: no approval step', ctl: 'c_agent_approval' })] },
+    { id: 'account', label: 'live on one account', sees: 'Her browser, mail and wallet, each signed in', hops: [
+      H('Person', 'device', { obs: 'Everything', id: 'none', sc: 'none' }),
+      H('Browser', 'device', { mv: 'Sign-in once, then every page she opens', obs: 'History, open tabs, saved passwords, autofill', id: 'Northstar Account', sc: 'stable', why: 'Browse, signed in', need: 'yes', st: 'ok', sec: 'Session cookie in the browser profile', ctl: 'c_cookie_enc' }),
+      H('Browser extension', 'third', { mv: 'Every page, after sign-in: it can read and change all sites', obs: 'Pages, form fields and signed-in sessions on every site', id: 'The session itself', sc: 'stable', keep: 'unknown', why: 'A coupon tool she installed years ago', need: 'no', st: 'fail', sec: 'Extension permissions: all sites', ctl: 'c_ext_review' }),
+      H('Northstar Account', 'service', { mv: 'Synced history, contacts, purchases, sign-ins', obs: 'One record that joins what she reads, who she writes to and what she buys', id: 'Account', sc: 'stable', keep: 'yes', why: 'Sync across her devices', need: 'yes', st: 'warn', sec: 'Session tokens not bound to the device', ctl: 'c_dbsc' }),
+      H('Mail', 'service', { mv: 'Messages and receipts', obs: 'Who she talks to, and the reset link for every other account', id: 'Account', sc: 'stable', keep: 'yes', why: 'Mail', need: 'yes', st: 'warn', sec: 'Signed in by the same session', ctl: 'c_recovery' }),
+      H('Wallet', 'service', { mv: 'Payments and passes', obs: 'What, where and when she buys', id: 'Account', sc: 'stable', keep: 'yes', why: 'Pay', need: 'yes', st: 'ok', sec: 'Payment needs a fresh biometric check', ctl: 'c_tokenize' })] },
     { id: 'report', label: 'open a report', sees: 'A Tenant A commission dashboard', hops: [
       H('Tenant A user', 'device', { obs: 'Everything', id: 'none', sc: 'none' }),
       H('Dashboard', 'device', { mv: 'Report request', obs: 'Her session', id: 'Tenant A session', sc: 'scoped', why: 'See commissions', need: 'yes', st: 'ok', sec: 'SSO' }),
@@ -289,6 +315,24 @@
       H('Ad partner', 'third', { mv: 'Nightly file including her', obs: 'That she is a likely churner', id: 'Hashed email', sc: 'stable', keep: 'yes', why: 'Advertising', need: 'no', st: 'fail', ctl: 'c_vendor_ack' })] }
   ];
   G.zones = [['device', 'On device'], ['private', 'Private compute'], ['service', 'Service'], ['third', 'Third party']];
+
+  /* ── ONE ACCOUNT, ONE LIFE: what the join key reveals, and who tries to steal it ── */
+  G.oneLife = {
+    surfaces: [['browser', 'Browser', 'what she reads'], ['mail', 'Mail', 'who she talks to'], ['wallet', 'Wallet', 'what she buys'], ['signin', 'Saved sign-ins', 'where she has accounts']],
+    joins: [
+      { needs: ['browser', 'wallet'], fact: 'She researched it, then she bought it.' },
+      { needs: ['mail', 'wallet'], fact: 'Receipts show purchases made outside the wallet too.' },
+      { needs: ['browser', 'mail'], fact: 'Sign-up emails show which sites she uses.' },
+      { needs: ['mail', 'signin'], fact: 'Mail holds the reset link for every other account.' },
+      { needs: ['browser', 'mail', 'wallet'], fact: 'Together: interests, relationships, spending and schedule. One life.' }
+    ]
+  };
+  G.takeover = [
+    { id: 'scam', label: 'A scammer', how: 'A convincing sign-in page relays her password and one-time code as she types them.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'The code is typed into the fake page and replayed at once.', control: 'Passkeys: the key is bound to the real site, so a fake page receives nothing it can use.', ctl: 'c_passkey', evidence: 'Lookalike-origin test on every release.', after: [], residual: 'A scammer can still talk her into approving a payment herself.' },
+    { id: 'ext', label: 'A browser extension', how: 'An extension allowed to read and change all sites updates to a malicious version.', gets: ['browser', 'mail', 'wallet'], mfa: 'It never signs in. It reads pages after she has.', control: 'Review extension permissions; allow extensions by list; limit site access to “on click”.', ctl: 'c_ext_review', evidence: 'Extension inventory with permissions, compared on every update.', after: [], residual: 'An allowed extension that turns malicious still reads what it was allowed to.' },
+    { id: 'malware', label: 'Infostealer malware', how: 'Copies session cookies and saved passwords off the device.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'A stolen session cookie is already past the second factor.', control: 'Bind sessions to the device, and encrypt cookies to the browser, so a copied session fails elsewhere.', ctl: 'c_dbsc', evidence: 'Replay a copied session from another machine: rejected.', after: ['signin'], residual: 'Malware running on the device itself can still act as her.' },
+    { id: 'simswap', label: 'A SIM swap', how: 'Her phone number is moved to the attacker, who uses “forgot password”.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'The SMS code is the recovery path.', control: 'Recover with another enrolled device or a recovery key, never SMS alone.', ctl: 'c_recovery', evidence: 'Recovery walkthrough with a moved number: refused.', after: [], residual: 'People who lose every device need a slower, human recovery.' }
+  ];
 
   /* ── PASSWORD → PASSKEY ─────────────────────────────── */
   G.auth = {
@@ -451,6 +495,7 @@
   G.lastReview = '2026-09-01';
   G.changes = [
     ['2026-09-27', 'new control failure', 'Account recovery falls back to SMS after the passkey rollout', 'ident', ['recovery', 'authentication'], 'c_recovery'],
+    ['2026-09-25', 'new control failure', 'An all-sites browser extension found in signed-in browsers, unreviewed', 'web', ['takeover', 'tracking'], 'c_ext_review'],
     ['2026-09-26', 'new control failure', 'Export pipeline stopped checking consent after a refactor', 'analytics', ['consent'], 'c_consent_read'],
     ['2026-09-24', 'new AI tool access', 'Assistant gained Browser history and Location tools', 'ai', ['agent', 'inference'], 'ag_assist'],
     ['2026-09-22', 'new join', 'Warehouse view joins player_events to customers', 'analytics', ['linkability', 'identity'], 'ds_customer'],
@@ -511,7 +556,10 @@
     c_iam: { inv: 'Jobs read only what they need', where: 'IAM roles', last: '2026-07-14', result: 'pass', method: 'Quarterly access review', c: ['access'] },
     c_url_redact: { inv: 'No identifiers in logged URLs', where: 'API gateway logging', last: null, result: 'never', method: 'Documented; no log scan', c: ['logging', 'identity'] },
     c_join_policy: { inv: 'Cross-domain joins need an approved purpose', where: 'Warehouse and agent runtime', last: null, result: 'never', method: 'Policy on paper', c: ['linkability', 'purpose', 'inference'] },
-    c_vendor_ack: { inv: 'Vendors confirm deletion and retention', where: 'Vendor contracts', last: null, result: 'never', method: 'Clause; no confirmations collected', c: ['vendor', 'deletion'] }
+    c_vendor_ack: { inv: 'Vendors confirm deletion and retention', where: 'Vendor contracts', last: null, result: 'never', method: 'Clause; no confirmations collected', c: ['vendor', 'deletion'] },
+    c_dbsc: { inv: 'A copied session does not work on another device', where: 'Northstar Account sessions', last: null, result: 'never', method: 'Designed; sessions are still bearer cookies', c: ['takeover', 'devicetrust'] },
+    c_cookie_enc: { inv: 'Other programs on the device cannot read the browser’s cookies', where: 'Northstar Browser', last: '2026-09-24', result: 'pass', method: 'Cookie extraction test from another process', c: ['takeover', 'devicetrust'] },
+    c_ext_review: { inv: 'Extensions that can read every site are reviewed and allowed by name', where: 'Browser policy', last: '2026-09-25', result: 'fail', method: 'Inventory found all-site extensions with no review', c: ['takeover', 'tracking'] }
   };
 
   /* ── findings: FACT | INFERENCE | UNKNOWN | CONTROL FAILURE ──
@@ -521,11 +569,11 @@
     /* identity & authentication */
     F('f_pk_phish', 'FACT', 'Passkey sign-in is bound to the real origin; a lookalike site gets nothing usable.', ['prove', 'control', 'howlearn'], ['ident', 'web', 'all'], ['authentication'], 'security', ['cr_passkey', 'c_passkey']),
     F('f_pk_scope', 'FACT', 'Each site receives its own key pair, so the credential cannot link her across sites.', ['prove', 'linkid'], ['ident', 'all'], ['authentication', 'linkability'], 'privacy', ['c_rp_scope']),
-    F('f_recovery', 'CONTROL FAILURE', 'Account recovery falls back to an SMS code: a phishable shared secret after the passkey rollout.', ['prove', 'control', 'changed', 'whoknows'], ['ident', 'all'], ['recovery', 'authentication'], 'both', ['sy_recovery', 'c_recovery'],
+    F('f_recovery', 'CONTROL FAILURE', 'Account recovery falls back to an SMS code: a phishable shared secret after the passkey rollout.', ['prove', 'control', 'changed', 'whoknows', 'stolen'], ['ident', 'all'], ['recovery', 'authentication'], 'both', ['sy_recovery', 'c_recovery'],
       { reviewer: ['DESIGN ISSUE', 'Removing the password did not remove the weakest path; recovery is it now.'], builder: ['REQUIRED CONTROL', 'Recover with another enrolled device or a recovery key, not SMS.'], auditor: ['EVIDENCE FAILURE', 'The recovery walkthrough reached the account with an SMS code alone.'], executive: ['RISK', 'Passkeys protect sign-in, but account takeover still runs through the phone number.'] }),
-    F('f_authlog', 'FACT', 'Every sign-in records time, IP address and device class, kept far longer than needed.', ['prove', 'whoknows', 'live', 'know'], ['ident', 'all'], ['authentication', 'retention'], 'privacy', ['ds_authlog']),
+    F('f_authlog', 'FACT', 'Every sign-in records time, IP address and device class, kept far longer than needed.', ['prove', 'whoknows', 'live', 'know', 'where'], ['ident', 'all'], ['authentication', 'retention'], 'privacy', ['ds_authlog']),
     F('f_session', 'UNKNOWN', 'Session tokens are designed to be device-bound, but no replay test exists.', ['prove', 'control'], ['ident'], ['authentication', 'devicetrust'], 'security', ['c_session']),
-    F('f_sync_hub', 'INFERENCE', 'The platform account sees every device and sync event: one place where all her credentials correlate.', ['prove', 'linkid', 'whoknows'], ['ident'], ['devicetrust', 'linkability'], 'privacy', ['sy_sync']),
+    F('f_sync_hub', 'INFERENCE', 'The platform account sees every device and sync event: one place where all her credentials correlate.', ['prove', 'linkid', 'whoknows', 'where'], ['ident'], ['devicetrust', 'linkability'], 'privacy', ['sy_sync']),
     F('f_attest', 'FACT', 'Attestation tells a site the authenticator model, not the device serial.', ['prove'], ['ident'], ['devicetrust'], 'security', ['c_attest']),
     /* web */
     F('f_fp', 'CONTROL FAILURE', 'An analytics script builds a fingerprint that stays stable across unrelated sites.', ['whoknows', 'linkid', 'where', 'control', 'howlearn'], ['web', 'all'], ['tracking', 'linkability'], 'privacy', ['id_fp', 'v_pixel', 'c_id_rotate'],
@@ -548,10 +596,10 @@
       { reviewer: ['DESIGN QUESTION', 'Which of these signals materially improve fraud detection?'], builder: ['REQUIRED CONTROL', 'Compute risk on device; send the score and the few high-utility signals.'], auditor: ['NO EVIDENCE', 'On-device risk is designed but never shipped.'], executive: ['TRADE-OFF', 'Fraud protection versus minimization: keep what measurably stops fraud, drop the rest.'] }),
     F('f_train_raw', 'FACT', 'Model training receives the same raw signals as fraud investigation.', ['whyleft', 'provewithout'], ['pay'], ['purpose', 'minimization'], 'privacy', ['ds_fraud', 'pu_training']),
     /* digital identity */
-    F('f_age_bool', 'FACT', 'The verifier receives “over 21: TRUE” with the issuer’s signature, and nothing else.', ['provewithout', 'where', 'whoknows'], ['did', 'all'], ['disclosure'], 'privacy', ['cr_mdl', 'c_sd'],
+    F('f_age_bool', 'FACT', 'The verifier receives “over 21: TRUE” with the issuer’s signature, and nothing else.', ['provewithout', 'prove', 'where', 'whoknows'], ['did', 'all'], ['disclosure'], 'privacy', ['cr_mdl', 'c_sd'],
       { reviewer: ['DESIGN PATTERN', 'Prove the attribute; do not disclose the identity.'], builder: ['CONTROL', 'Request one attribute; show it to the user before sharing.'], auditor: ['EVIDENCE', 'Request review passed on 09-22.'], executive: ['OUTCOME', 'Age checks without collecting ID copies.'] }),
     F('f_verifier_copy', 'UNKNOWN', 'Whether a verifier keeps what it received cannot be verified by us.', ['provewithout', 'live'], ['did'], ['disclosure', 'retention'], 'privacy', ['c_verifier_ret']),
-    F('f_issuer', 'UNKNOWN', 'Whether the issuer learns where the ID was shown depends on the revocation protocol.', ['provewithout', 'whoknows'], ['did'], ['disclosure', 'linkability'], 'privacy', ['v_issuer', 'c_issuer_blind']),
+    F('f_issuer', 'UNKNOWN', 'Whether the issuer learns where the ID was shown depends on the revocation protocol.', ['provewithout', 'prove', 'whoknows'], ['did'], ['disclosure', 'linkability'], 'privacy', ['v_issuer', 'c_issuer_blind']),
     F('f_kyc_vendor', 'FACT', 'Bank onboarding sends her photo and ID number to a verification vendor.', ['where', 'whoknows', 'changed'], ['did', 'vendor'], ['vendor', 'disclosure'], 'privacy', ['ds_kyc']),
     /* AI routing and agents */
     F('f_route', 'FACT', 'Short requests run on device; nothing leaves.', ['leftdevice', 'whyleft'], ['ai', 'all'], ['ondevice'], 'privacy', ['sy_odm', 'c_route']),
@@ -562,6 +610,16 @@
     F('f_agent_act', 'CONTROL FAILURE', 'The assistant can book and share dates with no approval step.', ['agentdo', 'infer', 'control'], ['ai'], ['agent'], 'both', ['ag_assist', 'c_agent_approval']),
     F('f_agent_scope', 'FACT', 'Browser and Calendar tools have no data scope: all history, all calendars.', ['agentdo'], ['ai'], ['agent', 'access'], 'security', ['ag_assist']),
     F('f_hardship', 'INFERENCE', 'The support agent concludes financial hardship from three authorized tools.', ['infer', 'agentdo'], ['pay', 'ai'], ['inference', 'agent'], 'privacy', ['ag_support', 'in_hardship']),
+    /* one account, and account takeover */
+    F('f_onelife', 'INFERENCE', 'Browser, mail and wallet on one account add up to one life: interests, relationships, spending and schedule.', ['stolen', 'know', 'linkid'], ['ident', 'web', 'mail', 'pay', 'all'], ['linkability', 'identity', 'takeover'], 'privacy', ['sy_account', 'in_profile'],
+      { reviewer: ['DESIGN QUESTION', 'Does each service need the others’ data, or only the same sign-in?'], builder: ['REQUIRED CONTROL', 'Keep one sign-in but separate data scopes per service; join only with a stated purpose.'], auditor: ['EVIDENCE', 'The account links browse, mail and payment records today.'], executive: ['RISK', 'One account is one breach away from a whole life.'] }),
+    F('f_bearer', 'CONTROL FAILURE', 'Sessions are bearer cookies: a copied cookie works from another machine, past the second factor.', ['stolen', 'control'], ['ident', 'web', 'all'], ['takeover', 'devicetrust'], 'security', ['sy_account', 'c_dbsc'],
+      { reviewer: ['DESIGN ISSUE', 'We protected the password and left the session unguarded.'], builder: ['REQUIRED CONTROL', 'Bind sessions to a device key; re-verify on new devices.'], auditor: ['NO EVIDENCE', 'No replay test exists for a copied session.'], executive: ['RISK', 'Malware can skip our sign-in protections entirely.'] }),
+    F('f_ext', 'CONTROL FAILURE', 'An extension that can read and change every site sits in signed-in browsers with no review.', ['stolen', 'whoknows', 'control'], ['web', 'ident', 'all'], ['takeover', 'tracking'], 'both', ['v_ext', 'c_ext_review']),
+    F('f_mailkey', 'FACT', 'Mail receives the reset link for every other account, so whoever holds mail holds the rest.', ['stolen', 'prove'], ['ident', 'mail', 'all'], ['takeover', 'recovery'], 'security', ['ds_mailmeta', 'c_recovery']),
+    F('f_phish_pk', 'FACT', 'With a passkey, a lookalike sign-in page receives nothing it can replay.', ['stolen'], ['ident', 'web', 'all'], ['takeover', 'authentication'], 'security', ['cr_passkey', 'c_passkey']),
+    F('f_cookie_enc', 'FACT', 'Other programs on the device can no longer read the browser’s cookies directly.', ['stolen'], ['web', 'ident'], ['takeover', 'devicetrust'], 'security', ['c_cookie_enc']),
+    F('f_theft_unknown', 'UNKNOWN', 'How many signed-in sessions were ever copied is unknowable after the fact: nothing records a cookie leaving the device.', ['stolen', 'worst'], ['ident', 'web', 'all'], ['takeover'], 'security', ['sy_account']),
     /* data platform (earlier scenarios) */
     F('f_link', 'FACT', 'Phone, browser and account resolve to one person through player_id and the account.', ['know', 'join', 'linkid'], ['all', 'analytics'], ['identity', 'linkability'], 'privacy', ['id_player', 'in_profile']),
     F('f_iplink', 'INFERENCE', 'Browser and phone are matched by IP and time, not a shared key. The match can be wrong.', ['know', 'linkid'], ['web', 'all'], ['linkability'], 'privacy', ['id_ip']),
@@ -654,12 +712,16 @@
       'Jobs hold far more access than they need.', ['Annual review', 'Automated diff', 'Rebuild roles'], 'Automated diff on every deploy.', 'Copies made with the old role.'),
     'ctl-log': D('Identifiers leak into logs that outlive the data.', 'The database may be protected while telemetry creates another copy.', 'IDs out of URLs; redaction at the gateway; short log retention.', 'Daily scan of logs for identifier patterns.',
       'Logs hold identity outside database controls.', ['Restrict readers', 'Redact at source', 'Both'], 'Redact at source; restrict readers meanwhile.', 'Existing logs until they expire.'),
+    takeover: D('One stolen session opens a whole life.', 'The account is the join key. Attackers skip the password by stealing what comes after it: the session, the recovery path, the browser itself.', 'Passkeys for sign-in; sessions bound to the device; extensions allowed by name; recovery without SMS; separate data scopes behind one sign-in.', 'Lookalike-origin test; copied-session replay test; extension inventory; recovery walkthrough.',
+      'Anyone who steals one session sees her browsing, mail and purchases.', ['Stronger passwords and codes', 'Protect the session and recovery path', 'Separate the services’ data behind one sign-in'], 'Protect the session and recovery path now; separate data scopes next.', 'Malware running on her own device can still act as her.'),
     changed: D('The system changed after review; the review did not.', 'Reviews go stale the day after launch.', 'Re-review on new joins, destinations, vendors, identifiers, tools and retention increases.', 'Change feed reconciled with reviews weekly.',
       'Risky changes shipped since the last review.', ['Review later', 'Re-review the top three now', 'Freeze those changes'], 'Re-review recovery, the consent export and the assistant’s tools now.', 'Changes before the feed existed are unknown.'),
     worst: D('A single credential, insider or vendor reaches named histories.', 'Damage is what we collect, times how long we keep it, times how identifiable it is, times who holds the key.', 'Remove what is not needed; compute locally; then scope access; then de-identify.', 'Blast-radius review after each safeguard.',
       'Our worst day exposes identity joined with location and ID documents.', ['Insure', 'Keep less', 'Limit who can reach it'], 'Keep less first, then limit who can reach it.', 'Vendor copies remain outside our control.')
   };
-  G.principleFor = { know: 'scoped', whoknows: 'scoped', where: 'derived', prove: 'passkey', linkid: 'scoped', boundary: 'local', routing: 'local', 'sd-age': 'attr', 'sd-relay': 'scoped', 'sd-derived': 'derived', join: 'infer', infer: 'infer', agentdo: 'infer', consent: 'no', delete: 'del', live: 'encrypt', purpose: 'encrypt', access: 'encrypt', 'ctl-tenant': 'hiding', 'ctl-auth': 'passkey', 'ctl-link': 'scoped', 'ctl-sd': 'attr', 'ctl-route': 'local', 'ctl-agent': 'infer', 'ctl-access': 'encrypt', 'ctl-log': 'scoped', changed: 'no', worst: 'local' };
+  G.principleFor = { takeover: 'passkey', 'ctl-account': 'passkey', know: 'scoped', whoknows: 'scoped', where: 'derived', prove: 'passkey', linkid: 'scoped', boundary: 'local', routing: 'local', 'sd-age': 'attr', 'sd-relay': 'scoped', 'sd-derived': 'derived', join: 'infer', infer: 'infer', agentdo: 'infer', consent: 'no', delete: 'del', live: 'encrypt', purpose: 'encrypt', access: 'encrypt', 'ctl-tenant': 'hiding', 'ctl-auth': 'passkey', 'ctl-link': 'scoped', 'ctl-sd': 'attr', 'ctl-route': 'local', 'ctl-agent': 'infer', 'ctl-access': 'encrypt', 'ctl-log': 'scoped', changed: 'no', worst: 'local' };
+
+  G.decisions['ctl-account'] = G.decisions.takeover;
 
   /* ── reviews ────────────────────────────────────────── */
   G.reviews = [
@@ -670,6 +732,7 @@
     { id: 'RV-414', feature: 'Age verification with a digital ID', s: 'did', stage: 'In review', view: 'age', conds: ['c_sd', 'c_verifier_ret', 'c_issuer_blind'] },
     { id: 'RV-415', feature: 'Assistant routing and tools', s: 'ai', stage: 'In review', view: 'agent', conds: ['c_route', 'c_pcc_attest', 'c_agent_policy', 'c_agent_approval'] },
     { id: 'RV-416', feature: 'Ledger commission statements', s: 'cloud', stage: 'Launched', view: 'tenant', conds: ['c_vpd', 'c_report_scope', 'c_server_filter'] },
+    { id: 'RV-418', feature: 'Northstar Account sessions', s: 'ident', stage: 'In review', view: 'takeover', conds: ['c_passkey', 'c_dbsc', 'c_cookie_enc', 'c_ext_review', 'c_recovery'] },
     { id: 'RV-417', feature: 'Churn re-engagement export', s: 'analytics', stage: 'Launched', view: 'consent', conds: ['c_consent_read', 'c_vendor_ack', 'c_delete_orch'] }
   ];
 
@@ -687,7 +750,9 @@
     SV('airoute', 'AI data routing', 'builder', 'ai', 'ai', 'leftdevice', ['ondevice']),
     SV('agent', 'AI agent privileges', 'builder', 'ai', 'ai', 'agentdo', ['agent'], 'agent'),
     SV('tenant', 'Cross-tenant isolation', 'auditor', 'cloud', 'report', 'control', ['tenant'], 'tenant'),
-    SV('twotable', 'Two-table reidentification', 'reviewer', 'analytics', 'revoke', 'join', ['linkability'], 'dataset')
+    SV('twotable', 'Two-table reidentification', 'reviewer', 'analytics', 'revoke', 'join', ['linkability'], 'dataset'),
+    SV('onelife', 'One account, one life', 'reviewer', 'ident', 'account', 'stolen', ['linkability']),
+    SV('takeover', 'Account takeover', 'auditor', 'ident', 'account', 'control', ['takeover'])
   ];
   /* Focus mode: three presets for a short walkthrough */
   G.focus = [
