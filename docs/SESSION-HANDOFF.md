@@ -17,8 +17,8 @@ clones fresh each time). CLAUDE.md points here._
   at `/articles/every-arrow/edition-3.html` (noindex); old anchors forward there and
   v10 links to it. Read `docs/EVERY-ARROW.md` §E4. Open for Paddy: the items under
   “What could not be confirmed”, whether to keep the essay listed on /articles/ and
-  as the homepage feature (it still is). New artwork (homepage panel, link-preview
-  card, cover) was made from the essay's own type in `scripts/every_arrow/art/`.
+  as the homepage feature (it still is). Paddy's own illustration (`four-lenses.png`) is the
+  essay's hero, the homepage feature image, the /articles/ cover and the link-preview card.
 - **EARLIER (2026-09-30, PR #894): one account, one life.** PCC v1 gained the
   question *What if the account is stolen?*, the journey *live on one account* and a
   takeover view (scammer, extension, infostealer, SIM swap × control). Edition 3 of the essay
