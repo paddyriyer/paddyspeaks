@@ -23,7 +23,7 @@ data, inferable data, local/cloud, joining identity, boundaries crossed, physica
 action, who can read or replay, retention, revocation, failure behaviour, evidence).
 `null` = nobody at Northstar can answer = a finding.
 
-**One dataset.** The household lives in `privacy-command-center/data-life.js`
+**One dataset.** The household lives in `privacy-command-center/v10/data-life.js`
 (`NS.life`) and reaches the essay through the generated `northstar.js` (`EA_NS.life`):
 people and their eight roles (device owner, administrator, data subject, household
 member, guest, bystander, installer, vendor operator), places, rooms, devices,
@@ -201,7 +201,7 @@ a draft at the time), EU AI Act high-risk dates (deferred by the 2026 omnibus).
 | `articles/every-arrow/core.js` | Framework: reading paths, contents, figure registry, deep links, details, print. |
 | `articles/every-arrow/sources.js` | Source registry (build-time only). |
 | `articles/every-arrow/essay.css` | Screen styles, then edition-2 components, then `@media print` and `@page` (running header, "Page N of M"). |
-| `articles/every-arrow/northstar.js` | **Generated** from `privacy-command-center/data.js`. |
+| `articles/every-arrow/northstar.js` | **Generated** from `privacy-command-center/v10/data.js`. |
 | `articles/every-arrow/field-kit.md` | **Generated** download. |
 | `articles/every-arrow/every-arrow-is-a-decision.pdf`, `pdf.json` | **Generated** printable edition and its source hash. |
 | `scripts/every_arrow/build.mjs`, `pdf.mjs` | The build (and PDF renderer). |

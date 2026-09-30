@@ -114,32 +114,32 @@ An arrow nobody can answer these for is a finding.
 
 ## In the Privacy Command Center
 
-- One person, no name → [One Person](https://paddyspeaks.com/privacy-command-center/#/explore/person) — Every fact and inference about Dana, with its join path
-- Two harmless tables → [Identities](https://paddyspeaks.com/privacy-command-center/#/explore/identities) — Identifiers, their scope, and the joins between them
-- Eight questions → [Privacy reviews](https://paddyspeaks.com/privacy-command-center/#/privacy/reviews) — The eight answers per feature, and launch blockers
-- Every arrow → [Lineage & flows](https://paddyspeaks.com/privacy-command-center/#/explore/flows) — Every flow as a privacy object, including unreviewed ones
-- Purpose at use → [Purpose](https://paddyspeaks.com/privacy-command-center/#/privacy/purpose) — Purpose findings and mismatched reads
-- Harm, not just breach → [Threat models](https://paddyspeaks.com/privacy-command-center/#/privacy/threats) — LINDDUN across the riskiest flows
-- The burn button → [Tracking](https://paddyspeaks.com/privacy-command-center/#/privacy/tracking) — SDKs and pixels, and whether they ask
-- The enforcement ladder → [Controls & evidence](https://paddyspeaks.com/privacy-command-center/#/assurance/controls) — Each control’s rung and health
-- Consent is state → [Consent](https://paddyspeaks.com/privacy-command-center/#/privacy/consent) — Propagation latency per consumer
-- Rights as workflows → [Individual rights](https://paddyspeaks.com/privacy-command-center/#/privacy/rights) — Requests, deadlines and slow systems
-- Retention → [Retention](https://paddyspeaks.com/privacy-command-center/#/privacy/retention) — Declared versus observed age per dataset
-- Forget me → [Deletion](https://paddyspeaks.com/privacy-command-center/#/privacy/deletion) — Deletion verification across every system
-- Vendors → [Vendor register](https://paddyspeaks.com/privacy-command-center/#/governance/vendors) — Vendors, subprocessors, transfers and attestations
-- AI, ML and agents → [AI & agents](https://paddyspeaks.com/privacy-command-center/#/privacy/ai) — The model and agent inventory
-- Signing in → [Access & insider](https://paddyspeaks.com/privacy-command-center/#/assurance/access) — Unusual access and break-glass use
-- Your worst day → [Worst Day](https://paddyspeaks.com/privacy-command-center/#/privacy/worstday) — Blast-radius simulation per dataset
-- PETs and budgets → [PETs & DP](https://paddyspeaks.com/privacy-command-center/#/privacy/pets) — Control alternatives and the ε ledger
-- Change breaks reviews → [Drift](https://paddyspeaks.com/privacy-command-center/#/assurance/drift) — Privacy-impacting changes and the reviews they reopen
-- Privacy observability → [Observability](https://paddyspeaks.com/privacy-command-center/#/observability) — Privacy SLOs, control health and evidence freshness
-- Incident response → [Incidents](https://paddyspeaks.com/privacy-command-center/#/assurance/incidents) — Incidents, broken assumptions and guards
-- One home. Three clouds. → [Household & places](https://paddyspeaks.com/privacy-command-center/#/life/graph) — The household graph, every arrow’s fourteen answers, and the engineering answers
-- The guest never clicked Accept → [Who the home observes](https://paddyspeaks.com/privacy-command-center/#/life/people) — Owners, subjects, guests and bystanders, and what each sensor takes
-- When privacy opens the door → [Physical actions](https://paddyspeaks.com/privacy-command-center/#/life/actions) — Every software path that can unlock, open, disarm or start — and its identity
-- The routine nobody reviewed → [Automation review](https://paddyspeaks.com/privacy-command-center/#/life/routines) — Each routine’s trigger, identity, privileges, failure mode and kill switch
-- The network is a witness → [Network context](https://paddyspeaks.com/privacy-command-center/#/life/networks) — What changes when a device moves between networks
-- The house made an inference → [Home inferences](https://paddyspeaks.com/privacy-command-center/#/life/inferences) — The inference registry: source, confidence, purpose, expiry, correction and appeal
-- The old owner still has the keys → [Offboarding](https://paddyspeaks.com/privacy-command-center/#/life/offboarding) — Workflows across device, hub, account, integrations, vendors and backups
+- One person, no name → [One Person](https://paddyspeaks.com/privacy-command-center/v10/#/explore/person) — Every fact and inference about Dana, with its join path
+- Two harmless tables → [Identities](https://paddyspeaks.com/privacy-command-center/v10/#/explore/identities) — Identifiers, their scope, and the joins between them
+- Eight questions → [Privacy reviews](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/reviews) — The eight answers per feature, and launch blockers
+- Every arrow → [Lineage & flows](https://paddyspeaks.com/privacy-command-center/v10/#/explore/flows) — Every flow as a privacy object, including unreviewed ones
+- Purpose at use → [Purpose](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/purpose) — Purpose findings and mismatched reads
+- Harm, not just breach → [Threat models](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/threats) — LINDDUN across the riskiest flows
+- The burn button → [Tracking](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/tracking) — SDKs and pixels, and whether they ask
+- The enforcement ladder → [Controls & evidence](https://paddyspeaks.com/privacy-command-center/v10/#/assurance/controls) — Each control’s rung and health
+- Consent is state → [Consent](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/consent) — Propagation latency per consumer
+- Rights as workflows → [Individual rights](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/rights) — Requests, deadlines and slow systems
+- Retention → [Retention](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/retention) — Declared versus observed age per dataset
+- Forget me → [Deletion](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/deletion) — Deletion verification across every system
+- Vendors → [Vendor register](https://paddyspeaks.com/privacy-command-center/v10/#/governance/vendors) — Vendors, subprocessors, transfers and attestations
+- AI, ML and agents → [AI & agents](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/ai) — The model and agent inventory
+- Signing in → [Access & insider](https://paddyspeaks.com/privacy-command-center/v10/#/assurance/access) — Unusual access and break-glass use
+- Your worst day → [Worst Day](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/worstday) — Blast-radius simulation per dataset
+- PETs and budgets → [PETs & DP](https://paddyspeaks.com/privacy-command-center/v10/#/privacy/pets) — Control alternatives and the ε ledger
+- Change breaks reviews → [Drift](https://paddyspeaks.com/privacy-command-center/v10/#/assurance/drift) — Privacy-impacting changes and the reviews they reopen
+- Privacy observability → [Observability](https://paddyspeaks.com/privacy-command-center/v10/#/observability) — Privacy SLOs, control health and evidence freshness
+- Incident response → [Incidents](https://paddyspeaks.com/privacy-command-center/v10/#/assurance/incidents) — Incidents, broken assumptions and guards
+- One home. Three clouds. → [Household & places](https://paddyspeaks.com/privacy-command-center/v10/#/life/graph) — The household graph, every arrow’s fourteen answers, and the engineering answers
+- The guest never clicked Accept → [Who the home observes](https://paddyspeaks.com/privacy-command-center/v10/#/life/people) — Owners, subjects, guests and bystanders, and what each sensor takes
+- When privacy opens the door → [Physical actions](https://paddyspeaks.com/privacy-command-center/v10/#/life/actions) — Every software path that can unlock, open, disarm or start — and its identity
+- The routine nobody reviewed → [Automation review](https://paddyspeaks.com/privacy-command-center/v10/#/life/routines) — Each routine’s trigger, identity, privileges, failure mode and kill switch
+- The network is a witness → [Network context](https://paddyspeaks.com/privacy-command-center/v10/#/life/networks) — What changes when a device moves between networks
+- The house made an inference → [Home inferences](https://paddyspeaks.com/privacy-command-center/v10/#/life/inferences) — The inference registry: source, confidence, purpose, expiry, correction and appeal
+- The old owner still has the keys → [Offboarding](https://paddyspeaks.com/privacy-command-center/v10/#/life/offboarding) — Workflows across device, hub, account, integrations, vendors and backups
 
 Northstar and Dana are fictional; Northstar's data is synthetic. Nothing here is legal advice.

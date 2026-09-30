@@ -13,6 +13,29 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   `data.js` (via the generated `articles/every-arrow/northstar.js`). Read
   **`docs/EVERY-ARROW.md`** before editing it.
 
+## Two products at one address (since 2026-09-30)
+
+- **`/privacy-command-center/` is v1**, the scaled-down Command Center: one
+  privacy graph (`graph.js`), five selectors (persona, surface, journey,
+  question, concern) plus subject and a privacy/security lens, and one workspace
+  (graph · findings · decision). It covers 2026 surfaces: passkeys and account
+  recovery, browser observers, mail observation and relay addresses, wallet
+  tokens and derived fraud signals, digital ID with selective disclosure, AI
+  routing (on device, private compute, third-party model), and agent privileges.
+  **`privacy-command-center/README.md` is its reference**: selectors, views, how
+  to extend the graph, tests. It carries no hiring or evaluation language; a test
+  enforces this.
+- **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
+  **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
+  sitemap and search. Everything below this section describes v10; its files
+  now live under `v10/`. Old `#/route` links to `/privacy-command-center/`
+  are forwarded to `v10/` by the first script in `index.html`. The essay links
+  straight to `/privacy-command-center/v10/#/…`, and reads Northstar numbers
+  from `v10/data.js` and `v10/data-life.js`.
+- Tests: `node privacy-command-center/tests/run.mjs` (v1) and
+  `node privacy-command-center/v10/tests/run.mjs` (v10). Both run in the
+  Accessibility workflow, and both pages are in the strict axe list.
+
 ## The one rule
 
 **Never type a number, and never invent an answer.** Every figure on the

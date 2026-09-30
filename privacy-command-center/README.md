@@ -1,104 +1,112 @@
-# Privacy Command Center
+# Privacy Command Center (v1)
 
-A privacy operating system for a fictional company, **Northstar**. It is built to
-answer one question better than any privacy inventory:
+**One privacy graph. Many lenses. Progressive disclosure.**
 
-> **Where are we breaking a promise to a person, what decision is required now,
-> and can we prove the fix?**
+The Command Center answers, for a fictional company called Northstar:
 
-Everything is synthetic. Northstar, its people, systems, vendors and incidents
-are invented. Regulation mappings are orientation, not legal advice.
+- what the system knows, and how it knows it;
+- how the person proved who they are;
+- what left the device, and who received it;
+- what was joined, what was inferred, and what can act;
+- which control was supposed to stop it, and whether we can prove it still works.
 
-## The product model: one chain
+Everything is synthetic. Surfaces are conceptual ("web / browser", "wallet / payments") and describe no company's implementation.
 
-Every record belongs to a single chain, and every page exposes it:
+The earlier full explorer is kept, unchanged, at `v10/` as **Northstar Privacy Explorer (v10)**, with `noindex`. Old `#/…` links to `/privacy-command-center/` are forwarded there by the first script in `index.html`.
 
-```
-Promise → Product/feature → Purpose → Person/identity → Data → System → Data flow
-        → Vendor/model → Jurisdiction → Control → Evidence → Finding → Decision → Owner
-```
+## The screen
 
-You can start anywhere — a promise, a person's identifier, a system, a vendor, a
-product, a risk or a consent consumer — and follow the whole chain
-(`#/chain?from=<id>`). An empty link is a gap, and gaps are findings.
+A sentence of five selectors, then one workspace:
 
-Three ideas carry the product:
+> I am a **[persona]** looking at **[surface]** when someone **[journey]**, asking **[question]**, concerned with **[concerns]**.
+> *about* **[subject]** *through the* **[Privacy | Security | Both]** *lens*
 
-1. **Promises, not inventories.** `data-ops.js` lists what Northstar promised
-   people and where. A promise's state is *derived*, never typed:
-   - **broken** when an open high-severity finding or incident contradicts it;
-   - **at risk** with any other open finding or a failing control;
-   - **unproven** when its controls are untested or their evidence is stale;
-   - **kept** only with fresh, passing evidence.
-2. **Decisions, not dashboards.** Each broken promise needs a decision. A
-   decision has options with pros, cons and trade-offs, a recommendation, dissent
-   and uncertainty, an owner, an approver, a due date and SLA, and the test that
-   will prove the fix.
-3. **Proof, not assertion.** Every control has a last test, a result, evidence,
-   freshness, exceptions and a next test. Every number opens the records behind
-   it. Every search answer cites its records.
+The workspace has three sections:
 
-## Files
+- **Graph:** the view of the privacy graph this combination resolves to, with the governing principle shown above it.
+- **Findings:** three to five findings, each classified as FACT, INFERENCE, UNKNOWN or CONTROL FAILURE, and each citing graph records.
+- **Decision:** risk, why it matters, mitigation and evidence needed. Executives get issue, options, recommendation and residual risk instead.
 
-| File | Holds |
-|---|---|
-| `data.js` | What Northstar **has**: business units, teams, products, features, systems, datasets, identifiers and joins, vendors and subprocessors, flows, models, controls, findings, risks, incidents, drift, consent consumers, deletion targets, rights requests, reviews, trackers, PETs, regulations, maturity, access events, regions. |
-| `data-ops.js` | What Northstar **owes** and how it **proves** it: `promises`, `decisions`, `controlTests`, `indicators` (target, owner, coverage, eight weeks of history), `perspectives`, and `person` (Dana, the fictional person every module refers to). |
-| `data-operate.js`, `data-ai.js` | Module records: consent pipeline, deletion traces and rights reach; AI agents and AI-data lineage. |
-| `app.js` | Entity registry, knowledge graph, metrics (each with its rule), router, drawer, trail. |
-| `model.js` | The operating model: `P.chain`, `P.promiseState`, `P.explainRisk`, `P.decision`, `P.indicator`, `P.priorities`, role vocabulary, and the shared renderers (chain strip, freshness, citations). |
-| `views-home.js` | Home (four questions), Promises, Chain explorer, Help. |
-| `views-decide.js` | Decision memos, investigation report, trail → memo, print. |
-| `views-operate.js` | Observability, consent, deletion, retention, individual rights. |
-| `views-investigate.js` | Lineage and purpose, vendors and geography, AI and agents, Worst Day, risk radar. |
-| `views-prove.js` | One Person, controls and evidence, privacy reviews. |
-| `views-explore.js`, `views-privacy.js`, `views-assurance.js` | The remaining original views (organization, graph, identities, tracking, PETs, threats, audits, incidents, drift, regulations, maturity, reports). |
-| `intel.js` | Search (`/` or Ctrl/⌘ K), the analyst, the guided tour. Every answer cites its records. |
-| `personas.js` | The fifteen roles and the role picker. |
-| `pcc*.css` | Styles. `pcc-print.css` is the print and PDF layout. |
-| `tests/` | Behaviour tests in headless Chromium (`tests/run.mjs`). |
+Global navigation is four items: **Command Center · Reviews · Evidence · Ask privacy**. Consent, deletion, passkeys, AI and the rest are selector values, not pages. Saved views (under *Views*) are selector presets. **Focus mode** hides everything except the selectors and the workspace, and offers three walkthrough presets.
 
-## Roles
+## Selectors
 
-The same records serve every role. A role's *perspective* decides three things:
-- which decisions it can make;
-- the words used;
-- which evidence is shown first.
+| Selector | Values | What it changes |
+|---|---|---|
+| Persona | Reviewer, Builder, Auditor, Executive | Emphasis only: finding wording, the order of the decision fields, and the executive format. The data never changes. |
+| Surface | All, Identity & authentication, Web / browser, Mail / communication, Wallet / payments, Digital identity, Cloud / data, Analytics, AI / agents, Third parties | Which findings apply, what each view emphasizes, and the default journey |
+| Journey | Sign in, Browse, Read mail, Pay, Prove age, Share identity, Use AI, Open a report, Delete account, Revoke consent | The path through the graph that the path, boundary, observer and identifier views walk |
+| Question | 18 questions, from *What do we know?* to *What is our worst day?* | Which view is drawn |
+| Concern | 20, multi-select | Filters findings; picks the control chain for *Did the control really work?* |
+| Subject | one person, credential, feature, dataset, tenant, vendor, AI agent, product | Refines some views (one dataset → the join; one tenant → the tenant chain) |
+| Lens | Privacy, Security, Both | Privacy asks *should this exist, move, combine, persist or be inferred*; Security asks *can the wrong actor access it*; Both shows where they converge: passkey, wallet ID, private compute |
 
-It never hides the truth.
+`resolve()` in `app.js` is the whole mapping from selectors to a view, in about sixty lines. Read it first.
 
-| Perspective | Roles | Acts by | Sees first |
-|---|---|---|---|
-| Leadership | CPO, CISO, CTO, Executive/Board | **Decide** — approve trade-offs, fund, accept or refuse residual risk | people affected, consequence, options, cost |
-| Managers & owners | Engineering Manager, Product Manager, Data Governance | **Assign / Schedule** — owners, sprints, launch holds | open issues, due dates, blockers |
-| Oversight | Privacy Counsel, Compliance, Internal Audit | **Challenge** — attest, dispute evidence, require re-test | control tests, evidence freshness, legal basis |
-| Builders | Privacy, Data, Software, Security, AI/ML engineers | **Fix** — ship the change and the test that proves it | the failing test, systems, flows |
+## Views
 
-## Extending the synthetic dataset
+| View | Question(s) | Scenario |
+|---|---|---|
+| Identity graph | What do we know? | Cross-device linkability: connect the dots into a profile, split into collected / derived / inferred |
+| Journey path | Where did the data go? · How did they learn it? | Every arrow is a decision: five questions per hop, with the boundary derived from zones |
+| Observers | Who knows it? | The visible page versus the invisible observers; the email that reads you |
+| Password → passkey | How did the user prove identity? | The trust model changes; recovery, sync and sign-in metadata remain |
+| Identifiers | What identifier links this activity? | Stable versus scoped identifiers, and those that appear across journeys |
+| Boundary lanes | Did it leave the device? · Why? | On device / private compute / service / third party |
+| AI routing | the same, for AI | Where intelligence runs is a privacy decision |
+| Selective disclosure | Can we prove this without revealing that? | Age proof; relay addresses; derived fraud signals with a signal-utility table |
+| Join | Should these datasets be joined? | Two legitimate tables, one new exposure |
+| Agent | What can this system infer? | Authorized data + authorized data ≠ unlimited authorized inference |
+| Agent privileges | What can this agent do? | Tool scope, actions, approvals, guardrails |
+| Consent timeline | Did consent propagate? | Local control PASS, system control FAIL |
+| Deletion | Can we delete it? | Every copy, with evidence |
+| Retention | How long does it live? | Required / declared / observed |
+| Control chain | Did the control really work? | Intended / actual / evidence per hop. Chains cover tenant isolation (including *filtering ≠ isolation* and the report that is almost entirely correct yet still wrong), consent, deletion, access, sign-in, linkability, mail, payments, disclosure, routing, agents and logging |
+| Changes | What changed? | Since the last review, filtered by surface and concern |
+| Worst day | What is our worst day? | A band, never a score, and the safeguards that move it |
 
-1. **Add the record** to the right collection in `data.js`, `data-ops.js` or — for
-   Northstar Home and the household — `data-life.js`, and
-   reference other records by id. The registry, graph edges, chain, search and
-   passports pick it up automatically.
-2. **Add a promise** to `NS.promises`: text, where it was made, audience,
-   features, purposes, datasets, controls, findings, risk, decision and owner. Its
-   state is computed; do not store one.
-3. **Add a decision** to `NS.decisions`: at least two options, each with pros,
-   cons and a trade-off. Also give it a recommendation, dissent or uncertainty,
-   owner, approver and the `test` that proves the fix (tied to a control).
-4. **Add a control test** to `controlTests` for every new control. A control
-   without one shows as *never tested*.
-5. **Add indicator history** to `NS.indicators[id]` when you add a metric: seven
-   past weekly values, target, direction, owner and coverage. The current value is
-   always computed.
-6. Keep it fictional, and never type a number into a view.
+## Extending the graph
 
-Run the tests after any change:
+Everything is in `graph.js`, and every record cites node ids.
+
+1. **Nodes and edges.** Add to `G.nodes` (`[type, name, note]`) and relate them in `G.edges`.
+2. **A journey.** Add to `G.journeys`. Each hop has:
+   - a zone: device, private, service or third;
+   - what moved, what the receiver can observe, and the identifier and its scope;
+   - why, and whether that is needed;
+   - a state and a security control, plus an optional control id.
+
+   The journey then appears in the journey selector and in the path, boundary, observer and identifier views automatically.
+3. **A finding.** Add to `G.findings` with:
+   - a class;
+   - the questions (`v`), surfaces (`s`) and concerns (`c`) it answers;
+   - the lens (`l`) and the records it cites.
+
+   Add a persona line (`p`) when the four roles should read it differently. Every question × surface combination must still have 3–5 findings; the tests check this.
+4. **A control.** Add to `G.controls` with its invariant, where it is enforced, its last test, result and method. It appears on the Evidence page, and in any control chain that lists it in `CTL_LIST` in `app.js`.
+5. **Numbers.** Never type one into a view. Counts and percentages are computed from these records.
+
+Keep it fictional. Never add a real company as a Northstar system, vendor or partner.
+
+## Tests
 
 ```
-A11Y_DEPS=/path/with/playwright node privacy-command-center/tests/run.mjs
+PW_CHROMIUM=/path/to/chromium A11Y_DEPS=/path/with/playwright node privacy-command-center/tests/run.mjs
 ```
 
-`A11Y_DEPS` is a folder where `playwright` is installed (CI installs it for the
-accessibility workflow). Set `PW_CHROMIUM` to a Chromium binary if Playwright's
-own is not installed.
+The suite checks:
+- the first screen;
+- every question on every surface and journey;
+- persona wording;
+- local versus system failure;
+- tenant isolation;
+- the five questions on every arrow;
+- the 2026 surfaces (passkeys, selective disclosure, AI routing, mail, agents);
+- lenses;
+- Ask privacy (including honest UNKNOWN);
+- saved views;
+- forwarding legacy links;
+- focus mode, the keyboard and phone width;
+- the absence of hiring language and of any privacy score.
+
+v10 keeps its own suite at `v10/tests/run.mjs`.

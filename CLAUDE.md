@@ -124,14 +124,20 @@ Read **`docs/PRIVACY-COMMAND-CENTER.md`** before touching `privacy-command-cente
 or `articles/every-arrow-is-a-decision.html`. Both come from Paddy's field guide
 (`docs/Privacy_Engineering_Visual_Field_Guide.pdf`).
 
+- **`/privacy-command-center/` is v1**: one privacy graph (`graph.js`), five
+  selectors and one workspace (graph · findings · decision). Its reference is
+  `privacy-command-center/README.md`. The earlier full explorer lives at
+  **`v10/`** as "Northstar Privacy Explorer (v10)" (`noindex`); old `#/…` links
+  are forwarded there. The product text carries no hiring or evaluation language
+  (a test enforces this).
 - **Northstar is fictional, and the data is synthetic.** Never add a real company as a
   Northstar vendor or system.
-- **Connected Life** (`#/life/*`, `data-life.js`, `views-life.js`) is the household
+- **Connected Life** (v10: `#/life/*`, `data-life.js`, `views-life.js`) is the household
   as a data system: the household graph, who the home observes, the physical-action
   register, automation review, network context, the inference registry and
   offboarding. Household devices from real ecosystems are described by kind and are
   never Northstar vendors or systems.
-- **Never type a number.** Every metric is computed from `data.js` and shows
+- **Never type a number.** Every metric is computed from the data (`graph.js`; `v10/data.js`) and shows
   the rule that produced it. **UNKNOWN is a finding**, never a blank.
 - The analyst is deterministic. Every statement is labelled FACT, INFERENCE,
   RECOMMENDATION or UNKNOWN and cites entities. Do not add text it cannot

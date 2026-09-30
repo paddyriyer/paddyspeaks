@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 /**
- * Privacy Command Center v1 — behaviour tests (headless Chromium).
+ * Privacy Command Center — behaviour tests (headless Chromium).
  *
- *   A11Y_DEPS=/path/with/node_modules node privacy-command-center/tests/run.mjs [filter]
+ *   A11Y_DEPS=/path/with/node_modules node privacy-command-center/v10/tests/run.mjs [filter]
  *
  * Serves the repo root on a random local port, blocks third-party requests,
  * and runs every tests/*.test.mjs. Each test file exports an array of
  * { name, run(ctx) } where ctx gives:
- *   ctx.page(hash, { width })  a fresh page at /privacy-command-center/<hash>,
+ *   ctx.page(path, { width })  a fresh page at /privacy-command-center/v10/#/<path>,
  *                              with page errors collected in page.errors
  *   ctx.assert(cond, msg)      throws with msg when cond is false
+ *   ctx.NS / ctx.P             nothing: tests read state through page.evaluate
  * Uses the same Playwright the accessibility workflow installs.
  */
 import { createRequire } from 'node:module';
@@ -19,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(HERE, '..', '..');
+const ROOT = path.resolve(HERE, '..', '..', '..');
 const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
 const { chromium } = req('playwright');
 const filter = process.argv[2] || '';
@@ -46,9 +47,9 @@ const ctx = {
     p.errors = [];
     p.on('pageerror', (e) => p.errors.push(e.message));
     if (opts.storage) await p.addInitScript((s) => { for (const k in s) localStorage.setItem(k, s[k]); }, opts.storage);
-    await p.goto(`${BASE}/privacy-command-center/${route || ''}`, { waitUntil: 'domcontentloaded' });
-    if (!opts.noWait) await p.waitForFunction(() => document.querySelector('#main') && document.querySelector('#main').children.length > 0);
-    p.set = async (patch) => { await p.evaluate((x) => window.PCC1.set(x), patch); await p.waitForTimeout(60); };
+    await p.goto(`${BASE}/privacy-command-center/v10/#/${route || 'overview'}`, { waitUntil: 'domcontentloaded' });
+    await p.waitForFunction(() => document.querySelector('#view') && document.querySelector('#view').children.length > 0);
+    p.go = async (r) => { await p.evaluate((h) => { location.hash = '#/' + h; }, r); await p.waitForTimeout(120); };
     p.closeAll = () => c.close();
     return p;
   },

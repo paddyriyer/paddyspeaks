@@ -1,470 +1,722 @@
-/* Privacy Command Center — core.
- * Builds the privacy knowledge graph from data.js, derives every metric from
- * it (each with the rule that produced it), and provides the router, the
- * evidence drawer (Privacy Passports), the trail, search, and the analyst.
- * Views live in views-*.js and register into PCC.views. */
+/* Privacy Command Center v1 — one privacy graph, many lenses.
+ *
+ * Five selectors (persona, surface, journey, question, concern), plus a subject
+ * and a privacy/security lens, pick ONE view of the graph in graph.js. The
+ * workspace is always the same three sections: VISUAL, FINDINGS, DECISION.
+ * State lives in the URL hash (#cc?p=…&s=…&j=…&q=…&c=…&u=…&l=…&fm=1), so every
+ * view is a link. Legacy v10 links (#/…) are forwarded before this script runs. */
 (function () {
-'use strict';
-var NS = window.NS;
-var P = window.PCC = { views: {}, passports: {}, acts: {}, state: { role: 'reviewer', trail: [], drawerStack: [] } };
-var TODAY = new Date(NS.TODAY + 'T12:00:00Z');
+  'use strict';
+  var G = window.PG, $ = function (s, r) { return (r || document).querySelector(s); }, $$ = function (s, r) { return [].slice.call((r || document).querySelectorAll(s)); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var RM = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var byId = function (list, id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i]; return null; };
+  var name = function (id) { var n = G.node(id); return n ? n.name : id; };
+  var plural = function (n, w) { return n + ' ' + (n === 1 ? w : /y$/.test(w) && !/[aeiou]y$/.test(w) ? w.slice(0, -1) + 'ies' : w + 's'); };
+  var SAVED_KEY = 'pcc.v1.views';
 
-/* ── tiny helpers ─────────────────────────────────────────── */
-function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-function fmtN(n) {
-  if (n == null) return '—';
-  if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B';
-  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
-  if (n >= 1e4) return Math.round(n / 1e3) + 'K';
-  return n.toLocaleString('en-US');
-}
-function fmtDays(d) {
-  if (d == null) return null;
-  if (d === 0) return 'lifetime of source';
-  if (d >= 730) return (d / 365).toFixed(d % 365 ? 1 : 0).replace(/\.0$/, '') + ' yr';
-  if (d >= 60) return Math.round(d / 30.4) + ' mo';
-  return d + ' d';
-}
-function daysSince(iso) { if (!iso) return null; return Math.round((TODAY - new Date(iso + (iso.length === 10 ? 'T12:00:00Z' : ':00Z'))) / 864e5); }
-function daysUntil(iso) { var d = daysSince(iso); return d == null ? null : -d; }
-function unk(label) { return '<em class="unknown" title="Unknown — and therefore a finding">' + esc(label || 'UNKNOWN') + '</em>'; }
-function pct(a, b) { return b ? Math.round(100 * a / b) : 0; }
-function uniq(a) { var s = {}; return a.filter(function (x) { if (x == null || s[x]) return false; s[x] = 1; return true; }); }
-function by(k) { return function (a, b) { return a[k] < b[k] ? -1 : a[k] > b[k] ? 1 : 0; }; }
-function quantile(arr, q) { var a = arr.slice().sort(function (x, y) { return x - y; }); if (!a.length) return null; var i = (a.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); }
-function fmtSecs(s) { if (s == null) return '∞'; if (s < 1) return Math.round(s * 1000) + ' ms'; if (s < 90) return Math.round(s) + ' s'; if (s < 5400) return Math.round(s / 60) + ' min'; if (s < 172800) return Math.round(s / 3600) + ' h'; return Math.round(s / 86400) + ' d'; }
-P.esc = esc; P.fmtN = fmtN; P.fmtDays = fmtDays; P.daysSince = daysSince; P.daysUntil = daysUntil; P.unk = unk; P.pct = pct; P.uniq = uniq; P.by = by; P.quantile = quantile; P.fmtSecs = fmtSecs;
-
-/* ── entity registry ─────────────────────────────────────── */
-var ENT = P.ENT = {};
-var TYPE_LABEL = P.TYPE_LABEL = { bu: 'Business unit', team: 'Owner', product: 'Product', feature: 'Feature', system: 'System', dataset: 'Dataset',
-  identifier: 'Identifier', vendor: 'Vendor', subprocessor: 'Subprocessor', flow: 'Data flow', model: 'Model', control: 'Control', finding: 'Finding',
-  risk: 'Risk', incident: 'Incident', regulation: 'Regulation', purpose: 'Purpose', consumer: 'Consent consumer', tracker: 'Tracker', pet: 'PET',
-  region: 'Region', endpoint: 'Endpoint' };
-function reg(id, type, obj, name) { ENT[id] = { id: id, type: type, obj: obj, name: name || obj.name || obj.label || id }; }
-NS.bus.forEach(function (o) { reg(o.id, 'bu', o); });
-NS.teams.forEach(function (o) { reg(o.id, 'team', o); });
-NS.products.forEach(function (o) { reg(o.id, 'product', o); });
-NS.features.forEach(function (o) { reg(o.id, 'feature', o); });
-NS.systems.forEach(function (o) { reg(o.id, 'system', o); });
-NS.datasets.forEach(function (o) { reg(o.id, 'dataset', o); });
-NS.identifiers.forEach(function (o) { reg(o.id, 'identifier', o); });
-NS.vendors.forEach(function (o) { reg(o.id, 'vendor', o); });
-NS.subprocessors.forEach(function (o) { reg(o.id, 'subprocessor', o); });
-NS.models.forEach(function (o) { reg(o.id, 'model', o); });
-NS.controls.forEach(function (o) { reg(o.id, 'control', o); });
-NS.findings.forEach(function (o) { reg(o.id, 'finding', o, o.id + ' · ' + o.title); });
-NS.risks.forEach(function (o) { reg(o.id, 'risk', o); });
-NS.incidents.forEach(function (o) { reg(o.id, 'incident', o, o.id + ' · ' + o.title); });
-NS.regulations.forEach(function (o) { reg(o.id, 'regulation', o); });
-NS.purposes.forEach(function (o) { reg(o.id, 'purpose', o, o.id); });
-NS.consentConsumers.forEach(function (o) { reg(o.id, 'consumer', o); });
-NS.trackers.forEach(function (o) { reg(o.id, 'tracker', o); });
-NS.pets.forEach(function (o) { reg(o.id, 'pet', o); });
-NS.regions.forEach(function (o) { reg(o.id, 'region', o, o.label); });
-reg('n_app', 'endpoint', { id: 'n_app', name: 'Mobile apps (user device)', kind: 'device' });
-reg('n_web', 'endpoint', { id: 'n_web', name: 'Web & browser extension (user device)', kind: 'device' });
-reg('n_dash', 'endpoint', { id: 'n_dash', name: 'Executive dashboards', kind: 'dashboard' });
-(NS.endpoints || []).forEach(function (o) { reg(o.id, 'endpoint', o); }); /* household devices (data-life.js) */
-reg('s_lochist_eu', 'system', { id: 's_lochist_eu', name: 'Location replica (EU)', kind: 'store', team: 't_location', region: 'eu-west', product: 'p_storefront', parent: 's_lochist' });
-NS.flows.forEach(function (f) { reg(f.id, 'flow', f, (ENT[f.from] ? ENT[f.from].name : f.from) + ' → ' + (ENT[f.to] ? ENT[f.to].name : f.to)); });
-P.get = function (id) { return ENT[id]; };
-P.name = function (id) { return ENT[id] ? ENT[id].name : id; };
-
-/* field name → identifier */
-var FIELD_ID = P.FIELD_ID = { customer_id: 'i_customer', account_id: 'i_customer', user_id: 'i_customer', parent_customer_id: 'i_customer', auth_subject: 'i_customer',
-  email: 'i_email', email_in_query: 'i_email', phone: 'i_phone', phone_hash: 'i_phone', device_id: 'i_device', maid: 'i_maid', ip_address: 'i_ip',
-  hashed_email: 'i_hemail', payment_token: 'i_token', loyalty_id: 'i_loyalty', pulse_user_id: 'i_pulse', device_fingerprint: 'i_fp',
-  sender_pseudonym: 'i_msgpseudo', recipient_pseudonym: 'i_msgpseudo', cookie_id: 'i_cookie' };
-P.dsTier = function (d) { return d.fields.reduce(function (m, f) { return Math.max(m, f[1]); }, 0); };
-P.dsIds = function (d) { return uniq(d.fields.map(function (f) { return FIELD_ID[f[0]]; })); };
-P.sysOf = function (d) { return ENT[d.system] ? ENT[d.system].obj : null; };
-
-/* ── knowledge graph ─────────────────────────────────────── */
-var EDGES = P.EDGES = [];
-function edge(a, b, rel, extra) { if (ENT[a] && ENT[b] && a !== b) EDGES.push({ a: a, b: b, rel: rel, x: extra || null }); }
-NS.products.forEach(function (p) { edge(p.bu, p.id, 'runs'); edge(p.id, p.team, 'owned by'); });
-NS.features.forEach(function (f) { edge(f.product, f.id, 'has feature'); });
-NS.systems.concat([ENT.s_lochist_eu.obj]).forEach(function (s) {
-  if (s.feature) edge(s.feature, s.id, 'implemented by'); else if (s.product) edge(s.product, s.id, 'runs on');
-  if (s.parent) edge(s.parent, s.id, 'writes to');
-  if (s.team) edge(s.id, s.team, 'owned by');
-});
-NS.datasets.forEach(function (d) {
-  edge(d.system, d.id, 'stores');
-  if (d.owner) edge(d.id, d.owner, 'owned by');
-  P.dsIds(d).forEach(function (i) { edge(d.id, i, 'carries'); });
-  d.purposes.forEach(function (p) { edge(d.id, p, 'declared for'); });
-});
-NS.flows.forEach(function (f) { edge(f.from, f.to, 'flows to', f.id); });
-NS.models.forEach(function (m) {
-  m.training.forEach(function (d) { edge(d, m.id, 'trains'); });
-  (m.thirdParty || []).forEach(function (v) { edge(m.id, v, 'uses'); });
-  if (m.featureStore) edge(m.featureStore, m.id, 'feeds');
-  edge(m.id, m.team, 'owned by');
-  edge(m.id, m.purpose, 'serves');
-});
-NS.vendors.forEach(function (v) { v.subprocessors.forEach(function (s) { edge(v.id, s, 'subprocessor'); }); });
-NS.idJoins.forEach(function (j) { edge(j[0], j[1], j[4] ? 'joins' : 'joins (unsanctioned)', { where: j[2], how: j[3], ok: j[4] }); });
-NS.findings.forEach(function (f) { f.entities.forEach(function (e) { if (ENT[e] && ENT[e].type !== 'flow') edge(f.id, e, 'affects'); }); if (f.owner) edge(f.id, f.owner, 'assigned to'); });
-NS.incidents.forEach(function (i) { i.entities.forEach(function (e) { if (ENT[e] && ENT[e].type !== 'flow') edge(i.id, e, 'involved'); }); });
-NS.risks.forEach(function (r) { edge(r.id, r.asset, 'rates'); r.findings.forEach(function (f) { edge(r.id, f, 'evidenced by'); }); });
-NS.regulations.forEach(function (r) { r.obligations.forEach(function (o) { edge(r.id, o.data, 'obliges'); if (o.control) edge(r.id, o.control, 'met by'); }); });
-P.nb = function (id) {
-  var out = [];
-  EDGES.forEach(function (e) { if (e.a === id) out.push({ id: e.b, rel: e.rel, dir: 'out', x: e.x }); else if (e.b === id) out.push({ id: e.a, rel: e.rel, dir: 'in', x: e.x }); });
-  return out;
-};
-
-/* ── org lookups ─────────────────────────────────────────── */
-P.buOf = function (id) {
-  var e = ENT[id]; if (!e) return null; var o = e.obj;
-  switch (e.type) {
-    case 'bu': return id;
-    case 'product': return o.bu;
-    case 'feature': return P.buOf(o.product);
-    case 'team': return o.bu;
-    case 'system': return o.product ? P.buOf(o.product) : o.team ? P.buOf(o.team) : null;
-    case 'dataset': return o.product ? P.buOf(o.product) : P.buOf(o.system);
-    case 'model': return P.buOf(o.team);
-    case 'flow': return P.buOf(o.owner || o.from);
-    case 'finding': for (var i = 0; i < o.entities.length; i++) { var b = ENT[o.entities[i]] && ['product', 'system', 'dataset', 'feature'].indexOf(ENT[o.entities[i]].type) >= 0 ? P.buOf(o.entities[i]) : null; if (b) return b; } return o.owner ? P.buOf(o.owner) : null;
-    default: return null;
+  /* ── state ─────────────────────────────────────────────── */
+  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all' };
+  var S = copy(DEF);
+  function copy(o) { return JSON.parse(JSON.stringify(o)); }
+  function parse() {
+    var h = location.hash.replace(/^#/, ''), parts = h.split('?'), page = parts[0] || 'cc', q = {};
+    (parts[1] || '').split('&').forEach(function (kv) { if (!kv) return; var i = kv.indexOf('='); if (i > 0) q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); });
+    var st = copy(DEF);
+    st.page = ['cc', 'reviews', 'evidence', 'ask'].indexOf(page) >= 0 ? page : 'cc';
+    if (byId(G.personas, q.p)) st.p = q.p;
+    if (byId(G.surfaces, q.s)) { st.s = q.s; st.j = byId(G.surfaces, q.s).j; }
+    if (byId(G.journeys, q.j)) st.j = q.j;
+    if (byId(G.questions, q.q)) st.q = q.q;
+    if (q.c) st.c = q.c.split(',').filter(function (c) { return byId(G.concerns, c); });
+    if (byId(G.subjects, q.u)) st.u = q.u;
+    if (G.lenses[q.l]) st.l = q.l;
+    st.fm = q.fm === '1'; st.ask = q.ask || ''; st.ev = q.ev || 'all';
+    return st;
   }
-};
-P.flowsFrom = function (sys) { return NS.flows.filter(function (f) { return f.from === sys; }); };
-P.flowsTo = function (sys) { return NS.flows.filter(function (f) { return f.to === sys; }); };
-P.findingsFor = function (id) { return NS.findings.filter(function (f) { return f.entities.indexOf(id) >= 0; }); };
-P.openFindings = function () { return NS.findings.filter(function (f) { return f.status !== 'accepted' && f.status !== 'closed'; }); };
+  function hashFor(st) {
+    var q = 'p=' + st.p + '&s=' + st.s + '&j=' + st.j + '&q=' + st.q + (st.c.length ? '&c=' + st.c.join(',') : '') + '&u=' + st.u + (st.l !== 'privacy' ? '&l=' + st.l : '') + (st.fm ? '&fm=1' : '');
+    if (st.page === 'ask' && st.ask) q += '&ask=' + encodeURIComponent(st.ask);
+    if (st.page === 'evidence' && st.ev !== 'all') q += '&ev=' + st.ev;
+    return '#' + st.page + '?' + q;
+  }
+  function set(patch) {
+    for (var k in patch) S[k] = patch[k];
+    var h = hashFor(S);
+    if (location.hash !== h) history.replaceState(null, '', h);
+    render();
+  }
+  window.addEventListener('hashchange', function () { S = parse(); render(); });
 
-/* ── the six north-star questions, per dataset ────────────── */
-P.SIX = ['WHY', 'FROM', 'TO', 'WHO', 'WHEN', 'PROVE'];
-P.SIX_Q = { WHY: 'Why do we have it?', FROM: 'Where did it come from?', TO: 'Where does it go?', WHO: 'Who can see, join or infer from it?', WHEN: 'When will it disappear?', PROVE: 'Can we prove the first five?' };
-P.six = function (d) {
-  var r = {}, why = [];
-  if (!d.purposes.length) { r.WHY = 'u'; why.push(['WHY', 'No declared purpose']); }
-  else if (/someday|may need|might need|later/i.test(d.why)) { r.WHY = 'n'; why.push(['WHY', '"' + d.why + '" is not a purpose']); }
-  else r.WHY = 'y';
-  r.FROM = d.owner ? 'y' : 'u'; if (!d.owner) why.push(['FROM', 'No owner can attest to the collection source']);
-  var out = P.flowsFrom(d.system);
-  if (out.some(function (f) { return f.status === 'unknown'; })) { r.TO = 'u'; why.push(['TO', 'Unmapped outbound flow']); }
-  else if (out.some(function (f) { return f.status === 'unreviewed'; })) { r.TO = 'n'; why.push(['TO', 'Unreviewed outbound flow']); }
-  else r.TO = 'y';
-  if (d.accessPeople == null) { r.WHO = 'u'; why.push(['WHO', 'Access list unknown']); }
-  else if (d.accessPeople > 100) { r.WHO = 'n'; why.push(['WHO', d.accessPeople.toLocaleString() + ' people can read it']); }
-  else r.WHO = 'y';
-  var rt = d.retention;
-  if (rt.actual == null || (rt.required == null && rt.note == null)) { r.WHEN = 'u'; why.push(['WHEN', 'Retention unknown']); }
-  else if (rt.required != null && rt.required > 0 && rt.actual > rt.required) { r.WHEN = 'n'; why.push(['WHEN', 'Kept ' + fmtDays(rt.actual) + ' against ' + fmtDays(rt.required)]); }
-  else if (!rt.ttl && rt.required > 0) { r.WHEN = 'n'; why.push(['WHEN', 'No enforced TTL']); }
-  else r.WHEN = 'y';
-  var aud = daysSince(d.lastAudit);
-  if (aud == null) { r.PROVE = 'u'; why.push(['PROVE', 'Never audited']); }
-  else if (!d.deletionVerified) { r.PROVE = 'n'; why.push(['PROVE', 'Deletion not verified']); }
-  else if (aud > 365) { r.PROVE = 'n'; why.push(['PROVE', 'Last audit ' + aud + ' days ago']); }
-  else r.PROVE = 'y';
-  r.why = why; return r;
-};
-P.personalDatasets = function () { return NS.datasets.filter(function (d) { return P.dsTier(d) >= 2; }); };
+  /* ── resolve the selectors to one view of the graph ─────── */
+  var CTL_BY_CONCERN = { tenant: 'tenant', consent: 'consent', vendor: 'consent', deletion: 'delete', retention: 'delete', access: 'access', minimization: 'pay', agent: 'agent', inference: 'agent', purpose: 'agent', linkability: 'link', tracking: 'link', identity: 'auth', authentication: 'auth', devicetrust: 'auth', recovery: 'auth', disclosure: 'sd', ondevice: 'route', thirdmodel: 'route', logging: 'log' };
+  var CTL_BY_SURFACE = { ident: 'auth', web: 'link', mail: 'mail', pay: 'pay', did: 'sd', cloud: 'tenant', analytics: 'consent', ai: 'agent', vendor: 'consent', all: 'tenant' };
+  var CTL_LIST = { auth: ['c_passkey', 'c_rp_scope', 'c_attest', 'c_sync', 'c_session', 'c_recovery'], link: ['c_itp', 'c_link_strip', 'c_id_rotate', 'c_ip_mask'], mail: ['c_remote_content', 'c_relay', 'c_route', 'c_pcc_attest', 'c_no_train'], pay: ['c_tokenize', 'c_local_risk', 'c_ttl'], sd: ['c_sd', 'c_verifier_ret', 'c_issuer_blind'], route: ['c_route', 'c_pcc_attest', 'c_no_train'], agent: ['c_route', 'c_agent_policy', 'c_join_policy', 'c_agent_approval'], log: ['c_url_redact', 'c_iam', 'c_ttl'] };
+  var CTL_TITLE = { auth: 'Sign-in invariant: no shared secret anywhere in the account’s life', link: 'Unlinkability: unrelated sites stay unlinked', mail: 'Mail invariant: reading a message reveals nothing, and content leaves only when needed', pay: 'Payment invariant: prove what is necessary, keep what measurably helps', sd: 'Disclosure invariant: share the attribute, not the identity', route: 'Routing invariant: run where the fewest parties can see it', agent: 'Agent invariant: act only within the task’s purpose', log: 'Logging invariant: telemetry never copies identity' };
+  var DEVICE_J = { signin: 1, browse: 1, mail: 1, pay: 1, age: 1, share: 1, ai: 1 };
+  function agentFor(st) { return st.s === 'pay' ? 'ag_support' : 'ag_assist'; }
+  function sdVariant(st) { return st.s === 'did' || st.j === 'age' || st.j === 'share' ? 'age' : (st.s === 'mail' || st.s === 'ident' || st.j === 'mail' || st.j === 'signin') ? 'relay' : 'derived'; }
+  function resolve(st) {
+    var q = st.q, c0 = st.c[0], v = { note: '' };
+    switch (q) {
+      case 'know':
+        if (st.u === 'dataset') { v.kind = 'join'; v.key = 'join'; v.note = 'For one dataset, what we know is what it can be joined to.'; }
+        else if (st.u === 'tenant') { v.kind = 'control'; v.ctl = 'tenant'; v.key = 'ctl-tenant'; v.note = 'For one tenant, what we know is where its rows can reach.'; }
+        else if (st.u === 'agent') { v.kind = 'agent'; v.key = 'infer'; }
+        else { v.kind = 'identity'; v.key = 'know'; }
+        break;
+      case 'whoknows':
+        if (st.s === 'cloud' || st.s === 'analytics') { v.kind = 'access'; v.key = 'access'; } else { v.kind = 'observers'; v.key = 'whoknows'; }
+        break;
+      case 'howlearn': v.kind = 'flow'; v.key = 'whoknows'; v.learn = true; break;
+      case 'prove':
+        if (st.s === 'did' || st.j === 'age' || st.j === 'share') { v.kind = 'sdisc'; v.variant = 'age'; v.key = 'sd-age'; } else { v.kind = 'auth'; v.key = 'prove'; }
+        break;
+      case 'linkid': v.kind = 'ids'; v.key = 'linkid'; break;
+      case 'where': v.kind = 'flow'; v.key = 'where'; break;
+      case 'leftdevice': case 'whyleft':
+        if (st.s === 'ai' || st.j === 'ai') { v.kind = 'routing'; v.key = 'routing'; }
+        else if (q === 'whyleft' && !DEVICE_J[st.j]) { v.kind = 'purpose'; v.key = 'purpose'; v.note = 'This journey starts on our servers, so the question becomes why each use exists.'; }
+        else { v.kind = 'boundary'; v.key = 'boundary'; v.why = q === 'whyleft'; }
+        break;
+      case 'provewithout': v.kind = 'sdisc'; v.variant = sdVariant(st); v.key = 'sd-' + v.variant; break;
+      case 'join': v.kind = 'join'; v.key = 'join'; break;
+      case 'infer': v.kind = 'agent'; v.key = 'infer'; break;
+      case 'agentdo': v.kind = 'agentdo'; v.key = 'agentdo'; break;
+      case 'consent': v.kind = 'consent'; v.key = 'consent'; break;
+      case 'delete': v.kind = 'delete'; v.key = 'delete'; break;
+      case 'live': v.kind = 'retention'; v.key = 'live'; break;
+      case 'control':
+        v.kind = 'control';
+        v.ctl = st.u === 'tenant' ? 'tenant' : st.u === 'agent' ? 'agent' : st.u === 'credential' ? 'auth' : (c0 && CTL_BY_CONCERN[c0]) || CTL_BY_SURFACE[st.s] || 'tenant';
+        v.key = v.ctl === 'consent' ? 'consent' : v.ctl === 'delete' ? 'delete' : G.decisions['ctl-' + v.ctl] ? 'ctl-' + v.ctl : { mail: 'whoknows', pay: 'sd-derived' }[v.ctl] || 'where';
+        break;
+      case 'changed': v.kind = 'changes'; v.key = 'changed'; break;
+      case 'worst': v.kind = 'worst'; v.key = 'worst'; break;
+    }
+    if (v.kind === 'agent') v.agent = agentFor(st);
+    v.principle = G.principles[G.principleFor[v.key] || (v.ctl && G.principleFor['ctl-' + v.ctl])] || '';
+    return v;
+  }
 
-/* ── explainable risk model ──────────────────────────────── */
-P.riskCalc = function (r) {
-  var exp = 0, ass = 0;
-  NS.riskFactors.forEach(function (f) { if (f.kind === 'exposure') exp += r.f[f.k]; else ass += r.f[f.k]; });
-  var assurance = ass / 15, residual = exp * (1 - 0.6 * assurance);
-  var rating = residual >= 26 ? 'HIGH' : residual >= 16 ? 'MEDIUM' : 'LOW';
-  return { exposure: exp, assurance: assurance, residual: Math.round(residual * 10) / 10, rating: rating };
-};
-P.risksSorted = function () { return NS.risks.slice().sort(function (a, b) { return P.riskCalc(b).residual - P.riskCalc(a).residual; }); };
+  /* ── shared bits ───────────────────────────────────────── */
+  var KCLS = { FACT: 'k-fact', INFERENCE: 'k-inf', UNKNOWN: 'k-unk', 'CONTROL FAILURE': 'k-fail', RECOMMENDATION: 'k-rec' };
+  function tag(k) { return '<span class="tag ' + (KCLS[k] || '') + '">' + esc(k) + '</span>'; }
+  var ST = { ok: ['st-ok', 'Verified'], fail: ['st-fail', 'Failed'], unk: ['st-unk', 'Unknown'], warn: ['st-warn', 'Needs review'], wait: ['st-warn', 'Pending'] };
+  function stTag(st, txt) { var s = ST[st] || ST.unk; return '<span class="st ' + s[0] + '">' + esc(txt || s[1]) + '</span>'; }
+  function worst(states) { return states.indexOf('fail') >= 0 ? 'fail' : states.some(function (s) { return s !== 'ok'; }) ? 'unk' : 'ok'; }
+  function verdict(localSt, systemSt, labels) {
+    labels = labels || ['LOCAL CONTROL', 'SYSTEM CONTROL'];
+    var w = function (s) { return s === 'ok' ? 'PASS' : s === 'fail' ? 'FAIL' : 'UNPROVEN'; };
+    return '<div class="verdict"><div class="vd vd-' + localSt + '"><span>' + labels[0] + '</span><b>' + w(localSt) + '</b></div><div class="vd vd-' + systemSt + '"><span>' + labels[1] + '</span><b>' + w(systemSt) + '</b></div></div>';
+  }
+  function freshness(date) {
+    if (!date) return { k: 'never', t: 'never tested' };
+    var d = Math.round((Date.parse(G.asOf) - Date.parse(date)) / 864e5);
+    return d <= 7 ? { k: 'fresh', t: 'tested ' + (d === 0 ? 'today' : d + 'd ago') } : d <= 30 ? { k: 'aging', t: 'tested ' + d + 'd ago' } : { k: 'stale', t: 'stale · tested ' + d + 'd ago' };
+  }
+  function ctlState(id) { var c = G.controls[id]; if (!c) return 'unk'; if (c.result === 'fail') return 'fail'; if (c.result === 'never') return 'unk'; return freshness(c.last).k === 'stale' ? 'warn' : 'ok'; }
+  var ZONE = {}; G.zones.forEach(function (z) { ZONE[z[0]] = z[1]; });
+  function journey(st) { return byId(G.journeys, st.j) || G.journeys[0]; }
+  function emph(st) { var d = byId(G.surfaces, st.s); return d && d.emph ? '<div class="emph" aria-label="What this surface emphasizes">' + d.emph.map(function (e) { return '<span>' + esc(e) + '</span>'; }).join('') + '</div>' : ''; }
 
-/* ── metrics: every number has a rule and a list ──────────── */
-var M = P.METRICS = [
-  { id: 'personal', label: 'Personal data assets', rule: 'Datasets whose most sensitive field is T2 or above.', items: function () { return P.personalDatasets().map(function (d) { return { id: d.id, why: 'Max tier T' + P.dsTier(d) + ' · ' + fmtN(d.people) + ' people' }; }); } },
-  { id: 'sensitive', label: 'Sensitive / special assets', rule: 'Datasets holding any T3 (sensitive) or T4 (special) field.', tone: 'hot', items: function () { return NS.datasets.filter(function (d) { return P.dsTier(d) >= 3; }).map(function (d) { return { id: d.id, why: 'T' + P.dsTier(d) + ': ' + d.fields.filter(function (f) { return f[1] >= 3; }).map(function (f) { return f[0]; }).join(', ') }; }); } },
-  { id: 'highfind', label: 'High-risk findings', rule: 'Findings with severity HIGH that are not closed or accepted.', tone: 'hot', route: 'privacy/risks', items: function () { return P.openFindings().filter(function (f) { return f.sev === 'HIGH'; }).map(function (f) { return { id: f.id, why: f.kind + ' · ' + fmtN(f.people) + ' people' }; }); } },
-  { id: 'noowner', label: 'Unknown data owners', rule: 'Datasets, systems and findings with no accountable team.', tone: 'unk', items: function () {
-      return NS.datasets.filter(function (d) { return !d.owner; }).map(function (d) { return { id: d.id, why: 'dataset without owner' }; })
-        .concat(NS.systems.filter(function (s) { return !s.team; }).map(function (s) { return { id: s.id, why: 'system without owning team' }; }))
-        .concat(P.openFindings().filter(function (f) { return !f.owner; }).map(function (f) { return { id: f.id, why: 'open finding without owning team' }; })); } },
-  { id: 'highrisk', label: 'HIGH residual risks', rule: 'Risks whose residual score (exposure × (1 − 0.6 × assurance)) rates HIGH.', tone: 'hot', hidden: true, route: 'privacy/risks', items: function () { return NS.risks.filter(function (r) { return P.riskCalc(r).rating === 'HIGH'; }).map(function (r) { return { id: r.id, why: P.explainRisk ? 'HIGH band · ' + (P.explainRisk(r).drivers[0] || 'see the risk explanation') : 'HIGH band' }; }); } },
-  { id: 'unmapped', label: 'Unmapped data flows', rule: 'Flows observed in traffic or lineage that no review has described (status = unknown).', tone: 'unk', route: 'explore/flows', items: function () { return NS.flows.filter(function (f) { return f.status === 'unknown'; }).map(function (f) { return { id: f.id, why: f.fields.join(', ') }; }); } },
-  { id: 'undeclared', label: 'Undeclared third-party egress', rule: 'Recipients receiving personal data with no contract or declaration.', tone: 'hot', route: 'explore/vendors', items: function () { return NS.vendors.filter(function (v) { return !v.declared; }).map(function (v) { return { id: v.id, why: v.data.join(', ') + ' · ' + fmtN(v.people) + ' people' }; }); } },
-  { id: 'nottl', label: 'Datasets without TTL', rule: 'Retention is not machine-enforced (and the data is not tied to a source lifetime).', route: 'privacy/retention', items: function () { return NS.datasets.filter(function (d) { return !d.retention.ttl && d.retention.note == null; }).map(function (d) { return { id: d.id, why: 'actual ' + (fmtDays(d.retention.actual) || 'unknown') }; }); } },
-  { id: 'retviol', label: 'Retention violations', rule: 'Oldest record is older than the declared requirement.', tone: 'hot', route: 'privacy/retention', items: function () { return NS.datasets.filter(function (d) { var r = d.retention; return r.required > 0 && r.actual > r.required; }).map(function (d) { return { id: d.id, why: fmtDays(d.retention.actual) + ' kept vs ' + fmtDays(d.retention.required) + ' needed' }; }); } },
-  { id: 'consentfail', label: 'Consent propagation failures', rule: 'Consumers that never re-check consent, dropped the filter, or do not receive opt-outs.', tone: 'hot', route: 'privacy/consent', items: function () { return NS.consentConsumers.filter(function (c) { return c.p50 == null; }).map(function (c) { return { id: c.id, why: c.mode + (c.stale ? ' · ' + fmtN(c.stale) + ' stale' : '') }; }); } },
-  { id: 'delfail', label: 'Deletion verification failures', rule: 'Systems where a Forget-Me request failed or completion cannot be proven.', tone: 'hot', route: 'privacy/deletion', items: function () { return NS.deletionTargets.filter(function (t) { return t[3] === 'failed' || t[3] === 'unknown'; }).map(function (t) { return { id: t[0], why: t[1] + ' — ' + t[2] + ' (' + t[3] + ')' }; }); } },
-  { id: 'sdks', label: 'Unreviewed SDKs & pixels', rule: 'Third-party code in apps or pages with no privacy review.', route: 'privacy/tracking', items: function () { return NS.trackers.filter(function (t) { return t.review === 'unreviewed'; }).map(function (t) { return { id: t.id, why: t.where + ' · ' + t.fields }; }); } },
-  { id: 'hivendor', label: 'High-risk vendors', rule: 'Vendors holding T3+ data with no privacy review, no deletion path, a retention mismatch, or no contract.', tone: 'hot', route: 'governance/vendors', items: function () { return P.vendorIssues().filter(function (x) { return x.v.tier >= 3 && x.issues.length; }).map(function (x) { return { id: x.v.id, why: x.issues.join(' · ') }; }); } },
-  { id: 'incidents', label: 'Open privacy incidents', rule: 'Incidents not yet closed with a permanent guard.', route: 'assurance/incidents', items: function () { return NS.incidents.filter(function (i) { return i.status !== 'closed'; }).map(function (i) { return { id: i.id, why: i.type + ' · ' + i.status }; }); } },
-  { id: 'aipersonal', label: 'AI models using personal data', rule: 'Registered models trained on or prompted with personal data.', route: 'privacy/ai', items: function () { return NS.models.filter(function (m) { return m.personal; }).map(function (m) { return { id: m.id, why: m.hosting + (m.sensitive ? ' · sensitive' : '') }; }); } },
-  { id: 'aiprov', label: 'Models with unknown provenance', rule: 'Training provenance recorded as unknown or partial.', tone: 'unk', route: 'privacy/ai', items: function () { return NS.models.filter(function (m) { return m.provenance !== 'documented'; }).map(function (m) { return { id: m.id, why: 'provenance: ' + m.provenance }; }); } },
-  { id: 'paper', label: 'Controls only in documents', rule: 'Controls at enforcement level 0 (policy text, no mechanism).', tone: 'hot', route: 'assurance/controls', items: function () { return NS.controls.filter(function (c) { return c.level === 0; }).map(function (c) { return { id: c.id, why: c.evidence }; }); } },
-  { id: 'runtime', label: 'Runtime-enforced controls', rule: 'Controls at level 4 (runtime) or 5 (continuous audit).', tone: 'good', route: 'assurance/controls', items: function () { return NS.controls.filter(function (c) { return c.level >= 4; }).map(function (c) { return { id: c.id, why: 'L' + c.level + ' · ' + c.health }; }); } },
-  { id: 'drift', label: 'Privacy drift this week', rule: 'Changes detected in the last 7 days: new fields, joins, consumers, SDKs, vendors, regions, purposes.', route: 'assurance/drift', items: function () { return NS.drift.filter(function (d) { return daysSince(d.t.slice(0, 10)) < 7 && d.sev !== 'GOOD'; }).map(function (d) { return { id: d.entities[0], why: d.text, t: d.t }; }); } }
-];
-P.metric = function (id) { for (var i = 0; i < M.length; i++) if (M[i].id === id) return M[i]; };
+  /* ═══════════ VISUALS ═══════════ */
+  var V = {};
 
-P.vendorIssues = function () {
-  return NS.vendors.map(function (v) {
-    var is = [];
-    if (!v.declared) is.push('undeclared');
-    if (!v.contract) is.push('no contract');
-    else if (daysUntil(v.contract.expires) < 0) is.push('agreement expired');
-    else if (daysUntil(v.contract.expires) < 45) is.push('agreement expires in ' + daysUntil(v.contract.expires) + ' d');
-    if (!v.privacyReview) is.push('no privacy review');
-    if (!v.deletionApi) is.push('no deletion mechanism');
-    if (v.retention.contract != null && v.retention.actual != null && v.retention.actual > v.retention.contract) is.push('retention ' + v.retention.actual + 'd vs ' + v.retention.contract + 'd contract');
-    if (v.retention.actual == null) is.push('retention unknown');
-    if (!v.optOutPropagates) is.push('opt-outs not propagated');
-    if (v.subprocessors.some(function (s) { return ENT[s] && !ENT[s].obj.known; })) is.push('unknown subprocessor');
-    return { v: v, issues: is };
-  });
-};
-
-/* stage of the lifecycle a finding lives in (for the worry map) */
-P.stageOf = function (f) {
-  var k = f.kind;
-  if (/DELETION/.test(k)) return 'DELETE';
-  if (/RETENTION|TTL|LONG-LIVED|OUTLIVES/.test(k)) return 'STORE';
-  if (/EGRESS|VENDOR|SUBPROCESSOR|TRACKING|AGREEMENT|INFERENCE \+ CROSS|UNKNOWN SUB/.test(k)) return 'SHARE';
-  if (/PURPOSE|CONSENT/.test(k)) return 'USE';
-  if (/NEW SENSITIVE FIELD|LOGGING/.test(k)) return 'COLLECT';
-  if (/LINKAB|OWNER|ACCESS|UNKNOWN/.test(k)) return 'PROCESS';
-  return 'PROCESS';
-};
-P.STAGES = ['COLLECT', 'PROCESS', 'USE', 'SHARE', 'STORE', 'DELETE'];
-
-/* ── HTML fragments ──────────────────────────────────────── */
-P.chip = function (id, label) {
-  var e = ENT[id]; if (!e) return '<span class="chip">' + esc(label || id) + '</span>';
-  return '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[e.type] || e.type).split(' ')[0]) + '</span>' + esc(label || e.name) + '</button>';
-};
-P.chips = function (ids) { return '<div class="chips">' + uniq(ids).map(function (i) { return P.chip(i); }).join('') + '</div>'; };
-P.tier = function (t) { return '<span class="tier tier-' + t + '" title="' + ['Public', 'Internal', 'Personal', 'Sensitive', 'Special'][t] + '">T' + t + '</span>'; };
-P.sev = function (s) { return '<span class="tag sev-' + esc(s) + '">' + esc(s) + '</span>'; };
-P.kind = function (k) { return '<span class="tag k-' + esc(k) + '">' + esc(k) + '</span>'; };
-P.LEVELS = ['POLICY', 'HUMAN REVIEW', 'STATIC CHECK', 'DEPLOY GATE', 'RUNTIME', 'CONTINUOUS AUDIT'];
-P.lvl = function (l) { var s = '<span class="lvl' + (l <= 1 ? ' low' : '') + (l === 0 ? ' zero' : '') + '" title="L' + l + ' ' + P.LEVELS[l] + '">'; for (var i = 0; i <= 5; i++) s += '<i class="' + (i <= l && l > 0 ? 'on' : '') + '"></i>'; return s + '</span> <span class="small mono dim">L' + l + ' ' + P.LEVELS[l] + '</span>'; };
-P.sixStrip = function (six) { return '<div class="six" role="list">' + P.SIX.map(function (k) { return '<div role="listitem" class="' + six[k] + '" title="' + esc(P.SIX_Q[k]) + '">' + k + '<br>' + (six[k] === 'y' ? '✓' : six[k] === 'n' ? '✗' : '?') + '</div>'; }).join('') + '</div>'; };
-P.kv = function (rows) { return '<dl class="kv">' + rows.filter(Boolean).map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + (r[1] == null || r[1] === '' ? unk() : r[1]) + '</dd>'; }).join('') + '</dl>'; };
-P.sec = function (title, body) { return '<section class="pp-sec"><h3>' + esc(title) + '</h3>' + body + '</section>'; };
-P.list = function (items) { return items.length ? '<ul class="checks">' + items.join('') + '</ul>' : '<p class="dim small">None.</p>'; };
-P.check = function (ok, text) { return '<li><span class="ic ' + (ok === true ? 'ok' : ok === false ? 'bad' : 'unknown') + '">' + (ok === true ? '✓' : ok === false ? '✗' : '?') + '</span><span>' + text + '</span></li>'; };
-P.pageHead = function (eyebrow, title, lede, right) { return '<div class="page-head"><div><p class="eyebrow">' + esc(eyebrow) + '</p><h1>' + esc(title) + '</h1>' + (lede ? '<p class="lede">' + lede + '</p>' : '') + '</div>' + (right || '') + '</div>'; };
-
-/* ── navigation ──────────────────────────────────────────── */
-P.NAV = [
-  ['', [['overview', 'Command Center']]],
-  ['Decide', [['promises', 'Promises'], ['decisions', 'Decision memos'], ['privacy/reviews', 'Privacy reviews'], ['privacy/risks', 'Risk radar'], ['privacy/worstday', 'Worst Day']]],
-  ['Investigate', [['chain', 'Chain explorer'], ['explore/person', 'One Person'], ['explore/graph', 'Knowledge graph'], ['explore/identities', 'Identities'], ['explore/flows', 'Lineage & flows'],
-    ['explore/vendors', 'Vendors & egress'], ['explore/geo', 'Geography'], ['explore/org', 'Organization'], ['explore/products', 'Products & features'], ['explore/systems', 'Systems'], ['explore/data', 'Data']]],
-  ['Operate', [['observability', 'Observability'], ['privacy/consent', 'Consent'], ['privacy/deletion', 'Deletion'], ['privacy/retention', 'Retention'], ['privacy/rights', 'Individual rights'],
-    ['privacy/purpose', 'Purpose'], ['privacy/ai', 'AI & agents'], ['privacy/tracking', 'Tracking'], ['privacy/pets', 'PETs & DP'], ['privacy/threats', 'Threat models']]],
-  ['Connected Life', [['life/graph', 'Household & places'], ['life/people', 'Who the home observes'], ['life/actions', 'Physical actions'], ['life/routines', 'Automation review'],
-    ['life/networks', 'Network context'], ['life/inferences', 'Home inferences'], ['life/offboarding', 'Offboarding']]],
-  ['Prove', [['assurance/controls', 'Controls & evidence'], ['assurance/audits', 'Audits'], ['assurance/access', 'Access & insider'], ['assurance/incidents', 'Incidents'], ['assurance/drift', 'Drift'],
-    ['governance/regulations', 'Policies & regulations'], ['governance/vendors', 'Vendor register'], ['governance/maturity', 'Maturity']]],
-  ['Report', [['report/executive', 'Executive memo'], ['report/engineering', 'Engineering'], ['report/audit', 'Audit'], ['report/legal', 'Privacy / legal'], ['report/investigation', 'Investigation report']]]
-];
-var NAV_COUNT = { 'promises': ['promises', 'hot'], 'decisions': ['owed', 'hot'], 'privacy/risks': ['highrisk', 'hot'], 'explore/flows': ['unmapped', 'unk'], 'privacy/retention': ['retviol', 'hot'], 'privacy/deletion': ['delfail', 'hot'], 'privacy/consent': ['consentfail', 'hot'], 'privacy/tracking': ['sdks', ''], 'assurance/controls': ['paper', 'hot'], 'assurance/drift': ['drift', ''], 'assurance/incidents': ['incidents', ''], 'privacy/ai': ['aiprov', 'unk'], 'explore/vendors': ['undeclared', 'hot'], 'life/actions': ['physical', 'hot'] };
-function renderNav() {
-  var h = P.forYouNav ? P.forYouNav() : '';
-  P.NAV.forEach(function (g) {
-    if (g[0]) h += '<h2>' + esc(g[0]) + '</h2>';
-    g[1].forEach(function (it) {
-      if (!P.views[it[0]] && !P.views[it[0].split('/')[0]]) return; /* a module not built yet never shows a dead link */
-      var c = NAV_COUNT[it[0]], n = c ? P.metric(c[0]).items().length : null;
-      h += '<a href="#/' + it[0] + '" data-route="' + it[0] + '">' + esc(it[1]) + (n ? '<span class="ct ' + c[1] + '">' + n + '</span>' : '') + '</a>';
+  /* identity graph — separate signals, then connect the dots */
+  V.identity = function (st) {
+    var I = G.identity, W = 160, H = 56;
+    var pos = { phone: [20, 20], behavior: [20, 130], payment: [20, 240], device: [520, 20], browser: [520, 130], login: [520, 240] };
+    var mid = function (k) { return [pos[k][0] + W / 2, pos[k][1] + H / 2]; }, P = [350, 130];
+    var inS = function (s) { return st.s === 'all' || s.s.indexOf(st.s) >= 0; };
+    var svg = '<svg viewBox="0 0 700 300" class="idg" role="img" aria-labelledby="idgT"><title id="idgT">Six signals about one synthetic person. Connected, shared identifiers turn them into one profile.</title>';
+    I.signals.forEach(function (s) { var m = mid(s.id); svg += '<line class="spoke" x1="' + m[0] + '" y1="' + m[1] + '" x2="' + P[0] + '" y2="' + P[1] + '"/>'; });
+    I.links.forEach(function (l) {
+      var a = mid(l[0]), b = mid(l[1]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, w = l[2].length * 6.6 + 14;
+      svg += '<g class="lk lk-' + l[3] + '"><line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '"/><rect x="' + (mx - w / 2) + '" y="' + (my - 10) + '" width="' + w + '" height="20" rx="4"/><text x="' + mx + '" y="' + (my + 4) + '" text-anchor="middle">' + esc(l[2]) + '</text></g>';
     });
-  });
-  document.getElementById('side').innerHTML = h;
-}
-
-/* ── the essay: each page links back to the scene that explains it ──
- * Same map as articles/every-arrow/data.js (D.pccMap); a test checks they agree. */
-P.ESSAY_URL = '/articles/every-arrow-is-a-decision.html';
-P.ESSAY = {
-  'explore/person': ['person', 'One person, no name'], 'explore/identities': ['linkability', 'Two harmless tables'],
-  'privacy/reviews': ['review', 'Eight questions'], 'explore/flows': ['arrows', 'Every arrow is a decision'],
-  'privacy/purpose': ['purpose', 'Purpose at the moment of use'], 'privacy/threats': ['harm', 'Think like the adversary, then like the person'],
-  'privacy/tracking': ['burn', 'The burn button'], 'assurance/controls': ['ladder', 'The enforcement ladder'],
-  'privacy/consent': ['consent', 'Consent is state'], 'privacy/rights': ['rights', 'Every right is a distributed workflow'],
-  'privacy/retention': ['retention', 'Retention is a risk multiplier'], 'privacy/deletion': ['forget', 'Design as if “Forget me” had to work'],
-  'governance/vendors': ['vendors', 'A vendor is an arrow you can’t see the end of'], 'privacy/ai': ['ai', 'AI, ML and agents'],
-  'assurance/access': ['signin', 'Signing in'], 'privacy/worstday': ['worst', 'Decide the worst case before launch'],
-  'privacy/pets': ['pets', 'PETs are answers; start with the threat'], 'assurance/drift': ['change', 'The review was right on the day it was signed'],
-  'observability': ['observe', 'Privacy observability'], 'assurance/incidents': ['incident', 'Incident response'],
-  'life/graph': ['home', 'One home. Three clouds.'], 'life/people': ['guest', 'The guest never clicked Accept'],
-  'life/actions': ['door', 'When privacy opens the door'], 'life/routines': ['routine', 'The routine nobody reviewed'],
-  'life/networks': ['network', 'The network is a witness'], 'life/inferences': ['infer', 'The house made an inference'],
-  'life/offboarding': ['oldkeys', 'The old owner still has the keys']
-};
-function essayLink(key) {
-  var e = P.ESSAY[key]; if (!e) return '';
-  return '<p class="essay-link"><a href="' + P.ESSAY_URL + '#' + e[0] + '">Read the explanation in the essay: <b>' + esc(e[1]) + '</b> &rarr;</a></p>';
-}
-
-/* ── router ──────────────────────────────────────────────── */
-P.route = { path: 'overview', q: {} };
-P.go = function (path) { location.hash = '#/' + path; };
-function parseHash() {
-  var h = location.hash.replace(/^#\/?/, '') || 'overview';
-  var parts = h.split('?'), q = {};
-  (parts[1] || '').split('&').forEach(function (kv) { if (!kv) return; var p = kv.split('='); q[decodeURIComponent(p[0])] = decodeURIComponent(p[1] || ''); });
-  return { path: parts[0], q: q };
-}
-function render() {
-  var r = parseHash(); P.route = r;
-  var segs = r.path.split('/'), key = segs.slice(0, 2).join('/');
-  var view = P.views[key], args = segs.slice(2);
-  /* `section/:id` routes (promises/PR-LOC, decisions/D-101) receive the id as args[1]. */
-  if (!view && segs[1] && P.views[segs[0] + '/:id']) { view = P.views[segs[0] + '/:id']; args = segs; key = segs[0]; }
-  view = view || P.views[segs[0]] || P.views.overview;
-  var main = document.getElementById('view');
-  /* Error state: a view that cannot render says so, names the route, and offers a way back. */
-  try { main.innerHTML = view.render(args, r.q) + essayLink(key); if (view.mount) view.mount(main, args, r.q); }
-  catch (err) {
-    main.innerHTML = '<section class="err-state" role="alert"><p class="eyebrow">Something went wrong</p><h1>This view could not be drawn</h1>' +
-      '<p>The page <code>#/' + esc(r.path) + '</code> hit an error while reading the synthetic records: <code>' + esc(err && err.message || err) + '</code>. Nothing was changed.</p>' +
-      '<p><a class="btn" href="#/overview">Back to the Command Center</a></p></section>';
-    if (window.console) console.error(err);
-  }
-  main.querySelectorAll('.tbl-wrap,.canvas,.memo table,.heat').forEach(function (el) { if (el.scrollWidth > el.clientWidth + 1 && !el.hasAttribute('tabindex')) { el.tabIndex = 0; el.setAttribute('role', el.getAttribute('role') || 'region'); if (!el.getAttribute('aria-label')) el.setAttribute('aria-label', 'Scrollable content'); } });
-  document.querySelectorAll('.side a').forEach(function (a) { var on = a.getAttribute('data-route') === key || (key === 'overview' && a.getAttribute('data-route') === 'overview'); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
-  var title = (view.title || 'Command Center');
-  document.title = title + ' — Privacy Command Center';
-  closeSide();
-  if (!P._keepScroll) window.scrollTo(0, 0); P._keepScroll = false;
-}
-P.render = render;
-
-/* ── drawer (Privacy Passport) ───────────────────────────── */
-var drawer, drawerBody, drawerCrumb;
-P.open = function (id, opts) {
-  opts = opts || {};
-  var e = ENT[id]; if (!e) return;
-  if (!opts.fromStack && P.state.drawerStack[P.state.drawerStack.length - 1] !== id) { P.state.drawerStack.push(id); if (P.state.drawerStack.length > 8) P.state.drawerStack.shift(); }
-  pushTrail(id);
-  var fn = P.passports[e.type] || P.passports.generic;
-  drawerBody.innerHTML = fn(e.obj, e) + (P.chainHTML ? '<section class="pp-sec"><h3>From promise to owner</h3>' + P.chainHTML(id) + '</section>' : '') + connected(id);
-  drawerBody.scrollTop = 0;
-  var st = P.state.drawerStack;
-  drawerCrumb.innerHTML = st.slice(-4).map(function (x, i, a) { var last = i === a.length - 1; return last ? '<span>' + esc(TYPE_LABEL[ENT[x].type]) + '</span>' : '<button data-stack="' + (st.length - a.length + i) + '">' + esc(shortName(x)) + '</button><span class="sep">›</span>'; }).join('');
-  drawer.classList.add('open'); drawer.removeAttribute('inert');
-  if (!opts.noFocus) setTimeout(function () { var t = drawerBody.querySelector('.pp-title'); if (t) { t.setAttribute('tabindex', '-1'); t.focus({ preventScroll: true }); } }, 60);
-  if (opts.scrollTo) setTimeout(function () { var s = drawerBody.querySelector('[data-anchor="' + opts.scrollTo + '"]'); if (s) { s.scrollIntoView({ block: 'start' }); s.classList.add('hl'); } }, 320);
-};
-P.openHTML = function (title, html, crumb) {
-  drawerBody.innerHTML = html; drawerBody.scrollTop = 0;
-  drawerCrumb.innerHTML = '<span>' + esc(crumb || title) + '</span>';
-  drawer.classList.add('open'); drawer.removeAttribute('inert');
-};
-function shortName(id) { var n = P.name(id); return n.length > 22 ? n.slice(0, 20) + '…' : n; }
-P.closeDrawer = function () { drawer.classList.remove('open'); drawer.setAttribute('inert', ''); P.state.drawerStack = []; };
-function connected(id) {
-  var n = P.nb(id); if (!n.length) return '';
-  var groups = {};
-  n.forEach(function (x) { var t = ENT[x.id].type; (groups[t] = groups[t] || []).push(x); });
-  var h = '<section class="pp-sec"><h3>Connected in the knowledge graph · ' + n.length + ' relationships</h3>';
-  Object.keys(groups).forEach(function (t) {
-    h += '<div style="margin-bottom:8px"><div class="small dim" style="margin-bottom:4px">' + esc(TYPE_LABEL[t] || t) + '</div><div class="chips">' +
-      uniq(groups[t].map(function (x) { return x.id; })).map(function (xid) { var rel = groups[t].filter(function (y) { return y.id === xid; })[0]; return '<button class="chip" data-ent="' + esc(xid) + '" title="' + esc((rel.dir === 'out' ? '→ ' : '← ') + rel.rel) + '">' + esc(P.name(xid)) + ' <span class="ty">' + esc(rel.rel) + '</span></button>'; }).join('') + '</div></div>';
-  });
-  return h + '<div class="btn-row" style="margin-top:10px"><a class="btn" href="#/explore/graph?focus=' + esc(id) + '">Open in knowledge graph</a></div></section>';
-}
-P.openMetric = function (id) {
-  var m = P.metric(id), items = m.items();
-  var h = '<p class="pp-type">Metric</p><h2 class="pp-title">' + esc(m.label) + ' · ' + items.length + '</h2>' +
-    '<div class="why"><div class="wl">HOW THIS NUMBER IS COMPUTED</div><p>' + esc(m.rule) + '</p></div>' +
-    '<p class="small muted">Every item below is the evidence for the number. Click one to open its passport.</p>' +
-    '<div class="tbl-wrap"><table class="tbl"><tbody>' + items.map(function (it) {
-      var e = ENT[it.id];
-      return '<tr class="click" data-ent="' + esc(it.id) + '" tabindex="0"><td>' + (e ? '<div style="font-weight:600">' + esc(e.name) + '</div><div class="small dim">' + esc(TYPE_LABEL[e.type]) + '</div>' : esc(it.id)) + '</td><td class="small muted">' + esc(it.why || '') + '</td></tr>';
-    }).join('') + '</tbody></table></div>' +
-    (m.route ? '<div class="btn-row" style="margin-top:12px"><a class="btn" href="#/' + m.route + '">Open the full view →</a></div>' : '');
-  P.openHTML(m.label, h, 'Metric');
-};
-
-/* ── trail ───────────────────────────────────────────────── */
-P.pushTrail = function (id) { pushTrail(id); };
-function pushTrail(id) {
-  var t = P.state.trail; if (t[t.length - 1] === id) return;
-  t.push(id); if (t.length > 14) t.shift(); renderTrail();
-}
-/* The trail is also a document: its ids travel in a link (?t=id1,id2,…) that
- * reopens it as an investigation report or as a draft decision memo. */
-P.trailHash = function (route, ids) { return '#/' + route + '?t=' + (ids || P.state.trail).map(encodeURIComponent).join(','); };
-P.setTrail = function (ids) { P.state.trail = uniq(ids.filter(function (id) { return ENT[id]; })).slice(-14); renderTrail(); };
-P.renderTrail = function () { renderTrail(); };
-function renderTrail() {
-  var t = P.state.trail, el = document.getElementById('trail');
-  el.setAttribute('role', 'region');
-  if (!t.length) {
-    el.innerHTML = '<span class="tl">TRAIL</span><span class="empty">Your investigation path appears here. Every record you open is recorded, so you can explain — and print — how you reached a conclusion. <button class="chip" data-act="tour">▶ Follow an investigation</button></span>';
-    return;
-  }
-  el.innerHTML = '<span class="tl" aria-hidden="true">TRAIL</span>' +
-    '<div class="trail-steps" id="trailSteps" role="region" tabindex="0" aria-label="Investigation steps, oldest first (' + t.length + ')">' + t.map(function (id, i) { return (i ? '<span class="sep" aria-hidden="true">›</span>' : '') + '<button class="chip" data-ent="' + esc(id) + '"><span class="ty">' + esc((TYPE_LABEL[ENT[id].type] || '').split(' ')[0]) + '</span>' + esc(shortName(id)) + '</button>'; }).join('') + '</div>' +
-    '<div class="trail-acts"><a class="chip trail-act" href="' + esc(P.trailHash('report/investigation')) + '" title="Open this trail as an auditable investigation report">Report</a>' +
-      '<a class="chip trail-act" href="' + esc(P.trailHash('decisions/new')) + '" title="Turn this trail into a draft decision memo">Draft memo</a>' +
-      '<button class="chip trail-act" data-act="shareTrail" title="Copy a link that reproduces this trail">Copy link</button>' +
-      '<button class="chip trail-act" data-act="clearTrail">Clear</button><span class="sr-only" role="status" id="trailMsg"></span></div>';
-  var s = document.getElementById('trailSteps'); s.scrollLeft = s.scrollWidth; /* keep the newest step in view */
-}
-P.acts.clearTrail = function () { P.state.trail = []; renderTrail(); };
-P.acts.shareTrail = function (btn) {
-  var url = location.href.split('#')[0] + P.trailHash('report/investigation');
-  var done = function () { var m = document.getElementById('trailMsg'); if (m) m.textContent = 'Link copied. It reopens this trail as an investigation report.'; btn.textContent = 'Copied ✓'; setTimeout(function () { if (btn.isConnected) btn.textContent = 'Copy link'; }, 2400); };
-  var show = function () {
-    P.openHTML('Share this investigation', '<p class="pp-type">Share</p><h2 class="pp-title">A link to this investigation</h2><p class="small muted">Anyone who opens it sees the same ' + P.state.trail.length + ' steps as an investigation report. Nothing is stored; the trail travels in the link.</p>' +
-      '<label class="small" for="trailLink">Link</label><input id="trailLink" class="trail-link" readonly value="' + esc(url) + '">', 'Share');
-    var i = document.getElementById('trailLink'); if (i) { i.focus(); i.select(); }
+    svg += '<g class="prof"><rect x="' + (P[0] - 88) + '" y="' + (P[1] - 26) + '" width="176" height="52" rx="10"/><text class="pk" x="' + P[0] + '" y="' + (P[1] - 5) + '" text-anchor="middle">PERSON-LEVEL PROFILE</text><text class="pn" x="' + P[0] + '" y="' + (P[1] + 15) + '" text-anchor="middle">' + esc(name('p_dana')) + '</text></g>';
+    I.signals.forEach(function (s) {
+      var p = pos[s.id];
+      svg += '<g class="sg' + (inS(s) ? '' : ' dim') + '"><rect x="' + p[0] + '" y="' + p[1] + '" width="' + W + '" height="' + H + '" rx="10"/><text class="sl" x="' + (p[0] + 12) + '" y="' + (p[1] + 23) + '">' + esc(s.label) + '</text><text class="sk" x="' + (p[0] + 12) + '" y="' + (p[1] + 42) + '">' + esc(s.key) + '</text></g>';
+    });
+    svg += '</svg>';
+    var cols = ['collected', 'derived', 'inferred'].map(function (k) { return '<div class="pcol"><div class="eyebrow">' + k + '</div>' + I.profile.filter(function (x) { return x[0] === k; }).map(function (x) { return '<p>' + esc(x[1]) + '</p>'; }).join('') + '</div>'; }).join('');
+    return {
+      head: 'Separate signals about ' + name('p_dana'),
+      tools: '<button class="btn" data-act="connect" aria-pressed="false">Connect the dots</button>',
+      body: '<div class="idwrap" tabindex="0" role="region" aria-label="Identity graph">' + svg + '</div><p class="ppre">Connected, these signals become one profile: what was collected, what was derived, and what was inferred.</p><div class="pcols">' + cols + '</div><p class="keyq">Was this linkage necessary and permitted for the intended purpose?</p>',
+      mount: function (root) {
+        var b = $('[data-act="connect"]', root);
+        b.addEventListener('click', function () { var on = !root.classList.contains('linked'); root.classList.toggle('linked', on); b.textContent = on ? 'Separate again' : 'Connect the dots'; b.setAttribute('aria-pressed', on); $('.vis-h', root).textContent = on ? 'One person, linked across contexts' : 'Separate signals about ' + name('p_dana'); });
+      }
+    };
   };
-  try { if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(url).then(done, show); else show(); } catch (e) { show(); }
-};
 
-/* ── side nav (mobile) ───────────────────────────────────── */
-function closeSide() { var s = document.getElementById('side'); s.classList.remove('open'); document.getElementById('scrim').hidden = true; document.getElementById('menuBtn').setAttribute('aria-expanded', 'false'); }
+  /* journey path — every arrow is a decision */
+  V.flow = function (st, view) {
+    var J = journey(st), hops = J.hops, CLS = { ok: '', warn: ' a-warn', fail: ' a-fail', unk: ' a-unk' };
+    var chain = '<div class="chain">' + hops.map(function (h, i) {
+      return (i ? '<button class="arr' + CLS[h.st || 'ok'] + '" data-a="' + i + '" aria-label="Inspect arrow: ' + esc(hops[i - 1].n + ' to ' + h.n) + '"></button>' : '') + '<div class="nd z-' + h.z + '">' + esc(h.n) + '<small>' + esc(ZONE[h.z]) + '</small></div>';
+    }).join('') + '</div>';
+    var first = hops.findIndex(function (h, i) { return i && h.st === 'fail'; }); if (first < 1) first = 1;
+    return {
+      head: 'Journey: ' + J.label,
+      tools: '<span class="legend"><i class="lg-ok"></i>normal <i class="lg-warn"></i>review <i class="lg-fail"></i>failure <i class="lg-unk"></i>unknown</span>',
+      body: '<div class="flow">' + chain + '</div><div class="insp" id="insp" aria-live="polite"></div>',
+      mount: function (root) {
+        function show(i) {
+          var h = hops[i], prev = hops[i - 1];
+          $$('.arr', root).forEach(function (b) { var on = +b.getAttribute('data-a') === i; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on); });
+          var tb = prev.z === h.z ? ZONE[h.z] + ' (no boundary crossed)' : ZONE[prev.z] + ' → ' + ZONE[h.z];
+          var priv = [['What moved?', h.mv], ['Why?', h.why], ['Under which identity?', h.id + (h.sc && h.sc !== 'none' ? ' (' + h.sc + ')' : '')], ['Across which trust boundary?', tb], [view.learn ? 'How did it learn, and what does it now know?' : 'What can the receiver now learn?', h.obs]];
+          var rows = st.l === 'security' ? [['What moved?', h.mv], ['Security control', h.sec || 'None recorded']] : st.l === 'both' ? priv.concat([['Security control', h.sec || 'None recorded']]) : priv;
+          var ctl = h.ctl ? '<p class="insp-ctl">Control: <b>' + esc(name(h.ctl)) + '</b> ' + stTag(ctlState(h.ctl), freshness(G.controls[h.ctl] && G.controls[h.ctl].last).t) + '</p>' : '';
+          $('#insp', root).innerHTML = '<div class="insp-h"><span class="eyebrow">Arrow</span><b class="' + (h.st === 'fail' ? 'red' : '') + '">' + esc(prev.n + ' → ' + h.n) + '</b></div><dl class="five">' + rows.map(function (r, k) { return '<div><dt>' + esc(r[0]) + '</dt><dd' + (k === 4 && h.st === 'fail' ? ' class="red"' : '') + '>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' + ctl + (h.ctl === 'c_server_filter' ? payloadHTML() : '');
+        }
+        root.addEventListener('click', function (e) { var b = e.target.closest('.arr'); if (b) show(+b.getAttribute('data-a')); });
+        show(first);
+      }
+    };
+  };
+  function payloadHTML() {
+    var json = '[\n' + G.payload.map(function (r) { var line = '  { "tenant": "' + r[0] + '", "revenue": ' + r[1] + ' }'; return r[2] ? esc(line) : '<span class="x">' + esc(line) + '</span>'; }).join(',\n') + '\n]';
+    var max = Math.max.apply(null, G.payload.map(function (r) { return r[1]; }));
+    return '<div class="payload"><div class="pane"><div class="eyebrow">Server returns</div><pre class="json" tabindex="0" aria-label="Server response">' + json + '</pre></div>' +
+      '<div class="pane"><div class="eyebrow">Client displays</div><div class="bars">' + G.payload.map(function (r) { return '<i class="' + (r[2] ? '' : 'gone') + '" style="height:' + Math.round(r[1] / max * 100) + '%"></i>'; }).join('') + '</div><div class="barl">' + G.payload.map(function (r) { return '<span>' + r[0] + (r[2] ? '' : ' hidden') + '</span>'; }).join('') + '</div></div></div>' +
+      '<div class="warn-big">FILTERING ≠ ISOLATION</div><p class="keyline">If unauthorized data reached the client, the privacy failure already happened.</p>';
+  }
 
-/* ── roles ───────────────────────────────────────────────── */
-function setRole(r) {
-  P.state.role = r;
-  document.querySelectorAll('.role button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-role') === r)); });
-  if (P.route.path === 'overview') { P._keepScroll = true; render(); }
-}
-P.setRole = setRole;
-P.renderNav = function () { renderNav(); var r = P.route.path.split('/').slice(0, 2).join('/'); document.querySelectorAll('.side a').forEach(function (x) { if (x.getAttribute('data-route') === r) x.setAttribute('aria-current', 'page'); }); };
+  /* who knows it — the visible thing versus invisible observers */
+  var SEEN_LINE = { browse: 'The page the user sees is not necessarily the system that sees the user.', mail: 'We think we are reading the email. Sometimes the email is also reading us.', signin: 'Removing the password does not remove the privacy problem. It changes the trust model.', pay: 'Prove what is necessary without revealing everything underneath.', age: 'Prove the attribute. Do not necessarily disclose the identity.', ai: 'Where intelligence runs is itself a privacy decision.' };
+  V.observers = function (st) {
+    var J = journey(st), obs = J.hops.filter(function (h, i) { return i && h.z !== 'device'; });
+    var linkable = function (h) { return h.sc === 'stable'; };
+    return {
+      head: 'Who knows it: ' + J.label,
+      body: '<div class="obs"><div class="seen"><div class="eyebrow">What the person sees</div><div class="seen-card">' + esc(J.sees) + '</div><p class="small">' + plural(obs.length, 'party') + ' beyond the device take part.</p></div>' +
+        '<div class="unseen"><div class="eyebrow">Who can observe</div><ul>' + obs.map(function (h) {
+          return '<li class="o-' + h.st + '"><div class="o-h"><b>' + esc(h.n) + '</b><span class="zone z-' + h.z + '">' + esc(ZONE[h.z]) + '</span></div><p>' + esc(h.obs) + '</p><p class="o-m"><span>' + (h.keep === 'yes' ? 'Persists' : h.keep === 'no' ? 'Not kept' : 'Retention unknown') + '</span><span>' + (linkable(h) ? 'Can link visits: ' + esc(h.id) : 'Identifier scoped') + '</span></p></li>';
+        }).join('') + '</ul></div></div>' + (SEEN_LINE[J.id] ? '<p class="keyline">' + esc(SEEN_LINE[J.id]) + '</p>' : '')
+    };
+  };
 
-/* ── boot wiring (called from boot.js after views load) ─── */
-P.init = function () {
-  drawer = document.getElementById('drawer'); drawerBody = document.getElementById('drawerBody'); drawerCrumb = document.getElementById('drawerCrumb');
-  if (P.initPersona) P.initPersona(); renderNav(); renderTrail(); setRole(P.persona ? P.persona.hat : 'reviewer');
-  window.addEventListener('hashchange', render);
-  /* A link inside the drawer moves to a new page: the drawer belongs to the old one. */
-  window.addEventListener('hashchange', function () { if (drawer.classList.contains('open')) P.closeDrawer(); });
-  document.addEventListener('click', function (ev) {
-    var t = ev.target.closest('[data-ent],[data-metric],[data-act],[data-stack],[data-role],[data-go]');
-    if (!t) return;
-    if (t.hasAttribute('data-role')) { setRole(t.getAttribute('data-role')); return; }
-    if (t.hasAttribute('data-stack')) { var i = +t.getAttribute('data-stack'); var id = P.state.drawerStack[i]; P.state.drawerStack = P.state.drawerStack.slice(0, i + 1); P.open(id, { fromStack: true }); return; }
-    if (t.hasAttribute('data-metric')) { ev.preventDefault(); P.openMetric(t.getAttribute('data-metric')); return; }
-    if (t.hasAttribute('data-act')) { var a = P.acts[t.getAttribute('data-act')]; if (a) { ev.preventDefault(); a(t, ev); } return; }
-    if (t.hasAttribute('data-go')) { ev.preventDefault(); P.go(t.getAttribute('data-go')); return; }
-    if (t.hasAttribute('data-ent')) { ev.preventDefault(); P.open(t.getAttribute('data-ent')); }
+  /* how did the user prove identity — password to passkey */
+  V.auth = function () {
+    var A = G.auth;
+    return {
+      head: 'From a shared secret to a key pair',
+      body: '<div class="pkw" tabindex="0" role="region" aria-label="Password and passkey compared"><table class="pkt"><thead><tr><th scope="col"></th><th scope="col">Password</th><th scope="col">Passkey</th></tr></thead><tbody>' + A.rows.map(function (r) { return '<tr><th scope="row">' + esc(r[0]) + '</th><td class="pw">' + esc(r[1]) + '</td><td class="pkc">' + esc(r[2]) + '</td></tr>'; }).join('') + '</tbody></table></div>' +
+        '<div class="eyebrow">Privacy questions that remain</div><ul class="pq">' + A.questions.map(function (q) { return '<li>' + stTag(q[2], q[2] === 'ok' ? 'answered' : q[2] === 'fail' ? 'failing' : q[2] === 'warn' ? 'watch' : 'open') + '<div><b>' + esc(q[0]) + '</b><p>' + esc(q[1]) + '</p></div></li>'; }).join('') + '</ul>' +
+        '<p class="keyline">Removing the password does not remove the privacy problem. It changes the trust model.</p>'
+    };
+  };
+
+  /* what identifier links this activity */
+  V.ids = function (st) {
+    var J = journey(st), seen = J.hops.filter(function (h, i) { return i && h.id && h.id !== 'none'; });
+    var everywhere = {};
+    G.journeys.forEach(function (j) { j.hops.forEach(function (h, i) { if (i && h.sc === 'stable' && h.z !== 'device') (everywhere[h.id] = everywhere[h.id] || []).push(j.label); }); });
+    var multi = Object.keys(everywhere).filter(function (k) { return everywhere[k].length > 1; });
+    var SC = { stable: ['st-fail', 'stable'], scoped: ['st-ok', 'scoped'], none: ['st-ok', 'none'] };
+    return {
+      head: 'Identifiers on the journey: ' + J.label,
+      body: '<ul class="idl">' + seen.map(function (h) { var s = SC[h.sc] || SC.none; return '<li><span class="idn">' + esc(h.id) + '</span><span class="st ' + s[0] + '">' + s[1] + '</span><span class="idw">seen by ' + esc(h.n) + ' · ' + esc(ZONE[h.z]) + '</span></li>'; }).join('') + '</ul>' +
+        (multi.length ? '<div class="corr"><div class="eyebrow">Stable identifiers that appear in more than one journey</div>' + multi.map(function (k) { return '<p><b>' + esc(k) + '</b>: ' + everywhere[k].map(esc).join(', ') + '</p>'; }).join('') + '</div>' : '') +
+        '<p class="keyline">A stable identifier seen by more than one party is how unrelated activity becomes one profile.</p>'
+    };
+  };
+
+  /* did it leave the device — swimlanes by zone */
+  V.boundary = function (st, view) {
+    var J = journey(st);
+    var lanes = G.zones.map(function (z) { return '<div class="lane"><div class="lane-h">' + esc(z[1]) + '</div>' + J.hops.map(function (h, i) {
+      if (h.z !== z[0]) return '<div class="cell"></div>';
+      var crossed = i && J.hops[i - 1].z === 'device' && h.z !== 'device';
+      return '<div class="cell"><div class="nd z-' + h.z + (crossed ? ' crossed' : '') + '">' + esc(h.n) + (crossed ? '<small>left the device</small>' : '') + '</div>' + (view.why && i && h.z !== 'device' ? '<div class="why"><b>Why:</b> ' + esc(h.why || '—') + ' ' + stTag(h.need === 'yes' ? 'ok' : h.need === 'no' ? 'fail' : 'unk', h.need === 'yes' ? 'needed' : h.need === 'no' ? 'not needed' : 'need unknown') + '</div>' : '') + '</div>';
+    }).join('') + '</div>'; }).join('');
+    var left = J.hops.filter(function (h, i) { return i && h.z !== 'device'; });
+    return {
+      head: (view.why ? 'Why it left the device: ' : 'Did it leave the device: ') + J.label,
+      tools: '<span class="count">' + (left.length ? plural(left.length, 'hop') + ' off the device' : 'Stays on the device') + '</span>',
+      body: '<div class="lanes" style="--n:' + J.hops.length + '">' + lanes + '</div><p class="keyline">Do not collect what you can compute locally.</p>'
+    };
+  };
+
+  /* AI routing — on device, private compute, third party */
+  V.routing = function () {
+    var R = G.routing, Z = { device: 'On device', private: 'Private compute', third: 'Third-party model' };
+    var cols = [['leaves', 'What leaves'], ['retained', 'Retained'], ['operator', 'Operator can view'], ['training', 'Used for training'], ['verified', 'Environment verified'], ['third', 'Third party']];
+    return {
+      head: 'Where each request runs',
+      body: '<div class="route"><div class="rt-zones">' + ['device', 'private', 'third'].map(function (z) { return '<div class="rz z-' + z + '"><b>' + Z[z] + '</b></div>'; }).join('') + '</div>' +
+        R.requests.map(function (q) { return '<div class="rq"><div class="rq-h"><span class="rq-r">' + esc(q.r) + '</span><span class="rq-a">→ routing decision →</span><span class="zone z-' + q.zone + '">' + Z[q.zone] + '</span></div><dl class="rq-d">' + cols.map(function (c) { var v2 = q[c[0]], bad = /^Unknown|^Yes: Parallax/.test(v2); return '<div><dt>' + c[1] + '</dt><dd class="' + (bad ? 'amb' : '') + '">' + esc(v2) + '</dd></div>'; }).join('') + '</dl></div>'; }).join('') + '</div>' +
+        '<ul class="agq">' + R.qs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul><p class="keyline">Where intelligence runs is itself a privacy decision.</p>'
+    };
+  };
+
+  /* can we prove this without revealing that */
+  V.sdisc = function (st, view) {
+    var D = G.disclosure[view.variant], body;
+    if (view.variant === 'age') {
+      body = '<div class="sd"><div class="sd-old"><div class="eyebrow">Old way · ' + esc(D.old.label) + '</div><ul>' + D.old.fields.map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul><p class="small">All of it, to answer one question.</p></div>' +
+        '<div class="sd-arrow" aria-hidden="true">→</div><div class="sd-new"><div class="eyebrow">New way · ' + esc(D.neu.label) + '</div><div class="sd-ans">' + esc(D.neu.answer) + '</div><p class="small">' + esc(D.neu.with) + '. Nothing else leaves the wallet.</p></div></div>';
+    } else if (view.variant === 'relay') {
+      body = '<table class="rel"><thead><tr><th scope="col">Service</th><th scope="col">Address it receives</th><th scope="col"></th></tr></thead><tbody>' + D.rows.map(function (r) { return '<tr><th scope="row">' + esc(r[0]) + '</th><td class="mono">' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
+    } else {
+      var U = { high: 3, medium: 2, low: 1 }, dec = { keep: ['st-ok', 'keep'], 'derive on device': ['st-warn', 'derive on device'], drop: ['st-fail', 'drop'] };
+      body = '<table class="util"><thead><tr><th scope="col">Signal</th><th scope="col">Fraud utility</th><th scope="col">Privacy cost</th><th scope="col">Decision</th></tr></thead><tbody>' + D.signals.map(function (r) { return '<tr><th scope="row">' + esc(r[0]) + '</th><td><span class="meter m' + U[r[1]] + '" aria-hidden="true"></span> ' + r[1] + '</td><td><span class="meter c' + U[r[2]] + '" aria-hidden="true"></span> ' + r[2] + '</td><td><span class="st ' + dec[r[3]][0] + '">' + dec[r[3]][1] + '</span></td></tr>'; }).join('') + '</tbody></table>' +
+        '<p class="small">Fraud protection versus data minimization: keep what measurably stops fraud. Privacy does not automatically win.</p>';
+    }
+    return { head: D.title, body: body + '<ul class="agq">' + D.qs.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' + (view.variant === 'age' ? '<p class="keyline">Prove the attribute. Do not necessarily disclose the identity.</p>' : view.variant === 'relay' ? '<p class="keyline">Does the service need the user’s real email address at all?</p>' : '<p class="keyline">Prove what is necessary without revealing everything underneath.</p>') };
+  };
+
+  /* purpose — declared purpose against actual use (server-side journeys) */
+  V.purpose = function (st) {
+    var rows = G.purpose.filter(function (r) { return st.s === 'all' || r.s.indexOf(st.s) >= 0; }); if (!rows.length) rows = G.purpose;
+    var VC = { declared: 'u-ok', undeclared: 'u-bad', unknown: 'u-unk' }, NEED = { yes: 'needed', no: 'not needed', unknown: 'need unknown' };
+    return {
+      head: 'Declared purpose against actual use',
+      tools: '<span class="legend"><i class="lg-ok"></i>declared <i class="lg-fail"></i>undeclared <i class="lg-unk"></i>unknown</span>',
+      body: '<div class="purp">' + rows.map(function (r) { return '<div class="prow"><div class="pds"><b>' + esc(name(r.ds)) + '</b><small>declared: ' + r.declared.map(name).map(esc).join(', ') + '</small></div><div class="puses">' + r.uses.map(function (u) { return '<span class="use ' + VC[u[2]] + '"><b>' + esc(name(u[0])) + '</b> via ' + esc(u[1]) + ' · ' + NEED[u[3]] + '</span>'; }).join('') + '</div></div>'; }).join('') + '</div>' +
+        '<p class="keyline">Encryption protects the data. It does not answer why the data exists.</p>'
+    };
+  };
+
+  /* access — needs vs can access */
+  V.access = function () {
+    var A = G.access, extra = A.can.filter(function (d) { return A.needs.indexOf(d) < 0; });
+    return {
+      head: name(A.process) + ': what it needs, and what it can reach',
+      body: '<div class="acc"><div class="nd big">' + esc(name(A.process)) + '<small>' + esc(G.node(A.process).sub) + '</small></div>' +
+        '<div class="acc-c"><div class="eyebrow">Needs</div>' + A.needs.map(function (d) { return '<div class="dsx ok">' + esc(name(d)) + '</div>'; }).join('') + '</div>' +
+        '<div class="acc-c"><div class="eyebrow">Can access</div>' + A.can.map(function (d) { var x = extra.indexOf(d) >= 0; return '<div class="dsx ' + (x ? 'bad' : 'ok') + '">' + esc(name(d)) + (x ? ' <span class="st st-fail">excess privilege</span>' : '') + '</div>'; }).join('') + '</div></div>' +
+        '<div class="twin">' + A.mask.map(function (m) { var bad = m[1] === 'UNMASKED'; return '<div class="tw ' + (bad ? 'bad' : 'ok') + '"><div class="eyebrow">' + esc(m[0]) + '</div><b>' + m[1] + '</b><small>' + esc(m[2]) + '</small></div>'; }).join('') + '</div>' +
+        '<div class="leak"><span class="eyebrow">Observability</span><div class="chain">' + A.leak.map(function (n, i) { return '<div class="nd' + (i >= 2 ? ' bad' : '') + '">' + esc(n) + '</div>' + (i < A.leak.length - 1 ? '<span class="arr static' + (i >= 1 ? ' a-fail' : '') + '"></span>' : ''); }).join('') + '</div><small>' + esc(A.leakWhat) + '</small></div>' +
+        '<p class="keyline">Security may allow the access. Privacy still asks whether the process needs it.</p>'
+    };
+  };
+
+  /* join — two legitimate tables, one new exposure */
+  V.join = function () {
+    var J = G.join;
+    var tbl = function (t) { return '<div class="dt"><div class="dt-h">' + esc(t.label) + '<small>' + esc(name(t.node)) + '</small></div><table><tbody>' + t.cols.map(function (c) { return '<tr><td class="' + (c[0] === J.on ? 'k' : '') + '">' + esc(c[0]) + '</td><td>' + esc(c[1]) + '</td></tr>'; }).join('') + '</tbody></table><div class="dt-ok">' + stTag('ok', 'legitimate on its own') + '</div></div>'; };
+    return {
+      head: 'Two tables, one new exposure',
+      tools: '<button class="btn" data-act="join" aria-pressed="false">Join on ' + esc(J.on) + '</button>',
+      body: '<div class="jn">' + tbl(J.a) + '<div class="jop">JOIN ON ' + esc(J.on) + '</div>' + tbl(J.b) + '</div>' +
+        '<div class="jres"><div class="eyebrow">Result</div><p class="jpre">Each table is legitimate on its own. Join them to see what the relationship creates.</p><div class="jr">' + J.result.map(esc).join(' + ') + '</div><div class="jnew">NEW PRIVACY MEANING CREATED BY THE JOIN</div></div>' +
+        '<p class="keyline">The exposure may not exist in either table. It can be created by the relationship.</p><p class="aside">Table A behaved. Table B behaved. SQL introduced them.</p>',
+      mount: function (root) { var b = $('[data-act="join"]', root); b.addEventListener('click', function () { var on = !root.classList.contains('joined'); root.classList.toggle('joined', on); b.setAttribute('aria-pressed', on); b.textContent = on ? 'Undo the join' : 'Join on ' + G.join.on; }); }
+    };
+  };
+
+  /* consent timeline — local pass, system fail */
+  function tlSVG(rows, revokedAt) {
+    var X0 = 230, X1 = 960, T1 = 45, tx = function (m) { return X0 + m / T1 * (X1 - X0); }, hh = function (m) { var t = 590 + m; return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + t % 60).slice(-2); };
+    var bottom = 40 + rows.length * 40;
+    var s = '<svg viewBox="0 0 1000 ' + (bottom + 30) + '" class="tl" role="img" aria-labelledby="tlT"><title id="tlT">Consent revoked at ' + hh(revokedAt) + '. Local systems honour it; downstream systems keep acting on old state.</title>';
+    [0, 10, 20, 30, 40].forEach(function (m) { s += '<line class="grid" x1="' + tx(m) + '" x2="' + tx(m) + '" y1="26" y2="' + bottom + '"/><text class="ax" x="' + tx(m) + '" y="' + (bottom + 18) + '" text-anchor="middle">' + hh(m) + '</text>'; });
+    s += '<line class="nowb" x1="' + tx(5) + '" x2="' + tx(5) + '" y1="26" y2="' + bottom + '"/><text class="nowbt" x="' + (tx(5) - 6) + '" y="14" text-anchor="end">BATCH STARTS · ' + hh(5) + '</text>';
+    s += '<line class="nowl" x1="' + tx(revokedAt) + '" x2="' + tx(revokedAt) + '" y1="16" y2="' + bottom + '"/><text class="nowt" x="' + (tx(revokedAt) + 6) + '" y="14">USER REVOKES · ' + hh(revokedAt) + '</text>';
+    rows.forEach(function (r, i) {
+      var y = 48 + i * 40, w = r.p.length * 7.4 + 18, x = tx(r.at) - (r.from != null ? w : w / 2);
+      s += '<g class="tr" data-i="' + i + '"><text class="rl" x="8" y="' + y + '">' + esc(r.n.toUpperCase()) + '</text><text class="rs" x="8" y="' + (y + 15) + '">' + esc(r.note) + '</text>';
+      if (r.from != null) s += '<rect class="batch" x="' + tx(r.from) + '" y="' + (y - 12) + '" width="' + (tx(r.at) - tx(r.from)) + '" height="22" rx="5"/>';
+      s += '<g class="pill pill-' + r.st + '"><rect x="' + x + '" y="' + (y - 11) + '" width="' + w + '" height="21" rx="5"/><text x="' + (x + w / 2) + '" y="' + (y + 4) + '" text-anchor="middle">' + esc(r.p) + '</text></g><text class="ax" x="' + (x + w + 8) + '" y="' + (y + 4) + '">' + (r.from != null ? hh(r.from) + '–' + hh(r.at) : hh(r.at)) + '</text></g>';
+    });
+    return s + '</svg>';
+  }
+  V.consent = function () {
+    var R = G.consent.rows, local = worst(R.slice(0, 2).map(function (r) { return r.st; })), sys = worst(R.map(function (r) { return r.st; }));
+    return {
+      head: 'A “no”, followed through the system',
+      tools: '<button class="btn ghost" data-act="replay">Replay</button>',
+      body: verdict(local, sys) + '<div class="tlw" tabindex="0" role="region" aria-label="Consent timeline">' + tlSVG(R, G.consent.revokedAt) + '</div><p class="keyline">Consent is distributed state, not a checkbox.</p><p class="aside">The customer said no. The batch job said, “I was already on the freeway.”</p>',
+      mount: function (root) {
+        var t = [];
+        $('[data-act="replay"]', root).addEventListener('click', function () {
+          t.forEach(clearTimeout); t = [];
+          var g = $$('.tr', root), order = R.map(function (r, i) { return i; }).sort(function (a, b) { return R[a].at - R[b].at || a - b; });
+          g.forEach(function (e) { e.classList.add('hide'); });
+          order.forEach(function (i, k) { t.push(setTimeout(function () { g[i].classList.remove('hide'); }, RM ? 0 : 200 + k * 450)); });
+        });
+      }
+    };
+  };
+
+  /* deletion */
+  V.delete = function () {
+    var D = G.deletion, n = D.filter(function (x) { return x.st === 'ok'; }).length, LBL = { ok: 'Deleted ✓', fail: 'Still present ✕', unk: 'Unknown ?', wait: 'Pending' };
+    return {
+      head: 'Delete my data: every copy that holds ' + name('p_dana'),
+      tools: '<button class="btn" data-act="del">Delete my data</button>',
+      body: verdict(worst(D.slice(0, 2).map(function (x) { return x.st; })), worst(D.map(function (x) { return x.st; }))) +
+        '<div class="stores">' + D.map(function (x) { return '<div class="store s-' + x.st + '"><b>' + esc(x.n) + '</b><small>' + esc(x.ev) + '</small>' + stTag(x.st, LBL[x.st]) + '</div>'; }).join('') + '</div>' +
+        '<p class="count">' + n + ' of ' + D.length + ' locations verified deleted</p><p class="keyline">Deletion is a distributed-systems problem disguised as a button.</p><p class="keyq">Can we prove every relevant copy was deleted, detached, or expired?</p>',
+      mount: function (root) {
+        var t = [];
+        $('[data-act="del"]', root).addEventListener('click', function () {
+          t.forEach(clearTimeout); t = [];
+          var s = $$('.store', root); s.forEach(function (e) { e.classList.add('pending'); });
+          s.forEach(function (e, k) { t.push(setTimeout(function () { e.classList.remove('pending'); }, RM ? 0 : 150 + k * 260)); });
+        });
+      }
+    };
+  };
+
+  /* retention */
+  V.retention = function (st) {
+    var rows = G.retention.filter(function (r) { return st.s === 'all' || r.s.indexOf(st.s) >= 0; }); if (!rows.length) rows = G.retention;
+    var max = Math.max.apply(null, rows.map(function (r) { return Math.max(r.req, r.dec, r.obs || 0); })), sc = function (v) { return Math.max(1, Math.round(v / max * 100)); };
+    return {
+      head: 'How long it lives, in days',
+      tools: '<span class="legend"><i class="lg-req"></i>required <i class="lg-dec"></i>declared <i class="lg-obs"></i>observed</span>',
+      body: '<div class="ret">' + rows.map(function (r) {
+        var over = r.obs != null && r.obs > r.dec, st2 = r.obs == null ? 'unk' : over ? 'fail' : r.dec > r.req ? 'warn' : 'ok';
+        return '<div class="rrow"><div class="rn"><b>' + esc(r.n) + '</b>' + stTag(st2, r.obs == null ? 'not measured' : over ? 'over declared' : r.dec > r.req ? 'longer than required' : 'within') + '</div><div class="rbars">' +
+          '<span class="rb req" style="width:' + sc(r.req) + '%"><em>' + (r.req === 0 ? 'none' : r.req) + '</em></span><span class="rb dec" style="width:' + sc(r.dec) + '%"><em>' + r.dec + '</em></span>' +
+          (r.obs == null ? '<span class="rb unkb">observed: unknown</span>' : '<span class="rb obs' + (over ? ' over' : '') + '" style="width:' + sc(r.obs) + '%"><em>' + r.obs + '</em></span>') + '</div></div>';
+      }).join('') + '</div><p class="keyline">Every extra day is exposure without purpose.</p>'
+    };
+  };
+
+  /* control — intended, actual, evidence, exceptions, hop by hop */
+  function chainFor(id, st) {
+    if (id === 'tenant') return { title: 'Tenant invariant: Tenant A must never receive Tenant B data', hops: G.tenantChain };
+    if (id === 'consent') return { title: 'Consent invariant: nothing acts on a revoked choice', hops: G.consent.rows.map(function (r) { return { n: r.n, intended: r.intended, actual: r.p, evidence: r.evidence, st: r.st }; }) };
+    if (id === 'delete') return { title: 'Deletion invariant: every copy is deleted, detached or expired', hops: G.deletion.map(function (x) { return { n: x.n, intended: 'Remove ' + name('p_dana'), actual: x.ev, evidence: x.st === 'ok' ? 'Canary lookup' : x.st === 'unk' ? 'No search run' : 'Canary at T+72h', st: x.st === 'wait' ? 'warn' : x.st }; }) };
+    if (id === 'access') { var A = G.access; return { title: 'Least privilege: a job reads only what it needs', hops: [
+      { n: 'IAM role', intended: 'Read ' + A.needs.map(name).join(', '), actual: 'Can read ' + plural(A.can.length, 'dataset'), evidence: 'Access review, ' + freshness(G.controls.c_iam.last).t, st: 'fail' },
+      { n: 'Warehouse masking', intended: G.controls.c_mask.inv, actual: 'Masked views', evidence: 'Column scan, ' + freshness(G.controls.c_mask.last).t, st: ctlState('c_mask') },
+      { n: 'Staging copy', intended: 'Same masking as the warehouse', actual: 'Unmasked', evidence: 'Bucket sample', st: 'fail' },
+      { n: 'Logs', intended: G.controls.c_url_redact.inv, actual: 'IDs in request paths', evidence: 'Never scanned', st: 'unk' }] }; }
+    var list = CTL_LIST[id] || CTL_LIST.link;
+    return { title: CTL_TITLE[id], hops: list.map(function (c) { var C = G.controls[c], s = ctlState(c); return { n: name(c), intended: C.inv, actual: C.result === 'pass' ? 'Holds at ' + C.where.toLowerCase() : C.result === 'fail' ? 'Fails at ' + C.where.toLowerCase() : 'Documented, never tested', evidence: C.method + ' · ' + freshness(C.last).t, st: s }; }) };
+  }
+  V.control = function (st, view) {
+    var ch = chainFor(view.ctl, st), local = ch.hops[0].st, sys = worst(ch.hops.map(function (h) { return h.st; }));
+    var exc = ch.hops.filter(function (h) { return h.st !== 'ok'; }).length;
+    var cards = ch.hops.map(function (h, i) {
+      return '<button class="hop h-' + h.st + '" data-h="' + i + '"><span class="hop-n">' + esc(h.n) + '</span>' + stTag(h.st) +
+        '<span class="hop-r"><em>Intended</em>' + esc(h.intended) + '</span><span class="hop-r"><em>Actual</em>' + esc(h.actual) + '</span><span class="hop-r"><em>Evidence</em>' + esc(h.evidence) + '</span></button>';
+    }).join('');
+    return {
+      head: ch.title,
+      tools: '<span class="count">' + plural(exc, 'exception') + ' in ' + plural(ch.hops.length, 'hop') + '</span>',
+      body: verdict(local, sys) + '<div class="hops">' + cards + '</div><div class="hopd" id="hopd" aria-live="polite"></div>',
+      mount: function (root) {
+        function show(i) {
+          var h = ch.hops[i]; $$('.hop', root).forEach(function (b) { b.classList.toggle('sel', +b.getAttribute('data-h') === i); });
+          var d = $('#hopd', root);
+          d.innerHTML = h.detail === 'client' ? payloadHTML() : h.detail === 'pdf' ? statementHTML() : '<p class="hopline"><b>' + esc(h.n) + '.</b> Intended: ' + esc(h.intended) + '. Actual: ' + esc(h.actual) + '. Evidence: ' + esc(h.evidence) + '.</p>';
+        }
+        root.addEventListener('click', function (e) { var b = e.target.closest('.hop'); if (b) show(+b.getAttribute('data-h')); });
+        var f = ch.hops.findIndex(function (h) { return h.detail; }); if (f < 0) f = ch.hops.findIndex(function (h) { return h.st === 'fail'; }); show(f < 0 ? 0 : f);
+      }
+    };
+  };
+  function statementHTML() {
+    var rows = G.statement.rows, mine = rows.filter(function (r) { return r[1] === 'Tenant A'; }), bad = rows.filter(function (r) { return r[1] !== 'Tenant A'; }), pct = Math.round(mine.length / rows.length * 100);
+    return '<div class="stmt"><div class="stmt-l"><div class="eyebrow">Tenant A commission statement · PDF</div><table><thead><tr><th scope="col">Rep</th><th scope="col">Tenant</th><th scope="col">Commission</th></tr></thead><tbody>' +
+      bad.concat(mine.slice(0, 4)).map(function (r) { var x = r[1] !== 'Tenant A'; return '<tr class="' + (x ? 'x' : '') + '"><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td><td>' + esc(r[2]) + '</td></tr>'; }).join('') +
+      '<tr><td colspan="3" class="more">+ ' + (mine.length - 4) + ' more Tenant A rows</td></tr></tbody></table></div>' +
+      '<div class="stmt-r"><div class="big-n">' + pct + '% correct</div><div class="big-n red">100% wrong</div><p>' + plural(bad.length, 'line') + ' of ' + rows.length + ' belongs to another tenant: one person’s pay, sent to a stranger.</p></div></div>' +
+      '<p class="keyline">A report can be ' + pct + '% correct and still be 100% wrong from a privacy perspective.</p>';
+  }
+
+  /* what can this system infer — the agent combines authorized data */
+  V.agent = function (st, view) {
+    var ag = G.agents[view.agent];
+    return {
+      head: name(view.agent) + ' · purpose: ' + ag.purpose,
+      tools: '<button class="btn" data-act="combine" aria-pressed="false">Let the agent combine</button>',
+      body: '<div class="agw"><div class="agt">' + ag.used.map(function (t) { return '<div class="tool"><b>' + esc(t[0]) + '</b>' + stTag('ok', 'Authorized ✓') + '<small>' + esc(t[2]) + '</small></div>'; }).join('') + '</div>' +
+        '<div class="agc"><div class="agent-core">AGENT<small>' + esc(name(view.agent)) + '</small></div></div>' +
+        '<div class="agi"><div class="inf-pre">Each tool answers one narrow question.</div><div class="inf-on">' + tag('INFERENCE') + '<b>' + esc(ag.inference) + '</b><small>No database stored this. The system inferred it.</small><div class="agact">Next action: ' + esc(ag.action) + ' · approval: ' + esc(ag.approval) + '</div></div></div></div>' +
+        '<div class="neq">' + ag.used.map(function () { return '<span>AUTHORIZED DATA</span>'; }).join('<i>+</i>') + '<b>≠</b><span>UNLIMITED AUTHORIZED INFERENCE</span></div>' +
+        guardsHTML() + '<p class="keyline">AI turns the JOIN from something a developer writes into something the machine may decide to perform.</p>',
+      mount: function (root) { var b = $('[data-act="combine"]', root); b.addEventListener('click', function () { var on = !root.classList.contains('combined'); root.classList.toggle('combined', on); b.setAttribute('aria-pressed', on); b.textContent = on ? 'Reset' : 'Let the agent combine'; }); }
+    };
+  };
+  function guardsHTML() { return '<div class="guards"><span class="eyebrow">Guardrails</span>' + G.guardrails.map(function (g) { return '<span class="gd' + (g[1] ? ' need' : '') + '" title="' + (g[1] ? 'Missing: would have stopped this' : 'In place') + '">' + esc(g[0]) + (g[1] ? ' · missing' : '') + '</span>'; }).join('') + '</div>'; }
+
+  /* what can this agent do — privileges per tool */
+  V.agentdo = function () {
+    var P = G.privileges;
+    return {
+      head: name('ag_assist') + ': tools, scope and actions',
+      tools: '<span class="count">' + plural(P.filter(function (p) { return p[4] !== 'ok'; }).length, 'tool') + ' wider than the task</span>',
+      body: '<table class="priv"><thead><tr><th scope="col">Tool</th><th scope="col">Data scope</th><th scope="col">Can do</th><th scope="col">Approval</th><th scope="col"></th></tr></thead><tbody>' + P.map(function (p) { return '<tr><th scope="row">' + esc(p[0]) + '</th><td>' + esc(p[1]) + '</td><td>' + esc(p[2]) + '</td><td>' + esc(p[3]) + '</td><td>' + stTag(p[4], p[4] === 'ok' ? 'bounded' : p[4] === 'fail' ? 'unbounded' : 'broad') + '</td></tr>'; }).join('') + '</tbody></table>' +
+        guardsHTML() + '<p class="keyline">Every tool may be individually authorized. That does not make every combination, or every action, appropriate.</p>'
+    };
+  };
+
+  /* what changed */
+  var CHANGE_Q = { 'new control failure': 'control', 'new AI tool access': 'agentdo', 'new join': 'join', 'retention increase': 'live', 'new vendor': 'where', 'new destination': 'where', 'new identifier': 'linkid', 'new dataset': 'live' };
+  function changesFor(st) { return G.changes.filter(function (c) { return (st.s === 'all' || c[3] === st.s) && (!st.c.length || c[4].some(function (x) { return st.c.indexOf(x) >= 0; })); }); }
+  V.changes = function (st) {
+    var list = changesFor(st);
+    return {
+      head: 'Changed since the ' + G.lastReview + ' review',
+      tools: '<span class="count">' + plural(list.length, 'change') + '</span>',
+      body: list.length ? '<ol class="chg">' + list.map(function (c) { return '<li><span class="cd">' + esc(c[0]) + '</span><span class="ct">' + esc(c[1]) + '</span><span class="cx">' + esc(c[2]) + '</span><button class="linkbtn" data-go-q="' + CHANGE_Q[c[1]] + '" data-go-s="' + c[3] + '">Open</button></li>'; }).join('') + '</ol>' : '<p class="empty">No changes match these selectors. Choose all surfaces or clear the concern.</p>',
+      mount: function (root) { root.addEventListener('click', function (e) { var b = e.target.closest('[data-go-q]'); if (b) { var s2 = b.getAttribute('data-go-s'); set({ q: b.getAttribute('data-go-q'), s: s2, j: byId(G.surfaces, s2).j }); } }); }
+    };
+  };
+
+  /* worst day — a band, never a score */
+  function band(reach, on) {
+    var W = G.worst, removed = [], deid = [];
+    W.safeguards.forEach(function (s) { if (on[s.id]) { removed = removed.concat(s.removes || []); deid = deid.concat(s.deident || []); } });
+    var got = reach.filter(function (d) { return removed.indexOf(d) < 0; }).map(function (d) { var r = W.stores[d]; return { id: d, n: r[0], sens: r[1], ident: !!r[2] && deid.indexOf(d) < 0 }; });
+    var sc = got.reduce(function (s, g) { return s + g.sens * (g.ident ? 2 : 1); }, 0);
+    return { got: got, band: sc <= 4 ? 0 : sc <= 8 ? 1 : sc <= 14 ? 2 : 3 };
+  }
+  G.band = band;
+  V.worst = function () {
+    var W = G.worst, mode = W.modes[0].id, on = {};
+    function draw(root) {
+      var m = byId(W.modes, mode), r = band(m.reach, on);
+      $('#wd-res', root).innerHTML = '<div class="bands" aria-label="Band: ' + W.bands[r.band] + '">' + W.bands.map(function (b, i) { return '<span class="' + (i === r.band ? 'on b' + i : '') + '">' + b + '</span>'; }).join('') + '</div>' +
+        (r.got.length ? '<ul class="wd-list">' + r.got.map(function (g) { return '<li><b>' + esc(g.n) + '</b> ' + (g.ident ? stTag('fail', 'identifiable') : stTag('ok', 'de-identified')) + '</li>'; }).join('') + '</ul>' : '<p class="empty">Nothing reachable.</p>');
+    }
+    return {
+      head: 'Our worst day, as a band',
+      body: '<div class="wd"><div class="wd-l"><div class="seg" role="radiogroup" aria-label="Failure">' + W.modes.map(function (m, i) { return '<button role="radio" aria-checked="' + (i === 0) + '" data-m="' + m.id + '">' + esc(m.label) + '</button>'; }).join('') + '</div>' +
+        '<fieldset class="sgs"><legend class="eyebrow">Safeguards</legend>' + W.safeguards.map(function (s) { return '<label><input type="checkbox" id="wd-' + s.id + '" data-s="' + s.id + '"> ' + esc(s.label) + '</label>'; }).join('') + '</fieldset></div><div class="wd-r" id="wd-res" aria-live="polite"></div></div>' +
+        '<p class="keyline">Damage = what we collect × how long we keep it × how identifiable it is × who holds the key.</p>',
+      mount: function (root) {
+        root.addEventListener('click', function (e) { var b = e.target.closest('[data-m]'); if (!b) return; mode = b.getAttribute('data-m'); $$('[data-m]', root).forEach(function (x) { x.setAttribute('aria-checked', x === b); }); draw(root); });
+        root.addEventListener('change', function (e) { var c = e.target.closest('[data-s]'); if (c) { on[c.getAttribute('data-s')] = c.checked; draw(root); } });
+        draw(root);
+      }
+    };
+  };
+
+  /* ═══════════ FINDINGS ═══════════ */
+  var ORDER = { 'CONTROL FAILURE': 0, FACT: 1, INFERENCE: 2, UNKNOWN: 3 };
+  function findingsFor(st, view) {
+    var q = view.kind === 'control' ? 'control' : st.q;
+    var lensOk = function (f) { return st.l === 'both' || f.l === 'both' || f.l === st.l; };
+    var sOk = function (f) { return st.s === 'all' || f.s.indexOf(st.s) >= 0; };
+    var cOk = function (f) { return !st.c.length || f.c.some(function (c) { return st.c.indexOf(c) >= 0; }); };
+    var score = function (f) { return (f.v.indexOf(q) >= 0 ? 4 : 0) + (st.c.length && cOk(f) ? 2 : 0) + (sOk(f) ? 1 : 0); };
+    var pool = G.findings.filter(function (f) { return f.v.indexOf(q) >= 0 && sOk(f) && cOk(f) && lensOk(f); }), note = '';
+    if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0 && lensOk(f) && (sOk(f) || cOk(f)); }));
+    if (pool.length < 3) { pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0; })); if (st.l !== 'both') note = 'Few ' + st.l + '-only findings answer this; related findings are shown.'; }
+    pool.sort(function (a, b) { return score(b) - score(a) || ORDER[a.k] - ORDER[b.k]; });
+    return { list: pool.slice(0, st.p === 'executive' ? 3 : 5).sort(function (a, b) { return ORDER[a.k] - ORDER[b.k]; }), note: note };
+  }
+  function findingText(f) { return f.text === '{changes}' ? plural(G.changes.length, 'privacy-relevant change') + ' since the ' + G.lastReview + ' review; none went through review.' : f.text; }
+  function findingsHTML(st, view) {
+    var r = findingsFor(st, view);
+    if (!r.list.length) return '<p class="empty">No findings match. Widen the surface or clear the concern.</p>';
+    return '<ol class="fl">' + r.list.map(function (f) {
+      var p = f.p && f.p[st.p];
+      return '<li class="fi">' + tag(f.k) + '<p>' + esc(findingText(f)) + '</p>' + (p ? '<p class="lensline"><b>' + esc(p[0]) + '</b> ' + esc(p[1]) + '</p>' : '') + (f.cite.length ? '<p class="cite">' + f.cite.map(function (c) { return esc(name(c)); }).join(' · ') + '</p>' : '') + '</li>';
+    }).join('') + '</ol>' + (r.note ? '<p class="note">' + esc(r.note) + '</p>' : '');
+  }
+
+  /* ═══════════ DECISION ═══════════ */
+  function decisionHTML(st, view) {
+    var d = G.decisions[view.key] || G.decisions.where;
+    if (st.p === 'executive') {
+      return '<dl class="dec"><div><dt>Issue</dt><dd>' + esc(d.exec.issue) + '</dd></div><div><dt>Options</dt><dd><ol class="opts">' + d.exec.opts.map(function (o) { return '<li>' + esc(o) + '</li>'; }).join('') + '</ol></dd></div>' +
+        '<div class="hl"><dt>Recommendation</dt><dd>' + esc(d.exec.rec) + '</dd></div><div><dt>Residual risk</dt><dd>' + esc(d.exec.res) + '</dd></div></dl>';
+    }
+    var F4 = { risk: ['Risk', d.risk], why: ['Why it matters', d.why], mit: ['Mitigation', d.mit], ev: ['Evidence needed', d.ev] };
+    var order = st.p === 'builder' ? ['mit', 'ev', 'risk', 'why'] : st.p === 'auditor' ? ['ev', 'risk', 'mit', 'why'] : ['risk', 'why', 'mit', 'ev'];
+    var lab = { builder: { mit: 'Mitigation · where the control lives' }, auditor: { ev: 'Evidence needed · the test' } }[st.p] || {};
+    return '<dl class="dec">' + order.map(function (k, i) { return '<div' + (i === 0 ? ' class="hl"' : '') + '><dt>' + esc(lab[k] || F4[k][0]) + '</dt><dd>' + esc(F4[k][1]) + '</dd></div>'; }).join('') + '</dl>';
+  }
+
+  /* ═══════════ PAGES ═══════════ */
+  function sel(id, label, list, val, cls) { return '<label class="sl ' + (cls || '') + '"><span class="sr-only">' + label + '</span><select id="' + id + '">' + list.map(function (x) { return '<option value="' + x.id + '"' + (x.id === val ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select></label>'; }
+  function selectorBar() {
+    var cl = S.c.map(function (c) { return byId(G.concerns, c).label.toLowerCase(); });
+    var cLabel = !cl.length ? 'any concern' : cl.length === 1 ? cl[0] : cl[0] + ' +' + (cl.length - 1);
+    return '<div class="sent" role="group" aria-label="Lenses">' +
+      '<span class="w">I am a</span>' + sel('selP', 'Persona', G.personas, S.p, 'k-p') +
+      '<span class="w">looking at</span>' + sel('selS', 'Surface', G.surfaces, S.s) +
+      '<span class="w">when someone</span>' + sel('selJ', 'Journey', G.journeys, S.j) +
+      '<span class="w">asking</span>' + sel('selQ', 'Question', G.questions, S.q, 'k-q') +
+      '<span class="w">concerned with</span><span class="ms"><button type="button" id="selC" class="ms-b" aria-haspopup="true" aria-expanded="false" aria-controls="msPop"><span class="sr-only">Privacy concern: </span>' + esc(cLabel) + '</button>' +
+      '<div class="ms-pop" id="msPop" hidden><div class="ms-h"><span class="eyebrow">Privacy concerns</span><button type="button" class="linkbtn" id="msClear">Clear</button></div>' +
+      G.concerns.map(function (c) { return '<label><input type="checkbox" id="cc-' + c.id + '" value="' + c.id + '"' + (S.c.indexOf(c.id) >= 0 ? ' checked' : '') + '> ' + esc(c.label) + '</label>'; }).join('') + '</div></span></div>' +
+      '<div class="refine"><span class="w">about</span>' + sel('selU', 'Subject', G.subjects, S.u) +
+      '<span class="w">through the</span><div class="seg" role="radiogroup" aria-label="Lens">' + ['privacy', 'security', 'both'].map(function (l) { return '<button role="radio" data-l="' + l + '" aria-checked="' + (S.l === l) + '">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>'; }).join('') + '</div><span class="w">lens</span></div>' +
+      '<p class="lensq">' + esc(G.lenses[S.l].q) + (G.lenses[S.l].incl ? ' <span>Includes ' + esc(G.lenses[S.l].incl) + '.</span>' : '') + '</p>' +
+      (S.l === 'both' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>' : '');
+  }
+  function focusRow() { return S.fm ? '<div class="focus-row" role="group" aria-label="Walkthrough views">' + G.focus.map(function (v, i) { return '<button class="chip" data-fv="' + i + '"><span class="n">' + (i + 1) + '</span>' + esc(v.label) + '</button>'; }).join('') + '</div>' : ''; }
+  function loadSaved() { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch (e) { return []; } }
+  function storeSaved(v) { try { localStorage.setItem(SAVED_KEY, JSON.stringify(v)); } catch (e) { /* blocked storage: saved views last for this visit */ } }
+  function viewsMenu() {
+    var mine = loadSaved();
+    return '<div class="vm-pop" id="vmPop" hidden><div class="eyebrow">Saved views</div>' + G.saved.map(function (v) { return '<button class="vm-i" data-sv="' + v.id + '">' + esc(v.label) + '</button>'; }).join('') +
+      (mine.length ? '<div class="eyebrow">Yours</div>' + mine.map(function (v, i) { return '<span class="vm-mine"><button class="vm-i" data-mv="' + i + '">' + esc(v.label) + '</button><button class="x" data-mx="' + i + '" aria-label="Remove ' + esc(v.label) + '">×</button></span>'; }).join('') : '') +
+      '<button class="vm-i add" id="saveView">+ Save the current view</button></div>';
+  }
+
+  function ccPage() {
+    var view = resolve(S), r = V[view.kind](S, view), per = byId(G.personas, S.p);
+    return selectorBar() + focusRow() +
+      '<div class="ws">' +
+        '<section class="card vis" aria-labelledby="visH" id="vis"><div class="sec-h"><span class="eyebrow">Graph</span><h2 id="visH" class="vis-h">' + esc(r.head) + '</h2><div class="tools">' + (r.tools || '') + '</div></div>' +
+          (view.principle ? '<p class="principle">' + esc(view.principle) + '</p>' : '') + emph(S) + (view.note ? '<p class="note">' + esc(view.note) + '</p>' : '') + r.body + '</section>' +
+        '<div class="side">' +
+          '<section class="card fnd" aria-labelledby="fH"><div class="sec-h"><span class="eyebrow">Findings</span><h2 id="fH">' + (S.p === 'executive' ? 'What matters' : 'What we found') + '</h2></div>' + findingsHTML(S, view) + '</section>' +
+          '<section class="card dcs" aria-labelledby="dH"><div class="sec-h"><span class="eyebrow">Decision</span><h2 id="dH">' + (S.p === 'executive' ? 'What decision is required' : 'What to do') + '</h2></div><p class="asks">' + esc(per.label) + ': ' + esc(per.asks) + '</p>' + decisionHTML(S, view) + '</section>' +
+        '</div></div>' +
+      '<p class="always">What looks protected here, but stops being protected somewhere else?</p>';
+  }
+  var focusAfter = null, keepPop = false;
+  function closePop(e) { var pop = $('#msPop'); if (pop && !pop.hidden && !e.target.closest('.ms')) { pop.hidden = true; $('#selC').setAttribute('aria-expanded', 'false'); } var vm = $('#vmPop'); if (vm && !vm.hidden && !e.target.closest('.vm')) { vm.hidden = true; $('#vmBtn').setAttribute('aria-expanded', 'false'); } }
+  function apply(s) { set({ page: 'cc', p: s.p, s: s.s, j: s.j, q: s.q, c: s.c.slice(), u: s.subj || 'person' }); }
+  function mountCC() {
+    var view = resolve(S), r = V[view.kind](S, view);
+    if (r.mount) r.mount($('#vis'));
+    [['selP', 'p'], ['selJ', 'j'], ['selQ', 'q'], ['selU', 'u']].forEach(function (x) { $('#' + x[0]).addEventListener('change', function () { var o = {}; o[x[1]] = this.value; focusAfter = x[0]; set(o); }); });
+    $('#selS').addEventListener('change', function () { focusAfter = 'selS'; set({ s: this.value, j: byId(G.surfaces, this.value).j }); });
+    var pop = $('#msPop'), btn = $('#selC');
+    btn.addEventListener('click', function () { var open = pop.hidden; pop.hidden = !open; btn.setAttribute('aria-expanded', open); if (open) { var f = $('input', pop); if (f) f.focus(); } });
+    pop.addEventListener('change', function (e) { focusAfter = e.target.id; keepPop = true; set({ c: $$('input:checked', pop).map(function (i) { return i.value; }) }); });
+    $('#msClear').addEventListener('click', function () { focusAfter = 'selC'; set({ c: [] }); });
+    if (keepPop) { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); keepPop = false; }
+    $$('[data-l]').forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ l: b.getAttribute('data-l') }); }); });
+    $$('[data-fv]').forEach(function (b) { b.addEventListener('click', function () { apply(G.focus[+b.getAttribute('data-fv')].s); }); });
+  }
+
+  function reviewsPage() {
+    return '<div class="pg-h"><h1>Reviews</h1><p>Each review opens the Command Center with its lenses set. Conditions are the controls that must hold, with their latest evidence.</p></div>' +
+      '<div class="rv">' + G.reviews.map(function (r) {
+        var sts = r.conds.map(ctlState), met = sts.filter(function (s) { return s === 'ok'; }).length;
+        return '<article class="card rvc"><div class="rvh"><span class="eyebrow">' + esc(r.id) + ' · ' + esc(byId(G.surfaces, r.s).label) + '</span><h2>' + esc(r.feature) + '</h2><span class="stage">' + esc(r.stage) + '</span></div>' +
+          '<ul class="conds">' + r.conds.map(function (c, i) { return '<li>' + stTag(sts[i], sts[i] === 'ok' ? 'holds' : sts[i] === 'fail' ? 'failing' : sts[i] === 'warn' ? 'stale' : 'unproven') + ' ' + esc(name(c)) + '</li>'; }).join('') + '</ul>' +
+          '<div class="rvf"><span class="count">' + met + ' of ' + r.conds.length + ' conditions proven</span><button class="btn ghost" data-sv="' + r.view + '">Open in Command Center</button></div></article>';
+      }).join('') + '</div>';
+  }
+  function ctlClass(id) { var c = G.controls[id]; return c.result === 'fail' ? 'fail' : c.result === 'never' ? 'never' : freshness(c.last).k === 'stale' ? 'stale' : 'ok'; }
+  function evidencePage() {
+    var ids = Object.keys(G.controls), rank = { fail: 0, never: 1, stale: 2, ok: 3 };
+    ids.sort(function (a, b) { return rank[ctlClass(a)] - rank[ctlClass(b)]; });
+    var counts = { all: ids.length }; ids.forEach(function (i) { counts[ctlClass(i)] = (counts[ctlClass(i)] || 0) + 1; });
+    var F2 = [['all', 'All'], ['fail', 'Failing'], ['never', 'Documented, not verified'], ['stale', 'Stale'], ['ok', 'Verified']];
+    var shown = ids.filter(function (i) { return S.ev === 'all' || ctlClass(i) === S.ev; });
+    var L = { fail: ['fail', 'failing'], never: ['unk', 'never tested'], stale: ['warn', 'stale'], ok: ['ok', 'verified'] };
+    return '<div class="pg-h"><h1>Evidence</h1><p>One record per control: the invariant it promises, where it lives, and the last proof that it holds.</p></div>' +
+      '<div class="seg evf" role="radiogroup" aria-label="Filter controls">' + F2.map(function (f) { return '<button role="radio" data-ev="' + f[0] + '" aria-checked="' + (S.ev === f[0]) + '">' + f[1] + ' <span>' + (counts[f[0]] || 0) + '</span></button>'; }).join('') + '</div>' +
+      '<div class="evl">' + shown.map(function (id) {
+        var c = G.controls[id], k = ctlClass(id), fr = freshness(c.last);
+        return '<article class="card evc ev-' + k + '"><div class="evh"><h2>' + esc(name(id)) + '</h2>' + stTag(L[k][0], L[k][1]) + '</div><p class="inv">' + esc(c.inv) + '</p>' +
+          '<dl class="evd"><div><dt>Where</dt><dd>' + esc(c.where) + '</dd></div><div><dt>Last test</dt><dd>' + esc(c.last || '—') + ' · ' + esc(fr.t) + '</dd></div><div><dt>Method</dt><dd>' + esc(c.method) + '</dd></div></dl>' +
+          '<button class="linkbtn" data-open-ctl="' + esc(c.c[0]) + '">Did it really work? →</button></article>';
+      }).join('') + '</div>';
+  }
+
+  /* ═══════════ ASK PRIVACY — deterministic, cites the graph ═══════════ */
+  var ASK = [
+    { q: 'Who can see precise location?', k: /location|gps/i, a: function () {
+      var r = G.retention.filter(function (x) { return x.node === 'ds_loc'; })[0];
+      return [['FACT', name('ds_loc') + ' holds precise location and is exported daily to the ' + name('sy_wh') + '.', ['ds_loc', 'sy_wh']],
+        ['FACT', 'Kept ' + r.obs + ' days against a declared ' + r.dec + ' and a required ' + r.req + '.', ['c_ttl']],
+        ['FACT', 'The assistant’s Location tool sees the current city only.', ['ag_assist']],
+        ['INFERENCE', 'Late-evening points reveal a home area.', ['in_home']],
+        ['RECOMMENDATION', 'Coarsen on device before export, and enforce the TTL.', ['c_ttl']],
+        ['UNKNOWN', 'Whether any vendor receives location: no field list in the export contract.', ['v_adreach']]]; } },
+    { q: 'Show every place this person’s data exists.', k: /every place|exists|copies/i, a: function () {
+      return G.deletion.map(function (x) { return [x.st === 'unk' ? 'UNKNOWN' : 'FACT', x.n + ': ' + x.ev + (x.st === 'ok' ? ' (deleted)' : x.st === 'fail' ? ' (still present)' : x.st === 'wait' ? ' (pending expiry)' : ''), [x.node]]; })
+        .concat([['RECOMMENDATION', 'Fan deletion out to every store keyed by her identifiers, and verify with a canary.', ['c_delete_orch']]]); } },
+    { q: 'Which systems still use this user after consent revocation?', k: /consent|revok|opt.?out/i, a: function () {
+      var R = G.consent.rows;
+      return [['FACT', R.filter(function (r) { return r.st === 'ok'; }).map(function (r) { return r.n; }).join(' and ') + ' honour the revocation.', ['sy_consent']]].concat(
+        R.filter(function (r) { return r.st !== 'ok' && r.node !== 'v_adreach'; }).map(function (r) { return ['FACT', r.n + ': ' + r.evidence + '.', [r.node]]; }),
+        [['UNKNOWN', 'Whether AdReach applied the revocation: no acknowledgement.', ['v_adreach', 'c_vendor_ack']], ['RECOMMENDATION', 'Check consent at read and export time; push revocations to vendors.', ['c_consent_read']]]); } },
+    { q: 'Show cross-tenant exposure.', k: /tenant|isolation/i, a: function () {
+      return G.tenantChain.filter(function (h) { return h.st !== 'ok'; }).map(function (h) { return [h.st === 'fail' ? 'FACT' : 'UNKNOWN', h.n + ': ' + h.actual + ' (' + h.evidence + ').', [h.node]]; })
+        .concat([['RECOMMENDATION', 'Enforce tenant scope in the query and the cache key; test with a foreign-tenant canary at every hop.', ['c_server_filter']]]); } },
+    { q: 'What changed after these two datasets were joined?', k: /join|joined|two datasets/i, a: function () {
+      return [['FACT', 'Before: ' + name('ds_behavior') + ' keyed by player_id; ' + name('ds_customer') + ' keyed by account.', ['ds_behavior', 'ds_customer']],
+        ['FACT', 'After: one row holds ' + G.join.result.join(', ') + '.', ['in_profile']], ['INFERENCE', 'Spending by play style for a named person.', ['in_profile']],
+        ['UNKNOWN', 'No approval exists for this join.', ['c_join_policy']], ['RECOMMENDATION', 'Aggregate before joining, or join in a purpose-checked environment.', ['c_join_policy']]]; } },
+    { q: 'Which AI agents can access transaction data?', k: /agent.*(transaction|payment|wallet)|(transaction|payment|wallet).*agent/i, a: function () {
+      var who = G.edges.filter(function (e) { return e[1] === 'ACCESSES' && e[2] === 'ds_txn'; }).map(function (e) { return e[0]; });
+      return who.map(function (a) { return ['FACT', name(a) + ' can read transactions (' + G.agents[a].purpose.toLowerCase() + ').', [a, 'ds_txn']]; })
+        .concat([['RECOMMENDATION', 'Scope the tool to the task’s merchant and dates.', ['c_agent_policy']]]); } },
+    { q: 'What can this agent infer that no source explicitly stores?', k: /infer|agent/i, a: function () {
+      var ag = G.agents.ag_assist; return [['FACT', 'Tools used: ' + ag.used.map(function (t) { return t[0]; }).join(', ') + '. Each is authorized.', ['ag_assist']],
+        ['INFERENCE', ag.inference + ' No database stored that fact.', ag.infNodes], ['RECOMMENDATION', 'Cross-domain join policy and purpose checks at inference time; approval before booking.', ['c_agent_policy', 'c_agent_approval']],
+        ['UNKNOWN', 'Whether the inference is kept in assistant memory.', ['ds_prompts']]]; } },
+    { q: 'Which privacy controls are documented but not verified?', k: /documented|not verified|unverified|never tested/i, a: function () {
+      return Object.keys(G.controls).filter(function (i) { return G.controls[i].result === 'never'; }).map(function (i) { return ['UNKNOWN', name(i) + ': ' + G.controls[i].method + '.', [i]]; })
+        .concat([['RECOMMENDATION', 'Give each a runtime test before relying on it in a review.', []]]); } },
+    { q: 'What does a site learn when she signs in with a passkey?', k: /passkey|sign.?in|login|authenticat/i, a: function () {
+      var rp = byId(G.journeys, 'signin').hops.filter(function (h) { return h.n === 'Relying party'; })[0];
+      return [['FACT', 'The site receives: ' + rp.obs.toLowerCase() + '.', ['sy_rp']], ['FACT', 'Each site gets its own key pair, so the credential does not link sites.', ['c_rp_scope']],
+        ['FACT', 'Recovery still falls back to an SMS code.', ['c_recovery']], ['RECOMMENDATION', 'Recover with another device or a recovery key.', ['c_recovery']], ['UNKNOWN', 'Whether session tokens are bound to the device: never tested.', ['c_session']]]; } },
+    { q: 'What leaves the device when she uses the assistant?', k: /leave|device|assistant|private compute|on.?device/i, a: function () {
+      return G.routing.requests.map(function (r) { return [/Unknown/.test(r.retained) ? 'UNKNOWN' : 'FACT', r.r + ': runs ' + ({ device: 'on device', private: 'in private compute', third: 'at a third party' })[r.zone] + '; leaves: ' + r.leaves.toLowerCase() + '; retained: ' + r.retained.toLowerCase() + '.', [r.zone === 'device' ? 'sy_odm' : r.zone === 'private' ? 'sy_pcc' : 'v_llm']]; })
+        .concat([['RECOMMENDATION', 'Ask before any third-party hand-off and send the minimum prompt.', ['c_no_train']]]); } }
+  ];
+  var KORDER = { FACT: 0, INFERENCE: 1, RECOMMENDATION: 2, UNKNOWN: 3 };
+  function answer(text) {
+    var hit = null; ASK.forEach(function (x) { if (!hit && x.q.toLowerCase() === text.toLowerCase()) hit = x; });
+    if (!hit) ASK.forEach(function (x) { if (!hit && x.k.test(text)) hit = x; });
+    if (!hit) return { q: text, lines: [['UNKNOWN', 'The graph holds no records that answer this, so there is no answer to give. Try one of the questions below.', []]] };
+    return { q: hit.q, lines: hit.a().sort(function (a, b) { return KORDER[a[0]] - KORDER[b[0]]; }) };
+  }
+  G.answer = answer;
+  function askPage() {
+    var a = S.ask ? answer(S.ask) : null;
+    return '<div class="pg-h"><h1>Ask privacy</h1><p>Answers come from the graph. Each line says whether it is a fact, an inference, a recommendation or unknown, and names its records. Nothing is made up to fill a gap.</p></div>' +
+      '<form class="askf" id="askF"><label for="askI" class="sr-only">Ask a privacy question</label><input id="askI" value="' + esc(S.ask) + '" placeholder="Ask privacy…" autocomplete="off"><button class="btn" type="submit">Ask</button></form>' +
+      '<div class="asks-l">' + ASK.map(function (x) { return '<button class="chip" data-ask="' + esc(x.q) + '">' + esc(x.q) + '</button>'; }).join('') + '</div>' +
+      (a ? '<section class="card ans" aria-live="polite"><h2>' + esc(a.q) + '</h2>' + a.lines.map(function (l) { return '<div class="al">' + tag(l[0]) + '<div><p>' + esc(l[1]) + '</p>' + (l[2].length ? '<p class="cite">' + l[2].map(function (c) { return esc(name(c)); }).join(' · ') + '</p>' : '') + '</div></div>'; }).join('') + '</section>' : '');
+  }
+
+  /* ═══════════ render ═══════════ */
+  function render() {
+    document.body.classList.toggle('fm', S.fm);
+    $$('.nav a').forEach(function (a) { var on = a.getAttribute('data-page') === S.page; if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); a.href = hashFor(Object.assign({}, S, { page: a.getAttribute('data-page') })); });
+    var fb = $('#fmBtn'); fb.setAttribute('aria-pressed', S.fm); fb.textContent = S.fm ? 'Exit focus' : 'Focus mode';
+    $('#vm').innerHTML = '<button class="tb" id="vmBtn" aria-haspopup="true" aria-expanded="false" aria-controls="vmPop">Views ▾</button>' + viewsMenu();
+    var main = $('#main');
+    try {
+      main.innerHTML = S.page === 'reviews' ? reviewsPage() : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
+      if (S.page === 'cc') mountCC();
+      $$('[data-ev]', main).forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ ev: b.getAttribute('data-ev') }); }); });
+      $$('[data-open-ctl]', main).forEach(function (b) { b.addEventListener('click', function () { set({ page: 'cc', q: 'control', c: [b.getAttribute('data-open-ctl')] }); window.scrollTo(0, 0); }); });
+      var f = $('#askF'); if (f) f.addEventListener('submit', function (e) { e.preventDefault(); set({ ask: $('#askI').value.trim() }); });
+      $$('[data-ask]', main).forEach(function (b) { b.addEventListener('click', function () { set({ ask: b.getAttribute('data-ask') }); }); });
+    } catch (err) {
+      main.innerHTML = '<div class="card err" role="alert"><h2>This view could not be drawn</h2><p>' + esc(err.message) + '</p><p><a href="#cc">Back to the Command Center</a></p></div>';
+      if (window.console) console.error(err);
+    }
+    $$('[data-sv]').forEach(function (b) { b.addEventListener('click', function () { apply(byId(G.saved, b.getAttribute('data-sv')).s); window.scrollTo(0, 0); }); });
+    $$('[data-mv]').forEach(function (b) { b.addEventListener('click', function () { apply(loadSaved()[+b.getAttribute('data-mv')].s); }); });
+    $$('[data-mx]').forEach(function (b) { b.addEventListener('click', function () { var m = loadSaved(); m.splice(+b.getAttribute('data-mx'), 1); storeSaved(m); render(); }); });
+    $('#saveView').addEventListener('click', function () {
+      var m = loadSaved(), label = byId(G.personas, S.p).label + ' · ' + byId(G.questions, S.q).label.replace('?', '');
+      m.push({ label: label, s: { p: S.p, s: S.s, j: S.j, q: S.q, c: S.c.slice(), subj: S.u } }); storeSaved(m); render(); $('#status').textContent = 'Saved “' + label + '”';
+    });
+    $('#vmBtn').addEventListener('click', function () { var p = $('#vmPop'), open = p.hidden; p.hidden = !open; this.setAttribute('aria-expanded', open); if (open) $('.vm-i', p).focus(); });
+    if (focusAfter) { var el = document.getElementById(focusAfter); if (el) el.focus(); focusAfter = null; }
+  }
+
+  document.addEventListener('click', closePop, true);
+  $('#fmBtn').addEventListener('click', function () { set({ fm: !S.fm }); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      var pop = $('#msPop'); if (pop && !pop.hidden) { pop.hidden = true; $('#selC').setAttribute('aria-expanded', 'false'); $('#selC').focus(); }
+      var vm = $('#vmPop'); if (vm && !vm.hidden) { vm.hidden = true; $('#vmBtn').setAttribute('aria-expanded', 'false'); $('#vmBtn').focus(); }
+    }
+    if (e.target.closest('input,select,textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') { e.preventDefault(); set({ page: 'ask' }); var i = $('#askI'); if (i) i.focus(); }
+    if (S.fm && S.page === 'cc' && /^[123]$/.test(e.key)) apply(G.focus[+e.key - 1].s);
   });
-  document.addEventListener('keydown', function (ev) {
-    var tag = (ev.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
-    if ((ev.key === '/' && !typing) || ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'k')) { ev.preventDefault(); P.openPalette(); }
-    if (ev.key === 'Escape') { if (!document.getElementById('palette').hidden) P.closePalette(); else if (document.getElementById('analyst').classList.contains('open')) P.closeAnalyst(); else if (drawer.classList.contains('open')) P.closeDrawer(); else closeSide(); }
-    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('g.node,g.edge,[role="button"][data-ent],[role="button"][data-go],tr.click')) { ev.preventDefault(); ev.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
-  });
-  document.getElementById('drawerClose').addEventListener('click', P.closeDrawer);
-  document.getElementById('side').addEventListener('click', function (ev) { if (ev.target.closest('a')) P.closeDrawer(); });
-  document.getElementById('menuBtn').addEventListener('click', function () { var s = document.getElementById('side'), o = !s.classList.contains('open'); s.classList.toggle('open', o); document.getElementById('scrim').hidden = !o; this.setAttribute('aria-expanded', String(o)); });
-  document.getElementById('scrim').addEventListener('click', closeSide);
-  document.getElementById('searchBtn').addEventListener('click', function () { P.openPalette(); });
-  document.getElementById('analystBtn').addEventListener('click', function () { P.openAnalyst(); });
-  document.getElementById('analystClose').addEventListener('click', function () { P.closeAnalyst(); });
+  S = parse();
+  if (!/^#(cc|reviews|evidence|ask)/.test(location.hash)) history.replaceState(null, '', hashFor(S));
   render();
-};
+  window.PCC1 = { state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set };
 })();
