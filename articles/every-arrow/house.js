@@ -210,7 +210,7 @@
   };
   H.never = function (x) { return /never be computed/.test(x.expiry); };
   H.explain = function (r) { return 'Because ' + r.used.map(function (s) { return STREAM[s].toLowerCase(); }).join(', ') + (r.used.length > 1 ? ' changed together' : ' changed') + ' — ' + Math.round(r.conf * 100) + '% sure, not a fact.'; };
-  H.anchorName = function (a) { return { home: 'One home. Three clouds.', guest: 'The guest never clicked Accept', door: 'When privacy opens the door', routine: 'The routine nobody reviewed', network: 'The network is a witness', history: 'The history hole', infer: 'The house made an inference', 'house-guide': 'The rest of a connected life', oldkeys: 'The old owner still has the keys' }[a] || a; };
+  H.anchorName = function (a) { return { home: 'One home. Three clouds.', guest: 'The guest never clicked Accept', door: 'When privacy opens the door', routine: 'The routine nobody reviewed', network: 'The network is a witness', history: 'The history hole', infer: 'The house made an inference', 'house-guide': 'The rest of a connected life', oldkeys: 'The old owner still has the keys', account: 'One account. One life.' }[a] || a; };
 
   /* ═══ 30 · The old owner still has the keys ═══ */
   H.remains = function (tr, care) {
@@ -219,6 +219,30 @@
   };
 
   /* ═══ Field guide: the environments that get a row, not a scene ═══ */
+
+  /* ── 31 · One account, one life. The same records as the Command Center v1
+   * (privacy-command-center/graph.js G.oneLife and G.takeover); the structure test
+   * checks they agree. Dana and her account are fictional. */
+  H.account = {
+    surfaces: [['browser', 'Browser', 'what she reads'], ['mail', 'Mail', 'who she talks to'], ['wallet', 'Wallet', 'what she buys'], ['signin', 'Saved sign-ins', 'where she has accounts']],
+    joins: [
+      { needs: ['browser', 'wallet'], fact: 'She researched it, then she bought it.' },
+      { needs: ['mail', 'wallet'], fact: 'Receipts show purchases made outside the wallet too.' },
+      { needs: ['browser', 'mail'], fact: 'Sign-up emails show which sites she uses.' },
+      { needs: ['mail', 'signin'], fact: 'Mail holds the reset link for every other account.' },
+      { needs: ['browser', 'mail', 'wallet'], fact: 'Together: interests, relationships, spending and schedule. One life.' }
+    ],
+    attackers: [
+      { id: 'scam', label: 'A scammer', how: 'A convincing sign-in page relays her password and one-time code as she types them.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'The code is typed into the fake page and replayed at once.', control: 'Passkeys: the key is bound to the real site, so a fake page receives nothing it can use.', evidence: 'Lookalike-origin test on every release.', after: [], residual: 'A scammer can still talk her into approving a payment herself.' },
+      { id: 'ext', label: 'A browser extension', how: 'An extension allowed to read and change all sites updates to a malicious version.', gets: ['browser', 'mail', 'wallet'], mfa: 'It never signs in. It reads pages after she has.', control: 'Review extension permissions; allow extensions by list; limit site access to “on click”.', evidence: 'Extension inventory with permissions, compared on every update.', after: [], residual: 'An allowed extension that turns malicious still reads what it was allowed to.' },
+      { id: 'malware', label: 'Infostealer malware', how: 'Copies session cookies and saved passwords off the device.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'A stolen session cookie is already past the second factor.', control: 'Bind sessions to the device, and encrypt cookies to the browser, so a copied session fails elsewhere.', evidence: 'Replay a copied session from another machine: rejected.', after: ['signin'], residual: 'Malware running on the device itself can still act as her.' },
+      { id: 'simswap', label: 'A SIM swap', how: 'Her phone number is moved to the attacker, who uses “forgot password”.', gets: ['browser', 'mail', 'wallet', 'signin'], mfa: 'The SMS code is the recovery path.', control: 'Recover with another enrolled device or a recovery key, never SMS alone.', evidence: 'Recovery walkthrough with a moved number: refused.', after: [], residual: 'People who lose every device need a slower, human recovery.' }
+    ]
+  };
+  /* what the surfaces that are on reveal together, and what a thief reaches */
+  H.joined = function (on) { return H.account.joins.filter(function (j) { return j.needs.every(function (n) { return on.indexOf(n) >= 0; }); }); };
+  H.reach = function (t, fixed, on) { return (fixed ? t.after : t.gets).filter(function (x) { return !on || on.indexOf(x) >= 0; }); };
+
   H.guide = [
     ['Connected and rental cars', 'Dana pairs her phone with a rental car for a work trip.', 'The head unit copies contacts, call logs, messages and destinations; the carmaker’s cloud keeps trips.', 'The next renter, and the carmaker’s data partners.', 'Delete paired-device data before returning it; charge from a plug adapter, not the car’s USB; ask the maker for your data.', 'The head unit’s paired list is empty; a data request answered.', ['ftcrental', 'ftcgm26', 'subaru25']],
     ['Wearables and health devices', 'Dana’s watch logs a restless night.', 'Heart rate, sleep and movement sync to an app and often to analytics partners.', 'Health apps can share outside the rules people expect for medicine.', 'No health data for advertising; on-device summaries; deletion that reaches partners.', 'Traffic tests show no health events leaving to ad partners.', ['flo21']],
@@ -290,6 +314,14 @@
         return table(esc(tr.title) + ' — what remains at each layer', ['Layer'].concat(L.care.map(function (c) { return esc(c[1]); })), L.layers.map(function (l) {
           var row = tr.rows[l[0]]; return { hot: !!row[1] && row[1] !== '—', cells: [esc(l[1])].concat(row.map(function (v) { return v === '—' ? '<small>not involved</small>' : v ? esc(v) : 'Nothing'; })) }; }), 'st-t st-t--wide');
       }).join('');
+    },
+    account: function () {
+      var A = H.account, SN = {}; A.surfaces.forEach(function (x) { SN[x[0]] = x[1]; });
+      var names = function (l) { return l.length ? esc(l.map(function (k) { return SN[k]; }).join(', ')) : 'Nothing'; };
+      return table('Dana’s browser, mail, wallet and saved sign-ins on one account — what the joins reveal', ['Joined', 'What it reveals'], A.joins.map(function (j) {
+          return { hot: j.needs.length > 2, cells: [esc(j.needs.map(function (k) { return SN[k]; }).join(' + ')), esc(j.fact)] }; })) +
+        table('Four ways to steal the account, and what each control leaves', ['Who', 'How', 'Why a one-time code does not stop it', 'Reaches', 'The control', 'Reaches with it', 'What remains'], A.attackers.map(function (t) {
+          return { hot: true, cells: ['<b>' + esc(t.label) + '</b>', esc(t.how), esc(t.mfa), names(t.gets), esc(t.control), names(t.after), esc(t.residual)] }; }), 'st-t st-t--wide');
     },
     solutions: function () {
       return table('The engineering answers to the connected-life problems', ['Problem', 'Engineering solution', 'Explained in', 'Runs in the Command Center'], L.solutions.map(function (x) {
@@ -523,6 +555,30 @@
     draw();
     EA.fig('oldkeys', { get: function () { return ti + '.' + ci; }, set: function (s) { var p = String(s).split('.'); ti = clamp(p[0], T.length); ci = clamp(p[1], CARE.length); draw(); }, reset: function () { ti = 0; ci = 0; draw(); },
       read: function () { var tr = T[ti], R = H.remains(tr, CARE[ci][0]), l = R.filter(function (r) { return r.left; }); return '<b>' + esc(tr.title) + ', ' + esc(CARE[ci][1].toLowerCase()) + ':</b> something remains at ' + l.length + ' of ' + R.length + ' layers' + (l.length ? ' — ' + esc(l.map(function (r) { return r.l[1].toLowerCase(); }).join(', ')) : '') + '.'; } });
+  })();
+
+  /* ── 31 · One account. One life. ── */
+  (function () {
+    var h = host('account'); if (!h) return;
+    var A = H.account, SF = A.surfaces, T = A.attackers, n = SF.length, ALL = '1111'.slice(0, n), st = ALL, ti = 0, fx = 0;
+    var SN = {}; SF.forEach(function (x) { SN[x[0]] = x[1]; });
+    var sb = toggles(h, SF.map(function (x) { return esc(x[1]) + ' <small>' + esc(x[2]) + '</small>'; }), 'Surfaces signed in to one account', function (i) { st = flip(st, i); draw(); EA.changed('account'); }, 'hs-toggles--ctl');
+    var joins = el('div', { 'class': 'hs-obs hs-acct' }); h.appendChild(joins);
+    var tb = radios(h, T.map(function (t) { return esc(t.label); }), 'Who tries to steal the account', function (i) { ti = i; fx = 0; draw(); EA.changed('account'); });
+    var cb = toggles(h, ['Apply the control'], 'The control', function () { fx = fx ? 0 : 1; draw(); EA.changed('account'); });
+    var body = el('div', { 'class': 'hs-old' }); h.appendChild(body);
+    function on() { return SF.filter(function (x, i) { return st[i] === '1'; }).map(function (x) { return x[0]; }); }
+    function draw() {
+      press(sb, st); checkR(tb, ti); press(cb, fx ? '1' : '0');
+      var o = on(), J = H.joined(o), t = T[ti], R = H.reach(t, fx, o);
+      joins.innerHTML = '<p class="hs-col-k">What the joins reveal <small>' + J.length + ' of ' + A.joins.length + '</small></p><ul>' + (J.length ? J.map(function (j) { return '<li><span>' + esc(j.needs.map(function (k) { return SN[k]; }).join(' + ')) + '</span>' + esc(j.fact) + '</li>'; }).join('') : '<li>Nothing joins: fewer than two surfaces share the account.</li>') + '</ul>';
+      body.innerHTML = '<p class="hs-moment"><b>' + esc(t.label) + '</b> · ' + esc(t.how) + '</p><p class="hs-left">' + (fx ? 'With the control, it' : 'It') + ' reaches <b>' + R.length + ' of ' + o.length + '</b> surfaces on the account.</p><ol class="hs-layers">' +
+        SF.map(function (x) { var inAcct = o.indexOf(x[0]) >= 0, got = R.indexOf(x[0]) >= 0; return '<li class="' + (!inAcct ? 'na' : got ? 'left' : 'gone') + '"><span class="hs-ln">' + esc(x[1]) + '</span><span>' + (!inAcct ? 'Not on this account' : got ? 'Reached: ' + esc(x[2]) : 'Protected') + '</span></li>'; }).join('') + '</ol>' +
+        '<dl class="hs-env"><div><dt>Why a one-time code does not stop it</dt><dd>' + esc(t.mfa) + '</dd></div><div><dt>The control</dt><dd>' + esc(t.control) + '</dd></div><div><dt>The evidence</dt><dd>' + esc(t.evidence) + '</dd></div>' + (fx ? '<div><dt>What remains</dt><dd>' + esc(t.residual) + '</dd></div>' : '') + '</dl>';
+    }
+    draw();
+    EA.fig('account', { get: function () { return st + '.' + ti + '.' + fx; }, set: function (s) { var p = String(s).split('.'); st = /^[01]+$/.test(p[0] || '') && p[0].length === n ? p[0] : ALL; ti = clamp(p[1], T.length); fx = p[2] === '1' ? 1 : 0; draw(); }, reset: function () { st = ALL; ti = 0; fx = 0; draw(); },
+      read: function () { var o = on(), J = H.joined(o), t = T[ti], R = H.reach(t, fx, o); return o.length + ' surfaces on one account make ' + J.length + ' joins. <b>' + esc(t.label) + (fx ? ', with the control,' : '') + '</b> reaches ' + R.length + ' of the ' + o.length + ' surfaces' + (R.length ? ': ' + esc(R.map(function (k) { return SN[k].toLowerCase(); }).join(', ')) : '') + '.' + (fx ? ' What remains: ' + esc(t.residual) : ''); } });
   })();
 
   if (EA.ready) EA.ready();
