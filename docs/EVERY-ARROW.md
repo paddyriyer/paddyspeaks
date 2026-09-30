@@ -1,14 +1,100 @@
-# “Every Arrow Is a Decision” — editions 2 and 3: audit, architecture and how it is built
+# “Every Arrow Is a Decision” — editions 2, 3 and 4: audit, architecture and how it is built
 
-`/articles/every-arrow-is-a-decision.html` was rebuilt on 2026-09-28 (Claude Code
-session, at Paddy's request) from edition 1 (2026-09-26), Paddy's field guide
-(`docs/Privacy_Engineering_Visual_Field_Guide.pdf`) and the Privacy Command Center.
-**Edition 3 (2026-09-29)** added Chapter 5, “The house is a data system” — see §0.
-This file is the audit of edition 1, the architecture of editions 2 and 3, the
-fact-check logs, and the rules for editing it. Read it before touching the essay or
-`articles/every-arrow/`. The Command Center side is in `docs/PRIVACY-COMMAND-CENTER.md`.
+`/articles/every-arrow-is-a-decision.html` is **edition 4** (2026-09-30): Apple, Google
+and others, product by product, through four lenses. **Edition 3** (2026-09-29, the
+30-scene field guide with Chapter 5, “The house is a data system”) is archived
+unchanged at **`/articles/every-arrow/edition-3.html`** (noindex), where every old
+anchor still lands. Sections 0–6 below describe edition 3 and its predecessors; their
+file paths now point at the archive. Read §E4 before touching the live essay and the
+rest before touching the archive. The Command Center side is in
+`docs/PRIVACY-COMMAND-CENTER.md`.
 
-## 0 · Edition 3: the house is a data system (2026-09-29)
+## E4 · Edition 4: four lenses (2026-09-30)
+
+**The request (Paddy):** rewrite the essay the way the Privacy Command Center was
+rewritten (v1, “one graph, many lenses”; the full app moved to `v10/`): slimmed down,
+comparing Apple, Google and other companies, giving a holistic picture of each product
+through the eyes of security, privacy, QA and data governance.
+
+**The shape.** Eight products (sign-in, browser, mail, messages, wallet & ID, cloud
+backup, AI assistant, home & voice) × three companies each (Apple, Google, and the
+company most often compared with them for that product: Microsoft, Mozilla, Proton,
+Meta, Samsung or Amazon) × four lenses:
+
+| Lens | Question |
+|---|---|
+| Security | Can the wrong actor get at it? |
+| Privacy | Should it exist, move, combine, persist or be inferred? |
+| QA | How would anyone outside know it works as promised? |
+| Data governance | Who holds it, how long does it live, and can it really go? |
+
+Each product section: a lede, the arrow (one hop highlighted: the arrow to watch), the
+four-lens table (a lens switch shows all four or one), “where they agree / where they
+differ / the arrow to watch”, and a link to the matching Command Center v1 view on
+synthetic data. Around them: *One arrow, four lenses* (the method and the four labels),
+*The whole picture* (one lens across all eight products), *Seven patterns*, *The
+four-lens review* (twenty questions, downloadable as `four-lenses.md`), *How this was
+made* (what could not be confirmed) and the five closing lines, kept from edition 3.
+Reading time: ~14 min of essay, ~36 with every table (both stamped).
+
+**Rules that bind edition 4**
+- **Every claim lives once, in `articles/every-arrow/compare.js`**, as
+  `[kind, headline, detail, 'source keys']`. Kinds: **Documented** (the company says
+  so), **Setting** (configurable; default stated when documented), **Limit** (a
+  limitation the company itself documents), **Test** (ours: what QA should check — never
+  cited, never a claim about the vendor). Tables, the overview, the sources list, the
+  counts and the Markdown download are generated from it by
+  `scripts/every_arrow/edition4.mjs` (run through `build.mjs`). Never type a claim into
+  the HTML.
+- **A vendor claim cites that vendor’s own page** (support, security guide, legal,
+  newsroom, engineering blog). The only other sources are the “Standards, regulators
+  and press” group: an IETF presentation, NCC Group’s public audit, the FTC release
+  (a settlement, no admission) and one dated news report (Amazon’s March 2025 Echo
+  change). The test fails on a vendor claim without the vendor’s source.
+- **No scores, ranks, winners or verdicts** — the build fails on “score”, “rank”,
+  “best”, “worst”, “winner” in the data. A limitation is stated in the company’s own
+  terms. Never imply competing assistants share recordings.
+- **Uncertainty is shown, not hidden.** Claims that rested only on press or could not be
+  confirmed were left out and listed under “What could not be confirmed”. Update that
+  list when you confirm or drop one.
+- **Edition 3 stays reachable.** An inline script at the end of the page forwards any
+  hash that is not an id on the page, any `?f=` for a figure that does not exist, and
+  any `?path=` to `/articles/every-arrow/edition-3.html` with the same query and hash.
+  So an edition-4 id must never reuse an edition-3 id with another meaning (the test
+  enforces it; that is why sign-in is `#passkeys`, not `#signin`). The Command Center
+  v10 links straight to the archive (`P.ESSAY_URL`).
+- Edition 4 is slim on purpose: its own `lenses.css` (< 30 KB) and `lenses.js` (lens
+  switches only; stores nothing). Everything is in the HTML, so no-JS and print show
+  every lens. Lens colours mark rules and chips; text always wears ink tokens.
+
+**Research log (2026-09-30).** Four research passes (sign-in and browsers; mail and
+messaging; wallet/ID and backup; AI assistants and home/voice) against vendor
+documentation. Vendor sites were blocked from the session’s fetcher, so most pages were
+confirmed through their search listings and snippets; the essay says so, and paraphrases
+rather than quotes. Left out as press-only or unconfirmed: Apple Private Cloud Compute
+running on Google Cloud hardware (June 2026), Ring’s “TAKE” encryption default (August
+2026), the Proton 2021 IP-logging order, the Edge passkey-sync PIN limit, Chrome IP
+Protection’s current state, Recall filter misses reported by the press, Samsung Knox
+certification wording, and Google Wallet’s VRP scope.
+
+**Files (edition 4)**
+
+| File | What |
+|---|---|
+| `articles/every-arrow/edition-3.html` | Edition 3, archived (noindex; its archive note points to edition 4). Prose is edited here. Everything between `data-gen="…"` and `<!-- /gen:… -->`, every `data-ea` span, `timeRequired` and asset `?v=` are **generated**. |
+| `articles/every-arrow/compare.js` | The comparison and its sources. The only place a claim is written. |
+| `articles/every-arrow/lenses.css`, `lenses.js` | Edition 4’s styles (screen and print; the `@page` header must match the edition and date — the build checks) and lens switches. |
+| `articles/every-arrow/four-lenses.md` | **Generated** download. |
+| `articles/every-arrow/every-arrow-is-a-decision.pdf`, `pdf.json` | **Generated** printable edition 4 (`build.mjs --pdf`). |
+| `scripts/every_arrow/edition4.mjs` | Build/check for edition 4; `build.mjs` runs it after the archive. |
+| `articles/every-arrow/tests/edition4.mjs`, `edition4-browser.mjs` | Structure (Validate Content) and browser (Accessibility) tests. |
+
+**To change a claim:** edit `compare.js`, run `node scripts/every_arrow/build.mjs`,
+then `EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`, then both edition-4 tests.
+Update `C.asOf` and the edition/revised stamps (`edition4.mjs`, `lenses.css` `@page`,
+the meta and JSON-LD dates) when the review date changes.
+
+## 0 · Edition 3 (archived): the house is a data system (2026-09-29)
 
 **The request (Paddy):** expand the thesis past the application boundary — the home,
 vehicle, network, room and household are data systems, and some arrows open doors —
@@ -192,7 +278,7 @@ a draft at the time), EU AI Act high-risk dates (deferred by the 2026 omnibus).
 
 | File | What |
 |---|---|
-| `articles/every-arrow-is-a-decision.html` | The essay. Prose is edited here. Content between `data-static="…"` and `<!-- /static:… -->`, every `data-ea` span, `timeRequired` and asset `?v=` are **generated** — the build overwrites them. |
+| `articles/every-arrow/edition-3.html` | Edition 3, archived (noindex; its archive note points to edition 4). Prose is edited here. Content between `data-static="…"` and `<!-- /static:… -->`, every `data-ea` span, `timeRequired` and asset `?v=` are **generated** — the build overwrites them. |
 | `articles/every-arrow/data.js` | Every figure's data (one source for the interactive and static versions). |
 | `articles/every-arrow/model.js` | The arithmetic (pure functions: SLOs, consent percentiles, change detection, incident meters…). |
 | `articles/every-arrow/trails.js` | The eight corner-case stories and their engine; loadable in Node, so the build writes each trail's static version from the same `world()`. |
@@ -203,7 +289,7 @@ a draft at the time), EU AI Act high-risk dates (deferred by the 2026 omnibus).
 | `articles/every-arrow/essay.css` | Screen styles, then edition-2 components, then `@media print` and `@page` (running header, "Page N of M"). |
 | `articles/every-arrow/northstar.js` | **Generated** from `privacy-command-center/v10/data.js`. |
 | `articles/every-arrow/field-kit.md` | **Generated** download. |
-| `articles/every-arrow/every-arrow-is-a-decision.pdf`, `pdf.json` | **Generated** printable edition and its source hash. |
+| `articles/every-arrow/edition-3.pdf`, `edition-3.pdf.json` | **Generated** printable edition 3 and its source hash. |
 | `scripts/every_arrow/build.mjs`, `pdf.mjs` | The build (and PDF renderer). |
 | `articles/every-arrow/tests/structure.mjs`, `browser.mjs` | The tests. |
 
@@ -227,6 +313,7 @@ EA_DEPS=/tmp/ea node articles/every-arrow/tests/browser.mjs
 - Don't reintroduce scroll-reveal or anything that hides content until an observer fires — that is what broke printing.
 
 ## 5 · Tests and CI
+(These now run against the archive, `edition-3.html`; edition 4's tests are listed in §E4.)
 - **Validate Content**: `build.mjs --check` (generated parts current, PDF not older than its source, counts agree) and `tests/structure.mjs` (figure contract, chapters, legacy anchors, dates, Command Center map both ways, shared vocabulary, sourcing caveats, storage keys).
 - **Accessibility**: the repo's axe ratchet (essay and Command Center are strict) plus `tests/browser.mjs`: every figure by mouse or keyboard, reset, deep links, JS off and scripts blocked, reduced motion, reading paths, 320–1920 px overflow, axe in full/exec/no-script modes at 1280 and 390, print media, and the PDF (no page under 300 characters, "Page N of M", edition in the header).
 - **A reveal never dims text.** Animate position or a frame, never the opacity of something a reader has to read. After #888 merged, the Accessibility job on main failed because axe caught the harm chain's third card (`#hc3`) at opacity .25→1 on a slow runner. The fix: the `.hc` text stays at full contrast and only the border and position move. `browser.mjs` now also runs axe on the harm chain mid-reveal, 60 ms after a switch.

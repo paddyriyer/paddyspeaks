@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Every Arrow Is a Decision — structure test (no browser, no network).
+ * Every Arrow Is a Decision, EDITION 3 (archived at articles/every-arrow/edition-3.html) —
+ * structure test (no browser, no network). Edition 4 is tested by tests/edition4.mjs.
  *
  *   node articles/every-arrow/tests/structure.mjs
  *
@@ -18,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const html = read('articles/every-arrow-is-a-decision.html');
+const html = read('articles/every-arrow/edition-3.html');
 const fails = [];
 let passed = 0;
 function ok(cond, msg) { if (cond) passed++; else fails.push(msg); }
@@ -92,11 +93,12 @@ const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>
 ok(ld.datePublished === '2026-09-26' && /article:published_time" content="2026-09-26"/.test(html) && /datetime="2026-09-26"/.test(html), 'publication date disagrees between JSON-LD, meta and byline');
 ok(ld.dateModified === /article:modified_time" content="([\d-]+)"/.exec(html)[1], 'modified date disagrees between JSON-LD and meta');
 ok(ld.timeRequired === `PT${[...stamps['read.full']][0]}M`, 'JSON-LD timeRequired disagrees with the displayed reading time');
-const meta = JSON.parse(read('article_metadata.json')).find((x) => x.slug === 'every-arrow-is-a-decision.html');
-ok(String(meta.read_time) === [...stamps['read.full']][0], 'article_metadata.json read_time disagrees with the essay');
-const pdf = JSON.parse(read('articles/every-arrow/pdf.json'));
+ok(/<meta name="robots" content="noindex, follow">/.test(html), 'the archived edition must be noindex');
+ok(/<link rel="canonical" href="https:\/\/paddyspeaks\.com\/articles\/every-arrow\/edition-3\.html">/.test(html), 'the archived edition is canonical to its own URL');
+ok(/class="archive-note"[\s\S]{0,600}href="\/articles\/every-arrow-is-a-decision\.html"/.test(html), 'the archived edition points readers to the current edition');
+const pdf = JSON.parse(read('articles/every-arrow/edition-3.pdf.json'));
 ok(String(pdf.pages) === [...stamps['pdf.pages']][0], 'the displayed PDF page count disagrees with pdf.json');
-ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/every-arrow-is-a-decision.pdf')), 'the printable PDF is missing');
+ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/edition-3.pdf')), 'the printable PDF is missing');
 ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/field-kit.md')), 'the field kit download is missing');
 
 /* ── 4 · old deep links still land ───────────────────────────────── */

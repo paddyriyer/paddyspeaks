@@ -282,7 +282,7 @@ function renderNav() {
 
 /* ── the essay: each page links back to the scene that explains it ──
  * Same map as articles/every-arrow/data.js (D.pccMap); a test checks they agree. */
-P.ESSAY_URL = '/articles/every-arrow-is-a-decision.html';
+P.ESSAY_URL = '/articles/every-arrow/edition-3.html';   // edition 3, archived; the current edition no longer has these scenes
 P.ESSAY = {
   'explore/person': ['person', 'One person, no name'], 'explore/identities': ['linkability', 'Two harmless tables'],
   'privacy/reviews': ['review', 'Eight questions'], 'explore/flows': ['arrows', 'Every arrow is a decision'],

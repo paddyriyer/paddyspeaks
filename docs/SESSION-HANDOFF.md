@@ -1,12 +1,24 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-29 (Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-09-30 (Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-09-30): Privacy Command Center v1.** `/privacy-command-center/`
+- **NEWEST (2026-09-30): “Every Arrow Is a Decision” edition 4 — four lenses.**
+  At Paddy's request the essay was rewritten the way the Command Center was:
+  slimmed down to eight real products (sign-in, browser, mail, messages, wallet &
+  ID, cloud backup, AI assistant, home & voice), each compared across Apple, Google
+  and one other company (Microsoft, Mozilla, Proton, Meta, Samsung, Amazon) through
+  security, privacy, QA and data governance. 138 cited claims + 24 QA tests from
+  `articles/every-arrow/compare.js`, every one citing the company's own page; no
+  scores. ~14 min essay / ~36 with every table; PDF 42 pages. Edition 3 is archived
+  at `/articles/every-arrow/edition-3.html` (noindex); old anchors forward there and
+  v10 links to it. Read `docs/EVERY-ARROW.md` §E4. Open for Paddy: the items under
+  “What could not be confirmed”, whether to keep the essay listed on /articles/ and
+  as the homepage feature (it still is), and a new share image.
+- **EARLIER (2026-09-30): Privacy Command Center v1.** `/privacy-command-center/`
   is now the scaled-down product: one graph (`graph.js`), five selectors (persona,
   surface, journey, question, concern) plus subject and lens, and one workspace
   (graph, findings, decision). It adds 2026 surfaces: passkeys, browser observers,

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Every Arrow Is a Decision — browser tests (headless Chromium).
+ * Every Arrow Is a Decision, EDITION 3 (archived) — browser tests (headless Chromium).
  *
  *   EA_DEPS=/dir/with/node_modules node articles/every-arrow/tests/browser.mjs
  *   (EA_DEPS needs playwright, axe-core and pdfjs-dist; CHROMIUM_PATH optional)
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { serve, launch, deps, pdfText } from '../../../scripts/every_arrow/pdf.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-const URL_ = '/articles/every-arrow-is-a-decision.html';
+const URL_ = '/articles/every-arrow/edition-3.html';   // the archived edition 3; edition 4 has tests/edition4-browser.mjs
 const fails = [];
 let passed = 0;
 const ok = (c, m) => { if (c) passed++; else fails.push(m); };
@@ -200,8 +200,8 @@ try {
 
   /* ── the committed PDF ─────────────────────────────────────────── */
   {
-    const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'articles/every-arrow/pdf.json'), 'utf8'));
-    const pages = await pdfText(path.join(ROOT, 'articles/every-arrow/every-arrow-is-a-decision.pdf'));
+    const meta = JSON.parse(fs.readFileSync(path.join(ROOT, 'articles/every-arrow/edition-3.pdf.json'), 'utf8'));
+    const pages = await pdfText(path.join(ROOT, 'articles/every-arrow/edition-3.pdf'));
     ok(pages.length === meta.pages, `PDF has ${pages.length} pages; pdf.json says ${meta.pages}`);
     const thin = pages.map((t, i) => [i + 1, t.replace(/\s+/g, '').length]).filter(([, n]) => n < 300);
     ok(thin.length === 0, `PDF pages that are blank or nearly blank: ${thin.map(([p, n]) => `p${p} (${n} chars)`).join(', ')}`);

@@ -6,12 +6,16 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
 - **`/privacy-command-center/`**: an interactive privacy observability,
   engineering and governance platform for a fictional company, Northstar.
   Synthetic data only, labelled in the header and footer of every screen.
-- **`/articles/every-arrow-is-a-decision.html`**: the visual essay. Since
-  2026-09-28 it is **edition 2**: five chapters, 23 scenes, eight corner-case
-  trails, following Dana through Northstar. Its code lives in
-  `articles/every-arrow/`, and it reads Northstar's numbers from this demo's
-  `data.js` (via the generated `articles/every-arrow/northstar.js`). Read
-  **`docs/EVERY-ARROW.md`** before editing it.
+- **`/articles/every-arrow-is-a-decision.html`**: the essay. Since 2026-09-30 it
+  is **edition 4**: eight real products (Apple, Google and others) through
+  security, privacy, QA and data governance. Each product section links to the
+  matching **v1** view (`#cc?p=…&s=…&j=…&q=…&l=…`); the structure test checks every
+  selector value exists in `graph.js`, so renaming a v1 id means updating
+  `articles/every-arrow/compare.js`. **Edition 3** (Dana through Northstar and her
+  home, 30 scenes) is archived at `/articles/every-arrow/edition-3.html`; it still
+  reads Northstar's numbers from `v10/data.js` via the generated `northstar.js`, and
+  **v10 links to the archive** (`P.ESSAY_URL`). Read **`docs/EVERY-ARROW.md`**
+  before editing either.
 
 ## Two products at one address (since 2026-09-30)
 
