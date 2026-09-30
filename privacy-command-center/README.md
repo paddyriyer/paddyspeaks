@@ -35,11 +35,13 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 |---|---|---|
 | Persona | Reviewer, Builder, Auditor, Executive | Emphasis only: finding wording, the order of the decision fields, and the executive format. The data never changes. |
 | Surface | All, Identity & authentication, Web / browser, Mail / communication, Wallet / payments, Digital identity, Cloud / data, Analytics, AI / agents, Third parties | Which findings apply, what each view emphasizes, and the default journey |
-| Journey | Sign in, Browse, Read mail, Pay, Prove age, Share identity, Use AI, Open a report, Delete account, Revoke consent | The path through the graph that the path, boundary, observer and identifier views walk |
-| Question | 18 questions, from *What do we know?* to *What is our worst day?* | Which view is drawn |
+| Journey | Sign in, Browse, Read mail, Pay, Prove age, Share identity, Use AI, Live on one account, Open a report, Delete account, Revoke consent | The path through the graph that the path, boundary, observer and identifier views walk |
+| Question | 19 questions, from *What do we know?* to *What is our worst day?* | Which view is drawn |
 | Concern | 20, multi-select | Filters findings; picks the control chain for *Did the control really work?* |
 | Subject | one person, credential, feature, dataset, tenant, vendor, AI agent, product | Refines some views (one dataset → the join; one tenant → the tenant chain) |
 | Lens | Privacy, Security, Both | Privacy asks *should this exist, move, combine, persist or be inferred*; Security asks *can the wrong actor access it*; Both shows where they converge: passkey, wallet ID, private compute |
+
+**The surface decides what the other selectors offer.** `G.relevance` in `graph.js` lists, for each surface, the journeys, questions, concerns and subjects that belong to it: wallet / payments offers *pay*, *live on one account* and *share identity*, never *read mail*. *All surfaces* offers everything. Changing the surface drops a selection that no longer belongs, and a link that names one falls back to the surface's default. The tests fail if a surface offers a question or concern that no finding on that surface answers.
 
 `resolve()` in `app.js` is the whole mapping from selectors to a view, in about sixty lines. Read it first.
 
@@ -63,6 +65,7 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 | Retention | How long does it live? | Required / declared / observed |
 | Control chain | Did the control really work? | Intended / actual / evidence per hop. Chains cover tenant isolation (including *filtering ≠ isolation* and the report that is almost entirely correct yet still wrong), consent, deletion, access, sign-in, linkability, mail, payments, disclosure, routing, agents and logging |
 | Changes | What changed? | Since the last review, filtered by surface and concern |
+| One account, one life | What if the account is stolen? | Browser, mail and wallet on one account add up to one life. Four attackers (a scammer, an extension, infostealer malware, a SIM swap), what each reaches, why a one-time code does not stop it, and what the control leaves |
 | Worst day | What is our worst day? | A band, never a score, and the safeguards that move it |
 
 ## Extending the graph
@@ -70,7 +73,7 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 Everything is in `graph.js`, and every record cites node ids.
 
 1. **Nodes and edges.** Add to `G.nodes` (`[type, name, note]`) and relate them in `G.edges`.
-2. **A journey.** Add to `G.journeys`. Each hop has:
+2. **A journey.** Add to `G.journeys`, and to `G.relevance` for each surface it belongs to. Each hop has:
    - a zone: device, private, service or third;
    - what moved, what the receiver can observe, and the identifier and its scope;
    - why, and whether that is needed;
