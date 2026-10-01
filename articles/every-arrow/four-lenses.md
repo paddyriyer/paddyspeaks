@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — the four-lens review
 
-From *Every Arrow Is a Decision*, edition 4.0 (30 September 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision*, edition 4.0 (1 October 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 Four questions for every arrow a product draws:
@@ -10,7 +10,7 @@ Four questions for every arrow a product draws:
 - **QA.** How would anyone outside know it works as promised?
 - **Data governance.** Who holds it, how long does it live, and can it really go?
 
-## Twenty questions for any product
+## Twenty-four questions for any product
 
 ### Security
 
@@ -19,6 +19,7 @@ Four questions for every arrow a product draws:
 - [ ] Who can restore access when every device is lost, and how are guesses limited?
 - [ ] What is sent before the person acts: before the wake word, before the tap, before opening?
 - [ ] What happens on a compromised or second-hand device?
+- [ ] If recovery is required, who controls the key or the mapping?
 
 ### Privacy
 
@@ -27,6 +28,7 @@ Four questions for every arrow a product draws:
 - [ ] What metadata remains after the content is encrypted?
 - [ ] Is it used for training, ads or personalisation, and what is the default?
 - [ ] Could the purpose be met by proving an attribute instead of revealing the data?
+- [ ] Should the original remain recoverable, or would a pseudonymous or irreversible representation meet the purpose?
 
 ### QA
 
@@ -35,6 +37,7 @@ Four questions for every arrow a product draws:
 - [ ] Is every fallback tested: to SMS, to an unencrypted channel, to a password?
 - [ ] Is deletion tested end to end, including derived data and backups?
 - [ ] Is the test re-run after every release and every policy change?
+- [ ] Can we restore and interpret an old protected record using the documented recovery path?
 
 ### Data governance
 
@@ -43,6 +46,7 @@ Four questions for every arrow a product draws:
 - [ ] Can the person export it, and in what format?
 - [ ] Does deletion in one place reach every other place?
 - [ ] Which controls can the vendor or a government withdraw, and who would be told?
+- [ ] Does a preservation hold include the keys, mappings, schemas, metadata and derived copies needed to make the record meaningful?
 
 A question nobody can answer is a finding.
 
