@@ -6376,6 +6376,86 @@
       ],
       "answer": 2,
       "explanation": "Event sourcing decouples transaction recording from aggregation, allowing refunds to be applied chronologically without overwriting original charges. This is the correct pattern for financial data where audit trails and replay semantics matter. Option 0 (timestamp tie-breaking) doesn't solve the semantic issue of refunds vs charges. Option 1 treats refunds as independent rows but breaks transaction_id uniqueness. Option 3 (idempotency_salt) adds complexity without solving the fundamental issue that MERGE overwrites instead of accumulating."
+    },
+    {
+      "id": "ds-new-107",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "Your Airflow DAG dynamically generates 500+ downstream tasks based on a list of tenant IDs fetched at runtime. Each task has a 5-minute SLA. You observe that the scheduler takes 45 seconds just to parse the DAG file, and task scheduling delays exceed 2 minutes. Which combination of patterns best addresses this?",
+      "options": [
+        "Use SubDagOperator to group tasks by tenant, implement task_concurrency limits, and enable DAG serialization caching",
+        "Switch to TaskGroup with dynamic task mapping, implement Airflow's Dynamic Task Mapping (XCom branching), and use local executor with parallelism=500",
+        "Implement dynamic task mapping via @task.dynamic, move tenant fetching to a separate TriggerDAG, and use ExternalTaskMarker for dependencies",
+        "Refactor into a single task that processes all tenants in parallel using PySpark, eliminating the need for 500 Airflow tasks"
+      ],
+      "answer": 2,
+      "explanation": "Dynamic task mapping (@task.dynamic) natively scales to hundreds/thousands of tasks without DAG parsing overhead, while ExternalTaskMarker decouples task creation from dependency management. This avoids SubDagOperator's deprecated status and serialization bottlenecks that plague large dynamic DAGs. Triggering a separate DAG prevents the main DAG from becoming a monolith."
+    },
+    {
+      "id": "ds-new-108",
+      "type": "single",
+      "topic": "Data contracts",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "A data producer team publishes a Pydantic schema for an events topic via a schema registry (Confluent). A downstream consumer team is implementing a data contract that enforces field-level SLAs: null_ratio < 5%, min_cardinality > 100 for a user_id field, and value freshness < 2 minutes. Which approach best implements this contract with automated breach detection?",
+      "options": [
+        "Define SLA assertions in dbt tests, run hourly, and alert if assertions fail; use Great Expectations for schema validation only",
+        "Embed a data contract in Protobuf with custom field annotations, use Confluent validation rules, and stream metric violations to a monitoring system via Kafka",
+        "Implement OpenMetadata data contracts tied to the Pydantic schema, execute Great Expectations checkpoints on message arrival, and publish metric results to a metrics warehouse",
+        "Create a Spark Structured Streaming job that validates each micro-batch against the schema and SLA thresholds, publishing failures to a dead-letter topic"
+      ],
+      "answer": 2,
+      "explanation": "OpenMetadata data contracts integrate seamlessly with schema registries and provide governance tracking, while Great Expectations validates both schema and field-level SLAs on streaming data. Publishing metrics to a metrics warehouse enables alerting and SLO tracking. This approach combines schema enforcement (Protobuf/Pydantic) with metric-based SLA validation, which Confluent validation rules alone cannot provide."
+    },
+    {
+      "id": "ds-new-109",
+      "type": "single",
+      "topic": "Reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your team is building a reverse ETL pipeline that syncs customer segmentation results from Snowflake to Salesforce every 4 hours. The segment definitions change frequently, and you need to support soft deletes (marking removed customers with a timestamp) and handle API rate limits (100 requests/second). Which design minimizes API calls and supports definition evolution?",
+      "options": [
+        "Query all customers from Snowflake every 4 hours, compute segment membership, and bulk upsert all records to Salesforce regardless of changes",
+        "Store a hash of segment definitions in Snowflake, compute only deltas via a left anti-join against the last successful sync state, and use batch API endpoints with exponential backoff",
+        "Implement a stream from Snowflake CDC (via Kafka) that publishes segment changes, consume incrementally, and call Salesforce APIs in real-time with idempotency keys",
+        "Query Salesforce to fetch current segment assignments, compare against Snowflake, and only update records where the segment membership differs"
+      ],
+      "answer": 1,
+      "explanation": "Delta computation via left anti-join minimizes API calls by identifying only changed records, while definition hashing detects when segment logic evolves. Batch API endpoints respect rate limits more efficiently than individual calls, and exponential backoff is safer than streaming under high load. Option 3 is too chatty (requires bidirectional API calls), and option 1 wastes quota on unchanged records."
+    },
+    {
+      "id": "ds-new-110",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your team maintains an Airflow DAG with 50 tasks that ingest data from 50 different partner APIs. Each task retries up to 3 times on failure, with exponential backoff. However, a single partner API outage causes all 50 tasks to fail, block the entire DAG, and trigger 150 alerts. How should you restructure this to isolate failures?",
+      "options": [
+        "Set each task's trigger_rule=all_success and add a final 'fail_if_any' task that aggregates failures",
+        "Wrap each API task in a try-except block that logs failures to a dead-letter queue instead of failing the task",
+        "Use individual TaskGroup for each partner, set task_group trigger_rule=none_failed_min_one_success, and implement a final reconciliation task that marks missing partners",
+        "Convert each API task to a separate DAG triggered by an external sensor, and use a parent DAG with trigger_rule=all_done to collect results"
+      ],
+      "answer": 2,
+      "explanation": "TaskGroup with trigger_rule=none_failed_min_one_success isolates each partner's failure and allows the DAG to continue even if individual partners fail. A final reconciliation task can alert on specific missing partners rather than the entire DAG failing. This prevents cascade failures and reduces alert noise. Option 1 worsens the problem by forcing all tasks to succeed; option 3 (try-except masking) hides failures; option 4 adds unnecessary complexity."
+    },
+    {
+      "id": "ds-new-111",
+      "type": "single",
+      "topic": "Data contracts",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your analytics platform serves 12 different product teams. Each team publishes domain events (orders, users, payments) with their own schema, but there is no single source of truth for what fields are required, deprecated, or optional. How should you implement a governance model that prevents breaking changes while allowing schema evolution?",
+      "options": [
+        "Enforce all schema changes through a pull request approval process where the data platform team must review every schema modification",
+        "Publish schemas to a central registry (Confluent/AWS Glue) with semantic versioning (major.minor.patch), define breaking-change rules (no required field removal, optional additions allowed), and require compatibility checks in CI/CD",
+        "Create a shared Git repository with JSON Schema files for all events, require teams to update their files before deployment, and use dbt tests to validate incoming data",
+        "Implement a data dictionary in Jira where teams document their events, track changes in tickets, and notify downstream teams via Slack when breaking changes occur"
+      ],
+      "answer": 1,
+      "explanation": "A schema registry with semantic versioning and automated compatibility checking prevents breaking changes at the CI/CD stage, before code is deployed. Defining clear rules (e.g., no required field removal) creates a predictable evolution path. This is scalable across 12 teams and doesn't require manual review overhead. Jira (option 3) is not automated; Git files (option 2) don't provide compatibility enforcement; and pure PR approval (option 0) is a bottleneck."
     }
   ]
 }

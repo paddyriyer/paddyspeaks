@@ -1405,6 +1405,70 @@
       ],
       "answer": 2,
       "explanation": "Aggregate awareness requires that all requested measures exist in the aggregate table. If the query asks for both SUM(revenue) and COUNT(DISTINCT transaction_id), but the aggregate only pre-computes revenue sum, the planner must hit the detail table to calculate the distinct count. Options 0 and 1 are metadata/filtering issues that also prevent aggregate use but are less about measure availability. Option 3 (cache) is orthogonal\u2014aggregate awareness is a query-planning optimization, not a caching mechanism."
+    },
+    {
+      "id": "dash-new-033",
+      "type": "single",
+      "topic": "Tableau order of operations and LOD expressions",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "In Tableau, you create a visualization showing Revenue by Product Category and Region. You then add a LOD expression `{FIXED [Product Category]: SUM([Revenue])}` to a label. A region filter is applied showing only 'North America'. What does the LOD expression display?",
+      "options": [
+        "Revenue by Product Category for North America only, because the region filter is applied before LOD calculation",
+        "Revenue by Product Category across all regions, because FIXED LOD ignores context filters",
+        "Revenue by Product Category for North America only, because LOD expressions respect dimension filters",
+        "A separate total per category calculated at query time, independent of both filter and dimension context"
+      ],
+      "answer": 1,
+      "explanation": "FIXED LOD expressions compute at the specified granularity and ignore all context filters (including region filter applied to the viz). The FIXED clause establishes its own dimension domain, returning the same category-level revenue regardless of which region is selected by the viewer."
+    },
+    {
+      "id": "dash-new-034",
+      "type": "single",
+      "topic": "Aggregate awareness and data mart design",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "Your data warehouse has both a `transactions` table (2 billion rows, daily updates) and a pre-aggregated `daily_summary` table (365 rows, daily grain). A dashboard visual queries total revenue by day. The BI tool's aggregate awareness feature is enabled. Which outcome is most likely if aggregate awareness is properly configured?",
+      "options": [
+        "The query always hits `transactions` to ensure real-time accuracy, ignoring the summary table",
+        "The query dynamically chooses `daily_summary` when the visual's granularity matches daily grain, reducing scan from 2B to 365 rows",
+        "The query joins both tables to cross-validate results, doubling query time but ensuring correctness",
+        "The query hits `daily_summary` only if explicitly aliased in the model; otherwise it defaults to `transactions`"
+      ],
+      "answer": 1,
+      "explanation": "Aggregate awareness engines (Tableau, Power BI, Looker) automatically route queries to pre-aggregated tables when the requested granularity matches the aggregate grain. A daily revenue query will match the `daily_summary` table's grain, selecting it instead of scanning the massive transactions table, dramatically reducing query latency while preserving accuracy."
+    },
+    {
+      "id": "dash-new-035",
+      "type": "single",
+      "topic": "Chart selection and metric interpretation",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "A stakeholder requests a dashboard to show 'how each of 12 sales regions performed relative to their quarterly target.' The data includes Actual Revenue and Target Revenue by region. Which chart type best serves this use case and why?",
+      "options": [
+        "A scatter plot with Actual on X-axis and Target on Y-axis, to show correlation",
+        "A bullet chart with actual revenue as the measure bar and target as the qualitative range, enabling quick variance assessment",
+        "A pie chart splitting regions by their percent of total actual revenue",
+        "A heat map with regions as rows and quarters as columns, color-coded by revenue amounts"
+      ],
+      "answer": 1,
+      "explanation": "A bullet chart is purpose-built for comparing actual performance against a target or benchmark within each category. It clearly shows whether each region exceeded, met, or fell short of target, supporting quick decision-making. Scatter plots show correlation (not applicability here); pie charts obscure individual region performance; heat maps are better for multi-dimensional trends than goal-vs-actual."
+    },
+    {
+      "id": "dash-new-036",
+      "type": "single",
+      "topic": "Tableau order of operations",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "In Tableau, you have a calculated field `Running_Total: RUNNING_SUM(SUM([Amount]))` on a sheet showing Amount by Month. You then apply a Quick Filter on [Month] to show only Q3 months. What is displayed in the Running_Total?",
+      "options": [
+        "A running sum across all 12 months, ignoring the month filter because RUNNING_SUM is computed before filters apply",
+        "A running sum reset to zero and recalculated only for the Q3 months shown, because filters are applied before table calculations",
+        "An error, because RUNNING_SUM cannot coexist with dimension filters",
+        "A running sum from January through Q3, preserving the context of earlier months even though they are hidden"
+      ],
+      "answer": 1,
+      "explanation": "Tableau's order of operations applies context filters (Quick Filters) before table calculations. The RUNNING_SUM is computed on the filtered result set (Q3 only), so it restarts and runs across only July, August, and September, not the full year."
     }
   ]
 }

@@ -8500,6 +8500,86 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct because frozen=True makes the dataclass immutable, and unsafe_hash=True automatically generates a __hash__ method based on the fields, allowing the record to be used as a dictionary key. Option A won't work for dictionary keys (unhashable by default). Option C is unnecessarily verbose. Option D doesn't prevent hashing from dict keys and __setattr__ override is inefficient compared to frozen=True's C-level implementation."
+    },
+    {
+      "id": "py-new-139",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You have a pandas DataFrame with 50M rows. You need to filter rows where `user_id` is in a set of 100k valid IDs, then group by `date` and sum `revenue`. Which approach will be most memory-efficient?",
+      "options": [
+        "df[df['user_id'].isin(valid_ids)].groupby('date')['revenue'].sum()",
+        "df.query('user_id in @valid_ids').groupby('date')['revenue'].sum()",
+        "df.set_index('user_id').loc[list(valid_ids)].groupby('date')['revenue'].sum()",
+        "df[df['user_id'].apply(lambda x: x in valid_ids)].groupby('date')['revenue'].sum()"
+      ],
+      "answer": 1,
+      "explanation": "The `query()` method with string evaluation is more memory-efficient than `isin()` for large DataFrames because it processes the filter condition without creating intermediate boolean arrays. Using `apply()` with a set lookup is slower, and converting the set to a list negates performance benefits."
+    },
+    {
+      "id": "py-new-140",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "You're processing a 200M-row DataFrame and need to compute a running count of distinct `user_id` values per `day`. The naive `groupby().transform()` approach is too slow. Which technique provides the best performance?",
+      "options": [
+        "Use df.groupby('day')['user_id'].nunique() and then merge back to original DataFrame",
+        "Use df.sort_values('day').groupby('day')['user_id'].apply(lambda x: x.nunique()) and reindex",
+        "Use pd.factorize() to encode user_ids, then use numba-compiled function with groupby",
+        "Convert to Polars with df.to_arrow() and use Polars' lazy evaluation for distinct count per group"
+      ],
+      "answer": 3,
+      "explanation": "Polars' lazy evaluation engine optimizes distinct count operations across groups far more efficiently than pandas for large datasets. Numba compilation has overhead setup costs, and pandas groupby().nunique() forces eager evaluation. Polars can push down the aggregation and handle it more efficiently at the expression level."
+    },
+    {
+      "id": "py-new-141",
+      "type": "single",
+      "topic": "walrus operator",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You're validating event data from Kafka. You need to check if a `schema_version` field exists and is greater than 2, then use its value in a conditional. Which code is both correct and idiomatic Python 3.8+?",
+      "options": [
+        "if (version := event.get('schema_version', 0)) > 2: process(version)",
+        "if event.get('schema_version', 0) and (version := event['schema_version']) > 2: process(version)",
+        "if (version := event.get('schema_version')) and version > 2: process(version)",
+        "version = event.get('schema_version', 0); if version > 2: process(version)"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses the walrus operator with a default value, allowing the expression to evaluate the condition directly without separate assignment. Option 2 risks binding None to version if the key doesn't exist. Option 3 doesn't use the walrus operator. Option 1 is redundant with double checks."
+    },
+    {
+      "id": "py-new-142",
+      "type": "single",
+      "topic": "walrus operator",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "In a data pipeline, you process chunks of a large file. You want to read chunks while ensuring non-empty data AND reusing the chunk variable in a transformation. What's the correct pattern?",
+      "options": [
+        "while (chunk := file.read(8192)): transformed.append(chunk.decode('utf-8').strip())",
+        "while chunk := file.read(8192): transformed.append(chunk.decode('utf-8').strip())",
+        "while (chunk := file.read(8192)) != b'': transformed.append(chunk.decode('utf-8').strip())",
+        "chunk = file.read(8192); while chunk: transformed.append(chunk.decode('utf-8').strip()); chunk = file.read(8192)"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct: the walrus operator requires parentheses in a while condition, and the expression naturally evaluates to falsy (empty bytes) when EOF is reached. Option 1 has invalid syntax. Option 3 avoids the walrus operator entirely. Option 2 is syntactically valid but redundant."
+    },
+    {
+      "id": "py-new-143",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You're building a configuration class for a data pipeline that needs to validate `batch_size` (must be > 0) and `output_path` (must exist). You want immutability and automatic validation. Which approach is best?",
+      "options": [
+        "Use @dataclass(frozen=True) with __post_init__() for validation",
+        "Use @dataclass with frozen=False and override __setattr__() to prevent mutations after init",
+        "Use attrs library with @define(slots=True, frozen=True) and validators",
+        "Use pydantic.BaseModel with frozen=True and field validators"
+      ],
+      "answer": 0,
+      "explanation": "For a standard Python project without external dependencies, @dataclass(frozen=True) with __post_init__() validation is the idiomatic choice. It provides immutability and allows one-time validation. Pydantic and attrs are overkill for simple validation. Option 1 doesn't prevent mutations effectively."
     }
   ]
 }
