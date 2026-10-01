@@ -62,7 +62,7 @@
   window.addEventListener('hashchange', function () { S = parse(); render(); });
 
   /* ── resolve the selectors to one view of the graph ─────── */
-  var CTL_BY_CONCERN = { tenant: 'tenant', consent: 'consent', vendor: 'consent', deletion: 'delete', retention: 'delete', access: 'access', minimization: 'pay', agent: 'agent', inference: 'agent', purpose: 'agent', linkability: 'link', tracking: 'link', identity: 'auth', authentication: 'auth', devicetrust: 'auth', recovery: 'auth', disclosure: 'sd', ondevice: 'route', thirdmodel: 'route', logging: 'log', takeover: 'account' };
+  var CTL_BY_CONCERN = { tenant: 'tenant', consent: 'consent', vendor: 'consent', deletion: 'delete', retention: 'delete', access: 'access', minimization: 'pay', agent: 'agent', inference: 'agent', purpose: 'agent', linkability: 'link', tracking: 'link', identity: 'auth', authentication: 'auth', devicetrust: 'auth', recovery: 'auth', disclosure: 'sd', ondevice: 'route', thirdmodel: 'route', logging: 'log', takeover: 'account', recoverability: 'keydestroy', keylifecycle: 'keydestroy', preservation: 'hold' };
   var CTL_BY_SURFACE = { ident: 'auth', web: 'link', mail: 'mail', pay: 'pay', did: 'sd', cloud: 'tenant', analytics: 'consent', ai: 'agent', vendor: 'consent', all: 'tenant' };
   var CTL_LIST = { auth: ['c_passkey', 'c_rp_scope', 'c_attest', 'c_sync', 'c_session', 'c_recovery'], link: ['c_itp', 'c_link_strip', 'c_id_rotate', 'c_ip_mask'], mail: ['c_remote_content', 'c_relay', 'c_route', 'c_pcc_attest', 'c_no_train'], pay: ['c_tokenize', 'c_local_risk', 'c_ttl'], sd: ['c_sd', 'c_verifier_ret', 'c_issuer_blind'], route: ['c_route', 'c_pcc_attest', 'c_no_train'], agent: ['c_route', 'c_agent_policy', 'c_join_policy', 'c_agent_approval'], log: ['c_url_redact', 'c_iam', 'c_ttl'], account: ['c_passkey', 'c_cookie_enc', 'c_dbsc', 'c_ext_review', 'c_recovery'] };
   var CTL_TITLE = { auth: 'Sign-in invariant: no shared secret anywhere in the account’s life', link: 'Unlinkability: unrelated sites stay unlinked', mail: 'Mail invariant: reading a message reveals nothing, and content leaves only when needed', pay: 'Payment invariant: prove what is necessary, keep what measurably helps', sd: 'Disclosure invariant: share the attribute, not the identity', route: 'Routing invariant: run where the fewest parties can see it', agent: 'Agent invariant: act only within the task’s purpose', log: 'Logging invariant: telemetry never copies identity', account: 'Account invariant: a stolen password, code, cookie or phone number does not open her life' };
@@ -107,6 +107,14 @@
       case 'stolen': v.kind = 'takeover'; v.key = 'takeover'; break;
       case 'changed': v.kind = 'changes'; v.key = 'changed'; break;
       case 'worst': v.kind = 'worst'; v.key = 'worst'; break;
+      /* across time */
+      case 'recover': v.kind = 'recover'; v.key = 'recover'; break;
+      case 'recneeds': v.kind = 'transform'; v.tab = st.s === 'pay' ? 'token' : 'encrypt'; v.key = 'recneeds'; break;
+      case 'match': v.kind = 'transform'; v.tab = st.s === 'pay' ? 'token' : st.s === 'vendor' || st.s === 'ident' ? 'hash' : 'pseudo'; v.key = 'match'; break;
+      case 'keygone': v.kind = 'keygone'; v.key = 'keygone'; break;
+      case 'hold': v.kind = 'hold'; v.key = 'hold'; break;
+      case 'holdworked': v.kind = 'preserve'; v.key = 'holdworked'; break;
+      case 'unrecoverable': v.kind = 'control'; v.ctl = 'keydestroy'; v.key = 'ctl-keydestroy'; break;
     }
     if (v.kind === 'agent') v.agent = agentFor(st);
     v.principle = G.principles[G.principleFor[v.key] || (v.ctl && G.principleFor['ctl-' + v.ctl])] || '';
@@ -163,7 +171,7 @@
     return {
       head: 'Separate signals about ' + name('p_dana'),
       tools: '<button class="btn" data-act="connect" aria-pressed="false">Connect the dots</button>',
-      body: '<div class="idwrap" tabindex="0" role="region" aria-label="Identity graph">' + svg + '</div><p class="ppre">Connected, these signals become one profile: what was collected, what was derived, and what was inferred.</p><div class="pcols">' + cols + '</div><p class="keyq">Was this linkage necessary and permitted for the intended purpose?</p>',
+      body: '<div class="idwrap" tabindex="0" role="region" aria-label="Identity graph">' + svg + '</div><p class="ppre">Connected, these signals become one profile: what was collected, what was derived, and what was inferred.</p><div class="pcols">' + cols + '</div><p class="keyq">Was this linkage necessary and permitted for the intended purpose?</p>' + overTime(st),
       mount: function (root) {
         var b = $('[data-act="connect"]', root);
         b.addEventListener('click', function () { var on = !root.classList.contains('linked'); root.classList.toggle('linked', on); b.textContent = on ? 'Separate again' : 'Connect the dots'; b.setAttribute('aria-pressed', on); $('.vis-h', root).textContent = on ? 'One person, linked across contexts' : 'Separate signals about ' + name('p_dana'); });
@@ -241,7 +249,7 @@
       head: 'Identifiers on the journey: ' + J.label,
       body: '<ul class="idl">' + seen.map(function (h) { var s = SC[h.sc] || SC.none; return '<li><span class="idn">' + esc(h.id) + '</span><span class="st ' + s[0] + '">' + s[1] + '</span><span class="idw">seen by ' + esc(h.n) + ' · ' + esc(ZONE[h.z]) + '</span></li>'; }).join('') + '</ul>' +
         (multi.length ? '<div class="corr"><div class="eyebrow">Stable identifiers that appear in more than one journey</div>' + multi.map(function (k) { return '<p><b>' + esc(k) + '</b>: ' + everywhere[k].map(esc).join(', ') + '</p>'; }).join('') + '</div>' : '') +
-        '<p class="keyline">A stable identifier seen by more than one party is how unrelated activity becomes one profile.</p>'
+        '<p class="keyline">A stable identifier seen by more than one party is how unrelated activity becomes one profile.</p>' + overTime(st)
     };
   };
 
@@ -373,7 +381,7 @@
       tools: '<button class="btn" data-act="del">Delete my data</button>',
       body: verdict(worst(D.slice(0, 2).map(function (x) { return x.st; })), worst(D.map(function (x) { return x.st; }))) +
         '<div class="stores">' + D.map(function (x) { return '<div class="store s-' + x.st + '"><b>' + esc(x.n) + '</b><small>' + esc(x.ev) + '</small>' + stTag(x.st, LBL[x.st]) + '</div>'; }).join('') + '</div>' +
-        '<p class="count">' + n + ' of ' + D.length + ' locations verified deleted</p><p class="keyline">Deletion is a distributed-systems problem disguised as a button.</p><p class="keyq">Can we prove every relevant copy was deleted, detached, or expired?</p>',
+        '<p class="count">' + n + ' of ' + D.length + ' locations verified deleted</p>' + overTime(S, true) + '<p class="keyline">Deletion is a distributed-systems problem disguised as a button.</p><p class="keyq">Can we prove every relevant copy was deleted, detached, or expired?</p>',
       mount: function (root) {
         var t = [];
         $('[data-act="del"]', root).addEventListener('click', function () {
@@ -403,6 +411,7 @@
 
   /* control — intended, actual, evidence, exceptions, hop by hop */
   function chainFor(id, st) {
+    if (G.chains[id]) return G.chains[id];
     if (id === 'tenant') return { title: 'Tenant invariant: Tenant A must never receive Tenant B data', hops: G.tenantChain };
     if (id === 'consent') return { title: 'Consent invariant: nothing acts on a revoked choice', hops: G.consent.rows.map(function (r) { return { n: r.n, intended: r.intended, actual: r.p, evidence: r.evidence, st: r.st }; }) };
     if (id === 'delete') return { title: 'Deletion invariant: every copy is deleted, detached or expired', hops: G.deletion.map(function (x) { return { n: x.n, intended: 'Remove ' + name('p_dana'), actual: x.ev, evidence: x.st === 'ok' ? 'Canary lookup' : x.st === 'unk' ? 'No search run' : 'Canary at T+72h', st: x.st === 'wait' ? 'warn' : x.st }; }) };
@@ -504,7 +513,7 @@
   };
 
   /* what changed */
-  var CHANGE_Q = { 'new control failure': 'control', 'new AI tool access': 'agentdo', 'new join': 'join', 'retention increase': 'live', 'new vendor': 'where', 'new destination': 'where', 'new identifier': 'linkid', 'new dataset': 'live' };
+  var CHANGE_Q = { 'new control failure': 'control', 'new AI tool access': 'agentdo', 'new join': 'join', 'retention increase': 'live', 'new vendor': 'where', 'new destination': 'where', 'new identifier': 'linkid', 'new dataset': 'live', 'copy outlived its key': 'unrecoverable', 'key schedule': 'keygone', 'legal hold placed': 'hold' };
   function changesFor(st) { return G.changes.filter(function (c) { return (st.s === 'all' || c[3] === st.s) && (!st.c.length || c[4].some(function (x) { return st.c.indexOf(x) >= 0; })); }); }
   V.changes = function (st) {
     var list = changesFor(st);
@@ -545,10 +554,211 @@
     };
   };
 
+  /* ═══════════ ACROSS TIME: what must still be possible in the future? ═══════════
+   * Recover · match · produce · preserve · verify · delete · make unrecoverable.
+   * The same graph, followed across years: keys, transformations, schema, holds. */
+  var TSTATE = { ok: 'ok', fail: 'fail', unk: 'unk', warn: 'warn' };
+  function all3(states) { return states.indexOf('fail') >= 0 ? 'fail' : states.indexOf('unk') >= 0 || states.indexOf('warn') >= 0 ? 'unk' : 'ok'; }
+  function yn(st, yes, no, unk) { return st === 'ok' ? yes : st === 'fail' ? no : unk; }
+  function mark(st, txt) { return '<span class="mk mk-' + (TSTATE[st] || 'unk') + '"><i aria-hidden="true">' + (st === 'ok' ? '✓' : st === 'fail' ? '✕' : '?') + '</i>' + esc(txt) + '</span>'; }
+  /* the same fact, technical and in one sentence; the executive reads the sentence first */
+  function say(st, pair) {
+    return st.p === 'executive' ? '<div class="say"><p class="say-e">' + esc(pair[1]) + '</p><p class="say-t"><span class="eyebrow">Technical</span> ' + esc(pair[0]) + '</p></div>'
+      : '<div class="say"><p class="say-t">' + esc(pair[0]) + '</p><p class="say-e"><span class="eyebrow">In one sentence</span> ' + esc(pair[1]) + '</p></div>';
+  }
+  function futureStrip(caps) {
+    return '<div class="fut"><div class="eyebrow">What must still be possible</div><ul>' + caps.map(function (c) {
+      return '<li class="fut-i f-' + c[1] + '"><b>' + esc(c[0]) + '</b><span>' + esc(c[2] || (c[1] === 'ok' ? 'possible' : c[1] === 'fail' ? 'not possible' : 'unproven')) + '</span></li>'; }).join('') + '</ul></div>';
+  }
+  function statusRow(items) { return '<div class="rstat">' + items.map(function (x) { return '<div class="rs rs-' + x[1] + '"><span>' + esc(x[0]) + '</span><b>' + esc(x[2]) + '</b></div>'; }).join('') + '</div>'; }
+  function vchain(nodes) { return '<div class="chain tchain">' + nodes.map(function (n, i) { return (i ? '<span class="arr static' + (n[2] ? ' a-' + n[2] : '') + '" aria-hidden="true"></span>' : '') + '<div class="nd' + (n[3] ? ' ' + n[3] : '') + '">' + esc(n[0]) + (n[1] ? '<small>' + esc(n[1]) + '</small>' : '') + '</div>'; }).join('') + '</div>'; }
+  function qa(rows) { return '<dl class="five">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd' + (r[2] ? ' class="' + r[2] + '"' : '') + '>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>'; }
+  function holdsCovering(id) { return G.holds.filter(function (h) { return h.status === 'active' && h.items.some(function (it) { return it[1] === id && it[2] === 'held'; }); }); }
+  function tf(node) { return G.transforms.filter(function (t) { return t.node === node; })[0]; }
+
+  /* Can this data be recovered? — the five-year archive */
+  V.recover = function (st) {
+    var A = G.archive, m = 'asis';
+    function stOf(node) { var d = A.deps.filter(function (x) { return x.node === node; })[0]; return d.st[m]; }
+    function draw(root) {
+      $$('[data-am]', root).forEach(function (b) { b.setAttribute('aria-checked', b.getAttribute('data-am') === m); });
+      var exists = stOf('ds_archive'), key = stOf('k_2026'), rec = all3([exists, key]), match = all3([stOf('k_pseudo'), stOf('nr_v3')]), produce = all3([rec, stOf('sc_v14'), stOf('sy_vault')]);
+      var W = { ok: 'available', fail: 'destroyed', unk: 'not verified' };
+      $('#ar-res', root).innerHTML =
+        '<ol class="deps">' + A.deps.map(function (d, i) { var s = d.st[m]; return '<li class="dep d-' + s + '"><span class="dep-rel">' + (i ? esc(d.rel) : 'Archive ' + esc(A.id)) + '</span><b>' + esc(d.n) + '</b>' + mark(s, d.node === 'ds_archive' ? (s === 'ok' ? 'exists' : 'missing') : W[s]) + '</li>'; }).join('') + '</ol>' +
+        statusRow([['Data exists', exists, yn(exists, 'Yes', 'No', 'Unknown')], ['Recoverable', rec, yn(rec, 'Yes', 'Failed', 'Unproven')], ['Matchable', match, yn(match, 'Yes', 'Failed', 'Unproven')]]) +
+        futureStrip([['Recover', rec], ['Match', match], ['Produce', produce], ['Preserve', all3(A.deps.map(function (d) { return d.st[m]; }))], ['Verify', all3([exists, stOf('lin_arch')])], ['Delete', stOf('lin_arch'), stOf('lin_arch') === 'ok' ? 'every copy traced' : null],
+          key === 'fail' ? ['Make unrecoverable', 'warn', 'already, unplanned'] : ['Make unrecoverable', all3([key, stOf('lin_arch')]), key === 'ok' ? 'destroy K-2026 at the end of retention' : null]]) +
+        say(st, A.say[m]);
+    }
+    return {
+      head: 'The five-year archive: can it still be used?',
+      body: '<ol class="story">' + A.story.map(function (r) { return '<li><b>' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></li>'; }).join('') + '</ol>' +
+        '<div class="seg" role="radiogroup" aria-label="When we look">' + A.modes.map(function (x) { return '<button role="radio" data-am="' + x[0] + '" aria-checked="' + (x[0] === m) + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
+        '<div id="ar-res" aria-live="polite"></div><p class="keyline">Data existence and data usability are different states.</p>',
+      mount: function (root) { root.addEventListener('click', function (e) { var b = e.target.closest('[data-am]'); if (b) { m = b.getAttribute('data-am'); draw(root); } }); draw(root); }
+    };
+  };
+
+  /* What is required to recover it? / Can we still match this person? — four transformations */
+  var TAB_PRINCIPLE = { encrypt: 'readable', hash: 'hashed', pseudo: 'keylife', token: 'protect' };
+  var TABS = [['encrypt', 'Encrypted'], ['hash', 'Hashed'], ['pseudo', 'Keyed pseudonym'], ['token', 'Tokenized']];
+  V.transform = function (st, view) {
+    var t = view.tab, ed = 'ds_archive', killed = {}, cand = '', pk = { key: true, rule: true, ver: true };
+    var encs = G.transforms.filter(function (x) { return x.type === 'encrypted' || x.type === 'shredded'; });
+    function encHTML() {
+      var T = tf(ed), K = G.keys[T.key], gone = !!K.destroyed || killed[T.key], held = holdsCovering(T.key);
+      var keySt = gone ? 'fail' : 'ok';
+      return '<div class="seg" role="radiogroup" aria-label="Encrypted dataset">' + encs.map(function (x) { return '<button role="radio" data-ed="' + x.node + '" aria-checked="' + (x.node === ed) + '">' + esc(name(x.node)) + '</button>'; }).join('') + '</div>' +
+        vchain([[name(T.node), 'dataset'], [name(T.key), K.type, gone ? 'fail' : '', gone ? 'bad' : ''], [name(K.owner), 'key owner'], [name(K.store), 'key store / HSM'], [gone ? 'No recovery path' : 'Decrypt through the KMS role', 'recovery path', gone ? 'fail' : '', gone ? 'bad' : '']]) +
+        statusRow([['Data exists', 'ok', 'Yes'], ['Key exists', keySt, gone ? 'No' : 'Yes'], ['Recoverable', keySt, gone ? 'No' : 'Yes']]) +
+        (K.destroyed ? '' : '<button class="btn ghost" data-kill="' + T.key + '" aria-pressed="' + !!killed[T.key] + '">' + (killed[T.key] ? 'Undo: keep the key' : 'What if ' + esc(name(T.key)) + ' is destroyed?') + '</button>') +
+        qa([['Who holds the key?', name(K.owner) + ', in the ' + name(K.store)], ['Can the service operator decrypt?', gone ? 'No: the key is gone' : K.operator], ['Can a customer-controlled key be used?', K.cmk],
+          ['When was the key created?', K.created], ['When was it rotated?', K.rotated || 'Not yet'], ['Was the historical key retained?', K.destroyed ? 'No: destroyed on ' + K.destroyed : K.retained ? 'Yes' : 'No'],
+          ['Is the key itself under preservation hold?', held.length ? 'Yes: ' + held.map(function (h) { return name(h.id); }).join(', ') : 'No', held.length && gone ? 'red' : '']]) +
+        '<p class="note">Encrypted data without an available key may be operationally equivalent to deleted data. Whether that meets a deletion obligation is a separate, legal question.</p>';
+    }
+    function hashHTML() {
+      var T = tf('id_hash'), norm = G.normalize[T.norm], stored = G.oneWay(norm(G.subjectEmail)), c = cand ? G.oneWay(norm(cand)) : '';
+      return vchain([['Original value', 'an email address'], ['Hash function', T.alg + ' · ' + T.ver], [stored, 'the hash in ' + T.where]]) +
+        statusRow([['Decrypt', 'fail', 'None'], ['Reversible', 'fail', 'No'], ['Matchable', 'warn', 'Yes, by comparison']]) +
+        '<div class="cand"><div class="eyebrow">Try a match</div><form data-cand><label for="candI">A value you already know</label><input id="candI" value="' + esc(cand) + '" placeholder="an email you already know" autocomplete="off"><button class="btn" type="submit">Same transformation, then compare</button></form>' +
+        (cand ? '<p class="cmp">' + esc(cand) + ' → ' + esc(c) + ' ' + (c === stored ? mark('fail', 'matches the stored hash') : mark('ok', 'no match')) + '</p>' : '') + '</div>' +
+        '<p class="keyline">One-way does not necessarily mean unlinkable.</p><p class="aside">If the inputs are predictable, or drawn from a limited population such as a customer list, anyone holding likely values can apply the same transformation and compare.</p>';
+    }
+    function pseudoHTML() {
+      var T = tf('id_pseudo'), stored = G.keyedPseudonym(name(T.key), T.norm, G.subjectEmail);
+      var rule = pk.rule ? T.norm : 'NORMALIZATION-v2', mine = cand && pk.key ? G.keyedPseudonym(name(T.key), rule, cand) : '';
+      var repro = pk.key && pk.rule && pk.ver ? 'ok' : 'fail';
+      return vchain([['Email / identifier', 'the input'], ['Normalize', T.norm], ['Keyed transformation', name(T.key) + ' · ' + T.alg + ' · ' + T.ver], [stored, 'pseudonymous ID']]) +
+        statusRow([['Reversible', 'fail', 'No'], ['Repeatable match', repro, repro === 'ok' ? 'Yes' : 'Not today']]) +
+        '<p class="small">Repeatable match: yes, if the historical key and rules exist.</p>' +
+        '<div class="seg tg" role="group" aria-label="What was kept">' + [['key', name(T.key) + ' still available'], ['rule', 'Normalization rule recorded'], ['ver', 'Key version recorded']].map(function (x) { return '<button data-pk="' + x[0] + '" aria-pressed="' + pk[x[0]] + '">' + esc(x[1]) + '</button>'; }).join('') + '</div>' +
+        '<div class="cand"><form data-cand><label for="candI">Reproduce for a known customer</label><input id="candI" value="' + esc(cand) + '" placeholder="the customer’s email" autocomplete="off"><button class="btn" type="submit">Reproduce the ID</button></form>' +
+        (cand ? '<p class="cmp">' + (pk.key ? esc(mine) + ' ' + (mine === stored ? mark('ok', 'same ID: matched') : mark('fail', 'different ID: no match' + (pk.rule ? '' : ': the rule was guessed (v2)'))) : mark('fail', 'cannot compute: the key is gone')) + '</p>' : '') + '</div>' +
+        qa([['Which key version created this ID?', pk.ver ? name(T.key) : 'Unknown: not recorded', pk.ver ? '' : 'red'], ['Is the key still available?', pk.key ? 'Yes: ' + G.keys[T.key].status : 'No', pk.key ? '' : 'red'],
+          ['Which normalization rule was used?', pk.rule ? T.norm + ' (' + G.nodes.nr_v3[2] + ')' : 'Unknown: not recorded', pk.rule ? '' : 'red'], ['Was the algorithm and version recorded?', T.alg + ', ' + T.ver],
+          ['Can we reproduce the same identifier today?', repro === 'ok' ? 'Yes' : 'No', repro === 'ok' ? '' : 'red']]) +
+        '<p class="keyline">Key lifecycle can become data lifecycle.</p>';
+    }
+    function tokenHTML() {
+      var M = G.tokenMap, longer = M.mapDays > M.tokDays;
+      return vchain([['Personal data', 'card reference'], [M.token, 'token in ' + M.reuse.map(name).join(' and ')]]) +
+        '<div class="vault"><div class="eyebrow">' + esc(name(M.vault)) + '</div><p><b>' + esc(M.token) + '</b> ↔ original card reference</p></div>' +
+        statusRow([['Reversible', 'warn', 'Through the vault'], ['Mapping outlives tokens', longer ? 'fail' : 'ok', longer ? 'Yes' : 'No'], ['Mapping held', M.held ? 'ok' : 'fail', M.held ? 'Yes' : 'No']]) +
+        qa([['Who can access the vault?', M.access], ['Does the application need the original value?', M.needOriginal], ['Is the mapping retained longer than the token?', longer ? 'Yes: mapping ' + M.mapRet + ', tokens ' + M.tokRet : 'No', longer ? 'red' : ''],
+          ['Does legal preservation include the mapping?', M.held ? 'Yes: ' + holdsCovering(M.vault).map(function (h) { return name(h.id); }).join(', ') : 'No'],
+          ['Can the token be reused across systems?', M.reuse.length > 1 ? 'Yes: the same token in ' + M.reuse.map(name).join(' and ') + ' links them' : 'No', M.reuse.length > 1 ? 'red' : '']]) +
+        '<p class="keyline">A token protects the value. The vault decides who can still undo it, and for how long.</p>';
+    }
+    function draw(root) {
+      $$('[data-tt]', root).forEach(function (b) { b.setAttribute('aria-checked', b.getAttribute('data-tt') === t); });
+      var pr = root.querySelector('.principle'); if (pr) pr.textContent = G.principles[TAB_PRINCIPLE[t]];
+      $('#tf-res', root).innerHTML = t === 'encrypt' ? encHTML() : t === 'hash' ? hashHTML() : t === 'pseudo' ? pseudoHTML() : tokenHTML();
+      var T = tf({ encrypt: ed, hash: 'id_hash', pseudo: 'id_pseudo', token: 'id_tok' }[t]);
+      $('#tf-meta', root).innerHTML = '<span class="st st-unk">' + esc(G.transformTypes[T.type]) + '</span> <span class="st ' + (T.rec === 'irreversible' ? 'st-ok' : T.rec === 'full' ? 'st-fail' : 'st-warn') + '">' + esc(G.recoverability[T.rec]) + '</span>';
+    }
+    return {
+      head: 'How it was transformed, and who can still undo it',
+      body: '<div class="seg" role="radiogroup" aria-label="Transformation">' + TABS.map(function (x) { return '<button role="radio" data-tt="' + x[0] + '" aria-checked="' + (x[0] === t) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+        '<p class="tf-meta" id="tf-meta"></p><div id="tf-res" aria-live="polite"></div>',
+      mount: function (root) {
+        root.addEventListener('click', function (e) {
+          var b = e.target.closest('[data-tt]'); if (b) { t = b.getAttribute('data-tt'); cand = ''; draw(root); return; }
+          b = e.target.closest('[data-ed]'); if (b) { ed = b.getAttribute('data-ed'); draw(root); return; }
+          b = e.target.closest('[data-kill]'); if (b) { var k = b.getAttribute('data-kill'); killed[k] = !killed[k]; draw(root); return; }
+          b = e.target.closest('[data-pk]'); if (b) { var x = b.getAttribute('data-pk'); pk[x] = !pk[x]; draw(root); }
+        });
+        root.addEventListener('submit', function (e) { if (e.target.closest('[data-cand]')) { e.preventDefault(); cand = $('#candI', root).value.trim(); draw(root); var i = $('#candI', root); if (i) i.focus(); } });
+        draw(root);
+      }
+    };
+  };
+
+  /* What happens if the key is destroyed? */
+  var CONSEQ = { encrypted: 'can no longer be decrypted', shredded: 'is already unreadable', pseudonym: 'can no longer be re-matched to a person; existing IDs still link to each other', tokenized: 'tokens can no longer be resolved to the original' };
+  function keyImpact(k) {
+    var deps = G.transforms.filter(function (t) { return t.key === k; });
+    var plain = G.edges.filter(function (e) { return e[1] === 'DERIVED_FROM' && deps.some(function (d) { return d.node === e[2]; }); }).map(function (e) { return e[0]; });
+    return { deps: deps, plain: plain, holds: holdsCovering(k), K: G.keys[k] };
+  }
+  V.keygone = function (st) {
+    var k = 'k_2026';
+    function draw(root) {
+      $$('[data-kg]', root).forEach(function (b) { b.setAttribute('aria-checked', b.getAttribute('data-kg') === k); });
+      var I = keyImpact(k), K = I.K, nm = name(k);
+      var tech = K.destroyed ? nm + ' destroyed on ' + K.destroyed + '; ' + I.deps.map(function (d) { return name(d.node); }).join(', ') + ' remain in storage' + (I.plain.length ? '; plaintext copy ' + I.plain.map(name).join(', ') + ' survives' : '') + '.'
+        : 'Destroying ' + nm + ' affects ' + plural(I.deps.length, 'dataset or identifier') + (I.holds.length ? '; ' + nm + ' is held by ' + I.holds.map(function (h) { return name(h.id); }).join(', ') : '') + '.';
+      var exec = K.destroyed ? 'Historical records still exist physically but can no longer be decrypted' + (I.plain.length ? ', except for one copy that was decrypted earlier.' : '.')
+        : I.holds.length ? 'Destroying this key would make records under a preservation hold unusable.' : 'Destroying this key would make these records permanently unreadable.';
+      $('#kg-res', root).innerHTML = '<ul class="kgl">' + I.deps.map(function (d) { return '<li><b>' + esc(name(d.node)) + '</b> <span class="st st-unk">' + esc(G.transformTypes[d.type]) + '</span><span>' + esc(CONSEQ[d.type] || 'becomes unusable') + '</span></li>'; }).join('') + '</ul>' +
+        statusRow([['Data still exists', 'ok', 'Yes'], ['Recoverable afterwards', 'fail', 'No'], ['Conflicts with a hold', I.holds.length ? 'fail' : 'ok', I.holds.length ? 'Yes: ' + I.holds.map(function (h) { return name(h.id); }).join(', ') : 'No'], ['Plaintext copies', I.plain.length ? 'fail' : 'ok', I.plain.length ? I.plain.map(name).join(', ') : 'None found']]) +
+        qa([['Key', nm + ' · ' + K.type], ['Owner and store', name(K.owner) + ' · ' + name(K.store)], ['State', K.destroyed ? 'Destroyed on ' + K.destroyed : K.status]]) + say(st, [tech, exec]);
+    }
+    return {
+      head: 'If this key is destroyed, what can no longer be done?',
+      body: '<div class="seg" role="radiogroup" aria-label="Key">' + Object.keys(G.keys).map(function (x) { return '<button role="radio" data-kg="' + x + '" aria-checked="' + (x === k) + '">' + esc(name(x)) + '</button>'; }).join('') + '</div>' +
+        '<div id="kg-res" aria-live="polite"></div><p class="keyline">Encrypted data without an available key may be operationally equivalent to deleted data.</p><p class="aside">That is an engineering state, not a legal conclusion that the data was deleted.</p>',
+      mount: function (root) { root.addEventListener('click', function (e) { var b = e.target.closest('[data-kg]'); if (b) { k = b.getAttribute('data-kg'); draw(root); } }); draw(root); }
+    };
+  };
+
+  /* What is under legal hold? — preservation is not only preserving bytes */
+  V.hold = function (st) {
+    var H0 = G.holds.filter(function (h) { return h.status === 'active'; })[0], off = {};
+    function stOf(node) { var it = H0.items.filter(function (x) { return x[1] === node; })[0]; if (!it) return 'unk'; if (off[node]) return 'fail'; return G.holdStates[it[2]][0] === 'ok' ? 'ok' : 'unk'; }
+    function draw(root) {
+      $('#hd-items', root).innerHTML = H0.items.map(function (it) { var s = off[it[1]] ? G.holdStates.no : G.holdStates[it[2]]; return '<li><button class="hi hi-' + s[0] + '" data-hi="' + it[1] + '" aria-pressed="' + !off[it[1]] + '"><span>' + esc(it[0]) + '<small>' + esc(name(it[1])) + '</small></span>' + mark(s[0] === 'warn' ? 'unk' : s[0], s[1]) + '</button></li>'; }).join('');
+      $('#hd-use', root).innerHTML = G.usability.map(function (u) { var s = all3(u[1].map(stOf)); return '<li>' + mark(s, yn(s, 'Yes', 'No', 'Not yet')) + '<span>' + esc(u[0]) + '</span></li>'; }).join('');
+    }
+    return {
+      head: 'Legal hold ' + name(H0.id) + ': what is preserved, and can it still be used?',
+      body: '<div class="lanes2"><div><div class="eyebrow">Normal lifecycle</div>' + vchain([['Active'], ['Retention'], ['Delete']]) + '</div>' +
+        '<div><div class="eyebrow">With preservation</div>' + vchain([['Active'], ['Legal hold', '', 'warn', 'hold'], ['Preserve', '', '', 'hold'], ['Hold released'], ['Normal retention resumes']]) + '</div></div>' +
+        '<dl class="holdc"><div><dt>Hold</dt><dd>' + esc(name(H0.id)) + ' · ' + esc(H0.status) + ' since ' + esc(H0.start) + '</dd></div><div><dt>Scope</dt><dd>' + esc(H0.scope) + '</dd></div><div><dt>Authority reference</dt><dd>' + esc(H0.authority) + '</dd></div></dl>' +
+        '<p class="small">An engineering workflow for preservation, not legal advice. Select an item to see what is lost if it is not preserved.</p>' +
+        '<div class="hd"><div><div class="eyebrow">Preserved</div><ul class="hil" id="hd-items"></ul></div><div><div class="eyebrow">Future usability</div><ul class="usel" id="hd-use" aria-live="polite"></ul></div></div>' +
+        '<p class="keyline">Preservation is not only preserving bytes.</p>',
+      mount: function (root) { root.addEventListener('click', function (e) { var b = e.target.closest('[data-hi]'); if (b) { var n = b.getAttribute('data-hi'); off[n] = !off[n]; draw(root); } }); draw(root); }
+    };
+  };
+
+  /* Can we prove the hold worked? — delete versus preserve */
+  V.preserve = function (st) {
+    var P = G.preserve, ph = 0;
+    function draw(root) {
+      $$('[data-ph]', root).forEach(function (b) { b.setAttribute('aria-checked', +b.getAttribute('data-ph') === ph); });
+      var X = P.phases[ph], Hh = G.holds.filter(function (h) { return h.id === X.hold; })[0], ch = G.chains[X.id === 'active' ? 'hold' : 'release'];
+      var EV = { ok: 'ok', fail: 'fail', warn: 'warn', wait: 'wait' };
+      $('#pv-res', root).innerHTML =
+        statusRow([['User request', 'ok', X.id === 'active' ? 'Received ' + P.request : 'Received'], ['Legal hold', X.id === 'active' ? 'warn' : 'ok', X.id === 'active' ? 'Active' : 'Released ' + Hh.release], ['Action', X.id === 'active' ? 'warn' : 'ok', X.id === 'active' ? 'Preserve relevant data' : 'Deletion resumed']]) +
+        '<ul class="pvs">' + X.systems.map(function (s) { return '<li><b>' + esc(s[0]) + '</b><span class="st ' + (s[2] ? 'st-warn' : 'st-ok') + '">' + (s[2] ? 'in hold scope' : 'outside scope') + '</span><span>' + esc(s[3]) + '</span></li>'; }).join('') + '</ul>' +
+        '<div class="eyebrow">Evidence</div><ol class="pve">' + X.ev.map(function (e) { return '<li class="pe-' + EV[e[2]] + '"><span>' + esc(e[0]) + '</span><span class="small">' + esc(e[1] || 'pending') + '</span>' + stTag(e[2] === 'wait' ? 'wait' : e[2], e[2] === 'ok' ? 'recorded' : e[2] === 'fail' ? 'failed' : e[2] === 'warn' ? 'incomplete' : 'pending') + '</li>'; }).join('') + '</ol>' +
+        '<div class="eyebrow">' + esc(ch.title) + '</div>' + verdict(ch.hops[0].st, worst(ch.hops.map(function (h) { return h.st; }))) +
+        '<ul class="pvc">' + ch.hops.map(function (h) { return '<li>' + stTag(h.st) + ' <b>' + esc(h.n) + '</b> ' + esc(h.actual) + ' <span class="small">(' + esc(h.evidence) + ')</span></li>'; }).join('') + '</ul>' +
+        say(st, X.id === 'active' ? ['Deletion job blocked because legal_hold_id ' + name(X.hold) + ' matches the dataset scope; each skip logged.', 'Deletion is temporarily suspended because the records are under preservation hold.']
+          : [name(X.hold) + ' released ' + Hh.release + '; deletion resumed; the post-release canary found feature vectors from the hold period.', 'The hold ended and deletion resumed, but some derived data was missed.']);
+    }
+    return {
+      head: 'Delete versus preserve: can we prove the hold worked?',
+      body: '<div class="seg" role="radiogroup" aria-label="Phase">' + P.phases.map(function (x, i) { return '<button role="radio" data-ph="' + i + '" aria-checked="' + (i === ph) + '">' + esc(x.label) + '</button>'; }).join('') + '</div>' +
+        '<div id="pv-res" aria-live="polite"></div><p class="keyline">Privacy minimization and legal preservation can legitimately pull in opposite directions. The architecture must make the conflict explicit.</p>',
+      mount: function (root) { root.addEventListener('click', function (e) { var b = e.target.closest('[data-ph]'); if (b) { ph = +b.getAttribute('data-ph'); draw(root); } }); draw(root); }
+    };
+  };
+
+  /* Over time: transformation and recoverability, shown only when the lens asks for it */
+  var TIME_LENS = ['identity', 'recoverability', 'preservation', 'keylifecycle', 'deletion'];
+  function overTime(st, force) {
+    if (!force && !st.c.some(function (c) { return TIME_LENS.indexOf(c) >= 0; })) return '';
+    return '<div class="otw"><div class="eyebrow">Over time: how each record is protected, and whether it can be recovered</div><table class="otime"><thead><tr><th scope="col">Record</th><th scope="col">Transformation</th><th scope="col">Recoverability</th><th scope="col">Depends on</th><th scope="col">Hold</th></tr></thead><tbody>' +
+      G.transforms.map(function (t) { return '<tr><th scope="row">' + esc(name(t.node)) + '</th><td>' + esc(G.transformTypes[t.type]) + '</td><td>' + esc(G.recoverability[t.rec]) + '</td><td>' + esc([t.key && name(t.key), t.norm].filter(Boolean).join(' + ') || '—') + '</td><td>' + esc(t.hold ? name(t.hold) : '—') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+  }
+
   /* ═══════════ FINDINGS ═══════════ */
   var ORDER = { 'CONTROL FAILURE': 0, FACT: 1, INFERENCE: 2, UNKNOWN: 3 };
   function findingsFor(st, view) {
-    var q = view.kind === 'control' ? 'control' : st.q;
+    var q = view.kind === 'control' && st.q !== 'unrecoverable' ? 'control' : st.q;
     var lensOk = function (f) { return st.l === 'both' || f.l === 'both' || f.l === st.l; };
     var sOk = function (f) { return st.s === 'all' || f.s.indexOf(st.s) >= 0; };
     var cOk = function (f) { return !st.c.length || f.c.some(function (c) { return st.c.indexOf(c) >= 0; }); };
@@ -586,6 +796,10 @@
   }
 
   /* ═══════════ PAGES ═══════════ */
+  function selQ(val) {
+    var L = offered(G.questions, 'q', S.s), groups = ['today', 'future'].map(function (g) { return [g, L.filter(function (q) { return (q.g || 'today') === g; })]; }).filter(function (x) { return x[1].length; });
+    return '<label class="sl k-q"><span class="sr-only">Question</span><select id="selQ">' + groups.map(function (g) { return '<optgroup label="' + esc(G.questionGroups[g[0]]) + '">' + g[1].map(function (x) { return '<option value="' + x.id + '"' + (x.id === val ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</optgroup>'; }).join('') + '</select></label>';
+  }
   function sel(id, label, list, val, cls) { return '<label class="sl ' + (cls || '') + '"><span class="sr-only">' + label + '</span><select id="' + id + '">' + list.map(function (x) { return '<option value="' + x.id + '"' + (x.id === val ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select></label>'; }
   function selectorBar() {
     var cl = S.c.map(function (c) { return byId(G.concerns, c).label.toLowerCase(); });
@@ -594,14 +808,18 @@
       '<span class="w">I am a</span>' + sel('selP', 'Persona', G.personas, S.p, 'k-p') +
       '<span class="w">looking at</span>' + sel('selS', 'Surface', G.surfaces, S.s) +
       '<span class="w">when someone</span>' + sel('selJ', 'Journey', offered(G.journeys, 'j', S.s), S.j) +
-      '<span class="w">asking</span>' + sel('selQ', 'Question', offered(G.questions, 'q', S.s), S.q, 'k-q') +
+      '<span class="w">asking</span>' + selQ(S.q) +
       '<span class="w">concerned with</span><span class="ms"><button type="button" id="selC" class="ms-b" aria-haspopup="true" aria-expanded="false" aria-controls="msPop"><span class="sr-only">Privacy concern: </span>' + esc(cLabel) + '</button>' +
       '<div class="ms-pop" id="msPop" hidden><div class="ms-h"><span class="eyebrow">Privacy concerns</span><button type="button" class="linkbtn" id="msClear">Clear</button></div>' +
       offered(G.concerns, 'c', S.s).map(function (c) { return '<label><input type="checkbox" id="cc-' + c.id + '" value="' + c.id + '"' + (S.c.indexOf(c.id) >= 0 ? ' checked' : '') + '> ' + esc(c.label) + '</label>'; }).join('') + '</div></span></div>' +
       '<div class="refine"><span class="w">about</span>' + sel('selU', 'Subject', offered(G.subjects, 'u', S.s), S.u) +
       '<span class="w">through the</span><div class="seg" role="radiogroup" aria-label="Lens">' + ['privacy', 'security', 'both'].map(function (l) { return '<button role="radio" data-l="' + l + '" aria-checked="' + (S.l === l) + '">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>'; }).join('') + '</div><span class="w">lens</span></div>' +
       '<p class="lensq">' + esc(G.lenses[S.l].q) + (G.lenses[S.l].incl ? ' <span>Includes ' + esc(G.lenses[S.l].incl) + '.</span>' : '') + '</p>' +
-      (S.l === 'both' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>' : '');
+      (S.l === 'both' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>'  + conv4() : '');
+  }
+  function conv4() {
+    var C = G.converge4;
+    return '<div class="conv4"><b>' + esc(C.title) + '</b><dl>' + C.rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl><p>' + C.line.map(esc).join('<br>') + '</p></div>';
   }
   function focusRow() { return S.fm ? '<div class="focus-row" role="group" aria-label="Walkthrough views">' + G.focus.map(function (v, i) { return '<button class="chip" data-fv="' + i + '"><span class="n">' + (i + 1) + '</span>' + esc(v.label) + '</button>'; }).join('') + '</div>' : ''; }
   function loadSaved() { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch (e) { return []; } }
@@ -659,7 +877,9 @@
     var F2 = [['all', 'All'], ['fail', 'Failing'], ['never', 'Documented, not verified'], ['stale', 'Stale'], ['ok', 'Verified']];
     var shown = ids.filter(function (i) { return S.ev === 'all' || ctlClass(i) === S.ev; });
     var L = { fail: ['fail', 'failing'], never: ['unk', 'never tested'], stale: ['warn', 'stale'], ok: ['ok', 'verified'] };
-    return '<div class="pg-h"><h1>Evidence</h1><p>One record per control: the invariant it promises, where it lives, and the last proof that it holds.</p></div>' +
+    var tabs = '<div class="seg evt" role="radiogroup" aria-label="Evidence view"><button role="radio" data-ev="all" aria-checked="' + (S.ev !== 'time') + '">Controls</button><button role="radio" data-ev="time" aria-checked="' + (S.ev === 'time') + '">Datasets over time</button></div>';
+    if (S.ev === 'time') return '<div class="pg-h"><h1>Evidence</h1><p>Each important record followed across time: where it is, why it exists, how it is protected, whether it can be recovered, and whether a hold overrides its end.</p></div>' + tabs + timeRegister();
+    return '<div class="pg-h"><h1>Evidence</h1><p>One record per control: the invariant it promises, where it lives, and the last proof that it holds.</p></div>' + tabs +
       '<div class="seg evf" role="radiogroup" aria-label="Filter controls">' + F2.map(function (f) { return '<button role="radio" data-ev="' + f[0] + '" aria-checked="' + (S.ev === f[0]) + '">' + f[1] + ' <span>' + (counts[f[0]] || 0) + '</span></button>'; }).join('') + '</div>' +
       '<div class="evl">' + shown.map(function (id) {
         var c = G.controls[id], k = ctlClass(id), fr = freshness(c.last);
@@ -669,8 +889,66 @@
       }).join('') + '</div>';
   }
 
+  function timeRegister() {
+    return '<div class="evl">' + G.transforms.map(function (t) {
+      var deps = [t.key && name(t.key) + (G.keys[t.key] && G.keys[t.key].destroyed ? ' (destroyed)' : ''), t.norm, t.type === 'tokenized' && name('sy_vault'), t.node === 'ds_archive' && name('sc_v14')].filter(Boolean);
+      var h = t.hold && G.holds.filter(function (x) { return x.id === t.hold; })[0];
+      return '<article class="card evc ev-' + (t.proof[0] === 'fail' ? 'fail' : t.proof[0] === 'ok' ? 'ok' : 'never') + '"><div class="evh"><h2>' + esc(name(t.node)) + '</h2>' + stTag(t.rec === 'irreversible' ? 'ok' : t.rec === 'unknown' ? 'unk' : 'warn', G.recoverability[t.rec]) + '</div>' +
+        '<dl class="evd tvd">' + [['Where is it now?', t.where], ['Why does it exist?', t.why], ['Who can access it?', t.who], ['How is it protected?', G.transformTypes[t.type] + (t.alg ? ': ' + t.alg + (t.ver ? ', ' + t.ver : '') : '')], ['Can it be recovered?', G.recoverability[t.rec]],
+          ['What does recovery depend on?', deps.join(' + ') || 'Nothing: it is in the clear'], ['When should it become unrecoverable?', t.until], ['Is a preservation requirement overriding that?', h ? name(h.id) + ' (' + h.status + ')' : 'No'], ['Can we prove all of the above?', t.proof[1]]]
+          .map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl></article>';
+    }).join('') + '</div>';
+  }
+
   /* ═══════════ ASK PRIVACY — deterministic, cites the graph ═══════════ */
   var ASK = [
+    /* across time: recoverability, preservation and key lifecycle */
+    { q: 'Which datasets physically exist but can no longer be meaningfully recovered?', k: /physically|no longer be (meaningfully )?recovered|meaningfully/i, a: function () {
+      var gone = G.transforms.filter(function (t) { return t.type === 'shredded'; });
+      return gone.map(function (t) { return ['FACT', name(t.node) + ' is still in ' + t.where.toLowerCase() + ', but ' + name(t.key) + ' was destroyed on ' + G.keys[t.key].destroyed + ', so it cannot be decrypted.', [t.node, t.key]]; })
+        .concat(G.edges.filter(function (e) { return e[1] === 'DERIVED_FROM' && gone.some(function (t) { return t.node === e[2]; }); }).map(function (e) { return ['CONTROL FAILURE', name(e[0]) + ' is a decrypted copy that outlived the key, so ' + name(e[2]) + ' is still readable there.', [e[0], 'c_key_destroy']]; }),
+          [['INFERENCE', 'Encrypted data without an available key may be operationally equivalent to deleted data; whether that meets a deletion obligation is a separate, legal question.', []],
+           ['RECOMMENDATION', 'Delete plaintext copies before destroying a key, then prove a decrypt attempt fails.', ['c_key_destroy']]]); } },
+    { q: 'Would deleting this key violate an active preservation requirement?', k: /deleting (this|the) key|violate|preservation requirement/i, a: function () {
+      return Object.keys(G.keys).map(function (k) { var h = holdsCovering(k); return h.length ? ['CONTROL FAILURE', 'Yes for ' + name(k) + ': it is held by ' + h.map(function (x) { return name(x.id); }).join(', ') + ', and the rotation job does not check holds.', [k].concat(h.map(function (x) { return x.id; }), ['c_hold_keys'])] : null; }).filter(Boolean)
+        .concat([['FACT', 'Keys outside any active hold: ' + Object.keys(G.keys).filter(function (k) { return !holdsCovering(k).length; }).map(name).join(', ') + '.', []],
+          ['RECOMMENDATION', 'Make key destruction check active holds first, and record the check.', ['c_hold_keys']]]); } },
+    { q: 'Which data becomes unrecoverable if this key is destroyed?', k: /key is destroyed|destroy(ed|ing)? (the |a |this )?key|unrecoverable if/i, a: function () {
+      return Object.keys(G.keys).filter(function (k) { return !G.keys[k].destroyed; }).map(function (k) { var I = keyImpact(k); return ['FACT', name(k) + ': ' + I.deps.map(function (d) { return name(d.node) + ' ' + (CONSEQ[d.type] || 'becomes unusable'); }).join('; ') + '.', [k].concat(I.deps.map(function (d) { return d.node; }))]; })
+        .concat([['RECOMMENDATION', 'Before any destruction: list dependents, check holds, remove plaintext copies.', ['c_key_destroy', 'c_hold_keys']]]); } },
+    { q: 'Can this dataset be decrypted?', k: /decrypt/i, a: function () {
+      return G.transforms.filter(function (t) { return t.type === 'encrypted' || t.type === 'shredded'; }).map(function (t) { var K = G.keys[t.key]; return ['FACT', name(t.node) + ': ' + (K.destroyed ? 'no. ' + name(t.key) + ' was destroyed on ' + K.destroyed + '.' : 'yes, with ' + name(t.key) + ' through the ' + name(K.store) + '. ' + K.operator + '.'), [t.node, t.key]]; })
+        .concat([['UNKNOWN', 'Whether the archive can actually be opened end to end: no restore drill has run.', ['c_restore_drill']]]); } },
+    { q: 'Who holds the key?', k: /who holds|holds the key|key owner|owns the key/i, a: function () {
+      return Object.keys(G.keys).map(function (k) { var K = G.keys[k]; return ['FACT', name(k) + ' (' + K.type + '): ' + name(K.owner) + ', in the ' + name(K.store) + '; ' + K.status + '.', [k, K.owner]]; })
+        .concat([['FACT', 'No customer-managed keys are in use.', ['sy_kms']]]); } },
+    { q: 'Can I match this hashed identifier back to a known customer?', k: /hash/i, a: function () {
+      var T = tf('id_hash');
+      return [['FACT', 'It cannot be decrypted: ' + T.alg + ' has no key and no reverse operation.', ['id_hash']],
+        ['FACT', 'Applying the same transformation to a known email and comparing reproduces the stored value, so a known customer can be matched.', ['id_hash']],
+        ['INFERENCE', 'Anyone holding a list of email addresses, including the partner, can do the same. Hashed is not anonymous.', ['v_adreach']],
+        ['RECOMMENDATION', 'Use a keyed pseudonym per partner, or send no identifier.', ['c_key_inventory']]]; } },
+    { q: 'Which algorithm and key version created this pseudonym?', k: /pseudonym|key version|algorithm/i, a: function () {
+      var T = tf('id_pseudo');
+      return [['FACT', 'Current pseudonyms: ' + T.alg + ' ' + T.ver + ', key ' + name(T.key) + ', rule ' + T.norm + '.', ['id_pseudo', T.key, 'nr_v3']],
+        ['CONTROL FAILURE', 'Pseudonyms created before 2025 carry no key-version tag.', ['c_key_inventory']],
+        ['UNKNOWN', 'Whether today’s rule reproduces the 2026 pseudonyms: never tested.', ['id_pseudo']],
+        ['RECOMMENDATION', 'Tag every pseudonym with key and rule versions; keep both for as long as the data.', ['c_key_inventory']]]; } },
+    { q: 'Which records are currently under legal hold?', k: /legal hold|under (a )?hold|on hold/i, a: function () {
+      return G.holds.filter(function (h) { return h.status === 'active'; }).map(function (h) { return ['FACT', name(h.id) + ', since ' + h.start + ': ' + h.scope + '. Preserved: ' + h.items.filter(function (i) { return i[2] === 'held'; }).map(function (i) { return name(i[1]); }).join(', ') + '.', [h.id]]; })
+        .concat(G.holds[0].items.filter(function (i) { return i[2] !== 'held'; }).map(function (i) { return ['UNKNOWN', i[0] + ' (' + name(i[1]) + '): ' + G.holdStates[i[2]][1] + '.', [i[1]]]; }),
+          [['RECOMMENDATION', 'Preserve only what is in scope, with its keys, mapping, schema and lineage.', ['c_hold_keys']]]); } },
+    { q: 'Can this five-year-old archive actually be restored?', k: /archive|restor/i, a: function () {
+      var A = G.archive;
+      return [['FACT', 'Archive ' + A.id + ' exists: ' + A.format.toLowerCase() + ', created ' + A.created + '.', [A.node]]]
+        .concat(A.deps.filter(function (d) { return d.st.asis !== 'ok'; }).map(function (d) { return ['UNKNOWN', d.n + ' (' + d.rel + '): not verified for future use.', [d.node]]; }),
+          [['RECOMMENDATION', 'Record every dependency with the archive and run a yearly restore drill.', ['c_restore_drill']]]); } },
+    { q: 'Which token mappings are required to interpret these records?', k: /token|mapping|vault/i, a: function () {
+      var M = G.tokenMap;
+      return [['FACT', M.token + ' in ' + M.reuse.map(name).join(' and ') + ' resolves only through the ' + name(M.vault) + '.', ['sy_vault', 'id_tok']],
+        ['FACT', 'The mapping is kept ' + M.mapRet + '; the tokens expire after ' + M.tokRet + '.', ['sy_vault']],
+        ['CONTROL FAILURE', 'The same token appears in ' + M.reuse.map(name).join(' and ') + ', so it links them.', ['id_tok']],
+        [M.held ? 'FACT' : 'UNKNOWN', M.held ? 'The mapping is preserved under ' + holdsCovering(M.vault).map(function (h) { return name(h.id); }).join(', ') + '.' : 'Whether the mapping is preserved.', [M.vault]]]; } },
     { q: 'Who can see precise location?', k: /location|gps/i, a: function () {
       var r = G.retention.filter(function (x) { return x.node === 'ds_loc'; })[0];
       return [['FACT', name('ds_loc') + ' holds precise location and is exported daily to the ' + name('sy_wh') + '.', ['ds_loc', 'sy_wh']],
@@ -718,7 +996,7 @@
       return G.routing.requests.map(function (r) { return [/Unknown/.test(r.retained) ? 'UNKNOWN' : 'FACT', r.r + ': runs ' + ({ device: 'on device', private: 'in private compute', third: 'at a third party' })[r.zone] + '; leaves: ' + r.leaves.toLowerCase() + '; retained: ' + r.retained.toLowerCase() + '.', [r.zone === 'device' ? 'sy_odm' : r.zone === 'private' ? 'sy_pcc' : 'v_llm']]; })
         .concat([['RECOMMENDATION', 'Ask before any third-party hand-off and send the minimum prompt.', ['c_no_train']]]); } }
   ];
-  var KORDER = { FACT: 0, INFERENCE: 1, RECOMMENDATION: 2, UNKNOWN: 3 };
+  var KORDER = { FACT: 0, 'CONTROL FAILURE': 1, INFERENCE: 2, RECOMMENDATION: 3, UNKNOWN: 4 };
   function answer(text) {
     var hit = null; ASK.forEach(function (x) { if (!hit && x.q.toLowerCase() === text.toLowerCase()) hit = x; });
     if (!hit) ASK.forEach(function (x) { if (!hit && x.k.test(text)) hit = x; });
@@ -745,7 +1023,7 @@
       main.innerHTML = S.page === 'reviews' ? reviewsPage() : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
       if (S.page === 'cc') mountCC();
       /* each data cell carries its column name, so a phone can show a table as stacked rows */
-      $$('table.rel, table.util, table.priv, table.pkt', main).forEach(function (t) { var hs = $$('thead th', t).map(function (h) { return h.textContent; }); $$('tbody tr', t).forEach(function (r) { $$('td', r).forEach(function (c) { var h = hs[c.cellIndex]; if (h) c.setAttribute('data-h', h); }); }); });
+      $$('table.rel, table.util, table.priv, table.pkt, table.otime', main).forEach(function (t) { var hs = $$('thead th', t).map(function (h) { return h.textContent; }); $$('tbody tr', t).forEach(function (r) { $$('td', r).forEach(function (c) { var h = hs[c.cellIndex]; if (h) c.setAttribute('data-h', h); }); }); });
       $$('[data-ev]', main).forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ ev: b.getAttribute('data-ev') }); }); });
       $$('[data-open-ctl]', main).forEach(function (b) { b.addEventListener('click', function () { set({ page: 'cc', q: 'control', c: [b.getAttribute('data-open-ctl')] }); window.scrollTo(0, 0); }); });
       var f = $('#askF'); if (f) f.addEventListener('submit', function (e) { e.preventDefault(); set({ ask: $('#askI').value.trim() }); });

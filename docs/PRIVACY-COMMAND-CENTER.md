@@ -29,6 +29,12 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   **`privacy-command-center/README.md` is its reference**: selectors, views, how
   to extend the graph, tests. It carries no hiring or evaluation language; a test
   enforces this.
+- **v1 follows data across time as well as across systems** (2026-10-01): the
+  question group *What must still be possible in the future?* (recover, match,
+  key destroyed, legal hold, delete vs preserve, provably unrecoverable), the
+  concerns recoverability / preservation / key lifecycle, and Evidence → Datasets
+  over time. Records: `G.keys`, `G.transforms`, `G.tokenMap`, `G.holds`,
+  `G.archive`, `G.preserve`, `G.chains` in `graph.js`. See the v1 README.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files

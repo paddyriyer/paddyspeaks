@@ -6,6 +6,14 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-01): PCC v1 follows data across time.** One new lens, not a
+  module: seven questions under *What must still be possible in the future?*,
+  three concerns (recoverability, legal hold / preservation, key lifecycle), five
+  views (five-year archive, transformations, key destroyed, legal hold, delete vs
+  preserve), three control chains (key destruction, hold, release), Evidence →
+  Datasets over time, ten Ask questions, and a four-lens card on the Both lens.
+  Earlier the same day: every v1 view fits a phone (#898).
+
 - **NEWEST (2026-09-30): “Every Arrow Is a Decision” edition 4 — four lenses.**
   At Paddy's request the essay was rewritten the way the Command Center was:
   slimmed down to eight real products (sign-in, browser, mail, messages, wallet &

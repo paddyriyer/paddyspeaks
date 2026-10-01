@@ -36,8 +36,8 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 | Persona | Reviewer, Builder, Auditor, Executive | Emphasis only: finding wording, the order of the decision fields, and the executive format. The data never changes. |
 | Surface | All, Identity & authentication, Web / browser, Mail / communication, Wallet / payments, Digital identity, Cloud / data, Analytics, AI / agents, Third parties | Which findings apply, what each view emphasizes, and the default journey |
 | Journey | Sign in, Browse, Read mail, Pay, Prove age, Share identity, Use AI, Live on one account, Open a report, Delete account, Revoke consent | The path through the graph that the path, boundary, observer and identifier views walk |
-| Question | 19 questions, from *What do we know?* to *What is our worst day?* | Which view is drawn |
-| Concern | 20, multi-select | Filters findings; picks the control chain for *Did the control really work?* |
+| Question | 26 questions in two groups: *What is true today* (19, from *What do we know?* to *What is our worst day?*) and *What must still be possible in the future?* (7) | Which view is drawn |
+| Concern | 24, multi-select, including recoverability, legal hold / preservation and key lifecycle | Filters findings; picks the control chain for *Did the control really work?* |
 | Subject | one person, credential, feature, dataset, tenant, vendor, AI agent, product | Refines some views (one dataset → the join; one tenant → the tenant chain) |
 | Lens | Privacy, Security, Both | Privacy asks *should this exist, move, combine, persist or be inferred*; Security asks *can the wrong actor access it*; Both shows where they converge: passkey, wallet ID, private compute |
 
@@ -67,6 +67,22 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 | Changes | What changed? | Since the last review, filtered by surface and concern |
 | One account, one life | What if the account is stolen? | Browser, mail and wallet on one account add up to one life. Four attackers (a scammer, an extension, infostealer malware, a SIM swap), what each reaches, why a one-time code does not stop it, and what the control leaves |
 | Worst day | What is our worst day? | A band, never a score, and the safeguards that move it |
+| Five-year archive | Can this data be recovered? | 2026 → 2029 → 2031: the dependency chain (archive, K-2026, PK-2026, SCHEMA-v14, NORMALIZATION-v3, token mapping, lineage) as recorded today, if everything is kept, or if the historical keys are destroyed; what must still be possible (recover, match, produce, preserve, verify, delete, make unrecoverable) |
+| Transformations | What is required to recover it? · Can we still match this person? | Encrypted (dataset → key → owner → key store → recovery path), hashed (no decrypt, but a known value can be transformed and compared), keyed pseudonym (repeatable only with the historical key and rule), tokenized (the vault and its mapping) |
+| Key destroyed | What happens if the key is destroyed? | What each key protects, whether an active hold covers it, and any plaintext copies |
+| Legal hold | What is under legal hold? | Normal versus preserved lifecycle; what the hold preserves besides bytes; the future-usability questions |
+| Delete vs preserve | Can we prove the hold worked? | A deletion request meets an active hold (suspended in scope, logged), and a released hold (deletion resumed, verification) |
+| Control chain | Can we prove the data became unrecoverable? | Key destruction: KMS event, key state, decrypt attempt, key-material copies, plaintext copies |
+
+## Across time: recoverability, preservation and key lifecycle
+
+The graph follows data across systems; this lens follows it across time. It is not a separate product: seven questions in the question selector, three concerns, and these records in `graph.js`, which exist so a privacy engineer can see dependencies, not to manage keys:
+
+- `G.keys`: key_id, type, owner, store, created, rotated, destroyed, status.
+- `G.transforms`: for each sensitive dataset or identifier, the transformation (plain, encrypted, tokenized, hashed, keyed pseudonym, aggregated, crypto-shredded), algorithm class, version, normalization rule, key, recoverability (fully, with key, through the token vault, matchable but not reversible, irreversible, unknown), and where it is, why, who can access it, when it should become unrecoverable, any hold, and the proof.
+- `G.tokenMap`, `G.holds` (LH-901 active, LH-877 released), `G.archive` (the five-year scenario), `G.preserve` (delete vs preserve) and `G.chains` (key destruction, legal hold, hold release).
+
+Transformation and recoverability stay off the main graph. They appear when the question asks across time, in the deletion view, in the identity views when the concern is identity, recoverability, legal hold, key lifecycle or deletion, and on **Evidence → Datasets over time**. The one-way functions on screen are illustrative, so the matching demonstrations compute real results; the records name the algorithm class a system would use. Legal hold is an engineering workflow here, not legal advice.
 
 ## Extending the graph
 
