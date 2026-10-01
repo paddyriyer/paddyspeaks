@@ -15196,6 +15196,86 @@
       ],
       "answer": 1,
       "explanation": "Snowflake clustering keys enable partition pruning and push join predicates down to the storage layer, avoiding full table scans\u2014this is far more impactful than indexes (Snowflake does not use traditional indexes). While option 0 describes optimal indexing, Snowflake's architecture relies on clustering and zone maps instead. Option 2 (scaling) helps parallelism but doesn't eliminate the root cause (full scan + poor join strategy). Option 3 trades query speed for maintenance complexity; clustering is the better first optimization."
+    },
+    {
+      "id": "sql-new-147",
+      "type": "single",
+      "topic": "Snowflake-specific partitioning",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You have a Snowflake table `sales(transaction_id INT, region STRING, sale_date DATE, amount DECIMAL)` with 2 billion rows. You need to optimize queries that filter by region and sale_date. Which approach best leverages Snowflake's clustering and partitioning capabilities?",
+      "options": [
+        "CREATE CLUSTERING KEY (region, sale_date) on the table; Snowflake will automatically partition micro-partitions by these columns",
+        "Manually partition the table into separate schemas named sales_region_us, sales_region_eu, etc., and use a view union",
+        "Create a conventional partition key using PARTITION BY region; Snowflake requires explicit partition pruning hints in WHERE clauses",
+        "Use PARTITION BY RANGE(sale_date) with subpartitioning by LIST(region) across multiple tables"
+      ],
+      "answer": 0,
+      "explanation": "Snowflake automatically creates micro-partitions and the CLUSTERING KEY directive tells the query optimizer to physically co-locate rows, enabling faster pruning without manual partitioning schemes. Snowflake does not support explicit PARTITION BY syntax like traditional MPP databases; clustering is its native optimization approach."
+    },
+    {
+      "id": "sql-new-148",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You need to compute both total revenue and revenue only from 'completed' orders in a single aggregation query. Which SQL approach is most efficient in databases that support the FILTER clause (e.g., PostgreSQL, Snowflake)?",
+      "options": [
+        "SELECT SUM(amount) as total, SUM(amount) FILTER (WHERE status='completed') as completed_revenue FROM orders",
+        "SELECT SUM(amount) as total, SUM(CASE WHEN status='completed' THEN amount ELSE 0 END) as completed_revenue FROM orders",
+        "SELECT SUM(amount) as total FROM orders UNION ALL SELECT SUM(amount) as completed_revenue FROM orders WHERE status='completed'",
+        "SELECT SUM(amount) as total, (SELECT SUM(amount) FROM orders WHERE status='completed') as completed_revenue FROM orders LIMIT 1"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is syntactically cleaner and typically more performant as it operates within a single aggregate function invocation without conditional evaluation overhead. Option 1 scans the table once, while option 2 evaluates CASE for every row; option 3 requires two scans; option 4 uses a correlated subquery."
+    },
+    {
+      "id": "sql-new-149",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "In Snowflake, you query a table `fact_events` with 10TB of data spread across 100 days. Your query filters WHERE event_date BETWEEN '2024-01-01' AND '2024-01-10'. You notice the query runs slow despite the small date range. Which Snowflake metadata or configuration issue is most likely?",
+      "options": [
+        "The table lacks a CLUSTERING KEY on event_date; Snowflake cannot prune micro-partitions without explicit clustering metadata",
+        "The table was created with COPY INTO without explicitly setting micro-partition boundaries; metadata statistics are stale",
+        "The WHERE clause references a non-partitioned column; you must recreate the table with PARTITION BY event_date",
+        "The query's result set is too large for Snowflake's cache; you need to increase the warehouse size"
+      ],
+      "answer": 0,
+      "explanation": "Snowflake relies on CLUSTERING KEYS to enable efficient micro-partition pruning. Without clustering on event_date, the query optimizer cannot skip irrelevant micro-partitions and must scan more data than necessary. Option 1 directly addresses Snowflake's native optimization strategy, while options 2-4 either misunderstand Snowflake's architecture or address different problems."
+    },
+    {
+      "id": "sql-new-150",
+      "type": "single",
+      "topic": "partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "You manage a BigQuery table `user_sessions(user_id STRING, session_start TIMESTAMP, session_duration INT64)` partitioned by DATE(session_start). A daily job inserts backfilled data for dates up to 90 days ago. What performance or cost issue might you encounter, and how should you mitigate it?",
+      "options": [
+        "Partition pruning fails for past dates; use REQUIRE_PARTITION_FILTER=true and materialize backfill data into a separate staging table, then bulk load with _PARTITIONTIME boundaries",
+        "BigQuery charges for scanning all historical partitions even with past-date filters; switch to RANGE_BUCKET partitioning with hourly granularity",
+        "Late-arriving data in old partitions triggers Snowflake-style re-clustering costs; disable clustering and accept slower reads",
+        "Past-date inserts cause the table to exceed its partition limit; archive partitions older than 30 days to a separate historical table"
+      ],
+      "answer": 0,
+      "explanation": "BigQuery allows writes to old partitions without re-clustering costs, but enabling REQUIRE_PARTITION_FILTER ensures queries are partition-aware. Backfilling large historical ranges into single partitions defeats pruning; staging in a separate table and bulk-loading with proper _PARTITIONTIME boundaries ensures efficient scans. Options 2-4 either misidentify the platform or misunderstand BigQuery's partition mechanics."
+    },
+    {
+      "id": "sql-new-151",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "easy",
+      "added_date": "2026-10-01",
+      "prompt": "You have a Snowflake query that computes COUNT(*) and COUNT(status='paid') for orders. Using the FILTER clause, which query correctly counts only paid orders while maintaining a single scan?",
+      "options": [
+        "SELECT COUNT(*), COUNT(*) FILTER (WHERE status='paid') FROM orders",
+        "SELECT COUNT(*), COUNT(status) FILTER (WHERE status='paid') FROM orders",
+        "SELECT COUNT(*), COUNT(DISTINCT status) FILTER (WHERE status='paid') FROM orders",
+        "SELECT COUNT(*), SUM(CASE WHEN status='paid' THEN 1 END) FROM orders"
+      ],
+      "answer": 0,
+      "explanation": "COUNT(*) FILTER (WHERE status='paid') correctly counts only rows where status='paid'. Option 1 uses FILTER properly with COUNT(*). Option 2 is incorrect because COUNT(status) would count non-null status values, which differs semantically. Option 3 adds unnecessary DISTINCT logic. Option 4 avoids FILTER entirely, missing the point of the question."
     }
   ]
 }

@@ -1469,6 +1469,70 @@
       ],
       "answer": 1,
       "explanation": "Tableau's order of operations applies context filters (Quick Filters) before table calculations. The RUNNING_SUM is computed on the filtered result set (Q3 only), so it restarts and runs across only July, August, and September, not the full year."
+    },
+    {
+      "id": "dash-new-037",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "A financial services company has a dashboard showing deal pipeline by sales rep. Sales managers should see only their team's deals, and executives should see all deals. The underlying fact table has 2.8M rows with columns: `deal_id`, `amount`, `stage`, `rep_id`, `manager_id`, and `region`. What is the most efficient way to implement row-level security without duplicating the data model?",
+      "options": [
+        "Create three separate semantic models (one for each user role) and manage filter logic in the BI tool's query engine",
+        "Use a role-based dynamic filter in the BI tool that evaluates the logged-in user's `manager_id` against the fact table at query time",
+        "Implement a dedicated security table that maps user IDs to authorized `rep_id` values, then join it to the fact table within the semantic model so filtering happens before aggregation",
+        "Pre-aggregate the data into three separate tables in the data warehouse, each with data already filtered for the target audience"
+      ],
+      "answer": 2,
+      "explanation": "A dedicated security table joined in the semantic model ensures filtering happens before aggregation, preventing data leakage and supporting efficient query pushdown. Dynamic filters in the BI tool (option B) are less secure because they're evaluated after the full query, and separate models (option A) create maintenance burden. Pre-aggregation (option D) is inflexible when definitions change."
+    },
+    {
+      "id": "dash-new-038",
+      "type": "single",
+      "topic": "join fan-out in BI models",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "A BI model joins three tables: `events` (1 row per user action, 150M rows), `event_attributes` (many rows per event_id, 5:1 ratio), and `user_profiles` (1 row per user). A dashboard visual shows 'Total Events by User Segment'. The displayed total is 890M but should be 150M. Why is this happening, and what is the proper fix?",
+      "options": [
+        "The `event_attributes` table has a many-to-one relationship misconfigured; change it to filter-only to prevent fan-out",
+        "The join on `event_attributes` is creating duplicate event rows (5 copies per event), inflating the count; use a separate aggregate table for event attributes or mark the dimension as 'non-additive'",
+        "The `user_profiles` table is outer-joining when it should be inner-joining, causing nulls that inflate the row count",
+        "The dashboard is double-counting due to filter context; enable cross-filter isolation on the event count measure"
+      ],
+      "answer": 1,
+      "explanation": "Join fan-out occurs when the 5:1 relationship with `event_attributes` multiplies each event row by 5, inflating counts to 750M (or more with the user join). Marking it as non-additive or using a separate attribute table prevents the additive fact from being multiplied. Option A (filter-only) and option D (filter context) do not address the root cause of the multiplicative join."
+    },
+    {
+      "id": "dash-new-039",
+      "type": "single",
+      "topic": "accessibility",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your company uses Tableau to publish a dashboard tracking monthly revenue, unit sales, and profit margin across 12 regions. A colleague using a screen reader reports that they cannot distinguish between the three KPI cards at the top because they all have the same color scheme (blue background) and the color legend is the only distinguishing factor. What should you do first to fix this accessibility issue?",
+      "options": [
+        "Add text labels with metric names inside each KPI card and use distinct colors (blue, green, orange) to support both color-blind and screen-reader users",
+        "Reorder the cards alphabetically so screen-reader users can identify them by reading order",
+        "Switch to a data table view instead of KPI cards, since tables are more accessible",
+        "Add a note at the top of the dashboard instructing users to enable high-contrast mode in their OS settings"
+      ],
+      "answer": 0,
+      "explanation": "Combining text labels with distinct colors addresses both color-blind and screen-reader accessibility requirements (WCAG 2.1 AA). Option B (reordering) does not solve the identification problem. Option C (tables) removes valuable at-a-glance visualization. Option D (OS-level settings) is not a dashboard design responsibility."
+    },
+    {
+      "id": "dash-new-040",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "A healthcare analytics platform must ensure that Hospital A's staff see only Hospital A's patient data, even when viewing shared dashboards. The patient fact table has 45M rows with columns: `patient_id`, `hospital_id`, `admission_date`, `diagnosis_code`, and `treatment_cost`. Users authenticate via SAML and their `hospital_id` is stored in an external identity system. How should you architect this to prevent accidental cross-hospital data leakage while maintaining sub-second query performance?",
+      "options": [
+        "Pass the authenticated user's `hospital_id` as a query parameter to the BI tool and apply a WHERE clause filter at dashboard runtime",
+        "Create a view in the database that restricts each hospital's users to their own data using database roles, then have the BI tool connect to role-specific views",
+        "Maintain a security policy table in the semantic model that maps user emails to allowed `hospital_id` values, joined at query time to enforce filtering before aggregation",
+        "Partition the fact table by `hospital_id` in the data warehouse and configure the BI tool's connection string to connect to partition-specific schemas for each hospital"
+      ],
+      "answer": 2,
+      "explanation": "A security policy table in the semantic model ensures filtering occurs in the BI layer before aggregation, supporting consistent enforcement across all dashboards and query patterns. Option A (runtime parameters) is vulnerable to URL manipulation. Option B (database roles) works but requires infrastructure complexity and doesn't scale well when users belong to multiple hospitals. Option D (schema partitioning) is inflexible and doesn't support dynamic role assignments."
     }
   ]
 }

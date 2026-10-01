@@ -8580,6 +8580,86 @@
       ],
       "answer": 0,
       "explanation": "For a standard Python project without external dependencies, @dataclass(frozen=True) with __post_init__() validation is the idiomatic choice. It provides immutability and allows one-time validation. Pydantic and attrs are overkill for simple validation. Option 1 doesn't prevent mutations effectively."
+    },
+    {
+      "id": "py-new-144",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You have a pandas DataFrame with 50M rows where you need to filter rows based on multiple conditions: `(df['column_a'] > 100) & (df['column_b'] == 'active') & (df['column_c'].isin(list_of_1000_values))`. The operation is taking 45 seconds. Which optimization would provide the most significant speedup?",
+      "options": [
+        "Convert the DataFrame to a NumPy array and use NumPy boolean indexing instead of pandas",
+        "Use `pd.eval()` to evaluate the boolean expression with numexpr backend, and convert column_c to categorical dtype before the isin() operation",
+        "Split the filtering into three separate filter operations: `df[df['column_a'] > 100][df['column_b'] == 'active'][df['column_c'].isin(list_of_1000_values)]`",
+        "Use df.query() with a string expression and parallelize across 4 processes using multiprocessing"
+      ],
+      "answer": 1,
+      "explanation": "pd.eval() uses the numexpr library which is optimized for complex boolean operations on large DataFrames, and converting column_c to categorical dtype makes isin() O(1) instead of O(n). This combination typically provides 5-10x speedup. Chaining filters (option 2) creates intermediate DataFrames and is less efficient than a single boolean mask."
+    },
+    {
+      "id": "py-new-145",
+      "type": "single",
+      "topic": "polars performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "You're migrating a pandas pipeline to Polars and notice that `pl.read_csv('large_file.csv').groupby('user_id').agg(pl.col('amount').sum()).collect()` runs in 2 seconds, but the equivalent pandas `pd.read_csv().groupby('user_id')['amount'].sum()` takes 8 seconds. After the migration, you need to stream process a 100GB CSV file. Which Polars feature should you use to minimize memory usage while maintaining performance?",
+      "options": [
+        "Use pl.scan_csv() with streaming=True and process in batches using .fetch(chunk_size)",
+        "Use pl.read_csv() with dtypes parameter to specify low-memory dtypes like Int8 for integer columns",
+        "Use pl.scan_csv() in lazy mode with .collect(streaming=True) to enable streaming query execution",
+        "Use pl.read_csv_batches() with batch_size parameter and manually aggregate results across batches"
+      ],
+      "answer": 2,
+      "explanation": "pl.scan_csv() returns a lazy query plan, and .collect(streaming=True) enables Polars' streaming execution engine which processes data in chunks without loading the entire file into memory. This maintains Polars' performance advantages while handling files larger than RAM. Option 1 is incorrect because .fetch() is not a Polars method for streaming."
+    },
+    {
+      "id": "py-new-146",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "You're designing a dataclass for a machine learning pipeline that needs to: (1) validate that 'learning_rate' is between 0.0001 and 0.1, (2) convert string dates to datetime objects automatically, and (3) be hashable for use in a set of configurations. Which approach is most Pythonic and maintainable?",
+      "options": [
+        "Use @dataclass decorator with frozen=True, add __post_init__ for validation, and manually implement __hash__",
+        "Use @dataclass with field(metadata={'validator': ...}) and implement a custom __setattr__ that validates on each assignment",
+        "Use @dataclass with frozen=True, implement validation in __post_init__ using field validators, and rely on @dataclass's automatic __hash__ generation",
+        "Use @dataclass(frozen=True) and rely on Pydantic's BaseModel imported inside the dataclass for validation"
+      ],
+      "answer": 2,
+      "explanation": "frozen=True makes the dataclass immutable and automatically hashable. Validation in __post_init__ is the standard Python approach and catches errors at instantiation time. When frozen=True, @dataclass automatically generates __hash__ from the fields. Option 1 requires manual __hash__ implementation which is unnecessary; Option 3's field validators are not a standard dataclass feature; Option 4 mixing Pydantic with dataclasses is not idiomatic."
+    },
+    {
+      "id": "py-new-147",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "You're implementing a feature engineering function that needs to compute 50 different aggregations (sum, mean, median, std, quantiles, etc.) for each of 200 groups in a 100M row DataFrame. Your current approach uses `df.groupby('group_id').agg({col: ['sum', 'mean', 'median', 'std', ...] for col in numeric_cols})` and takes 120 seconds. Which optimization would be most effective?",
+      "options": [
+        "Use polars instead of pandas since it has vectorized aggregations and lazy evaluation",
+        "Compute aggregations in chunks: split DataFrame into 10-part chunks, compute aggregations per chunk, then combine results",
+        "Use numba-compiled user-defined functions for custom aggregations and precompute quantiles using np.percentile on pre-sorted groups",
+        "Replace agg() with apply() using a custom function that computes all aggregations in a single pass, reducing memory overhead"
+      ],
+      "answer": 0,
+      "explanation": "Polars is specifically optimized for multi-aggregation workflows like this, using expression optimization and better memory management than pandas. It would typically execute this in 10-20 seconds. Computing in chunks (Option 2) adds complexity and doesn't avoid recomputation. Option 3 adds overhead. Option 4 (apply vs agg) would likely be slower due to Python function call overhead."
+    },
+    {
+      "id": "py-new-148",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "easy",
+      "added_date": "2026-10-01",
+      "prompt": "You're creating a dataclass to represent API request metadata with required fields 'endpoint' and 'timestamp', and optional fields 'retry_count' (default 0) and 'timeout_seconds' (default 30). You want the dataclass to be serializable to JSON. Which implementation is correct?",
+      "options": [
+        "@dataclass\nclass APIRequest:\n    endpoint: str\n    timestamp: datetime\n    retry_count: int = 0\n    timeout_seconds: int = 30\nThen use json.dumps(asdict(request), default=str)",
+        "@dataclass\nclass APIRequest:\n    endpoint: str\n    timestamp: datetime = field(default_factory=datetime.now)\n    retry_count: int = 0\n    timeout_seconds: int = 30",
+        "@dataclass\nclass APIRequest:\n    endpoint: str\n    timestamp: str\n    retry_count: int = 0\n    timeout_seconds: int = 30\nThen validate timestamp is ISO-8601 in __post_init__",
+        "@dataclass\nclass APIRequest:\n    retry_count: int = 0\n    timeout_seconds: int = 30\n    endpoint: str\n    timestamp: datetime"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct: fields without defaults (endpoint, timestamp) must come before fields with defaults. Using asdict() with default=str in json.dumps() properly serializes the datetime object. Option 1 has fields out of order. Option 2 changes timestamp to string unnecessarily. Option 3 has field order violations (fields without defaults must come first)."
     }
   ]
 }

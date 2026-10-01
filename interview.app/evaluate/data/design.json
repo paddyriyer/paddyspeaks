@@ -6456,6 +6456,86 @@
       ],
       "answer": 1,
       "explanation": "A schema registry with semantic versioning and automated compatibility checking prevents breaking changes at the CI/CD stage, before code is deployed. Defining clear rules (e.g., no required field removal) creates a predictable evolution path. This is scalable across 12 teams and doesn't require manual review overhead. Jira (option 3) is not automated; Git files (option 2) don't provide compatibility enforcement; and pure PR approval (option 0) is a bottleneck."
+    },
+    {
+      "id": "ds-new-112",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "Your team processes user click events for real-time personalization. Events arrive in Kafka at 500K/sec with 50ms latency requirement. You currently use Spark Structured Streaming micro-batches (2-second trigger). Recently, 5% of late events (arriving >2s after Kafka ingestion) are being dropped due to watermark expiration. The personalization team says they can tolerate 100ms stale results. What is the most operationally sound design change?",
+      "options": [
+        "Increase watermark delay to 5 seconds and extend micro-batch trigger to 3 seconds; implement Lambda architecture with batch catch-up for late events",
+        "Switch to Apache Flink for true streaming; redesign the personalization layer to query both hot cache and cold storage",
+        "Extend the allowedLateness window to 10 seconds and decrease trigger to 500ms; add a separate batch job to recompute missed events hourly",
+        "Migrate to Kafka Streams with event-time semantics; implement sessionization windows with grace period; keep batch as audit layer"
+      ],
+      "answer": 3,
+      "explanation": "Kafka Streams offers true event-time semantics with grace periods (allowedLateness equivalent) and is purpose-built for sub-100ms latency at high throughput. Option 1 over-complicates with Lambda; Option 2 adds unnecessary complexity; Option 3 doesn't solve the root lateness issue. The batch audit layer ensures consistency without blocking real-time SLA."
+    },
+    {
+      "id": "ds-new-113",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-10-01",
+      "prompt": "You maintain a Delta Lake table `orders` (2TB, 1 billion rows) partitioned by `order_date` (daily). Your analytics team runs daily aggregations via Spark SQL. The table's transaction log has grown to 50GB across 80K commit objects. Queries now take 5\u00d7 longer due to log reconstruction overhead. You've already optimized partition pruning and clustering. What is the best remediation?",
+      "options": [
+        "Run OPTIMIZE ZORDER BY (customer_id, product_id) weekly to compact files and reduce partition count",
+        "Run VACUUM to remove old data files, then execute ALTER TABLE ... CHANGE COLUMN to re-enable clustering",
+        "Execute OPTIMIZE on the entire table; then run RESTORE to 30 days ago and re-apply recent changes to compact the log",
+        "Convert to Apache Iceberg; Iceberg's separate metadata layer will resolve transaction log bloat"
+      ],
+      "answer": 0,
+      "explanation": "OPTIMIZE compacts small files and rewrites the transaction log, significantly reducing commit objects. ZORDER clustering improves query performance. Option 1 is the standard Delta Lake maintenance pattern. VACUUM only removes old files (doesn't fix log bloat), RESTORE is destructive and impractical at scale, and Iceberg migration is unnecessary overhead for this issue."
+    },
+    {
+      "id": "ds-new-114",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your reverse ETL pipeline syncs a `high_value_customers` segment from Snowflake to Marketo (marketing automation) daily. The pipeline runs at 8 AM UTC; last month, 2% of segment members received stale audience data (customers removed from segment 2 days prior). The Marketo API rate limit is 10 requests/sec. Your dataset is 500K rows with ~15% daily churn. What is the primary root cause and best fix?",
+      "options": [
+        "Network latency caused eventual consistency issues; implement CDC on the Snowflake table with Fivetran to stream updates to Marketo in near-real-time",
+        "Daily batch schedule creates a staleness window; implement an identity resolution system to match Marketo IDs against Snowflake segment changes within 6-hour SLAs",
+        "Marketo API doesn't support idempotent upserts; implement a staging layer in Marketo to track segment membership version history before applying upsert logic",
+        "The rate limit causes partial syncs; redesign to use Marketo's batch import API with exponential backoff and implement segment membership diffs instead of full reloads"
+      ],
+      "answer": 3,
+      "explanation": "At 500K rows and 10 req/sec, full reloads hit rate limits causing incomplete syncs. Using batch import API (higher throughput) and sending only diffs (segment adds/removes) is the standard reverse ETL pattern for large audiences. Options 1-2 add unnecessary complexity; Option 2 misses the core API bottleneck."
+    },
+    {
+      "id": "ds-new-115",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your fintech platform processes transaction settlements. Batch: 200K transactions/day, 4-hour SLA, reconciliation-critical. Streaming: real-time fraud detection on 2K transactions/min, 100ms SLA. Both ingest from the same source Kafka topic. Your current architecture runs separate Spark batch and Structured Streaming jobs, causing occasional reconciliation mismatches (0.01% of batch rows). What architectural pattern eliminates the mismatch?",
+      "options": [
+        "Implement Kappa architecture: single Structured Streaming job with state store for both fraud detection and settlement; batch jobs query the state store for reconciliation",
+        "Add a deduplication layer in Kafka using Confluent Schema Registry; route deduplicated events to separate batch and streaming pipelines with a consistency checker",
+        "Implement dual-write: both pipelines write to the same Delta Lake table; use Delta transaction log as the source-of-truth for reconciliation",
+        "Use Apache Beam with portable runners; unify batch and streaming under one DAG to guarantee exactly-once semantics across both paths"
+      ],
+      "answer": 0,
+      "explanation": "Kappa architecture runs a single streaming job that serves both real-time and batch use cases from a durable state store, eliminating reconciliation mismatches. The state store is the single source of truth. Option 1 is industry-standard for dual SLA scenarios (fraud + settlement). Options 2-3 still maintain dual pipelines; Option 4 adds unnecessary complexity."
+    },
+    {
+      "id": "ds-new-116",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "added_date": "2026-10-01",
+      "prompt": "Your data lake uses Delta Lake with time-travel enabled for audit compliance. A critical bug in yesterday's ETL job incorrectly null-filled 50M rows across 3 tables. You need to revert to the state 24 hours ago, but your compaction job VACUUM'd files older than 30 days last week. DESCRIBE HISTORY shows commits but no files. What is the correct remediation order?",
+      "options": [
+        "Use RESTORE to the last good commit; if files are missing, check Trash folder; if not present, restore from external backup before re-running ETL",
+        "Query Delta log directly via Spark to reconstruct row versions; implement a manual rollback using INSERT OVERWRITE with filtered historical data",
+        "Enable point-in-time recovery on S3 (via versioning); snapshot the 3 tables' S3 paths to yesterday's state; rebuild Delta metadata with MSCK REPAIR TABLE",
+        "Use Databricks Jobs to fork a cluster with yesterday's Delta snapshot; export clean data to temp tables; merge back with MERGE INTO to selectively restore rows"
+      ],
+      "answer": 0,
+      "explanation": "RESTORE is the canonical Delta Lake recovery method. If files were VACUUMed, the S3 Trash folder (30-day retention by default) or external backups are the recovery path. This is the standard operational procedure. Options 2-4 are workarounds that risk data corruption or are unnecessarily complex."
     }
   ]
 }
