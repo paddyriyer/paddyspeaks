@@ -15,7 +15,9 @@ clones fresh each time). CLAUDE.md points here._
   `articles/every-arrow/compare.js`, every one citing the company's own page; no
   scores. ~14 min essay / ~36 with every table; PDF 42 pages. Edition 3 is archived
   at `/articles/every-arrow/edition-3.html` (noindex); old anchors forward there and
-  v10 links to it. Read `docs/EVERY-ARROW.md` §E4. Open for Paddy: the items under
+  v10 links to it. Read `docs/EVERY-ARROW.md` §E4. On 2026-10-01 it gained §11 *The arrow into the future*
+  (recoverability and legal preservation: encryption, tokenization, hashing, keyed
+  pseudonyms; the legal-hold lifecycle), an eighth pattern and four review questions. Open for Paddy: the items under
   “What could not be confirmed”, whether to keep the essay listed on /articles/ and
   as the homepage feature (it still is). Paddy's own illustration (`four-lenses.png`) is the
   essay's hero, the homepage feature image, the /articles/ cover and the link-preview card.

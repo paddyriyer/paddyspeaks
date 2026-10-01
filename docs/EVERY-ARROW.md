@@ -37,6 +37,22 @@ four-lens review* (twenty questions, downloadable as `four-lenses.md`), *How thi
 made* (what could not be confirmed) and the five closing lines, kept from edition 3.
 Reading time: ~14 min of essay, ~36 with every table (both stamped).
 
+**The arrow into the future (§11, added 2026-10-01).** A conceptual section, not a
+comparison: no vendor claims, so no citations. It adds the question *what must still be
+possible with this data years from now?* (recover, search, match, produce, prove it
+existed or was deleted, preserve under a legal hold, make it unrecoverable on purpose);
+four protection models with different futures (encryption: recoverable with the key,
+and key deletion can equal data deletion; tokenization: the vault decides; hashing:
+one-way, no key, and one-way is not unlinkable when inputs are guessable; keyed
+pseudonyms/HMAC: matchable only while the key, normalisation rules and version
+survive); the preservation lifecycle (collect → use → legal hold → preserve → release
+→ resume retention/deletion) with what a hold must keep to stay usable; and the four
+lenses applied to recoverability. It also added the eighth pattern (*Recoverability is
+a design decision*), one review question per lens (now 24) and one line to the coda.
+Rules the structure test enforces: nothing may suggest a hash can be decrypted or
+reversed; legal hold is framed as an engineering requirement, "not legal advice"; the
+section keeps its five key lines; no mention of rainbow tables.
+
 **Rules that bind edition 4**
 - **Every claim lives once, in `articles/every-arrow/compare.js`**, as
   `[kind, headline, detail, 'source keys']`. Kinds: **Documented** (the company says

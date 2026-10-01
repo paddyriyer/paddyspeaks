@@ -33,7 +33,7 @@ const SLUG = 'every-arrow-is-a-decision.html';
 const PDF = `${DIR}/every-arrow-is-a-decision.pdf`;
 const PDF_META = `${DIR}/pdf.json`;
 const WPM = 230;
-const EDITION = '4.0', REVISED = '30 September 2026';
+const EDITION = '4.0', REVISED = '1 October 2026';
 
 export function loadCompare() {
   const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
@@ -188,7 +188,7 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
   const kitHtml = html.slice(html.indexOf('id="kit-questions"'), html.indexOf('class="btn"', html.indexOf('id="kit-questions"')));
   const kit = [...kitHtml.matchAll(/<span class="lz lz--\w+">([^<]+)<\/span><\/h3><ul>([\s\S]*?)<\/ul>/g)].map((m) => `### ${plain(m[1])}\n\n` + [...m[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => `- [ ] ${plain(x[1])}`).join('\n'));
   const md = `# Every Arrow Is a Decision — the four-lens review\n\nFrom *Every Arrow Is a Decision*, edition ${EDITION} (${REVISED}), by Paddy Iyer.\nhttps://paddyspeaks.com/articles/every-arrow-is-a-decision.html\n\n` +
-    `Four questions for every arrow a product draws:\n\n${L.map((l) => `- **${l.t}.** ${l.q}`).join('\n')}\n\n## Twenty questions for any product\n\n${kit.join('\n\n')}\n\nA question nobody can answer is a finding.\n\n` +
+    `Four questions for every arrow a product draws:\n\n${L.map((l) => `- **${l.t}.** ${l.q}`).join('\n')}\n\n## Twenty-four questions for any product\n\n${kit.join('\n\n')}\n\nA question nobody can answer is a finding.\n\n` +
     `## The arrow to watch, product by product\n\n| Product | Compared | The arrow to watch |\n|---|---|---|\n${C.products.map((p) => `| ${p.n} | ${p.cos.map((c) => CO[c]).join(', ')} | ${p.read.watch.replace(/\|/g, '/')} |`).join('\n')}\n\n` +
     `Claims in the essay describe what each company documents, as reviewed on ${C.asOf}, with citations. The tests are recommendations. Nothing here is a score or legal advice.\n`;
 
