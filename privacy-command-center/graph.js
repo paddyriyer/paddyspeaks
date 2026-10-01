@@ -127,6 +127,19 @@
     c_url_redact: ['control', 'URL redaction before logging', ''], c_join_policy: ['control', 'Cross-domain join policy', ''],
     c_vendor_ack: ['control', 'Vendor deletion acknowledgement', ''],
     c_dbsc: ['control', 'Device-bound sessions', ''], c_cookie_enc: ['control', 'Cookies encrypted to the browser', ''], c_ext_review: ['control', 'Extension permission review', ''],
+    c_key_destroy: ['control', 'Verifiable key destruction', ''], c_key_inventory: ['control', 'Key and transformation inventory', ''],
+    c_hold_scope: ['control', 'Hold suspends deletion in scope', ''], c_hold_keys: ['control', 'Hold preserves keys, mappings and schema', ''],
+    c_hold_release: ['control', 'Release resumes normal retention', ''], c_restore_drill: ['control', 'Archive restore drill', ''],
+    /* recoverability: what must still be possible later (keys, transformations, holds) */
+    ds_archive: ['dataset', 'events_archive_2026', 'yearly archive, encrypted'], ds_legacy: ['dataset', 'events_2022', 'encrypted under a destroyed key'],
+    ds_sandbox: ['dataset', 'legacy_extract_2022', 'decrypted copy in a warehouse sandbox'], ds_agg: ['dataset', 'weekly_aggregates', 'counts per region'],
+    ds_audit: ['dataset', 'audit_log', 'who touched which record, when'],
+    id_pseudo: ['identifier', 'customer pseudonym', 'keyed, repeatable'], id_tok: ['identifier', 'customer token', 'stands in for the card reference'],
+    k_2026: ['key', 'K-2026', 'archive encryption key, 2026'], k_2027: ['key', 'K-2027', 'current encryption key'], k_42: ['key', 'K-42', 'legacy encryption key'],
+    k_pseudo: ['key', 'PK-2026', 'pseudonym key, 2026'], k_vault: ['key', 'VK-1', 'token vault key'],
+    sy_kms: ['system', 'key management service', 'HSM-backed'], sy_vault: ['system', 'token vault', 'token ↔ original'],
+    sc_v14: ['schema', 'SCHEMA-v14', 'event schema'], nr_v3: ['rule', 'NORMALIZATION-v3', 'trim, then lowercase'], lin_arch: ['lineage', 'archive lineage', 'source tables → archive files'],
+    lh_901: ['hold', 'LH-901', 'preservation hold'], lh_877: ['hold', 'LH-877', 'preservation hold'],
     inc_export: ['incident', 'INC-14 export after revocation', '']
   };
   G.node = function (id) { var n = G.nodes[id]; return n ? { id: id, type: n[0], name: n[1], sub: n[2] } : null; };
@@ -146,6 +159,12 @@
     ['ag_support', 'ACCESSES', 'ds_txn'], ['ag_support', 'PRODUCES', 'in_hardship'],
     ['p_dana', 'HAS', 'sy_account'], ['sy_account', 'LINKS', 'ds_browse'], ['sy_account', 'LINKS', 'ds_mailmeta'], ['sy_account', 'LINKS', 'ds_txn'], ['sy_account', 'LINKS', 'cr_passkey'], ['v_ext', 'ACCESSES', 'ds_browse'], ['c_dbsc', 'PROTECTS', 'sy_account']
   ];
+
+  G.edges.push(['ds_archive', 'ENCRYPTED_WITH', 'k_2026'], ['ds_legacy', 'ENCRYPTED_WITH', 'k_42'], ['ds_backup', 'ENCRYPTED_WITH', 'k_2027'],
+    ['id_pseudo', 'DERIVED_WITH', 'k_pseudo'], ['id_pseudo', 'DERIVED_WITH', 'nr_v3'], ['id_pseudo', 'LINKS', 'ds_archive'], ['ds_archive', 'INTERPRETED_WITH', 'sc_v14'],
+    ['k_2026', 'STORED_IN', 'sy_kms'], ['k_2027', 'STORED_IN', 'sy_kms'], ['k_pseudo', 'STORED_IN', 'sy_kms'], ['k_vault', 'STORED_IN', 'sy_kms'],
+    ['id_tok', 'STORED_IN', 'sy_vault'], ['id_tok', 'LINKS', 'ds_curated'], ['id_tok', 'LINKS', 'ds_export'], ['ds_sandbox', 'DERIVED_FROM', 'ds_legacy'],
+    ['lh_901', 'HOLDS', 'ds_txn'], ['lh_901', 'HOLDS', 'k_2026'], ['lh_901', 'HOLDS', 'k_pseudo']);
 
   /* ── selector vocabulary ───────────────────────────────── */
   G.personas = [
@@ -171,15 +190,15 @@
    * surfaces” offers everything. The tests check that every combination offered
    * here is answered by at least one finding on that surface. */
   G.relevance = {
-    ident: { j: ['signin', 'account', 'share', 'delete'], q: ['know', 'whoknows', 'howlearn', 'prove', 'linkid', 'where', 'live', 'control', 'stolen', 'changed', 'worst'], c: ['identity', 'authentication', 'devicetrust', 'recovery', 'takeover', 'linkability', 'tracking', 'retention'], u: ['person', 'credential'] },
+    ident: { j: ['signin', 'account', 'share', 'delete'], q: ['know', 'whoknows', 'howlearn', 'prove', 'linkid', 'where', 'live', 'control', 'stolen', 'changed', 'worst', 'match'], c: ['identity', 'authentication', 'devicetrust', 'recovery', 'takeover', 'linkability', 'tracking', 'retention', 'keylifecycle'], u: ['person', 'credential'] },
     web: { j: ['browse', 'account', 'signin'], q: ['know', 'whoknows', 'howlearn', 'prove', 'linkid', 'where', 'control', 'stolen', 'worst'], c: ['identity', 'authentication', 'devicetrust', 'takeover', 'linkability', 'tracking'], u: ['person', 'vendor'] },
     mail: { j: ['mail', 'account', 'ai'], q: ['know', 'whoknows', 'howlearn', 'linkid', 'where', 'leftdevice', 'whyleft', 'provewithout', 'infer', 'delete', 'live', 'control', 'stolen'], c: ['identity', 'recovery', 'takeover', 'linkability', 'tracking', 'ondevice', 'thirdmodel', 'inference', 'retention', 'vendor'], u: ['person', 'feature', 'vendor'] },
-    pay: { j: ['pay', 'account', 'share'], q: ['know', 'whoknows', 'linkid', 'where', 'leftdevice', 'whyleft', 'provewithout', 'infer', 'agentdo', 'live', 'control', 'stolen'], c: ['identity', 'takeover', 'linkability', 'purpose', 'minimization', 'ondevice', 'inference', 'agent', 'retention'], u: ['person', 'product', 'agent'] },
+    pay: { j: ['pay', 'account', 'share'], q: ['know', 'whoknows', 'linkid', 'where', 'leftdevice', 'whyleft', 'provewithout', 'infer', 'agentdo', 'live', 'control', 'stolen', 'recneeds', 'match', 'hold', 'holdworked'], c: ['identity', 'takeover', 'linkability', 'purpose', 'minimization', 'ondevice', 'inference', 'agent', 'retention', 'recoverability', 'preservation'], u: ['person', 'product', 'agent'] },
     did: { j: ['age', 'share'], q: ['whoknows', 'prove', 'where', 'provewithout', 'live', 'changed', 'worst'], c: ['disclosure', 'linkability', 'retention', 'vendor'], u: ['person', 'credential'] },
-    cloud: { j: ['report', 'delete'], q: ['whoknows', 'where', 'delete', 'live', 'control', 'worst'], c: ['identity', 'minimization', 'access', 'tenant', 'retention', 'deletion', 'logging'], u: ['tenant', 'dataset', 'person'] },
-    analytics: { j: ['revoke', 'delete', 'browse'], q: ['know', 'whoknows', 'linkid', 'where', 'join', 'infer', 'consent', 'delete', 'live', 'control', 'changed', 'worst'], c: ['identity', 'linkability', 'consent', 'purpose', 'minimization', 'inference', 'access', 'retention', 'deletion', 'vendor'], u: ['person', 'dataset', 'vendor'] },
+    cloud: { j: ['report', 'delete'], q: ['whoknows', 'where', 'delete', 'live', 'control', 'worst', 'recover', 'recneeds', 'match', 'keygone', 'hold', 'holdworked', 'unrecoverable'], c: ['identity', 'minimization', 'access', 'tenant', 'retention', 'deletion', 'logging', 'recoverability', 'preservation', 'keylifecycle'], u: ['tenant', 'dataset', 'person'] },
+    analytics: { j: ['revoke', 'delete', 'browse'], q: ['know', 'whoknows', 'linkid', 'where', 'join', 'infer', 'consent', 'delete', 'live', 'control', 'changed', 'worst', 'recover', 'recneeds', 'match', 'keygone', 'hold', 'holdworked', 'unrecoverable'], c: ['identity', 'linkability', 'consent', 'purpose', 'minimization', 'inference', 'access', 'retention', 'deletion', 'vendor', 'recoverability', 'preservation', 'keylifecycle'], u: ['person', 'dataset', 'vendor'] },
     ai: { j: ['ai', 'mail'], q: ['where', 'leftdevice', 'whyleft', 'infer', 'agentdo', 'delete', 'live', 'control'], c: ['ondevice', 'thirdmodel', 'inference', 'agent', 'access', 'retention', 'vendor'], u: ['person', 'agent', 'feature'] },
-    vendor: { j: ['revoke', 'delete', 'share'], q: ['whoknows', 'where', 'leftdevice', 'whyleft', 'consent', 'delete', 'live', 'control', 'changed', 'worst'], c: ['disclosure', 'consent', 'thirdmodel', 'retention', 'deletion', 'vendor'], u: ['vendor', 'person', 'dataset'] }
+    vendor: { j: ['revoke', 'delete', 'share'], q: ['whoknows', 'where', 'leftdevice', 'whyleft', 'consent', 'delete', 'live', 'control', 'changed', 'worst', 'match', 'hold', 'holdworked'], c: ['disclosure', 'consent', 'thirdmodel', 'retention', 'deletion', 'vendor', 'recoverability', 'preservation'], u: ['vendor', 'person', 'dataset'] }
   };
   G.questions = [
     { id: 'know', label: 'What do we know?' }, { id: 'whoknows', label: 'Who knows it?' }, { id: 'howlearn', label: 'How did they learn it?' },
@@ -188,15 +207,22 @@
     { id: 'provewithout', label: 'Can we prove this without revealing that?' }, { id: 'join', label: 'Should these datasets be joined?' },
     { id: 'infer', label: 'What can this system infer?' }, { id: 'agentdo', label: 'What can this agent do?' },
     { id: 'consent', label: 'Did consent propagate?' }, { id: 'delete', label: 'Can we delete it?' }, { id: 'live', label: 'How long does it live?' },
-    { id: 'control', label: 'Did the control really work?' }, { id: 'stolen', label: 'What if the account is stolen?' }, { id: 'changed', label: 'What changed?' }, { id: 'worst', label: 'What is our worst day?' }
+    { id: 'control', label: 'Did the control really work?' }, { id: 'stolen', label: 'What if the account is stolen?' }, { id: 'changed', label: 'What changed?' }, { id: 'worst', label: 'What is our worst day?' },
+    /* following data across time: what must still be possible in the future? */
+    { id: 'recover', label: 'Can this data be recovered?', g: 'future' }, { id: 'recneeds', label: 'What is required to recover it?', g: 'future' },
+    { id: 'match', label: 'Can we still match this person?', g: 'future' }, { id: 'keygone', label: 'What happens if the key is destroyed?', g: 'future' },
+    { id: 'hold', label: 'What is under legal hold?', g: 'future' }, { id: 'holdworked', label: 'Can we prove the hold worked?', g: 'future' },
+    { id: 'unrecoverable', label: 'Can we prove the data became unrecoverable?', g: 'future' }
   ];
+  G.questionGroups = { today: 'What is true today', future: 'What must still be possible in the future?' };
   G.concerns = [
     { id: 'identity', label: 'Identity' }, { id: 'authentication', label: 'Authentication' }, { id: 'devicetrust', label: 'Device trust' }, { id: 'recovery', label: 'Account recovery' }, { id: 'takeover', label: 'Account takeover' },
     { id: 'linkability', label: 'Linkability' }, { id: 'tracking', label: 'Tracking' }, { id: 'disclosure', label: 'Selective disclosure' },
     { id: 'consent', label: 'Consent' }, { id: 'purpose', label: 'Purpose' }, { id: 'minimization', label: 'Data minimization' },
     { id: 'ondevice', label: 'On-device processing' }, { id: 'thirdmodel', label: 'Third-party model' }, { id: 'inference', label: 'Inference' }, { id: 'agent', label: 'AI / agent' },
     { id: 'access', label: 'Access' }, { id: 'tenant', label: 'Tenant isolation' }, { id: 'retention', label: 'Retention' }, { id: 'deletion', label: 'Deletion' },
-    { id: 'vendor', label: 'Vendor sharing' }, { id: 'logging', label: 'Logging' }
+    { id: 'vendor', label: 'Vendor sharing' }, { id: 'logging', label: 'Logging' },
+    { id: 'recoverability', label: 'Recoverability' }, { id: 'preservation', label: 'Legal hold / preservation' }, { id: 'keylifecycle', label: 'Key lifecycle' }
   ];
   G.subjects = [
     { id: 'person', label: 'one person', focus: 'p_dana' }, { id: 'credential', label: 'one credential', focus: 'cr_passkey' }, { id: 'feature', label: 'one feature', focus: 'sy_pcc' },
@@ -214,7 +240,10 @@
     ['Private compute', 'Isolates the computation in attested servers.', 'Prevents unnecessary access and retention of the request.']
   ];
 
-  /* ── the ten principles, shown with the view they govern ── */
+  G.converge4 = { title: 'An archived record', rows: [['Security', 'Is the archived record encrypted?'], ['Privacy', 'Should the original remain recoverable?'], ['Governance', 'How long must the record and its key be retained?'], ['QA', 'Can we actually restore it, and can we prove deletion when retention ends?']],
+    line: ['Encryption answers who can read it.', 'Architecture must also decide whether anyone should still be able to read it five years from now.'] };
+
+  /* ── the principles, shown with the view they govern ── */
   G.principles = {
     local: 'Do not collect what you can compute locally.',
     attr: 'Do not identify when you can verify an attribute.',
@@ -225,7 +254,11 @@
     no: 'Do not assume a user’s “no” reached every system.',
     del: 'Do not assume “delete me” means every copy disappeared.',
     encrypt: 'Do not assume encryption answers why the data exists.',
-    passkey: 'Do not assume moving from passwords to passkeys ends identity risk.'
+    passkey: 'Do not assume moving from passwords to passkeys ends identity risk.',
+    /* across time */
+    protect: 'Protected is not the same as recoverable.', hashed: 'Hashed is not anonymous.', readable: 'Encrypted is not permanently readable.',
+    usable: 'Archived is not usable.', lostkey: 'A deleted key is lost recoverability.', hold: 'A legal hold is not a reason to keep everything forever.',
+    context: 'Preserved data without its keys, schema and lineage may be useless.', keylife: 'Key lifecycle can become data lifecycle.'
   };
 
   /* ── JOURNEYS: the complete privacy path for what a person does ──
@@ -495,6 +528,9 @@
   G.lastReview = '2026-09-01';
   G.changes = [
     ['2026-09-27', 'new control failure', 'Account recovery falls back to SMS after the passkey rollout', 'ident', ['recovery', 'authentication'], 'c_recovery'],
+    ['2026-09-26', 'copy outlived its key', 'A decrypted 2022 extract outlived the destroyed key K-42', 'cloud', ['recoverability', 'keylifecycle'], 'ds_sandbox'],
+    ['2026-09-18', 'key schedule', 'Pseudonym key PK-2026 set for destruction at the next rotation', 'analytics', ['keylifecycle', 'preservation'], 'k_pseudo'],
+    ['2026-09-10', 'legal hold placed', 'Hold LH-901 suspends deletion for Dana R.’s disputed-payment records', 'pay', ['preservation', 'deletion'], 'lh_901'],
     ['2026-09-25', 'new control failure', 'An all-sites browser extension found in signed-in browsers, unreviewed', 'web', ['takeover', 'tracking'], 'c_ext_review'],
     ['2026-09-26', 'new control failure', 'Export pipeline stopped checking consent after a refactor', 'analytics', ['consent'], 'c_consent_read'],
     ['2026-09-24', 'new AI tool access', 'Assistant gained Browser history and Location tools', 'ai', ['agent', 'inference'], 'ag_assist'],
@@ -520,6 +556,109 @@
       { id: 'derived', label: 'Send vendors derived signals only', deident: ['ds_export'] }, { id: 'pcc', label: 'Route assistant context to stateless private compute', removes: ['ds_prompts'] },
       { id: 'attr', label: 'Accept attribute proofs instead of ID copies', removes: ['ds_kyc'] }],
     bands: ['Contained', 'Serious', 'Severe', 'Critical']
+  };
+
+  /* ── ACROSS TIME: recoverability, preservation and key lifecycle ──
+   * The graph follows data across systems; these records follow it across time.
+   * They exist so a privacy engineer can see dependencies (which key, rule,
+   * schema or mapping a record needs to stay usable), not to manage keys. */
+
+  /* Illustrative one-way functions, so the screen can show "same input, same
+   * output" with real computation. They are NOT the algorithms a system would
+   * use; the transformation records name the algorithm class. */
+  G.oneWay = function (str) { var h = 0x811c9dc5; for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ('0000000' + h.toString(16)).slice(-8); };
+  G.normalize = { 'NORMALIZATION-v3': function (v) { return String(v).trim().toLowerCase(); }, 'NORMALIZATION-v2': function (v) { return 'email:' + String(v).trim().toLowerCase(); } };
+  G.keyedPseudonym = function (keyId, rule, value) { return 'CUSTOMER_' + G.oneWay(keyId + '|' + G.normalize[rule](value)).slice(0, 5).toUpperCase(); };
+  G.subjectEmail = 'dana.r@northstar.example';
+
+  /* KEY: key_id, key_type, owner, store, created_at, rotated_at, destroyed_at, status */
+  G.keys = {
+    k_2026: { type: 'data encryption key', owner: 'ow_platform', store: 'sy_kms', created: '2026-01-05', rotated: '2027-01-04', destroyed: null, status: 'retired at rotation, retained for the archive', operator: 'Yes: the Data Platform KMS role can decrypt', cmk: 'No: the key is provider-managed', retained: true },
+    k_2027: { type: 'data encryption key', owner: 'ow_platform', store: 'sy_kms', created: '2027-01-04', rotated: null, destroyed: null, status: 'active', operator: 'Yes: the Data Platform KMS role can decrypt', cmk: 'No', retained: true },
+    k_42: { type: 'data encryption key (legacy)', owner: 'ow_platform', store: 'sy_kms', created: '2022-03-01', rotated: '2023-03-01', destroyed: '2026-06-30', status: 'destroyed', operator: 'No: the key no longer exists in the KMS', cmk: 'No', retained: false },
+    k_pseudo: { type: 'pseudonym key', owner: 'ow_identity', store: 'sy_kms', created: '2026-01-05', rotated: '2027-01-04', destroyed: null, status: 'retired at rotation; scheduled for destruction', operator: 'Not applicable: a pseudonym cannot be decrypted', cmk: 'No', retained: true },
+    k_vault: { type: 'token vault key', owner: 'ow_identity', store: 'sy_kms', created: '2025-04-01', rotated: '2026-04-01', destroyed: null, status: 'active', operator: 'Vault role only', cmk: 'No', retained: true }
+  };
+  /* TRANSFORMATION per dataset or identifier, with where it lives over time.
+   * type: plain | encrypted | tokenized | hashed | pseudonym | aggregated | shredded
+   * rec: full | key | vault | match | irreversible | unknown */
+  G.transformTypes = { plain: 'Plain', encrypted: 'Encrypted', tokenized: 'Tokenized', hashed: 'Hashed', pseudonym: 'Keyed pseudonym', aggregated: 'Aggregated', shredded: 'Deleted / crypto-shredded' };
+  G.recoverability = { full: 'Fully recoverable', key: 'Recoverable with key', vault: 'Recoverable through token vault', match: 'Matchable but not reversible', irreversible: 'Irreversible', unknown: 'Unknown' };
+  G.transforms = [
+    { node: 'ds_identity', type: 'plain', alg: null, ver: null, norm: null, key: null, rec: 'full', where: 'Primary database', why: 'Provide the service', who: 'Identity Platform; support can read', until: 'Account closure, plus 30 days', hold: 'lh_901', proof: ['ok', 'Deletion canary after closure'] },
+    { node: 'ds_archive', type: 'encrypted', alg: 'authenticated encryption, envelope keys', ver: 'enc-v2', norm: null, key: 'k_2026', rec: 'key', where: 'Object storage, archive tier', why: 'Dispute and audit retention', who: 'Data Platform, through the KMS role', until: 'End of retention, then destroy K-2026', hold: 'lh_901', proof: ['unk', 'No restore drill has opened it'] },
+    { node: 'ds_backup', type: 'encrypted', alg: 'authenticated encryption, envelope keys', ver: 'enc-v2', norm: null, key: 'k_2027', rec: 'key', where: 'Backup vault', why: 'Disaster recovery', who: 'Data Platform', until: 'The 35-day rotation', hold: null, proof: ['warn', 'Rotation would expire held records: under review'] },
+    { node: 'ds_legacy', type: 'shredded', alg: 'authenticated encryption, envelope keys', ver: 'enc-v1', norm: null, key: 'k_42', rec: 'irreversible', where: 'Object storage, cold tier', why: 'None: retention ended', who: 'Nobody can decrypt it', until: 'Already: its key was destroyed', hold: null, proof: ['ok', 'Decrypt attempt rejected'] },
+    { node: 'ds_sandbox', type: 'plain', alg: null, ver: null, norm: null, key: null, rec: 'full', where: 'Warehouse sandbox', why: 'None recorded', who: 'Anyone with sandbox access', until: 'Should already be unrecoverable', hold: null, proof: ['fail', 'Outlived its key'] },
+    { node: 'id_pseudo', type: 'pseudonym', alg: 'keyed one-way function', ver: 'ps-v2', norm: 'NORMALIZATION-v3', key: 'k_pseudo', rec: 'match', where: 'Archive and warehouse', why: 'Link a customer’s events without storing the email', who: 'Anyone holding PK-2026 and the rule', until: 'When PK-2026 is destroyed', hold: 'lh_901', proof: ['unk', 'Never reproduced from the recorded rule'] },
+    { node: 'id_hash', type: 'hashed', alg: 'unkeyed one-way hash', ver: 'h-v1', norm: 'NORMALIZATION-v3', key: null, rec: 'match', where: 'partner_export, at AdReach', why: 'Audience matching', who: 'AdReach, and anyone holding a list of emails', until: 'Never, while a copy exists', hold: null, proof: ['fail', 'Matchable by anyone with a list of emails'] },
+    { node: 'id_tok', type: 'tokenized', alg: 'random token, vault mapping', ver: 'tok-v1', norm: null, key: 'k_vault', rec: 'vault', where: 'events_curated and partner_export', why: 'Refunds without the card reference in analytics', who: 'Vault role; refunds service', until: 'Tokens expire; the mapping is kept longer', hold: 'lh_901', proof: ['warn', 'Mapping outlives the tokens'] },
+    { node: 'ds_agg', type: 'aggregated', alg: 'counts with a minimum group size', ver: 'agg-v1', norm: null, key: null, rec: 'irreversible', where: 'Warehouse', why: 'Regional reporting', who: 'Analysts', until: 'Kept as statistics', hold: null, proof: ['ok', 'Minimum group size checked'] }
+  ];
+  /* TOKEN_MAPPING */
+  G.tokenMap = { token: 'TOK-4821', vault: 'sy_vault', owner: 'ow_identity', access: 'The Identity Platform vault role, and the refunds service by break-glass', needOriginal: 'Only refunds; analytics and support work on the token', mapRet: '7 years', tokRet: '2 years', mapDays: 2555, tokDays: 730, held: true, reuse: ['ds_curated', 'ds_export'] };
+  /* LEGAL_HOLD: hold_id, scope, start, status, release, authority_reference */
+  G.holds = [
+    { id: 'lh_901', scope: 'Dana R.’s transactions and support records about a disputed payment, August 2026', start: '2026-09-10', status: 'active', release: null, authority: 'Preservation notice PN-2026-14 (synthetic reference)',
+      items: [['Dataset', 'ds_txn', 'held'], ['Encryption key', 'k_2026', 'held'], ['Pseudonym key', 'k_pseudo', 'held'], ['Token mapping', 'sy_vault', 'held'], ['Schema version', 'sc_v14', 'held'], ['Lineage', 'lin_arch', 'held'], ['Audit log', 'ds_audit', 'held'],
+        ['Derived data', 'ds_features', 'review'], ['Backup', 'ds_backup', 'review'], ['Vendor copy', 'v_adreach', 'confirm']] },
+    { id: 'lh_877', scope: 'Support records for a closed billing dispute', start: '2026-03-02', status: 'released', release: '2026-07-15', authority: 'Preservation notice PN-2026-03 (synthetic reference)', items: [] }
+  ];
+  G.holdStates = { held: ['ok', 'held'], review: ['unk', 'review'], confirm: ['warn', 'confirmation required'], no: ['fail', 'not held'] };
+  /* The future-usability questions and what each needs to have been preserved */
+  G.usability = [
+    ['Can we open it?', ['ds_txn', 'k_2026']], ['Can we interpret it?', ['sc_v14', 'sy_vault']], ['Can we match it?', ['k_pseudo', 'sy_vault']],
+    ['Can we prove its origin?', ['lin_arch']], ['Can we prove it was unchanged?', ['ds_audit']], ['Can we trace its copies?', ['lin_arch', 'ds_features', 'ds_backup', 'v_adreach']],
+    ['Can we delete it when the hold ends?', ['lin_arch', 'ds_features', 'ds_backup', 'v_adreach']]
+  ];
+
+  /* ARCHIVE — the five-year archive (a synthetic scenario across time) */
+  G.archive = { id: 'AR-2026', node: 'ds_archive', created: '2026-12-31', format: 'Columnar files in an encrypted envelope', schema: 'sc_v14', key: 'k_2026',
+    story: [['2026', 'Customer events are encrypted under K-2026. Identifiers are replaced with deterministic pseudonyms under PK-2026. Keys rotate annually.'], ['2029', 'The application schema the archive was written with is retired.'], ['2031', 'A lawful preservation request requires records relating to a known customer.']],
+    deps: [
+      { n: 'Archive files', node: 'ds_archive', rel: 'exists in object storage', need: ['open'], st: { asis: 'ok', good: 'ok', bad: 'ok' } },
+      { n: 'K-2026', node: 'k_2026', rel: 'encrypted with', need: ['open'], st: { asis: 'unk', good: 'ok', bad: 'fail' } },
+      { n: 'PK-2026', node: 'k_pseudo', rel: 'identifiers transformed with', need: ['match'], st: { asis: 'unk', good: 'ok', bad: 'fail' } },
+      { n: 'SCHEMA-v14', node: 'sc_v14', rel: 'interpreted using', need: ['interpret'], st: { asis: 'unk', good: 'ok', bad: 'ok' } },
+      { n: 'NORMALIZATION-v3', node: 'nr_v3', rel: 'subject lookup requires', need: ['match'], st: { asis: 'unk', good: 'ok', bad: 'ok' } },
+      { n: 'Token mapping', node: 'sy_vault', rel: 'card references resolved through', need: ['interpret'], st: { asis: 'unk', good: 'ok', bad: 'ok' } },
+      { n: 'Lineage', node: 'lin_arch', rel: 'origin and copies traced through', need: ['trace'], st: { asis: 'unk', good: 'ok', bad: 'ok' } }],
+    modes: [['asis', 'As recorded today'], ['good', 'Five years later: everything kept'], ['bad', 'Five years later: historical keys destroyed']],
+    say: {
+      asis: ['Archive AR-2026 is present; whether K-2026, PK-2026, NORMALIZATION-v3 and SCHEMA-v14 will be available in 2031 is not verified.', 'The records exist, but nobody has proved they can still be opened and matched later.'],
+      good: ['All dependencies retained and recorded; a restore decrypts the files and the keyed match reproduces the customer’s pseudonym.', 'The records can be recovered and matched to the customer.'],
+      bad: ['Archive encrypted under retired key K-2026; key destruction recorded in the KMS. PK-2026 destroyed at rotation.', 'The historical records still exist physically but can no longer be decrypted or matched to the customer.'] } };
+
+  /* DELETE vs PRESERVE: a deletion request meets an active hold, and a released one */
+  G.preserve = { request: '2026-09-20', phases: [
+    { id: 'active', label: 'Hold active (LH-901)', hold: 'lh_901',
+      systems: [['Primary DB', 'sy_primary', false, 'Deleted'], ['Warehouse', 'sy_wh', true, 'Disputed-payment rows preserved; the rest deleted'], ['Object storage', 'sy_obj', true, 'Archive files preserved'], ['Feature store', 'sy_featstore', false, 'Deleted; derived rows under review'], ['Vendor', 'v_adreach', true, 'Asked to preserve; no confirmation'], ['Backups', 'ds_backup', true, 'Rotation paused for held records: under review']],
+      ev: [['Hold started', '2026-09-10', 'ok'], ['Data scope recorded', '2026-09-11', 'ok'], ['Systems notified', '2026-09-11', 'warn'], ['Deletion suspended for scope', '2026-09-20', 'ok'], ['Hold released', null, 'wait'], ['Deletion resumed', null, 'wait'], ['Verification complete', null, 'wait']] },
+    { id: 'released', label: 'After release (LH-877)', hold: 'lh_877',
+      systems: [['Primary DB', 'sy_primary', true, 'Deleted after release'], ['Warehouse', 'sy_wh', true, 'Deleted after release'], ['Object storage', 'sy_obj', true, 'Deleted after release'], ['Feature store', 'sy_featstore', true, 'Vectors built during the hold still present'], ['Vendor', 'v_adreach', true, 'Deletion requested; no acknowledgement'], ['Backups', 'ds_backup', true, 'Expired with the rotation']],
+      ev: [['Hold started', '2026-03-02', 'ok'], ['Data scope recorded', '2026-03-02', 'ok'], ['Systems notified', '2026-03-03', 'ok'], ['Deletion suspended for scope', '2026-03-03', 'ok'], ['Hold released', '2026-07-15', 'ok'], ['Deletion resumed', '2026-07-16', 'ok'], ['Verification complete', '2026-07-20', 'fail']] }] };
+
+  /* "Did the control really work?" for key destruction, legal hold and hold release */
+  G.chains = {
+    keydestroy: { title: 'Key destruction: historical ciphertext cannot be decrypted', hops: [
+      { n: 'Policy', intended: 'Destroy K-42 when the 2022 retention ends', actual: 'Destruction scheduled and approved', evidence: 'Retention schedule entry', st: 'ok' },
+      { n: 'KMS / HSM event', intended: 'A destruction event for K-42', actual: 'Destroyed on ' + G.keys.k_42.destroyed, evidence: 'KMS audit event', st: 'ok' },
+      { n: 'Key state', intended: 'State reads destroyed', actual: 'Destroyed; no pending restore window', evidence: 'Key metadata read', st: 'ok' },
+      { n: 'Decrypt attempt', intended: '2022 ciphertext fails to decrypt', actual: 'Rejected: key not found', evidence: 'Decrypt test on a sample file', st: 'ok' },
+      { n: 'Key material copies', intended: 'No escrow or export of K-42', actual: 'Escrow not recorded', evidence: 'No inventory of exported keys', st: 'unk' },
+      { n: 'Plaintext copies', intended: 'No decrypted copy outlives the key', actual: 'legacy_extract_2022 in the warehouse sandbox', evidence: 'Sandbox scan', st: 'fail' }] },
+    hold: { title: 'Legal hold: relevant records remain preserved', hops: [
+      { n: 'Retention engine', intended: 'Skip deletion for LH-901 scope', actual: 'Scope rule active', evidence: 'Engine config and skip log', st: 'ok' },
+      { n: 'Deletion queue', intended: 'Dana’s held records parked, others processed', actual: 'Held record sets parked; each skip logged', evidence: 'Queue audit', st: 'ok' },
+      { n: 'Warehouse', intended: 'Held partitions pinned', actual: 'Pinned', evidence: 'Partition retention flags', st: 'ok' },
+      { n: 'Key rotation', intended: 'Keys in scope are not destroyed', actual: 'Rotation job does not check holds', evidence: 'Job configuration review', st: 'fail' },
+      { n: 'Backup', intended: 'Held records survive the rotation', actual: 'Under review', evidence: 'None yet', st: 'unk' },
+      { n: 'Vendor notification', intended: 'AdReach confirms it preserves its copy', actual: 'Notified; no confirmation', evidence: 'Notice sent 2026-09-11', st: 'unk' }] },
+    release: { title: 'Hold release: only data still justified by normal retention remains', hops: [
+      { n: 'Deletion jobs restart', intended: 'Jobs resume for LH-877 scope', actual: 'Resumed the day after release', evidence: 'Job run log', st: 'ok' },
+      { n: 'Derived data handled', intended: 'Features built during the hold deleted', actual: 'Vectors still present', evidence: 'Feature-store canary', st: 'fail' },
+      { n: 'Vendor deletion triggered', intended: 'Vendor deletes and acknowledges', actual: 'Requested; no acknowledgement', evidence: 'Request log', st: 'unk' },
+      { n: 'Verification recorded', intended: 'Canary lookups across every store', actual: 'Recorded; one store failed', evidence: 'Verification report', st: 'fail' }] }
   };
 
   /* ── controls and their evidence. result: pass | fail | never ── */
@@ -559,7 +698,13 @@
     c_vendor_ack: { inv: 'Vendors confirm deletion and retention', where: 'Vendor contracts', last: null, result: 'never', method: 'Clause; no confirmations collected', c: ['vendor', 'deletion'] },
     c_dbsc: { inv: 'A copied session does not work on another device', where: 'Northstar Account sessions', last: null, result: 'never', method: 'Designed; sessions are still bearer cookies', c: ['takeover', 'devicetrust'] },
     c_cookie_enc: { inv: 'Other programs on the device cannot read the browser’s cookies', where: 'Northstar Browser', last: '2026-09-24', result: 'pass', method: 'Cookie extraction test from another process', c: ['takeover', 'devicetrust'] },
-    c_ext_review: { inv: 'Extensions that can read every site are reviewed and allowed by name', where: 'Browser policy', last: '2026-09-25', result: 'fail', method: 'Inventory found all-site extensions with no review', c: ['takeover', 'tracking'] }
+    c_ext_review: { inv: 'Extensions that can read every site are reviewed and allowed by name', where: 'Browser policy', last: '2026-09-25', result: 'fail', method: 'Inventory found all-site extensions with no review', c: ['takeover', 'tracking'] },
+    c_key_destroy: { inv: 'A destroyed key leaves no way to read what it protected', where: 'Key management service', last: '2026-09-26', result: 'fail', method: 'KMS event, key state and a decrypt attempt; a plaintext copy survived', c: ['recoverability', 'keylifecycle'] },
+    c_key_inventory: { inv: 'Every transformation records its algorithm, version, normalization rule and key version', where: 'Transformation metadata', last: '2026-09-18', result: 'fail', method: 'Inventory sample: pseudonyms before 2025 carry no key version', c: ['keylifecycle', 'recoverability'] },
+    c_hold_scope: { inv: 'Deletion is suspended for records in a hold’s scope, and only for them', where: 'Retention engine and deletion queue', last: '2026-09-21', result: 'pass', method: 'Skip log reconciled with the hold scope', c: ['preservation', 'deletion'] },
+    c_hold_keys: { inv: 'A hold preserves the keys, mappings, schema and lineage the records need', where: 'Hold workflow and key rotation', last: null, result: 'never', method: 'Documented; the rotation job has never been tested against a hold', c: ['preservation', 'keylifecycle'] },
+    c_hold_release: { inv: 'On release, normal retention resumes everywhere, derived data included', where: 'Deletion orchestrator', last: '2026-07-20', result: 'fail', method: 'Post-release canary found feature vectors from the hold period', c: ['preservation', 'deletion'] },
+    c_restore_drill: { inv: 'An archive can be opened, interpreted and matched years later', where: 'Archive tier', last: null, result: 'never', method: 'No restore drill has opened an archive end to end', c: ['recoverability'] }
   };
 
   /* ── findings: FACT | INFERENCE | UNKNOWN | CONTROL FAILURE ──
@@ -654,7 +799,35 @@
     F('f_worst', 'INFERENCE', 'With stolen warehouse credentials, raw identity and location join into named histories.', ['worst'], ['all', 'cloud', 'analytics'], ['access', 'retention'], 'both', ['ds_identity', 'ds_loc', 'ds_raw']),
     F('f_worst_raw', 'FACT', 'The staging bucket has no TTL and no masking, so one stolen credential reaches months of raw events.', ['worst'], ['all', 'cloud', 'analytics'], ['retention', 'access'], 'both', ['ds_raw', 'c_ttl']),
     F('f_worst_sub', 'UNKNOWN', 'What AdReach and the verification vendor pass to their own subprocessors is not known.', ['worst'], ['all', 'vendor', 'did', 'analytics'], ['vendor'], 'privacy', ['v_adreach', 'c_vendor_ack']),
-    F('f_worst_kyc', 'INFERENCE', 'A breached verification vendor would expose ID photos we never needed to send.', ['worst'], ['did', 'vendor'], ['disclosure', 'vendor'], 'privacy', ['ds_kyc'])
+    F('f_worst_kyc', 'INFERENCE', 'A breached verification vendor would expose ID photos we never needed to send.', ['worst'], ['did', 'vendor'], ['disclosure', 'vendor'], 'privacy', ['ds_kyc']),
+    /* across time: recoverability, preservation and key lifecycle */
+    F('f_arch_exists', 'FACT', 'The 2026 archive exists: every file is present and its checksums match the manifest.', ['recover', 'recneeds', 'unrecoverable'], ['cloud', 'analytics', 'all'], ['recoverability'], 'both', ['ds_archive', 'ds_audit']),
+    F('f_arch_drill', 'UNKNOWN', 'No restore drill has ever opened the archive, interpreted it and matched a customer end to end.', ['recover', 'recneeds', 'control'], ['cloud', 'analytics', 'all'], ['recoverability'], 'both', ['ds_archive', 'c_restore_drill'],
+      { reviewer: ['DESIGN ISSUE', 'Recoverability is assumed, not designed.'], builder: ['REQUIRED CONTROL', 'A yearly restore drill that decrypts, interprets and matches.'], auditor: ['EVIDENCE FAILURE', 'No proof the archive can be used.'], executive: ['RISK', 'We may hold records we cannot produce when asked.'] }),
+    F('f_exist_usable', 'INFERENCE', 'Data existence and data usability are different states: bytes without their key, schema or rules cannot answer a request.', ['recover', 'keygone'], ['all', 'cloud', 'analytics'], ['recoverability'], 'both', ['ds_archive', 'k_2026', 'sc_v14']),
+    F('f_enc_operator', 'FACT', 'The Data Platform can decrypt the archive through its KMS role; no customer-managed key is used.', ['recneeds', 'recover', 'keygone'], ['cloud', 'analytics', 'all'], ['recoverability', 'keylifecycle', 'access'], 'security', ['k_2026', 'sy_kms', 'ow_platform']),
+    F('f_inv_version', 'CONTROL FAILURE', 'Pseudonyms created before 2025 carry no key-version tag, so which key made them cannot be shown.', ['match', 'recneeds', 'control'], ['analytics', 'cloud', 'ident', 'all'], ['keylifecycle', 'recoverability'], 'both', ['id_pseudo', 'c_key_inventory']),
+    F('f_pseudo_repeat', 'FACT', 'Customer pseudonyms are repeatable: the same email, rule and key version always give the same ID, so a known customer can be found again.', ['match', 'recneeds'], ['analytics', 'cloud', 'ident', 'all'], ['keylifecycle', 'linkability'], 'privacy', ['id_pseudo', 'k_pseudo', 'nr_v3']),
+    F('f_hash_match', 'FACT', 'The hashed email sent to AdReach cannot be decrypted, but anyone holding a list of email addresses can transform them the same way and compare.', ['match'], ['vendor', 'analytics', 'ident', 'all'], ['linkability', 'recoverability'], 'privacy', ['id_hash', 'v_adreach'],
+      { reviewer: ['DESIGN ISSUE', 'Hashed is not anonymous.'], builder: ['REQUIRED CONTROL', 'Use a keyed pseudonym per partner, or send no identifier.'], auditor: ['EVIDENCE', 'Matching test with a list of known emails.'], executive: ['RISK', 'Partners can recognise our customers from a list of emails.'] }),
+    F('f_tok_reuse', 'CONTROL FAILURE', 'The same customer token appears in events_curated and partner_export, so the token itself links the two.', ['match', 'recneeds'], ['pay', 'analytics', 'vendor', 'all'], ['linkability', 'recoverability'], 'privacy', ['id_tok', 'ds_curated', 'ds_export']),
+    F('f_tok_map', 'FACT', 'The token vault keeps the mapping for ' + G.tokenMap.mapRet + '; the tokens themselves expire after ' + G.tokenMap.tokRet + '.', ['recneeds', 'hold'], ['pay', 'cloud', 'all', 'analytics'], ['recoverability', 'retention'], 'both', ['sy_vault', 'id_tok']),
+    F('f_tok_need', 'FACT', 'Only refunds need the original card reference; analytics and support work on the token.', ['recneeds', 'match'], ['pay', 'all'], ['minimization', 'recoverability'], 'privacy', ['id_tok', 'sy_vault']),
+    F('f_k42_gone', 'FACT', 'K-42 was destroyed on ' + G.keys.k_42.destroyed + '. The 2022 events encrypted under it still occupy storage and can no longer be decrypted.', ['keygone', 'unrecoverable', 'recover'], ['cloud', 'analytics', 'all'], ['recoverability', 'keylifecycle'], 'both', ['k_42', 'ds_legacy']),
+    F('f_key_hold', 'CONTROL FAILURE', 'The rotation job will destroy PK-2026, which hold LH-901 covers; nothing checks keys against active holds.', ['keygone', 'hold', 'holdworked', 'control'], ['cloud', 'analytics', 'all', 'pay'], ['preservation', 'keylifecycle'], 'both', ['k_pseudo', 'lh_901', 'c_hold_keys'],
+      { reviewer: ['DESIGN ISSUE', 'Key lifecycle can become data lifecycle.'], builder: ['REQUIRED CONTROL', 'Key destruction checks active holds first.'], auditor: ['EVIDENCE FAILURE', 'No test of rotation against a hold.'], executive: ['RISK', 'A routine key rotation could make preserved records unusable.'] }),
+    F('f_key_equiv', 'INFERENCE', 'Encrypted data without an available key may be operationally equivalent to deleted data. Whether that meets a deletion obligation is a separate, legal question.', ['keygone', 'unrecoverable'], ['all', 'cloud', 'analytics'], ['recoverability', 'deletion'], 'privacy', ['ds_legacy', 'k_42']),
+    F('f_hold_active', 'FACT', 'Hold LH-901 covers Dana R.’s disputed-payment records; deletion is suspended for them and only them.', ['hold', 'holdworked'], ['pay', 'cloud', 'analytics', 'vendor', 'all'], ['preservation', 'deletion'], 'both', ['lh_901', 'ds_txn', 'c_hold_scope']),
+    F('f_hold_bytes', 'FACT', 'The hold covers more than bytes: the dataset, its keys, the token mapping, the schema, lineage and the audit log.', ['hold'], ['cloud', 'analytics', 'all', 'pay'], ['preservation'], 'both', ['lh_901', 'k_2026', 'sy_vault', 'sc_v14']),
+    F('f_hold_review', 'UNKNOWN', 'Derived features and backups in the hold’s scope are still under review.', ['hold', 'holdworked'], ['cloud', 'analytics', 'all'], ['preservation'], 'both', ['ds_features', 'ds_backup']),
+    F('f_hold_vendor', 'UNKNOWN', 'AdReach has not confirmed that it is preserving its copy.', ['hold', 'holdworked'], ['vendor', 'analytics', 'all'], ['preservation', 'vendor'], 'privacy', ['v_adreach', 'lh_901']),
+    F('f_hold_scope', 'INFERENCE', 'A hold preserves only what is in its scope; everything else keeps its normal retention, so a hold is not a reason to keep everything.', ['hold'], ['all', 'cloud', 'analytics', 'pay', 'vendor'], ['preservation', 'retention'], 'privacy', ['lh_901']),
+    F('f_release_derived', 'CONTROL FAILURE', 'After LH-877 was released, feature vectors built during the hold were not deleted.', ['holdworked', 'unrecoverable', 'control'], ['analytics', 'cloud', 'all'], ['preservation', 'deletion'], 'privacy', ['lh_877', 'ds_features', 'c_hold_release']),
+    F('f_hold_suspend', 'FACT', 'During LH-901 every skipped deletion was logged against the hold, so the suspension can be shown record by record.', ['holdworked'], ['pay', 'cloud', 'analytics', 'vendor', 'all'], ['preservation', 'deletion'], 'both', ['c_hold_scope', 'ds_audit']),
+    F('f_k42_test', 'FACT', 'A decrypt attempt on 2022 ciphertext was rejected after K-42 was destroyed.', ['unrecoverable'], ['cloud', 'analytics', 'all'], ['recoverability'], 'security', ['k_42', 'c_key_destroy']),
+    F('f_k42_plain', 'CONTROL FAILURE', 'A decrypted 2022 extract in the warehouse sandbox outlived the key, so the data did not become unrecoverable.', ['unrecoverable', 'keygone', 'control'], ['cloud', 'analytics', 'all'], ['recoverability', 'deletion'], 'both', ['ds_sandbox', 'c_key_destroy'],
+      { reviewer: ['DESIGN ISSUE', 'Destroying a key only reaches what it encrypted.'], builder: ['REQUIRED CONTROL', 'Find and delete plaintext copies before destroying the key.'], auditor: ['EVIDENCE FAILURE', 'The key is gone; a copy of the data is not.'], executive: ['RISK', 'Data we declared unrecoverable is still readable.'] }),
+    F('f_k42_escrow', 'UNKNOWN', 'Whether K-42’s key material was ever exported or escrowed is not recorded.', ['unrecoverable'], ['cloud', 'all', 'analytics'], ['keylifecycle'], 'security', ['k_42', 'sy_kms'])
   ];
 
   /* ── decisions per view ─────────────────────────────── */
@@ -719,9 +892,24 @@
     worst: D('A single credential, insider or vendor reaches named histories.', 'Damage is what we collect, times how long we keep it, times how identifiable it is, times who holds the key.', 'Remove what is not needed; compute locally; then scope access; then de-identify.', 'Blast-radius review after each safeguard.',
       'Our worst day exposes identity joined with location and ID documents.', ['Insure', 'Keep less', 'Limit who can reach it'], 'Keep less first, then limit who can reach it.', 'Vendor copies remain outside our control.')
   };
-  G.principleFor = { takeover: 'passkey', 'ctl-account': 'passkey', know: 'scoped', whoknows: 'scoped', where: 'derived', prove: 'passkey', linkid: 'scoped', boundary: 'local', routing: 'local', 'sd-age': 'attr', 'sd-relay': 'scoped', 'sd-derived': 'derived', join: 'infer', infer: 'infer', agentdo: 'infer', consent: 'no', delete: 'del', live: 'encrypt', purpose: 'encrypt', access: 'encrypt', 'ctl-tenant': 'hiding', 'ctl-auth': 'passkey', 'ctl-link': 'scoped', 'ctl-sd': 'attr', 'ctl-route': 'local', 'ctl-agent': 'infer', 'ctl-access': 'encrypt', 'ctl-log': 'scoped', changed: 'no', worst: 'local' };
+  G.principleFor = { recover: 'usable', recneeds: 'protect', match: 'hashed', keygone: 'lostkey', hold: 'context', holdworked: 'hold', 'ctl-keydestroy': 'readable', 'ctl-hold': 'hold', takeover: 'passkey', 'ctl-account': 'passkey', know: 'scoped', whoknows: 'scoped', where: 'derived', prove: 'passkey', linkid: 'scoped', boundary: 'local', routing: 'local', 'sd-age': 'attr', 'sd-relay': 'scoped', 'sd-derived': 'derived', join: 'infer', infer: 'infer', agentdo: 'infer', consent: 'no', delete: 'del', live: 'encrypt', purpose: 'encrypt', access: 'encrypt', 'ctl-tenant': 'hiding', 'ctl-auth': 'passkey', 'ctl-link': 'scoped', 'ctl-sd': 'attr', 'ctl-route': 'local', 'ctl-agent': 'infer', 'ctl-access': 'encrypt', 'ctl-log': 'scoped', changed: 'no', worst: 'local' };
 
   G.decisions['ctl-account'] = G.decisions.takeover;
+  G.decisions.recover = D('Records exist that may not be usable when they are needed.', 'Data existence and data usability are different states. Bytes need their keys, schema, rules and lineage.', 'Record every dependency with the archive; retain them for as long as the archive; run a yearly restore drill.', 'Restore drill that decrypts, interprets and matches a known record.',
+    'We cannot yet show that old records can be produced when required.', ['Assume it works', 'Record dependencies and drill yearly', 'Re-encrypt archives to the current key each year'], 'Record dependencies and drill yearly.', 'A drill proves one archive at one time; others still need their own.');
+  G.decisions.recneeds = D('Protection was chosen without deciding who should be able to undo it.', 'Protected is not the same as recoverable. Each transformation decides who can reverse or match it, for how long.', 'Name the key, owner, rule and version for every transformation; decide how long recovery must remain possible.', 'Transformation inventory reconciled with the key service.',
+    'We do not always know who can still read or match protected data.', ['Leave as is', 'Inventory and assign owners', 'Reduce recoverable copies'], 'Inventory and assign owners, then reduce recoverable copies.', 'Vendor copies follow their own rules.');
+  G.decisions.match = D('A one-way value can still identify a known person.', 'One-way does not necessarily mean unlinkable. Predictable inputs can be transformed and compared.', 'Keyed pseudonyms per purpose and per partner; no unkeyed hashes of predictable values; record key and rule versions.', 'Matching test with a list of known values; version tags on every pseudonym.',
+    'Partners and future systems can re-identify customers from values we called protected.', ['Accept', 'Switch to keyed, per-partner pseudonyms', 'Send no identifier'], 'Switch to keyed, per-partner pseudonyms.', 'Whoever holds the key can still match.');
+  G.decisions.keygone = D('A key decision changes what the data can ever be used for.', 'Key lifecycle can become data lifecycle. Destroying a key can make records unusable; keeping it keeps them readable.', 'Before destroying a key: list what it protects, check active holds, delete plaintext copies; record the destruction.', 'Dependency report per key; hold check in the rotation job.',
+    'Destroying a key would make records permanently unreadable, including ones under hold.', ['Destroy on schedule', 'Destroy after a hold check', 'Keep keys indefinitely'], 'Destroy after a hold check, and only once no plaintext copies remain.', 'Copies outside our key service are not covered.');
+  G.decisions.hold = D('Preservation keeps the bytes but loses what makes them usable.', 'Preservation is not only preserving bytes. A hold must also keep the keys, mappings, schema and lineage.', 'A hold scope that names data and its dependencies; vendors confirm; normal retention for everything outside the scope.', 'Hold inventory compared with the usability checklist.',
+    'Records under hold may not be usable when they are needed.', ['Hold the bytes only', 'Hold bytes and dependencies', 'Hold everything'], 'Hold bytes and dependencies, and only what is in scope.', 'Derived data and vendor copies need confirmation.');
+  G.decisions.holdworked = D('Deletion and preservation conflict, and the conflict is invisible.', 'Privacy minimization and legal preservation can legitimately pull in opposite directions. The architecture must make the conflict explicit.', 'Deletion checks holds per record; every skip is logged; release resumes deletion everywhere, derived data included.', 'Skip log reconciled with the scope; post-release canary in every store.',
+    'Deletion is suspended for records under hold, and release did not clean everything.', ['Delete anyway', 'Suspend in scope and log it', 'Suspend all deletion during any hold'], 'Suspend only what is in scope, log it, and verify after release.', 'Vendor copies depend on acknowledgement.');
+  G.decisions['ctl-keydestroy'] = D('Data declared unrecoverable is still readable somewhere.', 'Encrypted is not permanently readable, and destroying a key is not the same as destroying every copy.', 'Before destruction, find plaintext copies and exported key material; after it, prove a decrypt attempt fails.', 'KMS event, key state, decrypt attempt and a scan for plaintext copies.',
+    'Some data we treat as gone can still be read.', ['Accept', 'Delete the plaintext copies', 'Block destruction until a copy scan passes'], 'Delete the plaintext copies now; block future destruction on a copy scan.', 'Copies made outside our systems are not visible to us.');
+  G.decisions['ctl-hold'] = G.decisions.holdworked;
 
   /* ── reviews ────────────────────────────────────────── */
   G.reviews = [
@@ -733,6 +921,7 @@
     { id: 'RV-415', feature: 'Assistant routing and tools', s: 'ai', stage: 'In review', view: 'agent', conds: ['c_route', 'c_pcc_attest', 'c_agent_policy', 'c_agent_approval'] },
     { id: 'RV-416', feature: 'Ledger commission statements', s: 'cloud', stage: 'Launched', view: 'tenant', conds: ['c_vpd', 'c_report_scope', 'c_server_filter'] },
     { id: 'RV-418', feature: 'Northstar Account sessions', s: 'ident', stage: 'In review', view: 'takeover', conds: ['c_passkey', 'c_dbsc', 'c_cookie_enc', 'c_ext_review', 'c_recovery'] },
+    { id: 'RV-419', feature: 'Event archive and key rotation', s: 'cloud', stage: 'In review', view: 'archive', conds: ['c_key_destroy', 'c_key_inventory', 'c_hold_keys', 'c_restore_drill'] },
     { id: 'RV-417', feature: 'Churn re-engagement export', s: 'analytics', stage: 'Launched', view: 'consent', conds: ['c_consent_read', 'c_vendor_ack', 'c_delete_orch'] }
   ];
 
@@ -752,7 +941,9 @@
     SV('tenant', 'Cross-tenant isolation', 'auditor', 'cloud', 'report', 'control', ['tenant'], 'tenant'),
     SV('twotable', 'Two-table reidentification', 'reviewer', 'analytics', 'revoke', 'join', ['linkability'], 'dataset'),
     SV('onelife', 'One account, one life', 'reviewer', 'ident', 'account', 'stolen', ['linkability']),
-    SV('takeover', 'Account takeover', 'auditor', 'ident', 'account', 'control', ['takeover'])
+    SV('takeover', 'Account takeover', 'auditor', 'ident', 'account', 'control', ['takeover']),
+    SV('archive', 'The five-year archive', 'reviewer', 'cloud', 'report', 'recover', ['recoverability'], 'dataset'),
+    SV('preserve', 'Delete vs preserve', 'auditor', 'analytics', 'delete', 'holdworked', ['preservation'])
   ];
   /* Focus mode: three presets for a short walkthrough */
   G.focus = [

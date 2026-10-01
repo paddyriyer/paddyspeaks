@@ -204,7 +204,7 @@ export default [
       return { n, out };
     });
     clean(p, 'saved', assert); await p.closeAll();
-    assert(r.n === 14, 'fourteen saved views, got ' + r.n);
+    assert(r.n === 16, 'sixteen saved views, got ' + r.n);
     assert(!r.out.length, 'presets apply: ' + r.out);
   } },
   { name: 'links into the earlier explorer forward to v10', async run({ page, assert }) {
@@ -231,6 +231,76 @@ export default [
       clean(m, 'mobile ' + h, assert); await m.closeAll();
       assert(o <= 0, (h || 'home') + ': overflows by ' + o + 'px at 390');
     }
+  } },
+  { name: 'across time: recoverability, preservation and key lifecycle are a lens over the same graph', async run({ page, assert }) {
+    const p = await page(H({ s: 'cloud', j: 'report', q: 'recover', u: 'dataset' }));
+    const r = await p.evaluate(() => {
+      const G = window.PG, o = {}, $ = (x) => document.querySelector(x), txt = (x) => ($(x) || {}).innerText || '';
+      const grp = [...document.querySelectorAll('#selQ optgroup')].map((g) => [g.label, g.querySelectorAll('option').length]);
+      o.groups = grp;
+      o.refs = G.transforms.every((t) => G.nodes[t.node] && (!t.key || G.keys[t.key])) && G.holds.every((h) => h.items.every((i) => G.nodes[i[1]])) && G.archive.deps.every((d) => G.nodes[d.node]);
+      // the five-year archive, bad outcome
+      $('[data-am="bad"]').click();
+      o.bad = txt('#ar-res'); o.badFail = document.querySelectorAll('#ar-res .dep.d-fail').length;
+      window.PCC1.set({ p: 'executive' }); $('[data-am="bad"]').click(); o.execFirst = (document.querySelector('#ar-res .say p') || {}).className;
+      window.PCC1.set({ p: 'reviewer' });
+      // hashed: one-way, but matchable by comparison
+      window.PCC1.set({ s: 'vendor', j: 'revoke', q: 'match' });
+      o.tab = document.querySelector('[data-tt][aria-checked="true"]').getAttribute('data-tt');
+      $('#candI').value = '  ' + G.subjectEmail.toUpperCase() + ' '; $('[data-cand]').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      o.hash = txt('#tf-res');
+      // keyed pseudonym: reproducible only with the historical key and rule
+      document.querySelector('[data-tt="pseudo"]').click();
+      $('#candI').value = G.subjectEmail; $('[data-cand]').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      o.pOk = txt('#tf-res').toLowerCase().includes("same id: matched");
+      $('[data-pk="rule"]').click(); $('[data-cand]').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); o.pRule = txt('#tf-res').toLowerCase().includes("different id");
+      $('[data-pk="rule"]').click(); $('[data-pk="key"]').click(); $('[data-cand]').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); o.pKey = txt('#tf-res').toLowerCase().includes("cannot compute");
+      o.principle = txt('.principle');
+      // key destruction
+      window.PCC1.set({ s: 'cloud', j: 'report', q: 'keygone' }); o.k2026 = txt('#kg-res');
+      $('[data-kg="k_42"]').click(); o.k42 = txt('#kg-res');
+      // legal hold: preservation is not only bytes
+      window.PCC1.set({ q: 'hold' }); o.holdNote = txt('#vis');
+      $('[data-hi="k_2026"]').click(); o.open = document.querySelector('#hd-use li').innerText;
+      // delete vs preserve
+      window.PCC1.set({ s: 'analytics', j: 'delete', q: 'holdworked' }); o.active = txt('#pv-res');
+      $('[data-ph="1"]').click(); o.released = txt('#pv-res');
+      // did the key destruction really work?
+      window.PCC1.set({ s: 'cloud', j: 'report', q: 'unrecoverable' }); o.chain = txt('#vis'); o.ufind = window.PCC1.findings();
+      // the both lens carries the four-lens archived record
+      window.PCC1.set({ s: 'all', q: 'know', l: 'both' }); o.conv4 = txt('.conv4');
+      return o;
+    });
+    const ev = await page('#evidence?ev=time');
+    const reg = await ev.evaluate(() => ({ cards: document.querySelectorAll('.tvd').length, n: window.PG.transforms.length, q: document.querySelectorAll('.tvd')[0].querySelectorAll('dt').length }));
+    await ev.closeAll();
+    clean(p, 'across time', assert); await p.closeAll();
+    assert(r.refs, 'every transformation, key, hold item and archive dependency points at a graph node');
+    assert(r.groups.length === 2 && r.groups[1][0] === 'What must still be possible in the future?' && r.groups[1][1] === 7, 'seven future questions in their own group: ' + JSON.stringify(r.groups));
+    assert(/Data exists\s*Yes/i.test(r.bad) && /Recoverable\s*Failed/i.test(r.bad) && r.badFail === 2, 'bad outcome: bytes exist, recovery failed, two keys missing');
+    assert(r.execFirst === 'say-e', 'the executive reads the one-sentence version first');
+    assert(r.tab === 'hash' && /Decrypt\s*None/i.test(r.hash) && /matches the stored hash/i.test(r.hash), 'hashed: no decrypt, but a known value matches after normalization');
+    assert(r.pOk && r.pRule && r.pKey, 'pseudonym reproduces only with the historical key and rule');
+    assert(/Key lifecycle can become data lifecycle/.test(r.principle), 'principle follows the tab: ' + r.principle);
+    assert(/Conflicts with a hold\s*Yes: LH-901/i.test(r.k2026), 'destroying K-2026 conflicts with the active hold');
+    assert(/legacy_extract_2022/.test(r.k42) && /Destroyed on 2026-06-30/.test(r.k42), 'K-42: destroyed, with a surviving plaintext copy');
+    assert(/not legal advice/i.test(r.holdNote) && /Preservation is not only preserving bytes/.test(r.holdNote), 'hold: neutral, not legal advice, and more than bytes');
+    assert(/^\S*\s*No\b|NO/.test(r.open) || /No/.test(r.open), 'without the key the held data cannot be opened: ' + r.open);
+    assert(/Preserve relevant data/.test(r.active) && /pending/.test(r.active) && /Verification complete[\s\S]*failed/i.test(r.released), 'delete vs preserve: suspension now, release verified later with a failure');
+    assert(/Key destruction/.test(r.chain) && /legacy_extract_2022/.test(r.chain) && r.ufind.includes('f_k42_plain'), 'key destruction control chain finds the surviving copy');
+    assert(/Encryption answers who can read it/.test(r.conv4) && /QA/i.test(r.conv4) && /Governance/i.test(r.conv4), 'both lens: security, privacy, governance and QA on one archived record');
+    assert(reg.cards === reg.n && reg.q === 9, 'every dataset followed across time with nine questions: ' + JSON.stringify(reg));
+  } },
+  { name: 'ask privacy answers recoverability questions with classified, cited lines', async run({ page, assert }) {
+    const p = await page('#ask');
+    const qs = ['Can this dataset be decrypted?', 'Who holds the key?', 'Which data becomes unrecoverable if this key is destroyed?', 'Can I match this hashed identifier back to a known customer?', 'Which algorithm and key version created this pseudonym?', 'Which records are currently under legal hold?', 'Would deleting this key violate an active preservation requirement?', 'Can this five-year-old archive actually be restored?', 'Which token mappings are required to interpret these records?', 'Which datasets physically exist but can no longer be meaningfully recovered?'];
+    const out = await p.evaluate((qs) => qs.map((q) => { const a = window.PG.answer(q); return { q, same: a.q === q, n: a.lines.length, kinds: [...new Set(a.lines.map((l) => l[0]))] }; }), qs);
+    const loose = await p.evaluate(() => window.PG.answer('could anyone decrypt the old events?').q);
+    clean(p, 'ask time', assert); await p.closeAll();
+    const K = ['FACT', 'INFERENCE', 'UNKNOWN', 'RECOMMENDATION', 'CONTROL FAILURE'];
+    out.forEach((o) => { assert(o.same && o.n >= 2, o.q + ' answered by its own intent'); assert(o.kinds.every((k) => K.includes(k)), o.q + ': ' + o.kinds); });
+    assert(out.some((o) => o.kinds.includes('CONTROL FAILURE')) && out.some((o) => o.kinds.includes('UNKNOWN')) && out.some((o) => o.kinds.includes('INFERENCE')), 'answers distinguish control failures, unknowns and inferences');
+    assert(loose === 'Can this dataset be decrypted?', 'free text finds the decrypt intent: ' + loose);
   } },
   { name: 'on a phone every view fits the screen: nothing is cut off or hidden in a sideways scroll', async run({ page, assert }) {
     const p = await page('', { width: 390, height: 844 });
@@ -259,6 +329,7 @@ export default [
   { name: 'the product carries no hiring language, no privacy score, and registers its storage key', async run({ assert }) {
     const text = ['index.html', 'app.js', 'graph.js', 'pcc1.css'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
     const hit = text.match(/interview|hiring|candidate|recruit|job application/i);
+    assert(!/rainbow/i.test(text), 'no attack-table language');
     assert(!hit, 'hiring language found: ' + (hit && hit[0]));
     assert(!/privacy score/i.test(text), 'no privacy score');
     const keys = JSON.parse(fs.readFileSync(path.join(DIR, '..', 'data', 'platform', 'state-keys.json'), 'utf8'));
