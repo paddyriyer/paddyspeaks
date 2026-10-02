@@ -498,6 +498,15 @@ async function handleInsights(request, env, url, ch) {
   const authError = authenticate(request, env, ch);
   if (authError) return authError;
 
+  // Edge-cache (5 min). These aggregations scan large slices of page_views, so
+  // without this every dashboard refresh re-reads them and burns the D1 daily
+  // rows-read quota. Auth is checked above, so only authenticated requests
+  // reach the cache; the key is URL-only (period/filters live in the query).
+  const cacheKey = new Request(request.url, { headers: { 'Authorization': '' } });
+  const cache = caches.default;
+  const cachedResp = await cache.match(cacheKey);
+  if (cachedResp) return new Response(await cachedResp.text(), { headers: { ...ch, 'Content-Type': 'application/json', 'X-Cache': 'HIT' } });
+
   const period = url.searchParams.get('period') || '7d';
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
   const nowMs = Date.now();
@@ -676,7 +685,8 @@ async function handleInsights(request, env, url, ch) {
     previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate },
     sources, content, studio, dataQuality, searchGaps, insights,
   });
-  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
+  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'MISS' } });
 }
 
 /* ───────── Journeys & Retention (Phase 4) ───────── */
@@ -690,6 +700,14 @@ function weekKey(ms) {
 async function handleJourneys(request, env, url, ch) {
   const authError = authenticate(request, env, ch);
   if (authError) return authError;
+
+  // Edge-cache (5 min): the cohort query full-scans page_views, so repeated
+  // dashboard loads would otherwise burn the D1 daily rows-read quota.
+  const cacheKey = new Request(request.url, { headers: { 'Authorization': '' } });
+  const cache = caches.default;
+  const cachedResp = await cache.match(cacheKey);
+  if (cachedResp) return new Response(await cachedResp.text(), { headers: { ...ch, 'Content-Type': 'application/json', 'X-Cache': 'HIT' } });
+
   const period = url.searchParams.get('period') || '30d';
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 30;
   const nowMs = Date.now();
@@ -756,7 +774,8 @@ async function handleJourneys(request, env, url, ch) {
     crossDomainTransitions: crossDomain,
     sessions: bySession.size,
   });
-  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' } });
+  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'MISS' } });
 }
 
 /* ───────── Realtime ───────── */
