@@ -61,7 +61,8 @@ export default {
     // and for any collector hit that arrives anyway. Nothing is recorded.
     if (gpcOptOut(request)) {
       if (url.pathname === '/api/px.gif') return pixelResponse(ch);
-      if (url.pathname === '/collect' || url.pathname === '/api/v' || url.pathname === '/api/e') {
+      if (url.pathname === '/collect' || url.pathname === '/api/v' || url.pathname === '/api/e'
+          || url.pathname === '/e/v' || url.pathname === '/e/i') {
         return new Response(null, { status: 204, headers: ch });
       }
     }
@@ -87,6 +88,18 @@ export default {
     }
 
     if (url.pathname === '/api/e' && request.method === 'POST') {
+      return handleEvent(request, env, ctx, ch);
+    }
+
+    // First-party collection paths (served from paddyspeaks.com/e/* via a
+    // Cloudflare Route). Same origin as the site, so no CORS/preflight and —
+    // crucially — ad/content blockers that block analytics *subdomains* do not
+    // block the site's own domain. Identical handlers to /api/v and /api/e.
+    if (url.pathname === '/e/v' && request.method === 'POST') {
+      return handleCollect(request, env, ctx, ch);
+    }
+
+    if (url.pathname === '/e/i' && request.method === 'POST') {
       return handleEvent(request, env, ctx, ch);
     }
 
