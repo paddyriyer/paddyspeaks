@@ -765,11 +765,18 @@ async function handleRealtime(request, env, ch) {
   const authError = authenticate(request, env, ch);
   if (authError) return authError;
 
-  const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
+  // Compare in SQLite's own datetime format. page_views.created_at defaults to
+  // datetime('now') ("2026-10-02 04:10:55" — a space, no 'T'/'Z'); a JS
+  // toISOString() threshold ("...T...Z") sorts AFTER it lexicographically, so
+  // the old `created_at >= ?` bind excluded every same-day row and "active now"
+  // was always 0. Building the threshold with datetime('now','-5 minutes')
+  // keeps both sides in the same format. (Multi-day windows elsewhere only
+  // differ by sub-second at the boundary, so this bug is unique to the 5-min
+  // realtime window.)
   const result = await env.DB.prepare(`
     SELECT COUNT(DISTINCT session_id) as active_visitors, COUNT(*) as recent_views
-    FROM page_views WHERE created_at >= ?
-  `).bind(fiveMinAgo).first();
+    FROM page_views WHERE created_at >= datetime('now', '-5 minutes')
+  `).first();
 
   return new Response(JSON.stringify(result), {
     headers: { ...ch, 'Content-Type': 'application/json' },
