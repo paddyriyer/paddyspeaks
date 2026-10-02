@@ -8660,6 +8660,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 is correct: fields without defaults (endpoint, timestamp) must come before fields with defaults. Using asdict() with default=str in json.dumps() properly serializes the datetime object. Option 1 has fields out of order. Option 2 changes timestamp to string unnecessarily. Option 3 has field order violations (fields without defaults must come first)."
+    },
+    {
+      "id": "py-new-149",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-10-02",
+      "prompt": "You have an async function that fetches data from an external API. The API has a rate limit of 100 requests per second, and you need to process 10,000 items. You're using `asyncio.Semaphore(100)` to control concurrency. However, you notice that after ~30 seconds, all tasks hang indefinitely even though the API is still responding. What is the most likely cause?\n\nConsider this code:\n```python\nasync def fetch_item(semaphore, item_id):\n    async with semaphore:\n        result = await api.fetch(item_id)\n        process(result)  # Takes 5 seconds\n        return result\n\nasync def main():\n    semaphore = asyncio.Semaphore(100)\n    tasks = [fetch_item(semaphore, i) for i in range(10000)]\n    await asyncio.gather(*tasks)\n```",
+      "options": [
+        "The semaphore is correctly limiting concurrency to 100, but process() is blocking the event loop for 5 seconds per coroutine, causing a deadlock when all 100 slots are filled with blocking calls.",
+        "asyncio.gather() has an internal timeout that triggers after 30 seconds of continuous execution.",
+        "The Semaphore object is being garbage collected because it's not stored in a module-level variable.",
+        "The API connection pool is exhausted because each coroutine maintains an open connection during the 5-second process() call."
+      ],
+      "answer": 0,
+      "explanation": "The process() function is synchronous and blocking, which starves the event loop. While holding a semaphore slot, the coroutine blocks for 5 seconds, preventing the event loop from making progress on other tasks. Once all 100 semaphore slots are filled with blocked coroutines, no new tasks can acquire the semaphore, creating a deadlock. The fix is to move process() outside the semaphore context or make it async with await asyncio.sleep() calls."
     }
   ]
 }
