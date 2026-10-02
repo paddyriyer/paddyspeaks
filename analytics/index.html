@@ -938,9 +938,19 @@
 
     function renderStudio(s, eventsTableOk) {
         var fEl = document.getElementById('studioFunnel');
-        var steps = [['interview_studio_opened', 'Studio opened'], ['track_viewed', 'Track viewed'], ['track_selected', 'Track selected'], ['question_viewed', 'Question viewed'], ['question_started', 'Question started'], ['answer_submitted', 'Answer submitted'], ['question_completed', 'Question completed']];
+        // Each step sums one or more event names, so the quiz flow
+        // (quiz_started/quiz_completed) and simulator count toward the same
+        // bars as the practice flow (question_started/question_completed).
+        var steps = [
+            [['interview_studio_opened'], 'Studio opened'],
+            [['track_viewed', 'track_selected'], 'Track selected'],
+            [['question_started', 'quiz_started', 'simulator_started'], 'Started'],
+            [['answer_submitted'], 'Answer submitted'],
+            [['question_completed', 'quiz_completed', 'simulator_completed'], 'Completed']
+        ];
         var f = s.funnel || {};
-        var maxV = 0; steps.forEach(function(st) { maxV = Math.max(maxV, f[st[0]] || 0); });
+        function stepVal(names) { return names.reduce(function(a, n) { return a + (f[n] || 0); }, 0); }
+        var maxV = 0; steps.forEach(function(st) { maxV = Math.max(maxV, stepVal(st[0])); });
         if (!maxV) {
             // Distinguish "table missing" (a setup problem) from "no usage yet"
             if (eventsTableOk === false) {
@@ -951,7 +961,7 @@
         }
         else {
             fEl.innerHTML = steps.map(function(st) {
-                var v = f[st[0]] || 0, w = maxV ? (v / maxV * 100) : 0;
+                var v = stepVal(st[0]), w = maxV ? (v / maxV * 100) : 0;
                 return '<div class="funnel-row"><div class="funnel-label">' + st[1] + '</div>' +
                     '<div class="funnel-bar" style="width:' + w + '%"></div><div class="funnel-num">' + fmt(v) + '</div></div>';
             }).join('');
