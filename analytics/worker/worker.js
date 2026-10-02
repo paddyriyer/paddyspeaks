@@ -482,11 +482,11 @@ async function handleStats(request, env, url, ch) {
   }
 
   const response = new Response(JSON.stringify(data), {
-    headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60', 'X-Cache': 'MISS' },
+    headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600', 'X-Cache': 'MISS' },
   });
 
   const cacheResponse = new Response(JSON.stringify(data), {
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=600' },
   });
   cache.put(cacheKey, cacheResponse).catch(() => {});
 
@@ -530,7 +530,7 @@ async function handleInsights(request, env, url, ch) {
   const batchA = await env.DB.batch([
     env.DB.prepare(sessRoll).bind(since),
     env.DB.prepare(`SELECT session_id, MAX(duration) AS dur, MAX(scroll_depth) AS scr, COUNT(*) AS pc FROM page_views WHERE created_at >= ? AND created_at < ?${excl} GROUP BY session_id LIMIT 20000`).bind(prevSince, since),
-    env.DB.prepare(`SELECT visitor_id, MIN(created_at) AS fs FROM page_views WHERE visitor_id IN (SELECT DISTINCT visitor_id FROM page_views WHERE created_at >= ?) GROUP BY visitor_id`).bind(since),
+    env.DB.prepare(`SELECT anonymous_visitor_id AS visitor_id, first_seen AS fs FROM visitors WHERE last_seen >= ?`).bind(since),
     env.DB.prepare(`SELECT page,
         COUNT(DISTINCT session_id) AS readers,
         SUM(CASE WHEN page_num=1 THEN 1 ELSE 0 END) AS entrances,
@@ -685,8 +685,8 @@ async function handleInsights(request, env, url, ch) {
     previous: { sessions: prevSessions.length, engagementRate: prevEngagementRate },
     sources, content, studio, dataQuality, searchGaps, insights,
   });
-  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
-  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'MISS' } });
+  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' } })).catch(() => {});
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800', 'X-Cache': 'MISS' } });
 }
 
 /* ───────── Journeys & Retention (Phase 4) ───────── */
@@ -717,7 +717,7 @@ async function handleJourneys(request, env, url, ch) {
   const excl = excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '';
 
   const batch = await env.DB.batch([
-    env.DB.prepare(`SELECT visitor_id, MIN(created_at) AS fs FROM page_views GROUP BY visitor_id HAVING fs >= ?`).bind(cohortSince),
+    env.DB.prepare(`SELECT anonymous_visitor_id AS visitor_id, first_seen AS fs FROM visitors WHERE first_seen >= ?`).bind(cohortSince),
     env.DB.prepare(`SELECT DISTINCT visitor_id, DATE(created_at) AS d FROM page_views WHERE created_at >= ? LIMIT 100000`).bind(cohortSince),
     env.DB.prepare(`SELECT session_id, page, id FROM page_views WHERE created_at >= ?${excl} ORDER BY session_id, id LIMIT 50000`).bind(since),
   ]);
@@ -774,8 +774,8 @@ async function handleJourneys(request, env, url, ch) {
     crossDomainTransitions: crossDomain,
     sessions: bySession.size,
   });
-  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {});
-  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300', 'X-Cache': 'MISS' } });
+  cache.put(cacheKey, new Response(body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' } })).catch(() => {});
+  return new Response(body, { headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800', 'X-Cache': 'MISS' } });
 }
 
 /* ───────── Realtime ───────── */

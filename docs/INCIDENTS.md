@@ -60,6 +60,46 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
 
 ## 4. Log
 
+### 2026-10-02 — D1 free-tier daily "rows read" limit exceeded; reads blocked
+
+- **Impact:** Cloudflare blocked all D1 **reads** account-wide once the free-tier
+  daily cap (5,000,000 rows read) was hit. The analytics dashboard (and any live
+  feature that reads D1 — leaderboard, testimonials) could not load until the
+  quota reset at 00:00 UTC. **No data lost:** D1 **writes** are a separate quota,
+  so the page-view beacon and the no-JS pixel kept recording throughout.
+- **Window:** ~2026-10-02, during a long interactive debugging session; auto-reset
+  at 2026-10-03 00:00 UTC.
+- **Detected by:** Cloudflare usage notification ("daily operations reached 70%",
+  then "temporarily blocked"), relayed by Paddy.
+- **Cause:** the two Phase-2/4 dashboard endpoints `/api/insights` and
+  `/api/journeys` each **full-scanned `page_views`** to derive every visitor's
+  first-seen date (`SELECT visitor_id, MIN(created_at) … GROUP BY visitor_id`),
+  on **every cold load**. They were also not edge-cached at first. A day of
+  intensive manual dashboard use (dozens of loads across tabs, periods and date
+  ranges) multiplied those full scans into millions of rows read. The hourly
+  Analytics Health check was NOT a factor — it only hits write/pixel endpoints.
+- **Why it wasn't caught:** the new endpoints shipped without read-cost review;
+  no per-query row-read budget or alert existed below Cloudflare's own 70% notice.
+- **Fix:**
+  - #907 — edge-cache `/api/insights` and `/api/journeys` (then raised, with
+    `/api/stats`, to 10–30 min TTLs).
+  - #<this PR> — the heavy endpoints now read first-seen from the `visitors`
+    roll-up table (one indexed row per visitor) instead of scanning `page_views`;
+    a one-time `analytics/worker/backfill-visitors.sql` fills historical
+    visitors (run after the quota reset); realtime polling slowed to 60s and
+    pauses on a hidden tab.
+- **Guardrails added:**
+  - Roll-up reads + backfill (above); this log entry; the rule below.
+  - **Standing rule:** any new `/api/*` aggregation that scans `page_views` or
+    `events` must be edge-cached AND must not scan a whole table per request
+    (derive from a roll-up, or bound by the period). Treat D1 **rows read** as a
+    budget, not just rows written.
+- **Follow-ups:**
+  - [ ] **Paddy:** run `analytics/worker/backfill-visitors.sql` once after the
+    read quota resets, so returning-visitor/cohort history is complete.
+  - [ ] **Paddy (optional):** if the dashboard is used heavily, the Workers Paid
+    plan ($5/mo) removes these daily caps entirely.
+
 ### 2026-09-24 — Analytics stopped recording JS page views for ~28 hours
 
 - **Impact:** No JavaScript page views, sessions or events were recorded
