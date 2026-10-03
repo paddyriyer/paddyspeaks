@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — the four-lens review
 
-From *Every Arrow Is a Decision*, edition 4.0 (1 October 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision*, edition 4.0 (3 October 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 Four questions for every arrow a product draws:
@@ -10,7 +10,7 @@ Four questions for every arrow a product draws:
 - **QA.** How would anyone outside know it works as promised?
 - **Data governance.** Who holds it, how long does it live, and can it really go?
 
-## Twenty-four questions for any product
+## Twenty-eight questions for any product
 
 ### Security
 
@@ -20,6 +20,7 @@ Four questions for every arrow a product draws:
 - [ ] What is sent before the person acts: before the wake word, before the tap, before opening?
 - [ ] What happens on a compromised or second-hand device?
 - [ ] If recovery is required, who controls the key or the mapping?
+- [ ] Are the links kept for security (phone number, recovery email, devices, IP address) used for nothing else?
 
 ### Privacy
 
@@ -29,6 +30,7 @@ Four questions for every arrow a product draws:
 - [ ] Is it used for training, ads or personalisation, and what is the default?
 - [ ] Could the purpose be met by proving an attribute instead of revealing the data?
 - [ ] Should the original remain recoverable, or would a pseudonymous or irreversible representation meet the purpose?
+- [ ] What can be inferred when this activity is joined with other activity, on this device and on the person’s other devices?
 
 ### QA
 
@@ -38,6 +40,7 @@ Four questions for every arrow a product draws:
 - [ ] Is deletion tested end to end, including derived data and backups?
 - [ ] Is the test re-run after every release and every policy change?
 - [ ] Can we restore and interpret an old protected record using the documented recovery path?
+- [ ] When a connection is scoped, shortened or separated, does the inference it enabled really stop?
 
 ### Data governance
 
@@ -47,6 +50,7 @@ Four questions for every arrow a product draws:
 - [ ] Does deletion in one place reach every other place?
 - [ ] Which controls can the vendor or a government withdraw, and who would be told?
 - [ ] Does a preservation hold include the keys, mappings, schemas, metadata and derived copies needed to make the record meaningful?
+- [ ] Which connections changed since the last review (a new receiver, identifier, processor, purpose or retention period), and did each go through review?
 
 A question nobody can answer is a finding.
 

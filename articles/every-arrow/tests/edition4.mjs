@@ -32,7 +32,7 @@ const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'as
 ok(C.products.map((p) => p.id).join() === want.join(), 'the eight products, in order: ' + want.join(', '));
 ok(C.lenses.map((l) => l.t).join(' · ') === 'Security · Privacy · QA · Data governance', 'the four lenses, in order');
 const sections = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"/g)].map((m) => m[1]);
-ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
+ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'everyday', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
 for (const p of C.products) {
   const sec = new RegExp(`<section class="scene[^"]*" id="${p.id}"[\\s\\S]*?</section>`).exec(html);
   ok(!!sec, `#${p.id}: no section`); if (!sec) continue;
@@ -107,7 +107,7 @@ const one = (k) => [...(stamps[k] || [])][0];
 ok(one('products') === '8', 'eight products');
 ok(one('edition') === '4.0' && /<meta name="ps:edition" content="4.0">/.test(html), 'edition 4.0');
 const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
-ok(ld.version === '4.0' && ld.dateModified === '2026-10-01' && /article:modified_time" content="2026-10-01"/.test(html), 'modified date and version agree');
+ok(ld.version === '4.0' && ld.dateModified === '2026-10-03' && /article:modified_time" content="2026-10-03"/.test(html), 'modified date and version agree');
 ok(ld.datePublished === '2026-09-26' && /datetime="2026-09-26"/.test(html), 'publication date agrees');
 ok(ld.timeRequired === `PT${one('read')}M`, 'JSON-LD timeRequired is the full reading time');
 ok(+one('read.essay') < +one('read'), 'the essay alone is shorter than the essay with every table');
@@ -122,8 +122,8 @@ ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/four-lenses.md')), 'the M
 /* ── 5 · the review, the patterns, the ending ──────────────────── */
 const kit = html.slice(html.indexOf('id="kit-questions"'), html.indexOf('class="btn"', html.indexOf('id="kit-questions"')));
 ok([...kit.matchAll(/<section data-l="(\w+)"/g)].map((m) => m[1]).join() === 'sec,pri,qa,gov', 'the review has one block per lens');
-for (const m of kit.matchAll(/<section data-l="(\w+)"[\s\S]*?<\/section>/g)) ok((m[0].match(/<li>/g) || []).length === 6, `the ${m[1]} block has six questions`);
-ok((html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length === 8, 'eight patterns');
+for (const m of kit.matchAll(/<section data-l="(\w+)"[\s\S]*?<\/section>/g)) ok((m[0].match(/<li>/g) || []).length === 7, `the ${m[1]} block has seven questions`);
+ok((html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length === 9, 'nine patterns');
 const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
 const lines = [...coda.matchAll(/<li[^>]*>([^<]+)<\/li>/g)].map((m) => m[1].trim());
 ok(lines.join(' | ') === 'Some arrows copy data. | Some arrows create an identity. | Some arrows make an inference. | And some arrows open the door. | Every arrow is still a decision.', 'the five closing lines, in order: ' + lines.join(' | '));
@@ -158,6 +158,29 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
   ok(/Legal hold[\s\S]*Preserve[\s\S]*Release hold[\s\S]*Resume retention and deletion/.test(b), 'the preservation lifecycle, in order');
   const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
   ok(/Some arrows move information through space\. Some move it through systems\. And some decisions determine whether information can still be recovered years later\./.test(coda), 'the closing thesis is extended in time');
+}
+
+/* ── 5d · everyday arrows: events, joins, mixed devices, changes ── */
+{
+  const f = /<section class="scene[^"]*" id="everyday"[\s\S]*?<\/section>\n\n<section/.exec(html);
+  ok(!!f, 'the everyday-arrows section is missing');
+  const b = f ? f[0] : '';
+  ok(/Event[\s\S]*Identifier[\s\S]*System[\s\S]*Derived data[\s\S]*Inference/.test(b), 'the chain reads event → identifier → system → derived data → inference');
+  for (const line of ['The combination is the inference', 'Why is this connected?', 'what happens when one feature is allowed to see all of them at once', 'Mixing platforms moves the join; it does not remove it', 'Privacy problems arrive as changes'])
+    ok(b.includes(line), `the everyday section keeps “${line}”`);
+  for (const a of ['Keep the connection', 'Scope it', 'Shorten retention', 'Separate the contexts']) ok(b.includes(a), `the everyday section names the decision “${a}”`);
+  ok([...b.matchAll(/<li data-l="(\w+)">/g)].map((m) => m[1]).join() === 'sec,pri,qa,gov', 'the everyday section is read through all four lenses');
+  ok(!/<a class="src"/.test(b) && /carries no citations/.test(b), 'the everyday section makes no vendor claims, and says so');
+  ok(!/\b(Apple|Google|Microsoft|iPhone|Android|Windows|Mac)\b/.test(b.replace(/<[^>]+>/g, ' ')), 'the everyday section names no company or platform: it describes patterns');
+  /* its Command Center links land on things that exist */
+  const E = (() => { const c = { PG: {} }; c.window = c; vm.createContext(c); c.PG.asOf = PG.asOf; vm.runInContext(read('privacy-command-center/events.js'), c); return c.PG.events; })();
+  for (const m of b.matchAll(/href="\/privacy-command-center\/#cc\?([^"]+)"/g)) {
+    const q = Object.fromEntries(m[1].replace(/&amp;/g, '&').split('&').map((kv) => kv.split('=')));
+    const okLink = (q.et || 'day') === 'day' ? E.day.events.some((x) => x.id === q.e) : q.et === 'cases' ? !!E.caseById(q.e) : false;
+    ok(okLink, `everyday: ${m[1]} is not an Events-layer view`);
+  }
+  const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
+  ok(/on devices from different companies\./.test(coda), 'the closing thesis follows the person across devices');
 }
 
 /* ── 6 · a slim page ───────────────────────────────────────────── */
