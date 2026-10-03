@@ -43,7 +43,9 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   Google-like and Microsoft-like views. Data and logic in `events.js`; see the v1
   README. The ecosystem views relabel one identical pattern with familiar
   product categories; they describe no company's implementation and are never a
-  comparison.
+  comparison. Since 2026-10-03 it also covers mixed devices (an iPhone-like
+  phone with a Windows-like laptop, an Android-like tablet, a Linux laptop…):
+  a *Your devices* picker and the *Devices across platforms* use case.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files

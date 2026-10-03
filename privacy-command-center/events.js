@@ -38,9 +38,57 @@
     { id: 'all', label: 'All' },
     { id: 'apple', label: 'Apple-like', services: ['Account', 'iPhone / Mac', 'Safari', 'Mail', 'iCloud', 'Photos', 'Maps', 'Wallet', 'App Store', 'Siri / AI assistant'] },
     { id: 'google', label: 'Google-like', services: ['Account', 'Android', 'Chrome', 'Gmail', 'Drive', 'Photos', 'Maps', 'Wallet', 'Play Store', 'YouTube', 'Gemini-like assistant'] },
-    { id: 'ms', label: 'Microsoft-like', services: ['Account', 'Windows', 'Edge', 'Outlook', 'OneDrive', 'Teams', 'Store', 'Xbox', 'Bing / search', 'Copilot-like assistant'] }
+    { id: 'ms', label: 'Microsoft-like', services: ['Account', 'Windows', 'Edge', 'Outlook', 'OneDrive', 'Teams', 'Store', 'Xbox', 'Bing / search', 'Copilot-like assistant'] },
+    { id: 'mixed', label: 'Mixed devices' }
   ];
   E.ecoNote = 'Apple-like, Google-like and Microsoft-like are synthetic patterns that borrow familiar product categories as labels. Every connection, identifier, retention period and inference here is illustrative; none describes how any company’s products work. The pattern is the same in every view; only the names change.';
+
+  /* ── your devices: one person, several platforms ──
+   * Each device kind offers platforms; a platform belongs to a family whose
+   * account it signs in to ('' = no platform account, a local sign-in). The
+   * device mix is the ONLY thing that changes the graph's shape, and only in
+   * the “Devices across platforms” case; ecosystems only relabel. */
+  E.devKinds = [
+    { id: 'phone', label: 'Phone', node: 'i_dev', opts: [['ios', 'iPhone-like phone', 'apple'], ['android', 'Android-like phone', 'google']] },
+    { id: 'laptop', label: 'Laptop', node: 'i_dev2', opts: [['win', 'Windows-like laptop', 'ms'], ['mac', 'Mac-like laptop', 'apple'], ['chromeos', 'Chromebook-like laptop', 'google'], ['linux', 'Linux laptop', '']] },
+    { id: 'tablet', label: 'Tablet', node: 'i_dev3', opts: [['androidtab', 'Android-like tablet', 'google'], ['ipad', 'iPad-like tablet', 'apple'], ['wintab', 'Windows-like tablet', 'ms'], ['none', 'No tablet', '']] }
+  ];
+  E.famAccount = { apple: 'Apple-like Account', google: 'Google-like Account', ms: 'Microsoft-like Account' };
+  E.dvDefault = 'ios.win.androidtab';
+  E.otherDevices = [
+    ['Watch', 'Pairs with the phone; heart rate and location travel through it.'],
+    ['TV', 'Signs in to streaming accounts and shares the home Wi-Fi.'],
+    ['Car', 'Pairs with the phone; contacts, messages and location go with it.'],
+    ['Smart speaker', 'Hears the whole household, on one person’s account.', 'family'],
+    ['Game console', 'A gaming account, often a child’s.', 'family'],
+    ['Work laptop', 'Managed by your employer.', 'workpersonal'],
+    ['Shared family tablet', 'Whose activity is it?', 'family']
+  ];
+  /* 'ios.win.androidtab' → the three chosen options, each [id, label, family] */
+  E.parseDv = function (str) {
+    var p = String(str || E.dvDefault).split('.');
+    return E.devKinds.map(function (k, i) { return k.opts.filter(function (o) { return o[0] === p[i]; })[0] || k.opts[0]; });
+  };
+  E.validDv = function (str) { var p = String(str || '').split('.'); return p.length === 3 && E.devKinds.every(function (k, i) { return k.opts.some(function (o) { return o[0] === p[i]; }); }); };
+  /* which platform accounts exist, and which devices each one sees */
+  E.devAccounts = function (dv) {
+    var d = E.parseDv(dv), slots = [['s_account', 'i_acct', 'd_devices'], ['s_account2', 'i_acct2', 'd_devices2'], ['s_account3', 'i_acct3', 'd_devices3']], acc = [];
+    d.forEach(function (o, i) {
+      if (o[0] === 'none' || !o[2]) return;
+      var a = acc.filter(function (x) { return x.fam === o[2]; })[0];
+      if (!a) { var sl = slots[acc.length]; a = { fam: o[2], label: E.famAccount[o[2]], sys: sl[0], id: sl[1], data: sl[2], devices: [] }; acc.push(a); }
+      a.devices.push(E.devKinds[i].node);
+    });
+    return acc;
+  };
+  /* names the device mix gives to nodes */
+  E.devLabels = function (dv) {
+    var d = E.parseDv(dv), lab = {};
+    E.devKinds.forEach(function (k, i) { if (d[i][0] !== 'none') lab[k.node] = d[i][1].replace(/ (phone|laptop|tablet)$/, '') + ' ' + k.label.toLowerCase() + ' ID'; });
+    lab.s_os = d[0][1];
+    E.devAccounts(dv).forEach(function (a) { lab[a.sys] = a.label; lab[a.id] = a.label + ' ID'; lab[a.data] = 'Devices on the ' + a.label; });
+    return lab;
+  };
 
   E.cols = [['event', 'Event'], ['id', 'Identifier'], ['sys', 'System'], ['data', 'Derived data'], ['inf', 'Inference']];
   E.needs = { required: 'Required', useful: 'Useful', optional: 'Optional' };
@@ -76,11 +124,18 @@
     i_remail: N('id', 'Recovery email', { stab: 'stable', carry: 'So a reset link can reach you.', use: 'security' }),
     i_pk: N('id', 'Passkey', { stab: 'scoped', carry: 'So you can sign in without a password; each site gets its own key.', use: 'security' }),
     i_tok: N('id', 'Payment token', { stab: 'scoped', carry: 'A stand-in card number for this device, so the shop never sees the real one.' }),
+    i_dev3: N('id', 'Tablet ID', { stab: 'stable', carry: 'So the service knows which device to answer.' }),
+    i_acct2: N('id', 'Second account ID', { stab: 'stable', carry: 'So every service on that platform account knows it is you.' }),
+    i_acct3: N('id', 'Third account ID', { stab: 'stable', carry: 'So every service on that platform account knows it is you.' }),
+    i_email: N('id', 'Email address', { stab: 'stable', carry: 'The name you sign in with on every platform.' }),
     i_work: N('id', 'Work account ID', { stab: 'stable', carry: 'So the employer’s systems know it is you.' }),
 
     /* systems */
     s_os: N('sys', 'Phone', { L: ['iPhone / Mac-like', 'Android-like', 'Windows-like'], why: 'runs the device; this stays on it', who: 'Only you, on the device', log: ['Stays on the device', 0], local: true }),
     s_account: N('sys', 'Account service', { L: ['Apple-like Account', 'Google-like Account', 'Microsoft-like Account'], why: 'keeps you signed in on every device', who: 'Account team; account security' }),
+    s_account2: N('sys', 'Second platform account', { why: 'keeps you signed in on that platform’s devices', who: 'That platform’s account team' }),
+    s_account3: N('sys', 'Third platform account', { why: 'keeps you signed in on that platform’s devices', who: 'That platform’s account team' }),
+    s_bridge: N('sys', 'Phone-to-computer link', { why: 'mirrors the phone on the computer', who: 'You; the link service' }),
     s_security: N('sys', 'Security & recovery', { why: 'checks that it is really you', who: 'Account security only', use: 'security', log: ['1 year', 365] }),
     s_mail: N('sys', 'Mail', { L: ['Mail-like', 'Gmail-like', 'Outlook-like'], why: 'delivers and stores your mail', who: 'The mail service' }),
     s_cal: N('sys', 'Calendar', { L: ['Calendar-like', 'Calendar-like', 'Outlook-like calendar'], why: 'keeps your schedule', who: 'The calendar service' }),
@@ -111,6 +166,11 @@
     /* data */
     d_screen: N('data', 'Screen-time log', { st: 'collected', why: 'Shows you your own screen time.', need: 'useful', use: 'operate', ret: ['28 days, on the phone', 28], enough: 28, who: 'Only you', sep: 'Already separate: it never leaves the phone.', onDel: 'device' }),
     d_devices: N('data', 'Signed-in devices', { st: 'collected', why: 'Lets you see and remove the devices on your account.', need: 'required', use: 'security', ret: ['While each device stays signed in', null], who: 'You; account security', sep: 'No: this list exists to connect your devices.', onDel: 'delete' }),
+    d_devices2: N('data', 'Signed-in devices, second account', { st: 'collected', why: 'Lets you see and remove the devices on that account.', need: 'required', use: 'security', ret: ['While each device stays signed in', null], who: 'You; that account’s security', sep: 'No: this list exists to connect your devices.', onDel: 'delete' }),
+    d_devices3: N('data', 'Signed-in devices, third account', { st: 'collected', why: 'Lets you see and remove the devices on that account.', need: 'required', use: 'security', ret: ['While each device stays signed in', null], who: 'You; that account’s security', sep: 'No: this list exists to connect your devices.', onDel: 'delete' }),
+    d_bridged: N('data', 'Texts, calls and photos on the laptop', { st: 'collected', why: 'Lets you answer the phone from the computer.', need: 'optional', use: 'operate', ret: ['Until you unlink the devices', null], who: 'You; both devices', sep: 'Yes: unlink the phone, or turn off messages and photos.', onDel: 'delete' }),
+    d_appacct: N('data', 'The app’s account, on every device', { st: 'shared', to: 'Third-party app', sub: 'one email address, whatever the platform', why: 'Lets you sign in to the app anywhere.', need: 'required', use: 'operate', ret: ['Unknown: set by the app', null], who: 'The app’s company', sep: 'Yes: a different, or relay, email address for each app.', onDel: 'theirs' }),
+    d_household: N('data', 'Devices seen on one network', { st: 'derived', sub: 'one home internet address, many devices', why: 'Measures ads across the devices in a home.', need: 'optional', use: 'ads', ret: ['90 days', 90], enough: 0, short: ['Not kept', 0], who: 'Ads & measurement', sep: 'Yes: a relay or VPN hides the shared address.', onDel: 'delete' }),
     d_signins: N('data', 'Sign-in history', { st: 'collected', why: 'Helps spot sign-ins that are not you.', need: 'required', use: 'security', ret: ['2 years', 730], enough: 180, short: ['6 months', 180], who: 'Account security', sep: 'Yes: it can stay inside security and never reach ads or analytics.', onDel: 'security' }),
     d_risk: N('data', 'Sign-in risk signal', { st: 'derived', why: 'Asks for one more check when something looks wrong.', need: 'required', use: 'security', ret: ['90 days', 90], enough: 90, who: 'Account security only', sep: 'Yes: it can stay inside security and never reach ads or analytics.', onDel: 'security' }),
     d_alert: N('data', 'Alert on your devices', { st: 'collected', why: 'Tells you about the new device or sign-in.', need: 'required', use: 'security', ret: ['30 days', 30], enough: 30, who: 'You', sep: 'Not needed: it only goes to you.', onDel: 'delete' }),
@@ -186,6 +246,8 @@
     n_crossover: N('inf', 'Work and personal look like one person', { why: 'Nobody asked for this. Two setups were joined by accident.', use: 'none', sens: true, needs: ['d_mdm', 'd_workprofile'] }),
     n_wherelive: N('inf', 'Where you live', { sub: 'photos taken late at night, in one place', why: 'Nothing needs this: it travels inside the file.', use: 'none', hist: true, sens: true }),
     n_expecting: N('inf', 'Possibly expecting a child', { why: 'A health inference nobody typed in.', use: 'ads', sens: true, needs: ['d_searchhist', 'd_lochist', 'd_purchase'] }),
+    n_xplat: N('inf', 'One person, across every platform', { why: 'No single platform account sees every device. What you install everywhere does.', use: 'none', sens: true, needs: ['d_synctabs', 'd_bridged', 'd_appacct'] }),
+    n_home: N('inf', 'These devices share a home', { sub: 'a guess from the shared address', why: 'Ads across a household’s devices; also a guess about who lives together.', use: 'ads', sens: true }),
     n_notyou: N('inf', 'This may not be you', { why: 'Blocks the attacker, or asks for one more check.', use: 'security', need: 'required', any: true })
   };
 
@@ -224,6 +286,9 @@
     'd_purchase>d_offers': { why: 'Receipts are now also used to choose offers.', need: 'optional', sep: 'Yes: receipts can stay receipts.' },
     'i_adid>s_search': { why: 'Searches now carry the advertising ID.', need: 'optional', sep: 'Yes: search needs no advertising ID.' },
     'd_backup>d_restored': { why: 'Restoring a backup brings back everything in it, including what you deleted.', need: 'useful', sep: 'Partly: delete from the backup too, or wait for it to roll over.' },
+    'i_email>s_sync': { why: 'The same browser account, signed in with your email address, on every platform.', need: 'useful', sep: 'Yes: separate browser profiles, or no sync, keep the devices apart.' },
+    'i_email>x_app': { why: 'The app knows you by the email address you signed up with, on any platform.', need: 'required', sep: 'Yes: a relay email address for each app.' },
+    'i_ip>s_ads': { why: 'Every device at home shares one internet address, and ads can see it.', need: 'optional', sep: 'Partly: a relay or VPN hides the shared address.' },
     'd_searchhist>d_segment': { why: 'Your searches decide which ads you see.', need: 'optional', sep: 'Yes: turning off personalized ads stops this.' },
     'd_searchhist>d_counts': { why: 'Searches are counted, without any ID, to improve search.', need: 'useful' },
     's_search>d_results': { why: 'To answer the search.', need: 'required' }
@@ -251,6 +316,8 @@
     T('unlock', 'device', 'Phone unlocked', 'You pick up the phone and unlock it.', 'ev>i_dev i_dev>s_os s_os>d_screen', cc('all', 'account', 'know')),
     T('appinstall', 'device', 'App installed', 'You install an app.', 'ev>i_acct ev>i_dev i_acct>s_store s_store>d_installs', cc('all', 'account', 'whoknows')),
     T('permission', 'device', 'Permission granted', 'You let an app use your location “Always”.', 'ev>i_dev ev>i_scoped i_dev>s_os s_os>d_perm i_scoped>x_app x_app>d_applocation d_applocation>n_apphome', cc('all', 'account', 'changed')),
+    T('bridge', 'device', 'Phone linked to computer', 'You connect the phone to the computer, so texts and photos appear on both.', 'ev>i_dev ev>i_dev2 i_dev>s_bridge i_dev2>s_bridge s_bridge>d_bridged', cc('ident', 'account', 'linkid')),
+    T('wifi', 'device', 'Devices on the home Wi-Fi', 'Every device at home shares one internet address.', 'ev>i_ip ev>i_dev ev>i_dev2 i_ip>s_ads s_ads>d_household d_household>n_home', cc('web', 'browse', 'linkid')),
     T('telemetry', 'device', 'Device telemetry sent', 'The phone sends a crash and performance report.', 'ev>i_dev ev>i_ip i_dev>s_diag i_ip>s_diag s_diag>d_diag d_diag>d_counts', cc('analytics', 'browse', 'where')),
     T('upload', 'cloud', 'File uploaded', 'You save a file to cloud storage.', 'ev>i_acct i_acct>s_cloud s_cloud>d_file', cc('cloud', 'delete', 'where')),
     T('share', 'cloud', 'File shared', 'You share a file with someone.', 'ev>i_acct i_acct>s_cloud s_cloud>d_acl s_cloud>x_recipient x_recipient>d_theircopy', cc('cloud', 'delete', 'where')),
@@ -284,7 +351,29 @@
   /* ── the use cases ── */
   var BARE_LOC = 'ev>i_acct ev>i_dev i_acct>s_maps i_dev>s_maps s_maps>d_lochist'.split(' ');
   function C(id, title, line, events, o) { o.id = id; o.title = title; o.line = line; o.events = events; return o; }
+  /* Devices across platforms: built from the device mix. */
+  E.devCase = function (dv) {
+    var d = E.parseDv(dv), acc = E.devAccounts(dv), devs = E.devKinds.filter(function (k, i) { return d[i][0] !== 'none'; }).map(function (k) { return k.node; });
+    var accOf = function (node) { return acc.filter(function (a) { return a.devices.indexOf(node) >= 0; })[0]; };
+    var ev = [];
+    E.devKinds.forEach(function (k, i) {
+      if (d[i][0] === 'none') return;
+      var a = accOf(k.node), name = d[i][1].replace(/-like (phone|laptop|tablet)$/, '-like ' + k.label.toLowerCase());
+      ev.push(I('v' + (i + 1), 'signin', ['Mon 8:04 AM', 'Mon 9:00 AM', 'Mon 7:30 PM'][i], a ? 'Sign in on the ' + name : 'Sign in locally on the ' + name, {
+        chain: a ? ['ev>' + a.id, 'ev>' + k.node, a.id + '>' + a.sys, k.node + '>' + a.sys, a.sys + '>' + a.data] : ['ev>' + k.node] }));
+    });
+    var same = d[0][2] && d[0][2] === d[1][2];
+    ev.push(I('v4', 'browsersync', 'Mon 9:05 AM', 'The same browser account on every device', { chain: ['ev>i_email'].concat(devs.map(function (n) { return 'ev>' + n; })).concat(['i_email>s_sync']).concat(devs.map(function (n) { return n + '>s_sync'; })).concat(['s_sync>d_synctabs']) }));
+    ev.push(I('v5', 'bridge', 'Mon 9:10 AM', same ? 'Built-in handoff links the phone and the laptop' : 'A phone-link app joins the two platforms'));
+    var appDev = devs.indexOf('i_dev3') >= 0 ? 'i_dev3' : 'i_dev2';
+    ev.push(I('v6', 'appinstall', 'Mon 7:45 PM', 'The same app, same email, on the ' + (appDev === 'i_dev3' ? 'tablet' : 'laptop'), { chain: ['ev>i_email', 'ev>' + appDev, 'i_email>x_app', appDev + '>x_app', 'x_app>d_appacct'] }));
+    ev.push(I('v7', 'wifi', 'Every evening', 'Every device on the home Wi-Fi', { chain: ['ev>i_ip'].concat(devs.map(function (n) { return 'ev>' + n; })).concat(['i_ip>s_ads', 's_ads>d_household', 'd_household>n_home']) }));
+    var c = E.cases.filter(function (x) { return x.id === 'xplat'; })[0];
+    return { id: 'xplat', title: c.title, line: c.line, take: c.take, devices: true, inf: ['n_xplat'], cc: c.cc, events: ev, lab: E.devLabels(dv), dv: dv || E.dvDefault, accounts: acc };
+  };
+
   E.cases = [
+    C('xplat', 'Devices across platforms', 'An iPhone-like phone, a Windows-like laptop, an Android-like tablet: still one person.', [], { take: 'Mixing platforms does not stop the linking. It moves it, from one platform account to what you use everywhere: the browser account, your email address, the apps, the phone link and the home Wi-Fi.', cc: cc('ident', 'account', 'linkid') }),
     C('crossdevice', 'Cross-device identity', 'Phone + laptop + browser become one person.', [
       I('a1', 'signin', 'Mon 8:04 AM', 'Sign in on the phone'),
       I('a2', 'signin', 'Mon 12:30 PM', 'Sign in on the laptop', { chain: 'ev>i_acct ev>i_dev2 ev>i_ip i_acct>s_account i_dev2>s_account i_ip>s_security s_account>d_devices s_security>d_signins'.split(' ') }),
@@ -355,6 +444,8 @@
     ], { inf: [], afterDelete: true, take: 'Deletion is not one action. It is a list: what goes, what the law or security keeps, and what is already out of reach.', cc: cc('analytics', 'delete', 'delete') })
   ];
 
+  E.cases[0].events = E.devCase(E.dvDefault).events;
+
   /* ── what changed: review events ── */
   E.changes = [
     { id: 'ch1', date: '2026-09-12', kind: 'New receiver', title: 'New service starts receiving location', before: 'Only Maps received your location.', after: 'A weather widget receives precise location every hour.', add: ['i_dev>s_weather', 's_weather>d_wxloc'], edge: 'i_dev>s_weather', reviewed: false },
@@ -377,7 +468,8 @@
   E.fam = function (id) { for (var i = 0; i < E.families.length; i++) if (E.families[i].id === id) return E.families[i]; return null; };
 
   /* The name a node wears in an ecosystem view. */
-  E.label = function (id, eco) {
+  E.label = function (id, eco, set) {
+    if (set && set.lab && set.lab[id]) return set.lab[id];
     var n = E.nodes[id], k = { apple: 0, google: 1, ms: 2 }[eco];
     return n && n.L && k != null ? n.L[k] : n ? n.name : id;
   };
@@ -424,7 +516,7 @@
         edges.forEach(function (f) { if (f.b === e.a) Object.keys(f.evs).forEach(function (x) { if (!e.evs[x]) { e.evs[x] = 1; grow = true; } }); });
       });
     }
-    return { def: def, nodes: nodes, edges: edges, ek: ek, order: order, events: def.events };
+    return { def: def, nodes: nodes, edges: edges, ek: ek, order: order, events: def.events, lab: def.lab || null };
   };
   E.info = function (set, id) { var n = set.nodes[id]; return n && n.ev ? { kind: 'event', name: n.ev.label } : E.nodes[id]; };
   E.kindOf = function (set, id) { var n = set.nodes[id]; return n && n.ev ? 'event' : E.nodes[id] ? E.nodes[id].kind : '?'; };
@@ -532,15 +624,16 @@
 
   /* “Why is this connected?”: six plain answers for any connection. */
   E.explain = function (set, k, eco, st) {
-    var e = set.ek[k], A = set.nodes[e.a], a = E.nodes[e.a], b = E.nodes[e.b], m = E.edgeMeta[k] || {}, L = function (id) { return set.nodes[id] && set.nodes[id].ev ? set.nodes[id].ev.label : E.label(id, eco); };
-    var ids = function () { var l = a && a.kind === 'id' ? [e.a] : E.idsFor(set, e.a); return l.length ? l.map(function (x) { return E.nodes[x].name; }).join(', ') : 'None'; };
+    var e = set.ek[k], A = set.nodes[e.a], a = E.nodes[e.a], b = E.nodes[e.b], m = E.edgeMeta[k] || {}, L = function (id) { return set.nodes[id] && set.nodes[id].ev ? set.nodes[id].ev.label : E.label(id, eco, set); };
+    var ids = function () { var l = a && a.kind === 'id' ? [e.a] : E.idsFor(set, e.a); return l.length ? l.map(L).join(', ') : 'None'; };
+    var lcn = function (x) { return /^[A-Z]{2}|^[A-Z][a-z]+-like/.test(x) ? x : x.charAt(0).toLowerCase() + x.slice(1); };
     var r = { from: L(e.a), to: L(e.b) };
     if (A && A.ev) {
-      r.why = b.carry; r.need = b.need || 'required'; r.use = b.use || 'operate'; r.id = b.name + ' · ' + E.stab[b.stab][0].toLowerCase();
+      r.why = b.carry; r.need = b.need || 'required'; r.use = b.use || 'operate'; r.id = L(e.b) + ' · ' + E.stab[b.stab][0].toLowerCase();
       r.ret = 'Travels with the request'; r.who = 'Whoever receives the request'; r.sep = E.stab[b.stab][1];
     } else if (a.kind === 'id') {
-      r.why = L(e.b) + ' receives your ' + (/^[A-Z]{2}/.test(a.name) ? a.name : a.name.charAt(0).toLowerCase() + a.name.slice(1)) + ': it ' + (b.why || 'uses it') + '.'; r.need = b.need || (a.need || 'required'); r.use = b.use || a.use || 'operate';
-      r.id = a.name + ' · ' + E.stab[a.stab][0].toLowerCase(); r.ret = (b.log || ['30 days, in request logs', 30])[0]; r.who = b.who || L(e.b);
+      r.why = L(e.b) + ' receives your ' + lcn(L(e.a)) + ': it ' + (b.why || 'uses it') + '.'; r.need = b.need || (a.need || 'required'); r.use = b.use || a.use || 'operate';
+      r.id = L(e.a) + ' · ' + E.stab[a.stab][0].toLowerCase(); r.ret = (b.log || ['30 days, in request logs', 30])[0]; r.who = b.who || L(e.b);
       r.sep = a.stab === 'stable' ? 'Yes: give ' + L(e.b) + ' its own ID, and it can no longer be matched with the other services.' : E.stab[a.stab][1];
     } else {
       var ctx = E.contexts(set, e.b);
@@ -548,7 +641,7 @@
       r.need = b.need || (b.kind === 'inf' ? 'optional' : 'required'); r.use = b.use || 'operate'; r.id = ids();
       var rr = b.kind === 'sys' ? b.log || ['Set by ' + L(e.b), null] : E.retOf(e.b, st) || ['As long as its inputs exist', null];
       r.ret = rr[0]; r.who = b.who || L(e.b);
-      r.sep = (b.kind === 'data' || b.kind === 'inf') && ctx.length > 1 ? 'Yes: if ' + E.list(ctx.map(function (c) { return E.label(c, eco); })) + ' use different IDs, they can no longer recognize the same person.' : b.sep || 'Yes: stop this connection, and this goes with it.';
+      r.sep = (b.kind === 'data' || b.kind === 'inf') && ctx.length > 1 ? 'Yes: if ' + E.list(ctx.map(L)) + ' use different IDs, they can no longer recognize the same person.' : b.sep || 'Yes: stop this connection, and this goes with it.';
     }
     ['why', 'need', 'use', 'who', 'sep'].forEach(function (f) { if (m[f]) r[f] = m[f]; });
     if (m.ret) r.ret = m.ret[0];

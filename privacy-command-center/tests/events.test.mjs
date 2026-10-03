@@ -15,7 +15,7 @@ const CASES = ['Cross-device identity', 'Cloud sync', 'Single account across ser
 const CHANGES = ['New service starts receiving location', 'Retention changed from 30 → 365 days', 'New identifier added', 'AI feature begins using email context', 'Third-party processor added', 'Purpose changed'];
 
 export default [
-  { name: 'events: every everyday event, ten families, the morning timeline, fourteen use cases and six changes', async run({ page, assert }) {
+  { name: 'events: every everyday event, ten families, the morning timeline, the use cases and six changes', async run({ page, assert }) {
     const p = await page('');
     const r = await p.evaluate(() => {
       const E = window.PG.events;
@@ -32,7 +32,7 @@ export default [
     assert(r.fams.length === 10 && r.typeFams, 'ten families, every type in one: ' + r.fams);
     assert(r.chips.join('|') === ['8:02 AM Unlock phone', '8:04 AM Sign in', '8:06 AM Check email', '8:15 AM Search: “coffee near me”', '8:20 AM Maps: directions to a café', '8:32 AM Bought coffee', '9:10 AM Shared a file', '9:30 AM Asked AI about my flight'].join('|'), 'morning timeline: ' + r.chips.join('|'));
     assert(new Set(r.chipFam).size >= 6, 'families are told apart by colour: ' + new Set(r.chipFam).size);
-    assert(JSON.stringify(r.cases) === JSON.stringify(CASES), 'the fourteen use cases: ' + r.cases.join(', '));
+    assert(CASES.every((c) => r.cases.includes(c)) && r.cases.includes('Devices across platforms'), 'the fourteen use cases, plus devices across platforms: ' + r.cases.join(', '));
     assert(JSON.stringify(r.changes) === JSON.stringify(CHANGES), 'the six changes: ' + r.changes.join(', '));
     assert(r.workspace === 3 && r.before, 'the events layer sits above an unchanged three-part workspace');
   } },
@@ -135,8 +135,9 @@ export default [
     const shape = () => p.evaluate(() => ({ nodes: [...document.querySelectorAll('#eg [data-n]')].map((b) => b.getAttribute('data-n')).join(','), on: [...document.querySelectorAll('#eg .en.on')].length, names: [...document.querySelectorAll('#eg .k-sys .en-n')].map((x) => x.textContent), note: (document.querySelector('.eco-n') || {}).textContent || '', one: (document.querySelector('.ecobar .oneid-h') || {}).textContent || '', svc: document.querySelectorAll('.ecobar .oneid-l li').length }));
     const all = await shape(), out = {};
     for (const eco of ['apple', 'google', 'ms']) { await click(p, '[data-eco="' + eco + '"]'); out[eco] = await shape(); }
+    await click(p, '[data-eco="mixed"]'); const mixed = await shape();
     const svc = await p.evaluate(() => Object.fromEntries(window.PG.events.ecos.filter((e) => e.services).map((e) => [e.id, e.services.length])));
-    const hash = await p.evaluate(() => location.hash);
+    const hash = await p.evaluate(() => location.hash.replace('eco=mixed', 'eco=ms'));
     clean(p, 'eco', assert); await p.closeAll();
     for (const eco of ['apple', 'google', 'ms']) {
       const o = out[eco];
@@ -146,6 +147,7 @@ export default [
       assert(o.svc === svc[eco] && new RegExp(svc[eco] + ' services').test(o.one), eco + ': one identity in front of ' + svc[eco] + ' services');
     }
     assert(/eco=ms/.test(hash) && /e=m8/.test(hash), 'the ecosystem and the event are in the URL: ' + hash);
+    assert(mixed.nodes === all.nodes && mixed.on === all.on && mixed.names.includes('iPhone-like phone'), 'mixed devices relabel the morning without changing its shape: ' + mixed.names.join(', '));
   } },
   { name: 'events: the use cases tell their stories (AI context, intent, permissions, family, deletion, changes)', async run({ page, assert }) {
     const p = await page('#cc?et=cases&e=aictx');
@@ -219,12 +221,36 @@ export default [
     assert(ws.s === 'pay' && ws.j === 'pay' && ws.q === 'where', 'review in the workspace sets the selectors for the event: ' + JSON.stringify(ws));
     assert(hidden === 'none', 'focus mode hides the events layer');
   } },
+  { name: 'events: devices across platforms: each platform account sees only its own devices, and the linking moves to what runs everywhere', async run({ page, assert }) {
+    const p = await page('#cc?et=cases&e=xplat');
+    const read = () => p.evaluate(() => {
+      const e = window.PCC1.events(), E = window.PG.events, dv = window.PCC1.state().dv || E.dvDefault;
+      return { dv, accounts: E.devAccounts(dv).map((a) => a.label + ':' + a.devices.join('+')), head: (document.querySelector('.dv-h') || {}).textContent || '', rows: [...document.querySelectorAll('.dv-acc li')].map((li) => li.innerText.replace(/\s+/g, ' ')),
+        sysNames: [...document.querySelectorAll('#eg .k-sys .en-n')].map((x) => x.textContent), xplat: e.st.n_xplat && e.st.n_xplat.ok, laptopOnPhoneAccount: !!e.set.ek['i_dev2>s_account'], hash: location.hash };
+    });
+    const mixed = await read();
+    await p.selectOption('#dv-case-laptop', 'mac'); await p.waitForTimeout(60); await p.selectOption('#dv-case-tablet', 'ipad'); await p.waitForTimeout(60);
+    const apple = await read();
+    await p.selectOption('#dv-case-phone', 'android'); await p.selectOption('#dv-case-laptop', 'linux'); await p.selectOption('#dv-case-tablet', 'none'); await p.waitForTimeout(60);
+    const linux = await read();
+    await p.evaluate(() => window.PCC1.set({ dv: '' }));
+    await click(p, '[data-ek="i_email>s_sync"]'); await click(p, '[data-do="scope"][data-ek="i_email>s_sync"]');
+    const scoped = await p.evaluate(() => window.PCC1.events().st.n_xplat.ok);
+    const want = await p.evaluate(() => ({ def: window.PG.events.devAccounts('ios.win.androidtab').length, mac: window.PG.events.devAccounts('ios.mac.ipad').length }));
+    clean(p, 'xplat', assert); await p.closeAll();
+    assert(mixed.accounts.length === want.def && /3 platform accounts across 3 devices; none of them sees every device/.test(mixed.head), 'iPhone + Windows + Android: three accounts, none sees every device: ' + mixed.head);
+    assert(mixed.sysNames.includes('Apple-like Account') && mixed.sysNames.includes('Microsoft-like Account') && mixed.sysNames.includes('Google-like Account') && !mixed.laptopOnPhoneAccount, 'each device signs in to its own platform account: ' + mixed.sysNames.join(', '));
+    assert(mixed.xplat, 'mixed platforms are still one person, through what runs everywhere');
+    assert(apple.accounts.length === want.mac && /One platform account, the Apple-like Account, sees all 3 devices/.test(apple.head) && apple.laptopOnPhoneAccount && apple.xplat && /dv=ios\.mac\.ipad/.test(apple.hash), 'one family: one account sees every device; the mix is in the URL: ' + apple.head + ' ' + apple.hash);
+    assert(linux.rows.some((r) => /Linux laptop → Local sign-in/.test(r)) && linux.rows.length === 2 && linux.xplat, 'a Linux laptop has no platform account, a missing tablet is left out, and the person is still joined: ' + linux.rows.join(' | '));
+    assert(scoped === false, 'scoping the email address on browser sync breaks the cross-platform join');
+  } },
   { name: 'events: on a phone every tab, case and open question fits the screen', async run({ page, assert }) {
     const p = await page('', { width: 390, height: 844 });
     const bad = await p.evaluate(async () => {
       const E = window.PG.events, W = document.documentElement.clientWidth, out = [];
       const views = [{ et: 'day', e: '' }, { et: 'all', e: '' }, { et: 'changes', e: '' }, { et: 'cases', e: '' }].concat(E.day.events.map((e) => ({ et: 'day', e: e.id }))).concat(E.cases.map((c) => ({ et: 'cases', e: c.id }))).concat(E.changes.map((c) => ({ et: 'changes', e: c.id })));
-      for (const eco of ['all', 'ms']) for (const v of views) {
+      for (const eco of ['all', 'ms', 'mixed']) for (const v of views) {
         window.PCC1.set(Object.assign({ page: 'cc', eco }, v));
         const n = document.querySelector('#eg [data-n]'); if (n && v.et === 'cases') n.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         const ek = document.querySelector('#evi [data-ek]'); if (ek) ek.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -246,7 +272,7 @@ export default [
     const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
     const AXE = fs.readFileSync(req.resolve('axe-core/axe.min.js'), 'utf8');
     const bad = [];
-    for (const [hash, width, js] of [['', 1280], ['#cc?e=m6', 1280], ['#cc?e=m5', 1280, '[data-ek="i_acct>s_maps"]'], ['#cc?et=cases&e=aictx&eco=google', 1280], ['#cc?et=cases&e=deletion', 1280], ['#cc?et=changes&e=ch2', 1280], ['#cc?et=all&e=passkey', 1280], ['#cc?e=m8', 390, '#evi [data-ek]'], ['#cc?et=cases&e=intent', 390]]) {
+    for (const [hash, width, js] of [['', 1280], ['#cc?e=m6', 1280], ['#cc?e=m5', 1280, '[data-ek="i_acct>s_maps"]'], ['#cc?et=cases&e=aictx&eco=google', 1280], ['#cc?et=cases&e=deletion', 1280], ['#cc?et=changes&e=ch2', 1280], ['#cc?et=all&e=passkey', 1280], ['#cc?e=m8', 390, '#evi [data-ek]'], ['#cc?et=cases&e=intent', 390], ['#cc?et=cases&e=xplat', 1280], ['#cc?eco=mixed&e=m2&dv=android.linux.none', 390]]) {
       const p = await page(hash, { width });
       if (js) await click(p, js);
       await p.addScriptTag({ content: AXE });

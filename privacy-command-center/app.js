@@ -16,7 +16,7 @@
   var SAVED_KEY = 'pcc.v1.views';
 
   /* ── state ─────────────────────────────────────────────── */
-  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all' };
+  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all', dv: '' };
   var S = copy(DEF);
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function parse() {
@@ -35,6 +35,7 @@
     var EVD = G.events;
     if (['day', 'cases', 'all', 'changes'].indexOf(q.et) >= 0) st.et = q.et;
     if (EVD.ecos.some(function (x) { return x.id === q.eco; })) st.eco = q.eco;
+    if (EVD.validDv(q.dv) && q.dv !== EVD.dvDefault) st.dv = q.dv;
     if (q.e && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
     return fit(st);
   }
@@ -54,7 +55,7 @@
     var q = 'p=' + st.p + '&s=' + st.s + '&j=' + st.j + '&q=' + st.q + (st.c.length ? '&c=' + st.c.join(',') : '') + '&u=' + st.u + (st.l !== 'privacy' ? '&l=' + st.l : '') + (st.fm ? '&fm=1' : '');
     if (st.page === 'ask' && st.ask) q += '&ask=' + encodeURIComponent(st.ask);
     if (st.page === 'evidence' && st.ev !== 'all') q += '&ev=' + st.ev;
-    if (st.page === 'cc') q += (st.et !== 'day' ? '&et=' + st.et : '') + (st.e ? '&e=' + st.e : '') + (st.eco !== 'all' ? '&eco=' + st.eco : '');
+    if (st.page === 'cc') q += (st.et !== 'day' ? '&et=' + st.et : '') + (st.e ? '&e=' + st.e : '') + (st.eco !== 'all' ? '&eco=' + st.eco : '') + (st.dv ? '&dv=' + st.dv : '');
     return '#' + st.page + '?' + q;
   }
   function set(patch) {
@@ -814,6 +815,8 @@
   function monthsBetween(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 864e5 / 30.44); }
   function listJoin(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
   function lc(s) { return /^[A-Z]{2}/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1); }
+  function lcl(s) { return /^[A-Z][a-zA-Z]*-like/.test(s) ? s : lc(s); }
+  function lab(id) { return EV.label(id, S.eco, EVM.cur && EVM.cur.set); }
   function famOf(set, id) { var n = set.nodes[id]; return n && n.type ? n.type.fam : ''; }
   function evTime(def, ev, i) {
     if (!ev.date) return ev.t;
@@ -822,7 +825,7 @@
   }
   function evDef() {
     var o = { def: null, extra: null, open: false, hl: null, edge: null };
-    if (S.et === 'cases') { var c = EV.caseById(S.e); if (c) { o.def = c; o.open = true; o.hl = EVM.hl; } }
+    if (S.et === 'cases') { var c = EV.caseById(S.e); if (c) { o.def = c.id === 'xplat' ? EV.devCase(S.dv) : c; o.open = true; o.hl = EVM.hl; } }
     else if (S.et === 'all') { var t = EV.type(S.e); if (t) { o.def = { id: 't-' + t.id, title: t.label, line: t.plain, inf: 'all', cc: t.cc, events: [{ id: 'x1', type: t.id, t: '', label: t.label }] }; o.open = true; o.hl = 'x1'; } }
     else if (S.et === 'changes') { var ch = EV.changeById(S.e); if (ch) { o.def = EV.day; o.extra = { add: ch.add, mark: ch.edge }; o.open = true; o.change = ch; o.edge = ch.edge; } }
     else { o.def = EV.day; o.hl = S.e || null; o.open = !!S.e || EVM.whole; }
@@ -853,6 +856,20 @@
       '<p class="small">Each is useful alone. Behind one ID, together, they can describe a person’s schedule, places, spending and relationships.</p></div>';
   }
 
+  /* ── your devices: the platform mix, and which account sees which device ── */
+  function devicesHTML(where) {
+    var dv = S.dv || EV.dvDefault, d = EV.parseDv(dv), acc = EV.devAccounts(dv), kinds = EV.devKinds.filter(function (k, i) { return d[i][0] !== 'none'; });
+    var accOf = function (node) { return acc.filter(function (a) { return a.devices.indexOf(node) >= 0; })[0]; };
+    var whole = acc.length === 1 && acc[0].devices.length === kinds.length;
+    var head = whole ? 'One platform account, the ' + acc[0].label + ', sees all ' + plural(kinds.length, 'device') + '.' : plural(acc.length, 'platform account') + ' across ' + plural(kinds.length, 'device') + '; none of them sees every device.';
+    return '<div class="devs"><span class="eyebrow">Your devices</span><div class="dv-pick" role="group" aria-label="Your devices">' + EV.devKinds.map(function (k, i) {
+      return '<label class="sl dv-sl"><span class="dv-k">' + esc(k.label) + '</span><select id="dv-' + where + '-' + k.id + '" data-dv="' + i + '">' + k.opts.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === d[i][0] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select></label>';
+    }).join('') + '</div>' +
+      '<ul class="dv-acc">' + kinds.map(function (k) { var i = EV.devKinds.indexOf(k), a = accOf(k.node); return '<li><b>' + esc(d[i][1]) + '</b><span aria-hidden="true">→</span><span>' + esc(a ? a.label : 'Local sign-in: no platform account') + '</span></li>'; }).join('') + '</ul>' +
+      '<p class="dv-h">' + esc(head) + '</p><p class="small">Shared by every device whatever the platform: the browser account, your email address, the apps you install everywhere, the phone link and the home Wi-Fi. That is where the linking moves.</p>' +
+      '<div class="dv-other"><span class="eyebrow">Other devices join the same way</span><ul>' + EV.otherDevices.map(function (o) { return '<li>' + (o[2] ? '<button type="button" class="linkbtn" data-goto="' + o[2] + '">' + esc(o[0]) + '</button>' : '<b>' + esc(o[0]) + '</b>') + ' ' + esc(o[1]) + '</li>'; }).join('') + '</ul></div></div>';
+  }
+
   /* ── the graph ── */
   function nodeState(set, id) {
     var n = EV.nodes[id];
@@ -877,7 +894,7 @@
     if (!alive) { cls += ' gone'; tagt = n && n.kind === 'inf' ? 'no longer possible' : 'not created'; }
     if (ctx.R) cls += ctx.R[id] ? ' on' : ' dim';
     if (EVM.node === id || ctx.ends[id]) cls += ' sel';
-    var label = sn.ev ? sn.ev.label : EV.label(id, S.eco);
+    var label = sn.ev ? sn.ev.label : lab(id);
     var sr = sn.ev ? EV.fam(sn.type.fam).label + ' event' : n.kind === 'id' ? 'identifier' : n.kind === 'sys' ? (n.ext ? 'outside the service' : 'service') : EV.states[stt];
     return '<button type="button" class="' + cls + '" data-n="' + id + '" aria-pressed="' + (EVM.node === id) + '"><span class="en-n">' + esc(label) + '</span>' + (tagt ? '<span class="en-t">' + esc(tagt) + '</span>' : '') + '<span class="sr-only"> (' + esc(sr) + (alive ? '' : ', no longer possible') + ')</span></button>';
   }
@@ -915,13 +932,13 @@
 
   /* ── the seven questions, for one event or for the whole set ── */
   function sevenQ(set, R, st) {
-    var L = function (id) { return EV.label(id, S.eco); }, ids = [], sys = [], ext = [], data = [], inf = [];
+    var L = function (id) { return lab(id); }, ids = [], sys = [], ext = [], data = [], inf = [];
     set.order.forEach(function (id) { if ((R && !R[id]) || set.nodes[id].ev) return; var n = EV.nodes[id]; ({ id: ids, sys: n.ext ? ext : sys, data: data, inf: inf })[n.kind].push(id); });
     var live = function (id) { return st[id].ok; };
     var dl = data.filter(live), rows = [];
     var byState = ['collected', 'derived', 'shared', 'expired'].map(function (k) { var l = dl.filter(function (id) { return EV.nodes[id].st === k; }); return l.length ? EV.states[k] + ': ' + listJoin(l.map(L)) + '.' : ''; }).filter(Boolean).join(' ');
     rows.push(['What do we know?', 'FACT', byState || 'Nothing is stored.']);
-    rows.push(['How do we know it?', 'FACT', (ids.length ? 'Through your ' + listJoin(ids.map(function (x) { return lc(EV.nodes[x].name); })) : 'Through no identifier') + (sys.length ? ', recorded by ' + listJoin(sys.map(L)) : '') + '.']);
+    rows.push(['How do we know it?', 'FACT', (ids.length ? 'Through your ' + listJoin(ids.map(function (x) { return lcl(L(x)); })) : 'Through no identifier') + (sys.length ? ', recorded by ' + listJoin(sys.map(L)) : '') + '.']);
     rows.push(['Why do we need it?', 'FACT', ['required', 'useful', 'optional'].map(function (k) { var l = dl.filter(function (id) { return EV.nodes[id].need === k; }); return l.length ? EV.needs[k] + ': ' + l.map(function (id) { return L(id) + ' (' + lc(EV.nodes[id].why.replace(/\.$/, '')) + ')'; }).join('; ') + '.' : ''; }).filter(Boolean).join(' ') || 'Nothing is kept, so nothing needs a reason.']);
     var outside = ext.map(L).concat(dl.filter(function (id) { return EV.nodes[id].to; }).map(function (id) { return EV.nodes[id].to; })).filter(function (x, i, a) { return a.indexOf(x) === i; });
     rows.push(['Who receives it?', 'FACT', (sys.length ? 'Inside the service: ' + listJoin(sys.map(L)) + '.' : 'No service.') + (outside.length ? ' Outside it: ' + listJoin(outside) + '.' : ' Nothing leaves the service.')]);
@@ -937,13 +954,13 @@
     var joins = data.concat(inf).filter(function (id) { return live(id) && EV.contexts(set, id).length > 1; }), ctxs = [];
     joins.forEach(function (id) { EV.contexts(set, id).forEach(function (c) { if (ctxs.indexOf(c) < 0) ctxs.push(c); }); });
     var gone = dl.filter(function (id) { return EV.nodes[id].st === 'shared'; });
-    rows.push(['Can we separate it again?', 'RECOMMENDATION', (ctxs.length ? 'Yes: ' + listJoin(ctxs.map(L)) + ' can recognize the same person through ' + listJoin(ids.filter(function (x) { return EV.nodes[x].stab === 'stable'; }).map(function (x) { return lc(EV.nodes[x].name); })) + '. Give each its own ID, and ' + plural(joins.length, 'combined fact') + ' here can no longer be made.' : 'Nothing here is combined across services.') + (gone.length ? ' Not for copies already outside: ' + listJoin(gone.map(L)) + '.' : '')]);
+    rows.push(['Can we separate it again?', 'RECOMMENDATION', (ctxs.length ? 'Yes: ' + listJoin(ctxs.map(L)) + ' can recognize the same person through ' + listJoin(ids.filter(function (x) { return EV.nodes[x].stab === 'stable'; }).map(function (x) { return lcl(L(x)); })) + '. Give each its own ID, and ' + plural(joins.length, 'combined fact') + ' here can no longer be made.' : 'Nothing here is combined across services.') + (gone.length ? ' Not for copies already outside: ' + listJoin(gone.map(L)) + '.' : '')]);
     return '<dl class="sevq">' + rows.map(function (r) { return '<div' + (r[0] ? '' : ' class="sub"') + '><dt>' + esc(r[0]) + '</dt><dd>' + tag(r[1]) + ' ' + esc(r[2]) + '</dd></div>'; }).join('') + '</dl>';
   }
   function needTag(n) { return '<span class="need n-' + n + '">' + esc(EV.needs[n]) + '</span>'; }
   function cxList(set, list, title) {
     if (!list.length) return '';
-    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : EV.label(id, S.eco); };
+    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : lab(id); };
     return '<div class="cxs"><span class="eyebrow">' + esc(title) + '</span><ul>' + list.map(function (e) {
       var x = EV.explain(set, e.k, S.eco, EVM.cur.st), dec = EVM.dec[e.k];
       return '<li><button type="button" class="cx' + (EVM.edge === e.k ? ' sel' : '') + '" data-ek="' + e.k + '"><span>' + esc(L(e.a)) + ' → ' + esc(L(e.b)) + '</span>' + needTag(x.need) + (dec ? '<span class="dd">' + esc(ACTS.filter(function (a) { return a[0] === dec; })[0][1]) + '</span>' : '') + '</button></li>';
@@ -952,7 +969,7 @@
   function actResult(set, k) {
     var dec = EVM.dec[k]; if (!dec) return '';
     var without = {}; Object.keys(EVM.dec).forEach(function (x) { if (x !== k) without[x] = EVM.dec[x]; });
-    var before = EV.evaluate(set, without), after = EVM.cur.st, L = function (id) { return EV.label(id, S.eco); };
+    var before = EV.evaluate(set, without), after = EVM.cur.st, L = function (id) { return lab(id); };
     var lost = Object.keys(set.nodes).filter(function (id) { return before[id] && before[id].ok && !after[id].ok && EV.nodes[id] && (EV.nodes[id].kind === 'inf' || EV.nodes[id].kind === 'data'); }).map(L);
     var e = set.ek[k], tgt = set.nodes[e.b].ev ? '' : L(e.b);
     if (dec === 'keep') return 'Kept: recorded as reviewed and needed, for this visit.';
@@ -975,7 +992,7 @@
       '<button type="button" class="linkbtn" data-evback>' + (S.et === 'changes' ? 'Back to what this change touches' : 'Back to the event') + '</button></div>';
   }
   function nodeCard(set, id) {
-    var sn = set.nodes[id], n = EV.nodes[id], st = EVM.cur.st, L = function (x) { var s = set.nodes[x]; return s.ev ? s.ev.label : EV.label(x, S.eco); };
+    var sn = set.nodes[id], n = EV.nodes[id], st = EVM.cur.st, L = function (x) { var s = set.nodes[x]; return s.ev ? s.ev.label : lab(x); };
     var inn = set.edges.filter(function (e) { return e.b === id; }), out = set.edges.filter(function (e) { return e.a === id; });
     var rows = [];
     if (sn.ev) rows.push(['What happened', sn.type.plain + (sn.ev.who ? ' By: ' + lc(sn.ev.who) + '.' : '')]);
@@ -1004,7 +1021,7 @@
 
   /* ── panels that some use cases add ── */
   function extras(set, o) {
-    var def = set.def, st = EVM.cur.st, L = function (id) { return EV.label(id, S.eco); }, out = '';
+    var def = set.def, st = EVM.cur.st, L = function (id) { return lab(id); }, out = '';
     var ands = Object.keys(set.nodes).filter(function (id) { var n = EV.nodes[id]; return n && n.kind === 'inf' && n.needs; });
     if (ands.length && set.events.length > 1) out += '<section class="xp"><h3>What only appears when events are combined</h3>' + ands.map(function (id) {
       var src = EV.sources(set, id);
@@ -1039,12 +1056,14 @@
     if (def.exif) out += '<section class="xp"><h3>What is inside the file</h3><dl class="whyl">' + EV.nodes.d_exif.fields.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl><p class="small">The picture shows a cat. The file also says when, where and with which phone, to everyone who receives it.</p></section>';
     if (def.unknown) out += '<section class="xp"><h3>Whose activity is this?</h3><p>' + tag('UNKNOWN') + ' ' + esc(def.unknown) + '</p></section>';
     if (def.oneId) out += '<section class="xp">' + oneId(S.eco) + '</section>';
+    if (def.devices) out += '<section class="xp"><h3>Which account sees which device</h3>' + (S.eco === 'mixed' ? '<p class="small">Choose the devices above, under Mixed devices.</p>' : devicesHTML('case')) + '</section>';
     return out;
   }
 
   /* ── the trace: story, graph, inspector ── */
   function traceHTML(o) {
     var set = EV.compose(o.def, o.extra), st = EV.evaluate(set, EVM.dec);
+    if (!set.lab && S.eco === 'mixed') set.lab = EV.devLabels(S.dv);
     var hlId = EVM.node ? null : o.hl, R = null;
     if (hlId && set.nodes[hlId]) R = EV.reach(set, hlId);
     else if (EVM.node && set.nodes[EVM.node]) { R = EV.reach(set, EVM.node); var up = EV.reach(set, EVM.node, true); Object.keys(up).forEach(function (k) { R[k] = 1; }); }
@@ -1054,7 +1073,7 @@
     var ctx = { st: st, R: R, ends: ends, afterDelete: o.def.afterDelete, fc: fam ? 'var(--f-' + fam + ')' : 'var(--ink-2)' };
     EVM.cur = { set: set, st: st, R: R, hlId: hlId && set.nodes[hlId] ? hlId : null };
     /* the story line: one column at a time */
-    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : EV.label(id, S.eco); };
+    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : lab(id); };
     var per = [[], [], [], [], []];
     set.order.forEach(function (id) { if (R && !R[id]) return; var sn = set.nodes[id]; if (!st[id].ok) return; per[sn.ev ? 0 : EV.col(EV.nodes[id])].push(L(id)); });
     var story = '<ol class="estory" aria-label="What this set in motion">' + EV.cols.map(function (c, i) { var l = per[i], txt = l.length ? l.slice(0, 3).join(' + ') + (l.length > 3 ? ' + ' + (l.length - 3) + ' more' : '') : i === 4 ? 'nothing inferred' : '—'; return '<li><span class="eyebrow">' + esc(c[1]) + '</span><span>' + esc(txt) + '</span></li>'; }).join('') + '</ol>';
@@ -1101,7 +1120,7 @@
     return '<section class="evx" id="evl" aria-labelledby="evlH">' +
       '<div class="evl-h"><div class="evl-t"><span class="eyebrow">Events</span><h2 id="evlH">What a person did, and what it set in motion</h2><p class="evl-s">Pick an event. See the data it created, the IDs that touched it, where it travelled, what was inferred, and whether each connection was needed.</p></div>' +
       '<div class="seg eco" role="radiogroup" aria-label="Ecosystem">' + EV.ecos.map(function (x) { return '<button role="radio" data-eco="' + x.id + '" aria-checked="' + (S.eco === x.id) + '">' + esc(x.label) + '</button>'; }).join('') + '</div></div>' +
-      (S.eco !== 'all' ? '<div class="ecobar">' + oneId(S.eco) + '<p class="eco-n">' + esc(EV.ecoNote) + '</p></div>' : '') +
+      (S.eco === 'mixed' ? '<div class="ecobar">' + devicesHTML('bar') + '<p class="eco-n">One person, several platforms. Change the devices to see where the linking moves. ' + esc(EV.ecoNote) + '</p></div>' : S.eco !== 'all' ? '<div class="ecobar">' + oneId(S.eco) + '<p class="eco-n">' + esc(EV.ecoNote) + '</p></div>' : '') +
       tabs + '<div class="evtb">' + tabBody(o) + (fams && S.et !== 'all' ? famLegend(fams) : '') + '</div>' +
       (o.open ? traceHTML(o) : '') +
       '</section>';
@@ -1118,6 +1137,11 @@
     var root = $('#evl'); if (!root) return;
     if (EVM.cur && $('#eg')) { drawEdges(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawEdges); }
     if (!evResizeBound) { evResizeBound = true; var t = null; window.addEventListener('resize', function () { cancelAnimationFrame(t); t = requestAnimationFrame(drawEdges); }); }
+    root.addEventListener('change', function (ev) {
+      var sl = ev.target.closest('select[data-dv]'); if (!sl) return;
+      var cur = (S.dv || EV.dvDefault).split('.'); cur[+sl.getAttribute('data-dv')] = sl.value;
+      var dv = cur.join('.'); focusAfter = sl.id; EVM.key = ''; set({ dv: dv === EV.dvDefault ? '' : dv });
+    });
     root.addEventListener('click', function (ev) {
       var b = ev.target.closest('button, path.eh'); if (!b || !root.contains(b)) return;
       var a = function (n) { return b.getAttribute(n); };
@@ -1125,6 +1149,7 @@
       if (a('data-et')) { EVM.whole = false; focusAfter = 'et-' + a('data-et'); set({ et: a('data-et'), e: '' }); return; }
       if (a('data-evi')) { var id = a('data-evi'); focusAfter = 'evc-' + id; set({ et: 'day', e: S.e === id ? '' : id }); return; }
       if (a('data-ty')) { focusAfter = 'ty-' + a('data-ty'); set({ e: S.e === a('data-ty') ? '' : a('data-ty') }); return; }
+      if (a('data-goto')) { focusAfter = 'cs-' + a('data-goto'); set({ et: 'cases', e: a('data-goto') }); return; }
       if (a('data-cs')) { focusAfter = 'cs-' + a('data-cs'); set({ e: S.e === a('data-cs') ? '' : a('data-cs') }); return; }
       if (a('data-ch')) { focusAfter = 'ch-' + a('data-ch'); set({ e: S.e === a('data-ch') ? '' : a('data-ch') }); return; }
       if (a('data-hl')) { EVM.hl = EVM.hl === a('data-hl') ? null : a('data-hl'); EVM.node = null; EVM.edge = null; return renderEvents('#evc-' + a('data-hl')); }

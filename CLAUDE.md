@@ -147,7 +147,10 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
   Apple-like / Google-like / Microsoft-like views only relabel one identical
   pattern with familiar product categories (always suffixed “-like”); never make
   the structure differ between ecosystems, never present it as how a real
-  product works, and keep the wording plain (a test scans for jargon).
+  product works, and keep the wording plain (a test scans for jargon). The
+  one thing that may change the shape is the person's device mix (*Your
+  devices*: iPhone-like, Windows-like, Android-like, Mac-like, Linux…), and only
+  in the *Devices across platforms* case.
 
 ## Every Arrow Is a Decision (`articles/every-arrow-is-a-decision.html`)
 
