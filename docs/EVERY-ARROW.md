@@ -53,6 +53,19 @@ Rules the structure test enforces: nothing may suggest a hash can be decrypted o
 reversed; legal hold is framed as an engineering requirement, "not legal advice"; the
 section keeps its five key lines; no mention of rainbow tables.
 
+**Everyday arrows (§12, added 2026-10-03).** A second conceptual section, after §11:
+no vendor claims, so no citations, and it names no company or platform (the structure
+test enforces both). It follows one morning of ordinary events through the Command
+Center's Events-layer chain (event → identifier → system → derived data → inference),
+two traces to the end (directions to a café; “When is my flight?”), how harmless events
+become revealing when joined, *Why is this connected?* with its four decisions (keep,
+scope, shorten, separate), one assistant reaching every source, devices from different
+companies (the join moves to what runs everywhere: browser account, email address,
+apps, phone link, home Wi-Fi), and privacy problems that arrive as changes. It added the
+ninth pattern (*The link moves; it does not disappear*), one review question per lens
+(now 28), and “on devices from different companies” to the closing thesis. Its links
+into the Events layer are checked against `privacy-command-center/events.js`.
+
 **Rules that bind edition 4**
 - **Every claim lives once, in `articles/every-arrow/compare.js`**, as
   `[kind, headline, detail, 'source keys']`. Kinds: **Documented** (the company says

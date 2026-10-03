@@ -6,7 +6,11 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-03, later): mixed devices in the Events layer.** A *Mixed
+- **NEWEST (2026-10-03, evening): the essay follows the Events layer.** *Every Arrow
+  Is a Decision* gained §12 “Everyday arrows” (conceptual, uncited, names no company),
+  a ninth pattern, a 28-question review and a re-rendered PDF; see `docs/EVERY-ARROW.md` §E4.
+
+- **2026-10-03, later: mixed devices in the Events layer.** A *Mixed
   devices* option and a *Devices across platforms* use case with a *Your devices*
   picker: each platform account sees only its own devices; the linking moves to
   the browser account, the email address, apps, the phone link and the home
