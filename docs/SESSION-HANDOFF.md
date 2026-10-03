@@ -6,7 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-03): PCC v1 Events layer.** At Paddy's request, a colourful
+- **NEWEST (2026-10-03, later): mixed devices in the Events layer.** A *Mixed
+  devices* option and a *Devices across platforms* use case with a *Your devices*
+  picker: each platform account sees only its own devices; the linking moves to
+  the browser account, the email address, apps, the phone link and the home
+  Wi-Fi. `E.devKinds`, `E.devAccounts`, `E.devCase` in `events.js`.
+
+- **2026-10-03: PCC v1 Events layer.** At Paddy's request, a colourful
   but restrained events layer above the selector sentence (workspace unchanged):
   29 kinds of event in ten coloured families, the 8:02–9:30 morning timeline, 14
   use cases (AI assistant context, search → location → purchase, deletion and
