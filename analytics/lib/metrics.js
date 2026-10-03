@@ -144,3 +144,32 @@ export function retention(cohort, activeByVisitorDay, nowMs, days = THRESHOLDS.r
   }
   return { size, windows };
 }
+
+/**
+ * Group cohort visitors into first-seen weeks for retention — counting ONLY
+ * visitors who have real page-view activity in the window.
+ *
+ * A row in the `visitors` roll-up with no page view (events-only traffic, a bot
+ * hitting /e/i, or a first_seen stamped at launch) cannot be "retained" under a
+ * page-based cohort: retention is measured from page_views. Including it only
+ * inflates the cohort and drags its retention toward 0 (the 2026-10-03
+ * launch-week artifact: 1,166 "visitors" vs 93 actually active). So a visitor is
+ * admitted to a cohort only if they appear in `pageViewVisitorIds`.
+ *
+ * @param cohortRows [{ visitor_id, fs }]  fs = first_seen (ms, or a parseable string)
+ * @param pageViewVisitorIds Set<visitor_id>  visitors with >=1 page view in the window
+ * @param weekKeyFn (ms) => string  ISO week label
+ * @returns Map<weekKey, Map<visitor_id, firstSeenMs>>
+ */
+export function cohortWeeks(cohortRows, pageViewVisitorIds, weekKeyFn) {
+  const weeks = new Map();
+  for (const r of cohortRows) {
+    if (!pageViewVisitorIds.has(r.visitor_id)) continue; // no page view → not a page-based cohort member
+    const fs = typeof r.fs === 'number' ? r.fs : Date.parse(r.fs);
+    if (!Number.isFinite(fs)) continue;
+    const wk = weekKeyFn(fs);
+    if (!weeks.has(wk)) weeks.set(wk, new Map());
+    weeks.get(wk).set(r.visitor_id, fs);
+  }
+  return weeks;
+}

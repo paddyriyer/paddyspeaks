@@ -60,6 +60,49 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
 
 ## 4. Log
 
+### 2026-10-03 — Retention cohorts inflated by launch-day `first_seen` stamps
+
+- **Impact:** Dashboard only — no data collection affected. The Journeys →
+  Retention cohort for the week of 2026-09-14 showed **1,166 visitors at ~0%
+  retention** when only **93** were actually active in `page_views` that week. The
+  bad cohort made retention look broken for that week and skewed returning-rate
+  reasoning. Raw `page_views`/`events` were always correct; the error was confined
+  to the derived `visitors` roll-up.
+- **Window:** since the events/visitors system went live in the 2026-09-14 week;
+  surfaced 2026-10-03 while reviewing the 30-day retention table.
+- **Detected by:** Paddy, who flagged the anomalous flat cohort; confirmed with two
+  COUNT queries (`cohort_from_visitors=1166` vs `actually_active_that_week=93`).
+- **Cause:** when the event path first populated `visitors`, it stamped
+  `first_seen = datetime('now')` (≈ launch date) on a backlog of visitor ids. The
+  #908 `backfill-visitors.sql` could not correct them: it only moves `first_seen`
+  EARLIER from `page_views`, and these ids either have no `page_views` at all
+  (events-only traffic, or a bot hitting `/e/i`) or their true first page view is
+  LATER than the launch stamp. A page-based retention cohort then counted ~1,073
+  visitors that were never actually new — or never browsed — that week.
+- **Why it wasn't caught:** the roll-up's `first_seen` was trusted as a true
+  first-visit date; nothing asserted that a cohort member must have real page-view
+  activity, so event-only / stamped rows flowed straight into the cohort.
+- **Fix:**
+  - Code (durable): `cohortWeeks()` in `analytics/lib/metrics.js` builds cohorts
+    from visitors with page-view activity only; `/api/journeys` uses it (no extra
+    D1 reads — it reuses the activity query already in the batch). This also stops
+    a future `/e/i` bot flood from inflating a cohort.
+  - Data (one-time): `analytics/worker/fix-launch-firstseen.sql` re-anchors each
+    real visitor's `first_seen` to their true earliest page view (overwriting the
+    launch stamp even when later) and removes roll-up rows with no page view ever.
+    Verified in `node:sqlite`: a Sep-14 cohort of 3 collapses to the 1 real
+    browser; a visitor whose real first view post-dates the stamp is corrected.
+- **Guardrails added:** `cohortWeeks()` + 3 new assertions in
+  `analytics/tests/run.mjs` (236 passing); this log entry; the standing rule below.
+  - **Standing rule:** the `visitors` roll-up's `first_seen` is a derived field,
+    not ground truth. Any cohort or first-visit metric must be computed over
+    visitors with real `page_views` activity — never over raw roll-up rows, which
+    can be created by events alone (including bots on `/e/i`).
+- **Follow-ups:**
+  - [ ] **Paddy:** run `analytics/worker/fix-launch-firstseen.console.sql` once in
+    the D1 Console (after the read quota resets). The code guard already hides the
+    inflation; this cleans the stored dates so the numbers match at the source.
+
 ### 2026-10-02 — D1 free-tier daily "rows read" limit exceeded; reads blocked
 
 - **Impact:** Cloudflare blocked all D1 **reads** account-wide once the free-tier
@@ -95,8 +138,9 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
     (derive from a roll-up, or bound by the period). Treat D1 **rows read** as a
     budget, not just rows written.
 - **Follow-ups:**
-  - [ ] **Paddy:** run `analytics/worker/backfill-visitors.sql` once after the
-    read quota resets, so returning-visitor/cohort history is complete.
+  - [x] **Paddy:** run `analytics/worker/backfill-visitors.sql` once after the
+    read quota resets, so returning-visitor/cohort history is complete. Done
+    2026-10-03 (this also exposed the launch-stamp artifact — see 2026-10-03 above).
   - [ ] **Paddy (optional):** if the dashboard is used heavily, the Workers Paid
     plan ($5/mo) removes these daily caps entirely.
 
