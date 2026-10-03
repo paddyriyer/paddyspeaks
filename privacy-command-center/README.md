@@ -10,7 +10,7 @@ The Command Center answers, for a fictional company called Northstar:
 - what was joined, what was inferred, and what can act;
 - which control was supposed to stop it, and whether we can prove it still works.
 
-Everything is synthetic. Surfaces are conceptual ("web / browser", "wallet / payments") and describe no company's implementation.
+Everything is synthetic. Surfaces are conceptual, the Events layer's Apple-like, Google-like and Microsoft-like views only borrow familiar product categories as labels, ("web / browser", "wallet / payments") and describe no company's implementation.
 
 The earlier full explorer is kept, unchanged, at `v10/` as **Northstar Privacy Explorer (v10)**, with `noindex`. Old `#/…` links to `/privacy-command-center/` are forwarded there by the first script in `index.html`.
 
@@ -84,6 +84,32 @@ The graph follows data across systems; this lens follows it across time. It is n
 
 Transformation and recoverability stay off the main graph. They appear when the question asks across time, in the deletion view, in the identity views when the concern is identity, recoverability, legal hold, key lifecycle or deletion, and on **Evidence → Datasets over time**. The one-way functions on screen are illustrative, so the matching demonstrations compute real results; the records name the algorithm class a system would use. Legal hold is an engineering workflow here, not legal advice.
 
+## Events layer
+
+Above the selector sentence sits the **Events** layer: ordinary things a person does, and what each one sets in motion, as one chain:
+
+> EVENT → IDENTIFIER → SYSTEM → DERIVED DATA → INFERENCE
+
+It lives in `events.js` (data and logic) and the `EVENTS LAYER` section of `app.js` (drawing). Focus mode hides it; the workspace below is unchanged.
+
+- **Families and colour.** 29 kinds of event (the 26 everyday ones, plus phone unlocked, email read and ad shown) in ten families: identity (blue), communication (purple), location (green), payments (gold), device (teal), cloud & files (sky blue), AI (violet), search/ads/analytics (orange), security (red), your controls & deletion (grey). Colour marks dots, bars and lines only; text always wears the ink tokens.
+- **Four tabs.** *A morning* (the 8:02–9:30 timeline), *Use cases* (fourteen scenarios), *All events* (every kind, grouped by family), *What changed?* (six review events, unreviewed ones in red).
+- **The graph.** Clicking an event highlights everything it touched, drawn in its family colour. Node styles: collected solid, derived striped, inferred dotted, shared outside outlined with ↗, deleted or expired faded and struck through (always with a text label too). A connection belongs to the events whose chains name it (`evs` in `E.compose`), so a shared ID never makes one event the source of another's data.
+- **The inspector** answers the seven questions for the event or the whole set (*What do we know? How do we know it? Why do we need it? Who receives it? How long do we keep it? What can be inferred when it is combined? Can we separate it again?*), each labelled FACT, INFERENCE, RECOMMENDATION or UNKNOWN, and lists every connection as a button.
+- **Why is this connected?** Click a line in the graph, or a listed connection: purpose, needed (Required / Useful / Optional), identifier used, retention, who can use it, and whether the contexts can be separated. Then *Keep connection · Scope it · Shorten retention · Separate contexts*. `E.evaluate` recomputes what survives each decision: scoping a service's ID breaks joins across services, but not what one service can see alone; shortening a history breaks inferences that need it (`hist`); separating removes everything that depended on it. Decisions last for the visit and are never stored.
+- **Ecosystems.** *All · Apple-like · Google-like · Microsoft-like* relabel the same pattern with familiar product categories (`L` on each system) and show the one identity in front of the services. The structure is identical in every view (a test checks it), so it is never a comparison. Every connection, identifier, retention period and inference is illustrative and describes no company's products; the page says so whenever an ecosystem is chosen.
+- **Use cases** add panels: what only appears when events are combined (every AND-join in `needs`), what the assistant receives for one answer (with *Leave out* per source), four different reasons (run, measure, personalize, advertise), after “Delete the account” (deleted vs kept by law, for security, in a backup, or out of reach), a permission months later (months computed from the dates), what is inside a photo file, and whose activity it is (UNKNOWN).
+- **URL state.** `et` (tab), `e` (selection), `eco` (ecosystem). *Review in the workspace* sets the selectors from the event's `cc` preset; a test checks every preset survives the surface rules.
+
+### Extending the events layer
+
+1. **A node:** add it to `E.nodes` with its kind and the answers “Why is this connected?” needs (`why`, `need`, `use`, `ret` as `[label, days]`, `enough`, `short`, `who`, `sep`, `onDel`). An inference that joins things lists them in `needs`, and only appears in a set that names it in `inf`.
+2. **A kind of event:** add a `T(...)` to `E.types` with its chain of `from>to` node ids (`ev` is the event) and a `cc` preset.
+3. **A use case:** add a `C(...)` to `E.cases`; an event can override (`chain`) or extend (`add`) its type's chain.
+4. **A change:** add to `E.changes` with the edges it adds and the edge it is about.
+
+Keep the language plain: “These two services can recognize the same person”, not the jargon; a test scans every answer for it.
+
 ## Extending the graph
 
 Everything is in `graph.js`, and every record cites node ids.
@@ -126,6 +152,7 @@ The suite checks:
 - saved views;
 - forwarding legacy links;
 - focus mode, the keyboard and phone width (every view at 390px, with nothing cut off or hidden in a sideways scroll: wide drawings have tall phone layouts, tables stack);
-- the absence of hiring language and of any privacy score.
+- the absence of hiring language and of any privacy score;
+- the events layer (`tests/events.test.mjs`): every everyday event and family, highlighting recomputed from each event's own chain, the five node styles, “Why is this connected?” and what each decision breaks, plain language in every answer, ecosystems that relabel without changing the shape, the use-case panels, valid review presets, keyboard access, phone width, and axe on the layer in nine states (needs `axe-core` beside Playwright in `A11Y_DEPS`, as CI installs).
 
 v10 keeps its own suite at `v10/tests/run.mjs`.

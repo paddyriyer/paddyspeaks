@@ -1,10 +1,20 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-09-30 (Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-03 (Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-10-03): PCC v1 Events layer.** At Paddy's request, a colourful
+  but restrained events layer above the selector sentence (workspace unchanged):
+  29 kinds of event in ten coloured families, the 8:02–9:30 morning timeline, 14
+  use cases (AI assistant context, search → location → purchase, deletion and
+  export…), six *What changed?* review events, *Why is this connected?* with
+  Keep / Scope / Shorten / Separate recomputing what can still be inferred, and
+  Apple-like / Google-like / Microsoft-like views that only relabel one identical
+  pattern. `privacy-command-center/events.js`; tests in `tests/events.test.mjs`
+  (includes axe). See the v1 README, “Events layer”.
 
 - **NEWEST (2026-10-01): PCC v1 follows data across time.** One new lens, not a
   module: seven questions under *What must still be possible in the future?*,

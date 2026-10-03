@@ -16,7 +16,7 @@
   var SAVED_KEY = 'pcc.v1.views';
 
   /* ── state ─────────────────────────────────────────────── */
-  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all' };
+  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all' };
   var S = copy(DEF);
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function parse() {
@@ -32,6 +32,10 @@
     if (byId(G.subjects, q.u)) st.u = q.u;
     if (G.lenses[q.l]) st.l = q.l;
     st.fm = q.fm === '1'; st.ask = q.ask || ''; st.ev = q.ev || 'all';
+    var EVD = G.events;
+    if (['day', 'cases', 'all', 'changes'].indexOf(q.et) >= 0) st.et = q.et;
+    if (EVD.ecos.some(function (x) { return x.id === q.eco; })) st.eco = q.eco;
+    if (q.e && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
     return fit(st);
   }
   /* Only what belongs to the surface is offered (G.relevance). A link or preset
@@ -50,6 +54,7 @@
     var q = 'p=' + st.p + '&s=' + st.s + '&j=' + st.j + '&q=' + st.q + (st.c.length ? '&c=' + st.c.join(',') : '') + '&u=' + st.u + (st.l !== 'privacy' ? '&l=' + st.l : '') + (st.fm ? '&fm=1' : '');
     if (st.page === 'ask' && st.ask) q += '&ask=' + encodeURIComponent(st.ask);
     if (st.page === 'evidence' && st.ev !== 'all') q += '&ev=' + st.ev;
+    if (st.page === 'cc') q += (st.et !== 'day' ? '&et=' + st.et : '') + (st.e ? '&e=' + st.e : '') + (st.eco !== 'all' ? '&eco=' + st.eco : '');
     return '#' + st.page + '?' + q;
   }
   function set(patch) {
@@ -795,6 +800,345 @@
     return '<dl class="dec">' + order.map(function (k, i) { return '<div' + (i === 0 ? ' class="hl"' : '') + '><dt>' + esc(lab[k] || F4[k][0]) + '</dt><dd>' + esc(F4[k][1]) + '</dd></div>'; }).join('') + '</dl>';
   }
 
+  /* ═══════════ EVENTS LAYER ═══════════
+   * What a person did, and what it set in motion: EVENT → IDENTIFIER → SYSTEM →
+   * DERIVED DATA → INFERENCE (events.js). The tab, the selection and the
+   * ecosystem live in the URL (et, e, eco); what is highlighted inside a use
+   * case, the connection being asked about, and the review decisions on
+   * connections live in memory for this visit only, and are never stored. */
+  var EV = G.events, EVM = { key: '', hl: null, node: null, edge: null, dec: {}, whole: false, cur: null };
+  var EV_TABS = [['day', 'A morning'], ['cases', 'Use cases'], ['all', 'All events'], ['changes', 'What changed?']];
+  var ACTS = [['keep', 'Keep connection'], ['scope', 'Scope it'], ['short', 'Shorten retention'], ['cut', 'Separate contexts']];
+  var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtDate(d) { var p = d.split('-'); return MON[+p[1] - 1] + ' ' + (+p[2]) + ', ' + p[0]; }
+  function monthsBetween(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 864e5 / 30.44); }
+  function listJoin(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  function lc(s) { return /^[A-Z]{2}/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1); }
+  function famOf(set, id) { var n = set.nodes[id]; return n && n.type ? n.type.fam : ''; }
+  function evTime(def, ev, i) {
+    if (!ev.date) return ev.t;
+    var first = def.events[0].date, m = monthsBetween(first, ev.date);
+    return fmtDate(ev.date).replace(/, \d{4}$/, '') + (i && m >= 1 ? ' · ' + plural(m, 'month') + ' later' : '');
+  }
+  function evDef() {
+    var o = { def: null, extra: null, open: false, hl: null, edge: null };
+    if (S.et === 'cases') { var c = EV.caseById(S.e); if (c) { o.def = c; o.open = true; o.hl = EVM.hl; } }
+    else if (S.et === 'all') { var t = EV.type(S.e); if (t) { o.def = { id: 't-' + t.id, title: t.label, line: t.plain, inf: 'all', cc: t.cc, events: [{ id: 'x1', type: t.id, t: '', label: t.label }] }; o.open = true; o.hl = 'x1'; } }
+    else if (S.et === 'changes') { var ch = EV.changeById(S.e); if (ch) { o.def = EV.day; o.extra = { add: ch.add, mark: ch.edge }; o.open = true; o.change = ch; o.edge = ch.edge; } }
+    else { o.def = EV.day; o.hl = S.e || null; o.open = !!S.e || EVM.whole; }
+    var key = S.et + ':' + S.e;
+    if (key !== EVM.key) { EVM.key = key; EVM.hl = null; EVM.node = null; EVM.edge = o.edge; EVM.dec = {}; if (S.et === 'cases') o.hl = null; }
+    return o;
+  }
+
+  /* ── the parts ── */
+  function chip(def, ev, i, on, attr) {
+    var t = EV.type(ev.type), f = EV.fam(t.fam), time = evTime(def, ev, i);
+    return '<button type="button" class="evc f-' + t.fam + (on ? ' sel' : '') + '" ' + attr + ' aria-pressed="' + !!on + '">' + (time ? '<span class="evc-t">' + esc(time) + '</span>' : '') +
+      '<span class="evc-l">' + esc(ev.label) + '</span><span class="evc-f">' + esc(f.label) + (ev.who ? ' · ' + esc(ev.who) : '') + '</span></button>';
+  }
+  function timeline(def, sel, attrName) {
+    return '<ol class="etl" aria-label="' + esc(def.title || 'Events') + '">' + def.events.map(function (ev, i) {
+      return '<li class="etl-i f-' + EV.type(ev.type).fam + '"><span class="etl-dot" aria-hidden="true"></span>' + chip(def, ev, i, sel === ev.id, 'data-' + attrName + '="' + ev.id + '" id="evc-' + ev.id + '"') + '</li>';
+    }).join('') + '</ol>';
+  }
+  function famLegend(fams) {
+    return '<p class="famlg" aria-label="Event families">' + EV.families.filter(function (f) { return !fams || fams.indexOf(f.id) >= 0; }).map(function (f) { return '<span class="f-' + f.id + '"><i aria-hidden="true"></i>' + esc(f.label) + '</span>'; }).join('') + '</p>';
+  }
+  function oneId(eco) {
+    var E0 = EV.ecos.filter(function (x) { return x.id === eco; })[0];
+    var svc = E0 && E0.services ? E0.services : Object.keys(EV.nodes).filter(function (k) { var n = EV.nodes[k]; return n.kind === 'sys' && n.L && k !== 's_account'; }).map(function (k) { return EV.nodes[k].name; });
+    return '<div class="oneid"><span class="eyebrow">One identity</span><p class="oneid-h"><b>' + esc(EV.label('s_account', eco)) + '</b> sits in front of ' + plural(svc.length, 'service') + '.</p>' +
+      '<ul class="oneid-l">' + svc.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ul>' +
+      '<p class="small">Each is useful alone. Behind one ID, together, they can describe a person’s schedule, places, spending and relationships.</p></div>';
+  }
+
+  /* ── the graph ── */
+  function nodeState(set, id) {
+    var n = EV.nodes[id];
+    if (set.nodes[id].ev) return 'event';
+    if (n.kind === 'id') return 'collected';
+    if (n.kind === 'sys') return n.ext ? 'shared' : 'collected';
+    if (n.kind === 'inf') return 'inferred';
+    return n.st;
+  }
+  function nodeHTML(set, id, ctx) {
+    var sn = set.nodes[id], n = EV.nodes[id], stt = nodeState(set, id), cls = 'en', tagt = '', alive = ctx.st[id].ok;
+    if (sn.ev) {
+      cls += ' k-event f-' + sn.type.fam; tagt = evTime(set.def, sn.ev, set.def.events.indexOf(sn.ev));
+    } else {
+      cls += ' k-' + n.kind + ' s-' + stt;
+      if (stt === 'shared') tagt = 'outside ↗';
+      if (stt === 'expired') tagt = 'deleted';
+      if (n.kind === 'id') tagt = EV.stab[n.stab][0].toLowerCase();
+      if (sn.by === 99) { cls += ' is-new'; tagt = 'new'; }
+      if (ctx.afterDelete && n.kind === 'data') { var d = EV.onDel[n.onDel]; if (d) { tagt = d[1].toLowerCase() + (stt === 'shared' ? ' ↗' : ''); if (!d[0]) cls += ' gone'; } }
+    }
+    if (!alive) { cls += ' gone'; tagt = n && n.kind === 'inf' ? 'no longer possible' : 'not created'; }
+    if (ctx.R) cls += ctx.R[id] ? ' on' : ' dim';
+    if (EVM.node === id || ctx.ends[id]) cls += ' sel';
+    var label = sn.ev ? sn.ev.label : EV.label(id, S.eco);
+    var sr = sn.ev ? EV.fam(sn.type.fam).label + ' event' : n.kind === 'id' ? 'identifier' : n.kind === 'sys' ? (n.ext ? 'outside the service' : 'service') : EV.states[stt];
+    return '<button type="button" class="' + cls + '" data-n="' + id + '" aria-pressed="' + (EVM.node === id) + '"><span class="en-n">' + esc(label) + '</span>' + (tagt ? '<span class="en-t">' + esc(tagt) + '</span>' : '') + '<span class="sr-only"> (' + esc(sr) + (alive ? '' : ', no longer possible') + ')</span></button>';
+  }
+  function graphHTML(set, ctx) {
+    var cols = [[], [], [], [], []];
+    set.order.forEach(function (id, i) { var sn = set.nodes[id]; cols[sn.ev ? 0 : EV.col(EV.nodes[id])].push([sn.by, i, id]); });
+    cols.forEach(function (c) { c.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; }); });
+    return '<div class="eg" id="eg" role="group" aria-label="Event graph: event, identifiers, systems, derived data, inferences" style="--fc:' + ctx.fc + '">' +
+      EV.cols.map(function (c, i) { return '<div class="eg-col"><h3 class="eg-h">' + esc(c[1]) + '</h3><div class="eg-ns">' + (cols[i].length ? cols[i].map(function (x) { return nodeHTML(set, x[2], ctx); }).join('') : '<p class="eg-none">Nothing inferred</p>') + '</div></div>'; }).join('') +
+      '<svg class="eg-svg" aria-hidden="true" focusable="false"></svg></div>';
+  }
+  function legendHTML() {
+    return '<p class="nlg" aria-label="How to read the graph"><span class="s-collected">Collected</span><span class="s-derived">Derived</span><span class="s-inferred">Inferred</span><span class="s-shared">Shared outside ↗</span><span class="gone">Deleted or expired</span></p>';
+  }
+  function drawEdges() {
+    var cur = EVM.cur, eg = $('#eg');
+    if (!cur || !eg) return;
+    var svg = $('.eg-svg', eg);
+    if (getComputedStyle(svg).display === 'none') return;
+    var box = eg.getBoundingClientRect(), pos = {};
+    $$('[data-n]', eg).forEach(function (b) { var r = b.getBoundingClientRect(); pos[b.getAttribute('data-n')] = { l: r.left - box.left, r: r.right - box.left, y: r.top - box.top + r.height / 2 }; });
+    svg.setAttribute('viewBox', '0 0 ' + box.width + ' ' + box.height); svg.setAttribute('width', box.width); svg.setAttribute('height', box.height);
+    var colOf = function (id) { var sn = cur.set.nodes[id]; return sn.ev ? 0 : EV.col(EV.nodes[id]); };
+    var out = '';
+    cur.set.edges.forEach(function (e) {
+      var a = pos[e.a], b = pos[e.b]; if (!a || !b) return;
+      var d, ca = colOf(e.a), cb = colOf(e.b);
+      if (ca === cb) { var bx = Math.max(a.r, b.r), k = 18 + Math.min(26, Math.abs(b.y - a.y) / 8); d = 'M' + a.r + ' ' + a.y + ' C' + (bx + k) + ' ' + a.y + ' ' + (bx + k) + ' ' + b.y + ' ' + b.r + ' ' + b.y; }
+      else { var dx = (b.l - a.r) / 2; d = 'M' + a.r + ' ' + a.y + ' C' + (a.r + dx) + ' ' + a.y + ' ' + (b.l - dx) + ' ' + b.y + ' ' + b.l + ' ' + b.y; }
+      var dec = EVM.dec[e.k], cls = 'ee' + (cur.R ? (cur.R[e.a] && cur.R[e.b] ? ' on' : ' dim') : '') + (dec ? ' d-' + dec : '') + (EVM.edge === e.k ? ' sel' : '') + (e.mark ? ' m-' + e.mark : '') + (cur.st[e.b].ok ? '' : ' off');
+      out += '<path class="' + cls + '" d="' + d + '"/><path class="eh" data-ek="' + e.k + '" d="' + d + '"><title>Why is this connected?</title></path>';
+    });
+    svg.innerHTML = out;
+  }
+
+  /* ── the seven questions, for one event or for the whole set ── */
+  function sevenQ(set, R, st) {
+    var L = function (id) { return EV.label(id, S.eco); }, ids = [], sys = [], ext = [], data = [], inf = [];
+    set.order.forEach(function (id) { if ((R && !R[id]) || set.nodes[id].ev) return; var n = EV.nodes[id]; ({ id: ids, sys: n.ext ? ext : sys, data: data, inf: inf })[n.kind].push(id); });
+    var live = function (id) { return st[id].ok; };
+    var dl = data.filter(live), rows = [];
+    var byState = ['collected', 'derived', 'shared', 'expired'].map(function (k) { var l = dl.filter(function (id) { return EV.nodes[id].st === k; }); return l.length ? EV.states[k] + ': ' + listJoin(l.map(L)) + '.' : ''; }).filter(Boolean).join(' ');
+    rows.push(['What do we know?', 'FACT', byState || 'Nothing is stored.']);
+    rows.push(['How do we know it?', 'FACT', (ids.length ? 'Through your ' + listJoin(ids.map(function (x) { return lc(EV.nodes[x].name); })) : 'Through no identifier') + (sys.length ? ', recorded by ' + listJoin(sys.map(L)) : '') + '.']);
+    rows.push(['Why do we need it?', 'FACT', ['required', 'useful', 'optional'].map(function (k) { var l = dl.filter(function (id) { return EV.nodes[id].need === k; }); return l.length ? EV.needs[k] + ': ' + l.map(function (id) { return L(id) + ' (' + lc(EV.nodes[id].why.replace(/\.$/, '')) + ')'; }).join('; ') + '.' : ''; }).filter(Boolean).join(' ') || 'Nothing is kept, so nothing needs a reason.']);
+    var outside = ext.map(L).concat(dl.filter(function (id) { return EV.nodes[id].to; }).map(function (id) { return EV.nodes[id].to; })).filter(function (x, i, a) { return a.indexOf(x) === i; });
+    rows.push(['Who receives it?', 'FACT', (sys.length ? 'Inside the service: ' + listJoin(sys.map(L)) + '.' : 'No service.') + (outside.length ? ' Outside it: ' + listJoin(outside) + '.' : ' Nothing leaves the service.')]);
+    var keep = dl.filter(function (id) { return !EV.unknownRet(id); }).map(function (id) { return L(id) + ': ' + lc(EV.retOf(id, st)[0]); });
+    rows.push(['How long do we keep it?', 'FACT', keep.length ? keep.join('; ') + '.' : 'Nothing is kept.']);
+    var long = dl.filter(function (id) { return EV.tooLong(id, st); });
+    if (long.length) rows.push(['', 'RECOMMENDATION', 'This information is kept longer than needed: ' + long.map(function (id) { return L(id) + ' (' + lc(EV.retOf(id, st)[0]) + '; ' + (EV.nodes[id].short ? lc(EV.nodes[id].short[0]) + ' would do' : 'its purpose needs less') + ')'; }).join(', ') + '.']);
+    dl.filter(EV.unknownRet).forEach(function (id) { rows.push(['', 'UNKNOWN', 'Nobody here can say how long ' + EV.nodes[id].to + ' keeps ' + lc(L(id)) + '.']); });
+    rows.push(['What can be inferred when it is combined?', 'INFERENCE', inf.length ? inf.map(function (id) {
+      var src = EV.sources(set, id).map(function (ev) { return ev.label; });
+      return L(id) + (src.length > 1 ? ', from ' + listJoin(src) : '') + (live(id) ? '' : ' (no longer possible)');
+    }).join('. ') + '.' : 'Nothing, on its own.']);
+    var joins = data.concat(inf).filter(function (id) { return live(id) && EV.contexts(set, id).length > 1; }), ctxs = [];
+    joins.forEach(function (id) { EV.contexts(set, id).forEach(function (c) { if (ctxs.indexOf(c) < 0) ctxs.push(c); }); });
+    var gone = dl.filter(function (id) { return EV.nodes[id].st === 'shared'; });
+    rows.push(['Can we separate it again?', 'RECOMMENDATION', (ctxs.length ? 'Yes: ' + listJoin(ctxs.map(L)) + ' can recognize the same person through ' + listJoin(ids.filter(function (x) { return EV.nodes[x].stab === 'stable'; }).map(function (x) { return lc(EV.nodes[x].name); })) + '. Give each its own ID, and ' + plural(joins.length, 'combined fact') + ' here can no longer be made.' : 'Nothing here is combined across services.') + (gone.length ? ' Not for copies already outside: ' + listJoin(gone.map(L)) + '.' : '')]);
+    return '<dl class="sevq">' + rows.map(function (r) { return '<div' + (r[0] ? '' : ' class="sub"') + '><dt>' + esc(r[0]) + '</dt><dd>' + tag(r[1]) + ' ' + esc(r[2]) + '</dd></div>'; }).join('') + '</dl>';
+  }
+  function needTag(n) { return '<span class="need n-' + n + '">' + esc(EV.needs[n]) + '</span>'; }
+  function cxList(set, list, title) {
+    if (!list.length) return '';
+    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : EV.label(id, S.eco); };
+    return '<div class="cxs"><span class="eyebrow">' + esc(title) + '</span><ul>' + list.map(function (e) {
+      var x = EV.explain(set, e.k, S.eco, EVM.cur.st), dec = EVM.dec[e.k];
+      return '<li><button type="button" class="cx' + (EVM.edge === e.k ? ' sel' : '') + '" data-ek="' + e.k + '"><span>' + esc(L(e.a)) + ' → ' + esc(L(e.b)) + '</span>' + needTag(x.need) + (dec ? '<span class="dd">' + esc(ACTS.filter(function (a) { return a[0] === dec; })[0][1]) + '</span>' : '') + '</button></li>';
+    }).join('') + '</ul></div>';
+  }
+  function actResult(set, k) {
+    var dec = EVM.dec[k]; if (!dec) return '';
+    var without = {}; Object.keys(EVM.dec).forEach(function (x) { if (x !== k) without[x] = EVM.dec[x]; });
+    var before = EV.evaluate(set, without), after = EVM.cur.st, L = function (id) { return EV.label(id, S.eco); };
+    var lost = Object.keys(set.nodes).filter(function (id) { return before[id] && before[id].ok && !after[id].ok && EV.nodes[id] && (EV.nodes[id].kind === 'inf' || EV.nodes[id].kind === 'data'); }).map(L);
+    var e = set.ek[k], tgt = set.nodes[e.b].ev ? '' : L(e.b);
+    if (dec === 'keep') return 'Kept: recorded as reviewed and needed, for this visit.';
+    if (dec === 'scope') return 'Scoped: ' + tgt + ' gets its own ID for this purpose. ' + (lost.length ? 'These services can no longer recognize the same person, so this is no longer possible: ' + listJoin(lost) + '.' : 'Nothing here depended on recognizing you across services, so everything still works.');
+    if (dec === 'short') return listJoin(EV.shortTargets(set, k).map(function (x) { return L(x) + ' is now kept ' + lc(EV.nodes[x].short[0]); })) + '. ' + (lost.length ? 'Too short to build: ' + listJoin(lost) + '.' : 'Nothing here needed the longer history.');
+    return 'Separated. ' + (lost.length ? 'No longer possible: ' + listJoin(lost) + '.' : 'Nothing else depended on it.');
+  }
+  function whyHTML(set, k, change) {
+    var x = EV.explain(set, k, S.eco, EVM.cur.st), e = set.ek[k], use = EV.uses.filter(function (u) { return u[0] === x.use; })[0];
+    var long = EV.nodes[e.b] && EV.nodes[e.b].kind === 'data' && EV.tooLong(e.b, EVM.cur.st);
+    var chg = change && change.edge === k ? '<div class="chgbox"><span class="chg-k">Change · ' + esc(change.kind) + '</span><b>' + esc(change.title) + '</b><p>' + esc(fmtDate(change.date)) + ' · ' + (change.reviewed ? 'went through review' : 'did not go through review') + '</p><p><span class="ba">Before</span> ' + esc(change.before) + '</p><p><span class="ba">After</span> ' + esc(change.after) + '</p></div>' : '';
+    return '<div class="why"><span class="eyebrow">Why is this connected?</span><h3 id="whyH" tabindex="-1">' + esc(x.from) + ' → ' + esc(x.to) + '</h3>' + chg +
+      (x.joins ? '<p class="joinl">These two services can recognize the same person.</p>' : '') +
+      '<dl class="whyl"><div><dt>Purpose</dt><dd>' + esc(x.why) + '</dd></div><div><dt>Needed?</dt><dd>' + needTag(x.need) + ' <span class="euse">' + esc(use ? use[1] : '') + '</span></dd></div>' +
+      '<div><dt>Identifier used</dt><dd>' + esc(x.id) + '</dd></div><div><dt>Retention</dt><dd>' + esc(x.ret) + (long ? ' <span class="long">This information is kept longer than needed.</span>' : '') + '</dd></div>' +
+      '<div><dt>Who can use it?</dt><dd>' + esc(x.who) + '</dd></div><div><dt>Can these contexts be separated?</dt><dd>' + esc(x.sep) + '</dd></div></dl>' +
+      '<div class="acts" role="group" aria-label="Decide about this connection">' + ACTS.map(function (a) { var why = EV.applicable(set, k, a[0]); return '<button type="button" class="act a-' + a[0] + '" data-do="' + a[0] + '" data-ek="' + k + '" aria-pressed="' + (EVM.dec[k] === a[0]) + '"' + (why ? ' aria-describedby="na-' + a[0] + '" disabled' : '') + '>' + a[1] + '</button>'; }).join('') + '</div>' +
+      ACTS.map(function (a) { var why = EV.applicable(set, k, a[0]); return why ? '<p class="na" id="na-' + a[0] + '">' + esc(a[1]) + ': ' + esc(why) + '</p>' : ''; }).join('') +
+      '<p class="act-res" role="status">' + esc(actResult(set, k)) + '</p>' +
+      '<button type="button" class="linkbtn" data-evback>' + (S.et === 'changes' ? 'Back to what this change touches' : 'Back to the event') + '</button></div>';
+  }
+  function nodeCard(set, id) {
+    var sn = set.nodes[id], n = EV.nodes[id], st = EVM.cur.st, L = function (x) { var s = set.nodes[x]; return s.ev ? s.ev.label : EV.label(x, S.eco); };
+    var inn = set.edges.filter(function (e) { return e.b === id; }), out = set.edges.filter(function (e) { return e.a === id; });
+    var rows = [];
+    if (sn.ev) rows.push(['What happened', sn.type.plain + (sn.ev.who ? ' By: ' + lc(sn.ev.who) + '.' : '')]);
+    else if (n.kind === 'id') rows.push(['What it is', EV.stab[n.stab][0] + '. ' + n.carry]);
+    else if (n.kind === 'sys') rows.push(['What it does', 'It ' + n.why + '.'], ['Who can use it?', n.who]);
+    else {
+      rows.push(['Why it exists', n.why]);
+      if (n.kind === 'data') rows.push(['Needed?', EV.needs[n.need]], ['Kept', EV.retOf(id, st)[0] + (EV.tooLong(id, st) ? ' (longer than needed)' : '')], ['Who can use it?', n.who], ['Can it be separated?', n.sep]);
+      else rows.push(['Comes from', listJoin(EV.sources(set, id).map(function (ev) { return ev.label; }))]);
+      if (n.to) rows.push(['Shared with', n.to]);
+    }
+    if (st[id] && !st[id].ok) rows.push(['Status', st[id].why === 'retention' ? 'No longer possible: the history it needs is no longer kept.' : st[id].why === 'scoped' ? 'No longer possible: the services can no longer recognize the same person.' : 'No longer possible: something it depends on was separated.']);
+    return '<div class="ncard"><span class="eyebrow">' + esc(sn.ev ? EV.fam(sn.type.fam).label + ' event' : { id: 'Identifier', sys: n.ext ? 'Outside the service' : 'System', data: EV.states[n.st], inf: 'Inferred' }[n.kind]) + '</span><h3 id="ncH" tabindex="-1">' + esc(L(id)) + '</h3>' + (n && n.sub ? '<p class="small">' + esc(n.sub) + '</p>' : '') +
+      '<dl class="whyl">' + rows.map(function (r) { return '<div><dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' +
+      cxList(set, inn.concat(out), 'Its connections · ask why') + '<button type="button" class="linkbtn" data-evback>Back</button></div>';
+  }
+  function inspector(set, o) {
+    if (EVM.edge && set.ek[EVM.edge]) return whyHTML(set, EVM.edge, o.change);
+    if (EVM.node && set.nodes[EVM.node]) return nodeCard(set, EVM.node);
+    var R = EVM.cur.R, hl = EVM.cur.hlId, head;
+    if (hl) head = '<span class="eyebrow">This event</span><h3>' + esc(set.nodes[hl].ev.label) + '</h3>';
+    else head = '<span class="eyebrow">' + esc(set.def.title || 'These events') + '</span><h3>' + plural(set.events.length, 'event') + ', together</h3>';
+    var list = R ? set.edges.filter(function (e) { return R[e.a] && R[e.b]; }) : [];
+    return head + sevenQ(set, R, EVM.cur.st) + (list.length ? cxList(set, list, 'Every connection it touches · ask why') : '<p class="small">Click any line in the graph, or pick an event, to ask why it is connected.</p>');
+  }
+
+  /* ── panels that some use cases add ── */
+  function extras(set, o) {
+    var def = set.def, st = EVM.cur.st, L = function (id) { return EV.label(id, S.eco); }, out = '';
+    var ands = Object.keys(set.nodes).filter(function (id) { var n = EV.nodes[id]; return n && n.kind === 'inf' && n.needs; });
+    if (ands.length && set.events.length > 1) out += '<section class="xp"><h3>What only appears when events are combined</h3>' + ands.map(function (id) {
+      var src = EV.sources(set, id);
+      return '<div class="comb">' + src.map(function (ev) { return '<span class="evc mini f-' + EV.type(ev.type).fam + '"><span class="evc-l">' + esc(ev.label) + '</span>' + (ev.alone ? '<span class="evc-f">Alone: ' + esc(ev.alone) + '</span>' : '') + '</span>'; }).join('<span class="plus" aria-hidden="true">+</span>') +
+        '<span class="eq" aria-hidden="true">=</span><span class="en k-inf s-inferred' + (st[id].ok ? '' : ' gone') + '"><span class="en-n">' + esc(L(id)) + '</span>' + (st[id].ok ? '' : '<span class="en-t">no longer possible</span>') + '</span></div>';
+    }).join('') + '<p class="small">Each event is ordinary on its own. The combination is new information that nobody typed in.</p></section>';
+    if (def.ctx) {
+      var into = set.edges.filter(function (e) { return e.b === 'd_ctx'; }), reach = EV.contexts(set, 'd_ctx');
+      out += '<section class="xp"><h3>What the assistant receives for one answer</h3><p class="small">For “When is my flight?”, one feature reaches ' + plural(reach.length, 'service') + ': ' + esc(listJoin(reach.map(L))) + '.</p>' +
+        '<table class="ctxt"><thead><tr><th scope="col">Context</th><th scope="col">Needed?</th><th scope="col">Why</th><th scope="col"><span class="sr-only">Decide</span></th></tr></thead><tbody>' + into.map(function (e) {
+          var x = EV.explain(set, e.k, S.eco, st), cut = EVM.dec[e.k] === 'cut';
+          return '<tr' + (cut ? ' class="cutrow"' : '') + '><th scope="row">' + esc(L(e.a)) + '</th><td>' + needTag(x.need) + '</td><td>' + esc(x.why) + '</td><td><button type="button" class="act a-cut" data-do="cut" data-ek="' + e.k + '" aria-pressed="' + cut + '">' + (cut ? 'Left out' : 'Leave out') + '</button></td></tr>';
+        }).join('') + '</tbody></table><p class="keyq">What happens when one feature is allowed to see all of them at once?</p>' +
+        '<p class="small">' + tag('RECOMMENDATION') + ' Give each answer only what it needs: the Required sources; ask before Useful ones; leave Optional ones out. The answer still works: ' + (st.n_itinerary && st.n_itinerary.ok ? 'it does now.' : 'it does not now, because the reservation was left out.') + '</p></section>';
+    }
+    if (def.uses) {
+      var dl = Object.keys(set.nodes).filter(function (id) { return EV.nodes[id] && EV.nodes[id].kind === 'data'; });
+      out += '<section class="xp"><h3>Four different reasons</h3><table class="ctxt"><thead><tr><th scope="col">Reason</th><th scope="col">Record</th><th scope="col">Needed?</th><th scope="col">Kept</th></tr></thead><tbody>' +
+        ['operate', 'analytics', 'personalize', 'ads'].map(function (u) { return dl.filter(function (id) { return EV.nodes[id].use === u; }).map(function (id) { return '<tr><th scope="row">' + esc(EV.uses.filter(function (x) { return x[0] === u; })[0][1]) + '</th><td>' + esc(L(id)) + '</td><td>' + needTag(EV.nodes[id].need) + '</td><td>' + esc(EV.retOf(id, st)[0]) + '</td></tr>'; }).join(''); }).join('') +
+        '</tbody></table><p class="small">Running the service answers the search. Measuring counts it without an ID. Personalizing remembers it for you. Advertising uses it to choose and measure ads. Only the first is needed to answer.</p></section>';
+    }
+    if (def.afterDelete) {
+      var rows = Object.keys(set.nodes).filter(function (id) { return EV.nodes[id] && EV.nodes[id].kind === 'data' && id !== 'd_delrec'; });
+      var gone = rows.filter(function (id) { return !EV.onDel[EV.nodes[id].onDel][0]; });
+      out += '<section class="xp"><h3>After “Delete the account”</h3><p class="small">' + plural(gone.length, 'record') + ' deleted; ' + plural(rows.length - gone.length, 'record') + ' remain, each for a stated reason.</p><table class="ctxt"><thead><tr><th scope="col">Record</th><th scope="col">After deletion</th><th scope="col">Why</th></tr></thead><tbody>' +
+        rows.map(function (id) { var d = EV.onDel[EV.nodes[id].onDel]; return '<tr><th scope="row">' + esc(L(id)) + '</th><td><span class="dk ' + (d[0] ? 'kept' : 'del') + '">' + esc(d[1]) + '</span></td><td>' + esc(EV.nodes[id].keepWhy || d[2]) + '</td></tr>'; }).join('') + '</tbody></table></section>';
+    }
+    if (def.perm) {
+      var ago = monthsBetween(def.perm.granted, EV.asOf);
+      out += '<section class="xp"><h3>A permission, months later</h3><p>Granted ' + esc(fmtDate(def.perm.granted)) + ', ' + plural(ago, 'month') + ' ago, “to find the car”. Last needed for that: ' + esc(fmtDate(def.perm.needed)) + '. Still on today.</p><p class="small">' + tag('RECOMMENDATION') + ' Ask again when access has gone unused, and prefer “While using the app”.</p></section>';
+    }
+    if (def.exif) out += '<section class="xp"><h3>What is inside the file</h3><dl class="whyl">' + EV.nodes.d_exif.fields.map(function (f) { return '<div><dt>' + esc(f[0]) + '</dt><dd>' + esc(f[1]) + '</dd></div>'; }).join('') + '</dl><p class="small">The picture shows a cat. The file also says when, where and with which phone, to everyone who receives it.</p></section>';
+    if (def.unknown) out += '<section class="xp"><h3>Whose activity is this?</h3><p>' + tag('UNKNOWN') + ' ' + esc(def.unknown) + '</p></section>';
+    if (def.oneId) out += '<section class="xp">' + oneId(S.eco) + '</section>';
+    return out;
+  }
+
+  /* ── the trace: story, graph, inspector ── */
+  function traceHTML(o) {
+    var set = EV.compose(o.def, o.extra), st = EV.evaluate(set, EVM.dec);
+    var hlId = EVM.node ? null : o.hl, R = null;
+    if (hlId && set.nodes[hlId]) R = EV.reach(set, hlId);
+    else if (EVM.node && set.nodes[EVM.node]) { R = EV.reach(set, EVM.node); var up = EV.reach(set, EVM.node, true); Object.keys(up).forEach(function (k) { R[k] = 1; }); }
+    else if (o.change) { var e0 = set.ek[o.change.edge]; R = EV.reach(set, e0.b); var up2 = EV.reach(set, e0.a, true); Object.keys(up2).forEach(function (k) { R[k] = 1; }); }
+    var ends = {}; if (EVM.edge && set.ek[EVM.edge]) { ends[set.ek[EVM.edge].a] = 1; ends[set.ek[EVM.edge].b] = 1; }
+    var fam = hlId && set.nodes[hlId] ? famOf(set, hlId) : o.change ? 'ads' : '';
+    var ctx = { st: st, R: R, ends: ends, afterDelete: o.def.afterDelete, fc: fam ? 'var(--f-' + fam + ')' : 'var(--ink-2)' };
+    EVM.cur = { set: set, st: st, R: R, hlId: hlId && set.nodes[hlId] ? hlId : null };
+    /* the story line: one column at a time */
+    var L = function (id) { var sn = set.nodes[id]; return sn.ev ? sn.ev.label : EV.label(id, S.eco); };
+    var per = [[], [], [], [], []];
+    set.order.forEach(function (id) { if (R && !R[id]) return; var sn = set.nodes[id]; if (!st[id].ok) return; per[sn.ev ? 0 : EV.col(EV.nodes[id])].push(L(id)); });
+    var story = '<ol class="estory" aria-label="What this set in motion">' + EV.cols.map(function (c, i) { var l = per[i], txt = l.length ? l.slice(0, 3).join(' + ') + (l.length > 3 ? ' + ' + (l.length - 3) + ' more' : '') : i === 4 ? 'nothing inferred' : '—'; return '<li><span class="eyebrow">' + esc(c[1]) + '</span><span>' + esc(txt) + '</span></li>'; }).join('') + '</ol>';
+    var uses = {}; Object.keys(set.nodes).forEach(function (id) { var n = EV.nodes[id]; if (!n || (R && !R[id]) || !st[id].ok || (n.kind !== 'data' && n.kind !== 'inf')) return; var u = n.use || 'operate'; uses[u] = (uses[u] || 0) + 1; });
+    var usesRow = '<p class="uses"><span class="eyebrow">What it is for</span>' + EV.uses.filter(function (u) { return uses[u[0]]; }).map(function (u) { return '<span class="eu eu-' + u[0] + '">' + esc(u[1]) + ' <b>' + uses[u[0]] + '</b></span>'; }).join('') + '</p>';
+    var nd = Object.keys(EVM.dec).length;
+    var decBar = nd ? '<p class="decbar">' + 'Your review: ' + plural(nd, 'connection') + ' decided, for this visit only. <button type="button" class="linkbtn" data-evreset>Undo all</button></p>' : '';
+    return '<div class="trace" id="trace">' +
+      '<div class="tr-top">' + story + '<div class="tr-act"><button type="button" class="btn ghost" data-evcc>Review in the workspace</button><button type="button" class="linkbtn" data-evclose>Close</button></div></div>' +
+      usesRow + decBar +
+      '<div class="tr-main"><div class="eg-wrap">' + graphHTML(set, ctx) + legendHTML() + '</div><aside class="evi" id="evi" aria-label="Inspector" tabindex="0">' + inspector(set, o) + '</aside></div>' +
+      extras(set, o) + '</div>';
+  }
+
+  function tabBody(o) {
+    if (S.et === 'cases') {
+      var c = o.def;
+      return '<div class="cases" role="group" aria-label="Use cases">' + EV.cases.map(function (x) { return '<button type="button" class="cs' + (c && c.id === x.id ? ' sel' : '') + '" data-cs="' + x.id + '" id="cs-' + x.id + '" aria-pressed="' + !!(c && c.id === x.id) + '">' + esc(x.title) + '</button>'; }).join('') + '</div>' +
+        (c ? '<div class="case-h"><h3>' + esc(c.title) + '</h3><p class="case-l">' + esc(c.line) + '</p><p class="take"><span class="eyebrow">The point</span> ' + esc(c.take) + '</p></div>' + timeline(c, EVM.hl, 'hl') : '<p class="hint">Pick a use case to follow it through the graph.</p>');
+    }
+    if (S.et === 'all') {
+      return '<div class="fams">' + EV.families.map(function (f) {
+        return '<div class="fam f-' + f.id + '"><h3><i aria-hidden="true"></i>' + esc(f.label) + '</h3><div class="fam-l">' + EV.types.filter(function (t) { return t.fam === f.id; }).map(function (t) { return chip({ events: [] }, { type: t.id, label: t.label }, 0, S.e === t.id, 'data-ty="' + t.id + '" id="ty-' + t.id + '"'); }).join('') + '</div></div>';
+      }).join('') + '</div>';
+    }
+    if (S.et === 'changes') {
+      var rev = EV.changes.filter(function (c) { return c.reviewed; }).length;
+      return '<p class="chg-s">' + plural(EV.changes.length, 'change') + ' since the ' + esc(fmtDate(G.lastReview)) + ' review; ' + rev + ' went through review. Privacy problems often arrive as changes, not as the first design.</p>' +
+        '<ul class="chgs">' + EV.changes.map(function (c) {
+          return '<li><button type="button" class="chc' + (S.e === c.id ? ' sel' : '') + (c.reviewed ? ' rv' : '') + '" data-ch="' + c.id + '" id="ch-' + c.id + '" aria-pressed="' + (S.e === c.id) + '"><span class="chc-k">' + esc(c.kind) + ' · ' + (c.reviewed ? 'reviewed' : 'not reviewed') + '</span><b>' + esc(c.title) + '</b><span class="chc-d">' + esc(fmtDate(c.date)) + '</span><span class="chc-ba">' + esc(c.before) + ' → ' + esc(c.after) + '</span></button></li>';
+        }).join('') + '</ul>';
+    }
+    var picks = EV.day.events.filter(function (e) { return e.pick; });
+    return timeline(EV.day, S.e, 'evi') + (o.open ? '' : '<p class="hint">Click any event to follow it, or try ' + picks.map(function (e) { return '<button type="button" class="linkbtn" data-evi="' + e.id + '">' + esc(e.label.toLowerCase()) + '</button>'; }).join(', ') + '. <button type="button" class="linkbtn" data-evwhole>Show the whole morning</button></p>');
+  }
+  function eventsLayer() {
+    var o = evDef(), fams = null;
+    var tabs = '<div class="evtab" role="group" aria-label="Events view">' + EV_TABS.map(function (t) {
+      var n = t[0] === 'cases' ? EV.cases.length : t[0] === 'all' ? EV.types.length : t[0] === 'changes' ? EV.changes.length : EV.day.events.length;
+      return '<button type="button" data-et="' + t[0] + '" id="et-' + t[0] + '" aria-pressed="' + (S.et === t[0]) + '"' + (t[0] === 'changes' ? ' class="t-chg"' : '') + '>' + esc(t[1]) + ' <span>' + n + '</span></button>';
+    }).join('') + '</div>';
+    if (S.et === 'day') fams = EV.day.events.map(function (e) { return EV.type(e.type).fam; });
+    if (S.et === 'cases' && o.def) fams = o.def.events.map(function (e) { return EV.type(e.type).fam; });
+    return '<section class="evx" id="evl" aria-labelledby="evlH">' +
+      '<div class="evl-h"><div class="evl-t"><span class="eyebrow">Events</span><h2 id="evlH">What a person did, and what it set in motion</h2><p class="evl-s">Pick an event. See the data it created, the IDs that touched it, where it travelled, what was inferred, and whether each connection was needed.</p></div>' +
+      '<div class="seg eco" role="radiogroup" aria-label="Ecosystem">' + EV.ecos.map(function (x) { return '<button role="radio" data-eco="' + x.id + '" aria-checked="' + (S.eco === x.id) + '">' + esc(x.label) + '</button>'; }).join('') + '</div></div>' +
+      (S.eco !== 'all' ? '<div class="ecobar">' + oneId(S.eco) + '<p class="eco-n">' + esc(EV.ecoNote) + '</p></div>' : '') +
+      tabs + '<div class="evtb">' + tabBody(o) + (fams && S.et !== 'all' ? famLegend(fams) : '') + '</div>' +
+      (o.open ? traceHTML(o) : '') +
+      '</section>';
+  }
+  function evFocus(sel) { if (!sel) return; var el = $(sel); if (el) el.focus({ preventScroll: true }); }
+  function renderEvents(focusSel) {
+    var old = $('#evl'); if (!old) return;
+    var wrap = document.createElement('div'); wrap.innerHTML = eventsLayer();
+    old.parentNode.replaceChild(wrap.firstChild, old);
+    mountEvents(); evFocus(focusSel);
+  }
+  var evResizeBound = false;
+  function mountEvents() {
+    var root = $('#evl'); if (!root) return;
+    if (EVM.cur && $('#eg')) { drawEdges(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawEdges); }
+    if (!evResizeBound) { evResizeBound = true; var t = null; window.addEventListener('resize', function () { cancelAnimationFrame(t); t = requestAnimationFrame(drawEdges); }); }
+    root.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button, path.eh'); if (!b || !root.contains(b)) return;
+      var a = function (n) { return b.getAttribute(n); };
+      if (a('data-eco')) { focusAfter = null; set({ eco: a('data-eco') }); return evFocus('[data-eco="' + a('data-eco') + '"]'); }
+      if (a('data-et')) { EVM.whole = false; focusAfter = 'et-' + a('data-et'); set({ et: a('data-et'), e: '' }); return; }
+      if (a('data-evi')) { var id = a('data-evi'); focusAfter = 'evc-' + id; set({ et: 'day', e: S.e === id ? '' : id }); return; }
+      if (a('data-ty')) { focusAfter = 'ty-' + a('data-ty'); set({ e: S.e === a('data-ty') ? '' : a('data-ty') }); return; }
+      if (a('data-cs')) { focusAfter = 'cs-' + a('data-cs'); set({ e: S.e === a('data-cs') ? '' : a('data-cs') }); return; }
+      if (a('data-ch')) { focusAfter = 'ch-' + a('data-ch'); set({ e: S.e === a('data-ch') ? '' : a('data-ch') }); return; }
+      if (a('data-hl')) { EVM.hl = EVM.hl === a('data-hl') ? null : a('data-hl'); EVM.node = null; EVM.edge = null; return renderEvents('#evc-' + a('data-hl')); }
+      if (b.hasAttribute('data-evwhole')) { EVM.whole = true; return renderEvents('#trace .eg-h'); }
+      if (b.hasAttribute('data-evclose')) { EVM.whole = false; EVM.node = null; EVM.edge = null; if (S.et === 'cases' && EVM.hl) { EVM.hl = null; return renderEvents('#cs-' + S.e); } focusAfter = 'et-' + S.et; set({ e: '' }); return; }
+      if (b.hasAttribute('data-evreset')) { EVM.dec = {}; return renderEvents('#evi h3'); }
+      if (b.hasAttribute('data-evback')) { EVM.edge = null; EVM.node = null; return renderEvents('#evi h3'); }
+      if (b.hasAttribute('data-evcc')) { var c = (EVM.cur && EVM.cur.hlId ? EVM.cur.set.nodes[EVM.cur.hlId].type.cc : null) || (EVM.cur && EVM.cur.set.def.cc) || EV.day.cc; set({ s: c.s, j: c.j, q: c.q, c: [], u: 'person' }); var v = $('#vis'); if (v) { v.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); $('#visH').setAttribute('tabindex', '-1'); $('#visH').focus({ preventScroll: true }); } return; }
+      if (a('data-do')) { var k = a('data-ek'), d = a('data-do'); if (EVM.dec[k] === d) delete EVM.dec[k]; else EVM.dec[k] = d; return renderEvents('[data-do="' + d + '"][data-ek="' + k + '"]'); }
+      if (a('data-ek')) { EVM.edge = a('data-ek'); return renderEvents('#whyH'); }
+      if (a('data-n')) { var n = a('data-n'), sn = EVM.cur.set.nodes[n]; EVM.edge = null; EVM.node = EVM.node === n ? null : n; if (sn && sn.ev && S.et === 'cases') { EVM.hl = n; EVM.node = null; } return renderEvents(EVM.node ? '#ncH' : '[data-n="' + n + '"]'); }
+    });
+  }
+
   /* ═══════════ PAGES ═══════════ */
   function selQ(val) {
     var L = offered(G.questions, 'q', S.s), groups = ['today', 'future'].map(function (g) { return [g, L.filter(function (q) { return (q.g || 'today') === g; })]; }).filter(function (x) { return x[1].length; });
@@ -833,7 +1177,7 @@
 
   function ccPage() {
     var view = resolve(S), r = V[view.kind](S, view), per = byId(G.personas, S.p);
-    return selectorBar() + focusRow() +
+    return eventsLayer() + selectorBar() + focusRow() +
       '<div class="ws">' +
         '<section class="card vis" aria-labelledby="visH" id="vis"><div class="sec-h"><span class="eyebrow">Graph</span><h2 id="visH" class="vis-h">' + esc(r.head) + '</h2><div class="tools">' + (r.tools || '') + '</div></div>' +
           (view.principle ? '<p class="principle">' + esc(view.principle) + '</p>' : '') + emph(S) + (view.note ? '<p class="note">' + esc(view.note) + '</p>' : '') + r.body + '</section>' +
@@ -849,6 +1193,7 @@
   function mountCC() {
     var view = resolve(S), r = V[view.kind](S, view);
     if (r.mount) r.mount($('#vis'));
+    mountEvents();
     [['selP', 'p'], ['selJ', 'j'], ['selQ', 'q'], ['selU', 'u']].forEach(function (x) { $('#' + x[0]).addEventListener('change', function () { var o = {}; o[x[1]] = this.value; focusAfter = x[0]; set(o); }); });
     $('#selS').addEventListener('change', function () { focusAfter = 'selS'; set({ s: this.value, j: byId(G.surfaces, this.value).j }); });
     var pop = $('#msPop'), btn = $('#selC');
@@ -1057,5 +1402,6 @@
   S = parse();
   if (!/^#(cc|reviews|evidence|ask)/.test(location.hash)) history.replaceState(null, '', hashFor(S));
   render();
-  window.PCC1 = { offered: offered, state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set };
+  window.PCC1 = { offered: offered, state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set, fit: function (st) { return fit(Object.assign(copy(DEF), st)); },
+    events: function () { return EVM.cur ? { set: EVM.cur.set, st: EVM.cur.st, R: EVM.cur.R, hl: EVM.cur.hlId, dec: copy(EVM.dec), edge: EVM.edge, node: EVM.node } : null; } };
 })();
