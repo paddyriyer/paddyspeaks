@@ -327,7 +327,7 @@ export default [
     assert(!bad.length, bad.join('\n'));
   } },
   { name: 'the product carries no hiring language, no privacy score, and registers its storage key', async run({ assert }) {
-    const text = ['index.html', 'app.js', 'graph.js', 'pcc1.css'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+    const text = ['index.html', 'app.js', 'graph.js', 'events.js', 'pcc1.css'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
     const hit = text.match(/interview|hiring|candidate|recruit|job application/i);
     assert(!/rainbow/i.test(text), 'no attack-table language');
     assert(!hit, 'hiring language found: ' + (hit && hit[0]));

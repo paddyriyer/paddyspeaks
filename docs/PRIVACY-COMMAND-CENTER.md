@@ -35,6 +35,15 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   concerns recoverability / preservation / key lifecycle, and Evidence → Datasets
   over time. Records: `G.keys`, `G.transforms`, `G.tokenMap`, `G.holds`,
   `G.archive`, `G.preserve`, `G.chains` in `graph.js`. See the v1 README.
+- **v1 has an Events layer** (2026-10-03): ordinary actions (sign in, bought
+  coffee, asked AI about my flight) traced as EVENT → IDENTIFIER → SYSTEM →
+  DERIVED DATA → INFERENCE, with event families in colour, a morning timeline,
+  fourteen use cases, six *What changed?* review events, *Why is this
+  connected?* with Keep / Scope / Shorten / Separate, and Apple-like,
+  Google-like and Microsoft-like views. Data and logic in `events.js`; see the v1
+  README. The ecosystem views relabel one identical pattern with familiar
+  product categories; they describe no company's implementation and are never a
+  comparison.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files
