@@ -15,7 +15,7 @@ import { routeContact } from './contact.js';
 import { routeTestimonials } from './testimonials.js';
 import { routeScan } from './scan.js';
 import { normalizeReferrer, sourceOf, botScore, contentGroup } from '../lib/classify.js';
-import { median, percentile, retention } from '../lib/metrics.js';
+import { median, percentile, retention, cohortWeeks } from '../lib/metrics.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 import { THRESHOLDS } from '../lib/config.js';
 import { corsHeaders, isAdmin, gpcOptOut, isAdminRoute, adminGate } from './security.js';
@@ -728,14 +728,17 @@ async function handleJourneys(request, env, url, ch) {
   const DAY = 86400000;
 
   const activeByVisitorDay = new Set();
-  for (const r of activityRows) activeByVisitorDay.add(`${r.visitor_id}:${Math.floor(Date.parse(r.d + 'T00:00:00Z') / DAY)}`);
-  const weeks = new Map();
-  for (const r of cohortRows) {
-    const fs = Date.parse(r.fs);
-    const wk = weekKey(fs);
-    if (!weeks.has(wk)) weeks.set(wk, new Map());
-    weeks.get(wk).set(r.visitor_id, fs);
+  const hasPageView = new Set();
+  for (const r of activityRows) {
+    activeByVisitorDay.add(`${r.visitor_id}:${Math.floor(Date.parse(r.d + 'T00:00:00Z') / DAY)}`);
+    hasPageView.add(r.visitor_id);
   }
+  // Build cohorts from visitors with real page-view activity only. A roll-up row
+  // with no page view (events-only, a bot on /e/i, or a launch-day first_seen
+  // stamp) is not a page-based cohort member — see cohortWeeks(). This both fixed
+  // the 2026-10-03 launch-week artifact and keeps a future /e/i flood from
+  // inflating a cohort.
+  const weeks = cohortWeeks(cohortRows, hasPageView, weekKey);
   const retentionDays = [1, 7, 30];
   const cohorts = [...weeks.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([wk, cohortMap]) => {
     const r = retention(cohortMap, activeByVisitorDay, nowMs, retentionDays);

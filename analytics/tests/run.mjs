@@ -3,7 +3,7 @@
  * Run: node analytics/tests/run.mjs
  * Mirrors the repo convention (cf. interview.app/tests/*.mjs).
  */
-import { median, percentile, sessionize, isEngaged, newVsReturning, engagementSummary, retention } from '../lib/metrics.js';
+import { median, percentile, sessionize, isEngaged, newVsReturning, engagementSummary, retention, cohortWeeks } from '../lib/metrics.js';
 import { canonicalPath, normalizeReferrer, sourceOf, botScore, contentGroup, domainOf } from '../lib/classify.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 import {
@@ -83,6 +83,20 @@ const ret = retention(cohort, active, now, [1, 7, 30]);
 eq(ret.windows[1], 0.5, 'Day1 retention = 1/2 (A returned, B did not)');
 eq(ret.windows[7], null, 'Day7 window not elapsed → null (not 0)');
 eq(ret.windows[30], null, 'Day30 window not elapsed → null (not 0)');
+
+/* ── cohortWeeks: a page-based cohort excludes event-only / phantom rollup rows ── */
+const wkKey = ms => new Date(ms).toISOString().slice(0, 10); // deterministic per-day key for the test
+const cohortRows = [
+  { visitor_id: 'A', fs: day0 },         // has a page view → counted
+  { visitor_id: 'B', fs: day0 },         // has a page view → counted
+  { visitor_id: 'GHOST', fs: day0 },     // NO page view (events-only / bot / launch stamp) → excluded
+  { visitor_id: 'BADFS', fs: 'not-a-date' }, // unparseable first_seen → skipped, never NaN-keyed
+];
+const cw = cohortWeeks(cohortRows, new Set(['A', 'B', 'BADFS']), wkKey);
+const cwTotal = [...cw.values()].reduce((n, m) => n + m.size, 0);
+eq(cwTotal, 2, 'cohort counts only visitors with page-view activity (anti-inflation)');
+ok(![...cw.values()].some(m => m.has('GHOST')), 'event-only / bot roll-up row never anchors a cohort');
+ok(![...cw.values()].some(m => m.has('BADFS')), 'unparseable first_seen is skipped, not bucketed as NaN');
 
 /* ── path canonicalization (fix I) ── */
 eq(canonicalPath('/Foo/index.html'), '/foo', 'strip index.html + trailing slash + lower');
