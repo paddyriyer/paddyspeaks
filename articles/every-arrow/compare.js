@@ -69,8 +69,7 @@
       agree: 'All three keep the biometric on the device, give each site its own public key, and sync the private keys end-to-end encrypted. The phishing arrow is closed the same way everywhere.',
       differ: 'What happens when you lose everything differs: Apple offers a recovery contact or key, Google’s documented fallback is a reset that deletes passkeys, and Microsoft splits deletion across the account, the device and the sync provider.',
       watch: 'The recovery path. It is where an end-to-end encrypted key is restored or lost for good, and where deleting on the phone and deleting at the site fall out of step.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=ident&j=signin&q=prove&l=both', t: 'sign in · How did the user prove identity? · both lenses' }
+    }
   });
 
   /* ── 2 · browser ─────────────────────────────────────────── */
@@ -111,8 +110,7 @@
       agree: 'All three isolate or partition something by default and run public bug bounties. All three let organisations manage the browser by policy.',
       differ: 'Defaults diverge: Safari restricts known fingerprinting scripts in every tab, Firefox partitions cookies per site, and Chrome keeps third-party cookies on in normal browsing after retiring its replacement plan.',
       watch: 'Third-party requests in a normal tab. That is where the default decides who else learns what you read.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=web&j=browse&q=whoknows&l=privacy', t: 'browse · Who knows it? · privacy lens' }
+    }
   });
 
   /* ── 3 · mail ────────────────────────────────────────────── */
@@ -153,8 +151,7 @@
       agree: 'All three put something between the sender’s remote content and the reader — a relay, a proxy or a blocker. None end-to-end encrypts the subject line or the envelope of ordinary email.',
       differ: 'Apple and Google hold the keys to stored mail (Workspace client-side encryption aside); Proton cannot read stored mail. Proton’s apps are open source and audited; Apple’s and Google’s are closed and checked through bounties.',
       watch: 'The pixel fetch. When it happens and whose IP address it comes from can be tested directly, and it is the whole of the privacy claim.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=mail&j=mail&q=whoknows&l=privacy', t: 'read mail · Who knows it? · privacy lens' }
+    }
   });
 
   /* ── 4 · messages ────────────────────────────────────────── */
@@ -195,8 +192,7 @@
       agree: 'All three end-to-end encrypt the content of native conversations, and all three document that servers still see routing metadata. Each offers some way to check keys.',
       differ: 'WhatsApp’s encryption cannot be switched off; Google Messages depends on RCS, the other person’s phone and the carrier. On backups, Apple’s and WhatsApp’s strongest options are opt-in, while Android ties backup encryption to the screen lock.',
       watch: 'The backup. In transit the message is encrypted by default everywhere; the backup copy is where defaults decide who holds the key.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=mail&j=mail&q=linkid&l=both', t: 'communication · What identifier links this activity? · both lenses' }
+    }
   });
 
   /* ── 5 · wallet & ID ─────────────────────────────────────── */
@@ -239,8 +235,7 @@
       agree: 'All three replace the card number with a device-bound token, gate payment and ID behind a biometric or PIN, and keep ID credentials on the device.',
       differ: 'Apple states it cannot see where an ID is shown and does not tie card transactions to you; Google and Samsung document collecting transaction details. Google alone has published its age-proof cryptography.',
       watch: 'Transaction data flowing from the wallet to the wallet maker. The token hides the card from the merchant; it says nothing about what the platform keeps.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=did&j=age&q=provewithout&l=both', t: 'prove age · Can we prove this without revealing that? · both lenses' }
+    }
   });
 
   /* ── 6 · cloud backup ────────────────────────────────────── */
@@ -283,8 +278,7 @@
       agree: 'All three encrypt in transit and at rest under provider-held keys by default, which lets the provider run recovery, search and abuse scanning. All three offer export and a 30-day bin.',
       differ: 'Only Apple offers consumers an end-to-end mode for photos and files, opt-in and not for new UK users. Google end-to-end encrypts device backups by default but not Photos or Drive. Microsoft’s vault adds a gate, not provider-blind encryption.',
       watch: 'Key custody. Whoever holds the key — provider, user or recovery contact — decides who can be compelled to open it.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=cloud&j=delete&q=delete&l=both', t: 'delete account · Can we delete it? · both lenses' }
+    }
   });
 
   /* ── 7 · AI assistant ────────────────────────────────────── */
@@ -327,8 +321,7 @@
       agree: 'All three split work between an on-device tier and a cloud tier, all three say work content is not used to train general models, and all three run bounties that cover their AI.',
       differ: 'Apple’s cloud tier is documented as stateless and checkable through a public log. Google keeps consumer chats by default, with human review unless switched off. Microsoft’s most intimate data, Recall, never leaves the PC and is opt-in.',
       watch: 'The arrow from device to cloud tier, and what is retained after the answer. “Verifiable” and “we promise” are different kinds of control.'
-    },
-    pcc: { h: '#cc?p=reviewer&s=ai&j=ai&q=leftdevice&l=both', t: 'use AI · Did it leave the device? · both lenses' }
+    }
   });
 
   /* ── 8 · home & voice ────────────────────────────────────── */
@@ -367,8 +360,7 @@
       agree: 'All three send at least some voice requests to the cloud and offer settings that limit whether recordings are kept or heard by people. All three publish security material for home devices.',
       differ: 'Apple keeps no Siri audio unless you opt in, and Google saves none by default. Amazon removed its local-processing option, so audio reaches the cloud and “don’t save” deletes it afterwards.',
       watch: 'The arrow from the speaker to the cloud, now that generative assistants need it — and whether deletion covers the transcripts made from the audio.'
-    },
-    pcc: { h: '/privacy-command-center/v10/#/life/graph', t: 'the fictional household in the earlier explorer (v10)' }
+    }
   });
 
   /* ── sources: the company's own page wherever possible ───── */

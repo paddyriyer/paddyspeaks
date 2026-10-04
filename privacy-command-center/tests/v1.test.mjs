@@ -7,7 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const clean = (p, what, assert) => assert(!p.errors.length, what + ': page errors ' + p.errors.join(' | '));
-const H = (o) => '#cc?' + Object.entries(o).map(([k, v]) => k + '=' + v).join('&');
+/* these tests were written against the privacy lens; the default is now all four, so they name it */
+const H = (o) => '#cc?' + Object.entries(Object.assign({ l: 'privacy' }, o)).map(([k, v]) => k + '=' + v).join('&');
 
 export default [
   { name: 'the first screen is five selectors, one graph, one findings panel, one decision panel', async run({ page, assert }) {
@@ -24,7 +25,7 @@ export default [
     assert(r.cards === 3 && r.vis, 'exactly three workspace sections, got ' + r.cards);
     assert(r.fnd >= 3 && r.fnd <= 5, '3–5 findings, got ' + r.fnd);
     assert(r.dec === 4, 'decision shows risk, why, mitigation, evidence');
-    assert(JSON.stringify(r.nav) === JSON.stringify(['Command Center', 'Reviews', 'Evidence', 'Ask privacy']), 'global navigation is four items: ' + r.nav.join(', '));
+    assert(JSON.stringify(r.nav) === JSON.stringify(['Command Center', 'Products', 'Everyday arrows', 'Every layer', 'Future', 'AI / agents', 'Reviews', 'Evidence', 'Ask privacy']), 'global navigation is the nine views of one graph: ' + r.nav.join(', '));
     assert(/^#cc\?/.test(r.hash), 'state is written to the URL');
   } },
   { name: 'every question on every surface and journey resolves to a view with 3–5 classified findings', async run({ page, assert }) {
@@ -148,7 +149,7 @@ export default [
     const r = await p.evaluate(() => {
       const J = window.PG.journeys.find((j) => j.id === 'browse'), arrows = document.querySelectorAll('.flow .arr');
       arrows[2].click();
-      const dts = [...document.querySelectorAll('.five dt')].map((d) => d.textContent), dds = [...document.querySelectorAll('.five dd')].map((d) => d.textContent);
+      const dts = [...document.querySelectorAll('#insp .five dt')].map((d) => d.textContent), dds = [...document.querySelectorAll('#insp .five dd')].map((d) => d.textContent);
       return { n: arrows.length, want: J.hops.length - 1, dts, boundary: dds[3], expect: J.hops[2].z + '>' + J.hops[3].z };
     });
     clean(p, 'journey', assert); await p.closeAll();
@@ -176,14 +177,22 @@ export default [
     assert(/email is also reading us/.test(mail.key) && mail.fail >= 1, 'mail observation');
     assert(ag.before === 'none' && ag.after !== 'none' && /UNLIMITED AUTHORIZED INFERENCE/.test(ag.neq) && /medical/.test(ag.inf), 'agent inference appears only after combining');
   } },
-  { name: 'security, privacy and both lenses change what is shown', async run({ page, assert }) {
+  { name: 'four lenses (all, security, privacy, QA, data governance) change what is shown, never the graph', async run({ page, assert }) {
     const p = await page(H({ s: 'web', j: 'browse', q: 'where', u: 'person' }));
     const rows = {};
-    for (const l of ['privacy', 'security', 'both']) { await p.set({ l }); rows[l] = await p.evaluate(() => ({ dt: [...document.querySelectorAll('.five dt')].map((d) => d.textContent), q: document.querySelector('.lensq').textContent, conv: document.querySelectorAll('.cv').length })); }
+    for (const l of ['all', 'security', 'privacy', 'qa', 'gov']) {
+      await p.set({ l });
+      rows[l] = await p.evaluate(() => ({ dt: [...document.querySelectorAll('#insp .five dt')].map((d) => d.textContent), q: document.querySelector('.lensq').textContent, conv: document.querySelectorAll('.cv').length,
+        lens: [...document.querySelectorAll('.sent ~ .refine [data-l], .refine [data-l]')].map((b) => b.textContent), arrows: document.querySelectorAll('.flow .arr').length, f: window.PCC1.findings(), note: (document.querySelector('.fnd .note') || {}).textContent || '' }));
+    }
     clean(p, 'lens', assert); await p.closeAll();
+    assert(JSON.stringify(rows.all.lens) === JSON.stringify(['All four', 'Security', 'Privacy', 'QA', 'Data governance']), 'the lens switch: ' + rows.all.lens);
     assert(rows.security.dt.includes('Security control') && !rows.security.dt.includes('Why?'), 'security lens shows the security control');
-    assert(rows.both.dt.length === 6 && rows.both.conv === 3, 'both: five privacy questions + security control, and the convergence cards');
-    assert(/trustworthy boundaries/.test(rows.both.q), 'convergence line');
+    assert(rows.qa.dt.includes('How would anyone know?') && rows.gov.dt.includes('Who holds it after this hop?'), 'QA asks for evidence; governance asks who holds it');
+    assert(rows.all.dt.length === 8 && rows.all.conv === 3, 'all four: five privacy questions + security, QA and governance, and the convergence cards');
+    assert(/trustworthy boundaries/.test(rows.all.q) && /how would anyone outside know/i.test(rows.qa.q) && /who holds it/i.test(rows.gov.q), 'each lens asks the essay’s question');
+    assert(/control failures, unknowns/.test(rows.qa.note) && /retention, deletion/.test(rows.gov.note), 'the QA and governance finding rules are shown');
+    assert(new Set(Object.values(rows).map((r) => r.arrows)).size === 1, 'same data: the graph never changes with the lens');
   } },
   { name: 'ask privacy separates fact, inference, recommendation and unknown, and never invents an answer', async run({ page, assert }) {
     const p = await page('#ask?ask=' + encodeURIComponent('Which systems still use this user after consent revocation?'));
@@ -268,7 +277,7 @@ export default [
       // did the key destruction really work?
       window.PCC1.set({ s: 'cloud', j: 'report', q: 'unrecoverable' }); o.chain = txt('#vis'); o.ufind = window.PCC1.findings();
       // the both lens carries the four-lens archived record
-      window.PCC1.set({ s: 'all', q: 'know', l: 'both' }); o.conv4 = txt('.conv4');
+      window.PCC1.set({ s: 'all', q: 'know', l: 'all' }); o.conv4 = txt('.conv4');
       return o;
     });
     const ev = await page('#evidence?ev=time');
@@ -288,7 +297,7 @@ export default [
     assert(/^\S*\s*No\b|NO/.test(r.open) || /No/.test(r.open), 'without the key the held data cannot be opened: ' + r.open);
     assert(/Preserve relevant data/.test(r.active) && /pending/.test(r.active) && /Verification complete[\s\S]*failed/i.test(r.released), 'delete vs preserve: suspension now, release verified later with a failure');
     assert(/Key destruction/.test(r.chain) && /legacy_extract_2022/.test(r.chain) && r.ufind.includes('f_k42_plain'), 'key destruction control chain finds the surviving copy');
-    assert(/Encryption answers who can read it/.test(r.conv4) && /QA/i.test(r.conv4) && /Governance/i.test(r.conv4), 'both lens: security, privacy, governance and QA on one archived record');
+    assert(/Encryption answers who can read it/.test(r.conv4) && /QA/i.test(r.conv4) && /Governance/i.test(r.conv4), 'all four lenses: security, privacy, governance and QA on one archived record');
     assert(reg.cards === reg.n && reg.q === 9, 'every dataset followed across time with nine questions: ' + JSON.stringify(reg));
   } },
   { name: 'ask privacy answers recoverability questions with classified, cited lines', async run({ page, assert }) {
@@ -327,8 +336,9 @@ export default [
     assert(!bad.length, bad.join('\n'));
   } },
   { name: 'the product carries no hiring language, no privacy score, and registers its storage key', async run({ assert }) {
-    const text = ['index.html', 'app.js', 'graph.js', 'events.js', 'pcc1.css'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
-    const hit = text.match(/interview|hiring|candidate|recruit|job application/i);
+    const text = ['index.html', 'app.js', 'graph.js', 'events.js', 'modes.js', 'pcc1.css', '../articles/every-arrow/shared.js'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+    /* “a known candidate” is the hashing idea (hash a guess and compare); a job candidate is not welcome */
+    const hit = text.match(/interview|hiring|job candidates?|candidates? for (the )?(role|job)|recruit|job application/i);
     assert(!/rainbow/i.test(text), 'no attack-table language');
     assert(!hit, 'hiring language found: ' + (hit && hit[0]));
     assert(!/privacy score/i.test(text), 'no privacy score');

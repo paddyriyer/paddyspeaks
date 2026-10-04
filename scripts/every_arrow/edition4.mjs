@@ -40,6 +40,12 @@ export function loadCompare() {
   vm.runInContext(fs.readFileSync(A(`${DIR}/compare.js`), 'utf8'), ctx, { filename: 'compare.js' });
   return ctx.EA_CMP;
 }
+/* the one privacy model both properties share: the "Try this" line and deep link per product */
+export function loadShared() {
+  const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(A(`${DIR}/shared.js`), 'utf8'), ctx, { filename: 'shared.js' });
+  return ctx.EA_SHARED;
+}
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 /* typographic apostrophes and dashes are kept; only markup-significant characters are escaped */
@@ -109,7 +115,8 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
       const opts = [['all', 'All four lenses']].concat(L.map((l) => [l.id, l.t, l.id]));
       const rows = L.map((l) => `<tr data-l="${l.id}"><th scope="row"><span class="lz lz--${l.id}">${esc(l.t)}</span><span class="q">${esc(l.q)}</span></th>${p.cos.map((co) => `<td data-h="${esc(CO[co])}">${p.cells[co][l.id].map(item).join('')}</td>`).join('')}</tr>`).join('');
       const n = counts(p.cos.flatMap((co) => L.flatMap((l) => p.cells[co][l.id])));
-      const pccHref = p.pcc.h.startsWith('#') ? '/privacy-command-center/' + p.pcc.h : p.pcc.h;
+      const SH = loadShared(), tryLine = SH.products[p.id] && SH.products[p.id].try;
+      if (!tryLine) problems.push(`shared.js: no “Try this” line for ${p.id}`);
       return `<div class="lede"><p>${esc(p.lede)}</p></div>` +
         `<ol class="arrow" aria-label="The arrow in ${esc(p.n.toLowerCase())}">${p.arrow.map((a, i) => `<li${i === p.hot ? ' class="hot"' : ''}><span>${esc(a)}</span></li>`).join('')}</ol>` +
         `<p class="arrow-cap">The highlighted hop is the arrow to watch. Compared: ${p.cos.map((co) => `<b>${esc(CO[co])}</b> ${esc(p.names[co])}`).join(' · ')}.</p>` +
@@ -117,7 +124,7 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
         `<thead><tr><th scope="col">Lens</th>${p.cos.map((co) => `<th scope="col">${esc(CO[co])}<small>${esc(p.names[co])}</small></th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>` +
         `<figcaption class="cmp-read" aria-live="polite"><b>All four lenses</b> for ${esc(p.cos.map((c) => CO[c]).join(', ').replace(/, ([^,]+)$/, ' and $1'))}: ${countText(n)}.</figcaption></figure>` +
         `<dl class="reading"><div><dt>Where they agree</dt><dd>${esc(p.read.agree)}</dd></div><div><dt>Where they differ</dt><dd>${esc(p.read.differ)}</dd></div><div class="watch"><dt>The arrow to watch</dt><dd>${esc(p.read.watch)}</dd></div></dl>` +
-        `<p class="pcc-link"><a href="${esc(pccHref)}">See it on synthetic data in the Privacy Command Center: <b>${esc(p.pcc.t)}</b> &rarr;</a></p>`;
+        `<p class="pcc-link"><a href="/privacy-command-center/?view=product&amp;product=${p.id}">Try this in Privacy Command Center &rarr; <b>${esc(tryLine || '')}</b></a></p>`;
     };
   }
   const GROUPS = ['Apple', 'Google', 'Microsoft', 'Mozilla', 'Proton', 'Meta', 'Samsung', 'Amazon', 'Standards, regulators and press'];

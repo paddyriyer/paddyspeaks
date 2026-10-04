@@ -16,7 +16,7 @@ const CHANGES = ['New service starts receiving location', 'Retention changed fro
 
 export default [
   { name: 'events: every everyday event, ten families, the morning timeline, the use cases and six changes', async run({ page, assert }) {
-    const p = await page('');
+    const p = await page('#everyday');
     const r = await p.evaluate(() => {
       const E = window.PG.events;
       return {
@@ -24,7 +24,7 @@ export default [
         chips: [...document.querySelectorAll('#evl .etl-i')].map((li) => li.querySelector('.evc-t').textContent + ' ' + li.querySelector('.evc-l').textContent),
         chipFam: [...document.querySelectorAll('#evl .etl-i')].map((li) => getComputedStyle(li.querySelector('.etl-dot')).backgroundColor),
         cases: E.cases.map((c) => c.title), changes: E.changes.map((c) => c.title),
-        workspace: document.querySelectorAll('.ws .card').length, before: !!document.querySelector('#evl + .sent, #evl ~ .sent')
+        workspace: document.querySelectorAll('.ws').length, page: location.hash, h1: document.querySelector('#main h1').textContent
       };
     });
     clean(p, 'events home', assert); await p.closeAll();
@@ -34,14 +34,14 @@ export default [
     assert(new Set(r.chipFam).size >= 6, 'families are told apart by colour: ' + new Set(r.chipFam).size);
     assert(CASES.every((c) => r.cases.includes(c)) && r.cases.includes('Devices across platforms'), 'the fourteen use cases, plus devices across platforms: ' + r.cases.join(', '));
     assert(JSON.stringify(r.changes) === JSON.stringify(CHANGES), 'the six changes: ' + r.changes.join(', '));
-    assert(r.workspace === 3 && r.before, 'the events layer sits above an unchanged three-part workspace');
+    assert(r.workspace === 0 && /^#everyday/.test(r.page) && r.h1 === 'Everyday arrows', 'the events layer is its own view, Everyday arrows, apart from the workspace');
   } },
   { name: 'events: clicking an event highlights exactly what that event touched, recomputed from its own chain', async run({ page, assert }) {
-    const p = await page('');
+    const p = await page('#everyday');
     const out = await p.evaluate(() => {
       const E = window.PG.events, res = [];
       for (const ev of E.day.events) {
-        window.PCC1.set({ page: 'cc', et: 'day', e: ev.id });
+        window.PCC1.set({ page: 'everyday', et: 'day', e: ev.id });
         const set = E.compose(E.day);
         // independent walk: the event's own chain, then joins whose needs are all reached
         const t = E.type(ev.type), mine = {}; mine[ev.id] = 1;
@@ -63,7 +63,7 @@ export default [
     assert(ai.on.includes('s_mail') && ai.on.includes('s_cal') && ai.on.includes('n_itinerary'), 'asked AI about my flight: mail, calendar, itinerary');
   } },
   { name: 'events: the graph draws collected, derived, inferred, shared-outside and deleted nodes differently', async run({ page, assert }) {
-    const p = await page('#cc?et=cases&e=deletion');
+    const p = await page('#everyday?et=cases&e=deletion');
     const r = await p.evaluate(() => {
       const st = (sel) => { const el = document.querySelector('#eg ' + sel); if (!el) return null; const c = getComputedStyle(el); return { bs: c.borderStyle, bg: c.backgroundImage, bc: c.backgroundColor, td: getComputedStyle(el.querySelector('.en-n')).textDecorationLine, t: el.innerText }; };
       const o = { collected: st('.s-collected[data-n="d_purchase"]'), shared: st('.s-shared[data-n="d_theircopy"]'), gone: st('.gone[data-n="d_searchhist"]') };
@@ -79,7 +79,7 @@ export default [
     assert(r.gone && r.gone.bs === 'dashed' && r.gone.td === 'line-through' && /deleted/i.test(r.gone.t), 'deleted: faded, struck through, and labelled (not by fading alone)');
   } },
   { name: 'events: “Why is this connected?” answers six questions, and each decision changes what can be inferred', async run({ page, assert }) {
-    const p = await page('#cc?e=m5');
+    const p = await page('#everyday?e=m5');
     await click(p, '[data-ek="i_acct>s_maps"]');
     const why = await p.evaluate(() => ({ h: document.getElementById('whyH').textContent, dts: [...document.querySelectorAll('.why .whyl dt')].map((d) => d.textContent), acts: [...document.querySelectorAll('.why .act')].map((b) => b.textContent) }));
     const dead = () => p.evaluate(() => { const e = window.PCC1.events(); return Object.keys(e.st).filter((k) => k !== '__short' && !e.st[k].ok).sort(); });
@@ -106,7 +106,7 @@ export default [
     assert(JSON.stringify(cut) === JSON.stringify(vs.cut) && JSON.stringify(cut) === JSON.stringify(['n_away']), 'separating home from the itinerary removes only “away from home”: ' + cut);
   } },
   { name: 'events: every connection in every view can answer “why”, in plain words', async run({ page, assert }) {
-    const p = await page('');
+    const p = await page('#everyday');
     const bad = await p.evaluate(() => {
       const E = window.PG.events, out = [];
       const defs = [E.day].concat(E.cases).concat(E.types.map((t) => ({ id: t.id, inf: 'all', events: [{ id: 'x1', type: t.id, label: t.label }] })));
@@ -131,7 +131,7 @@ export default [
     assert(/These two services can recognize the same person/.test(fs.readFileSync(path.join(DIR, 'app.js'), 'utf8')), 'joins are named in plain words');
   } },
   { name: 'events: ecosystems relabel the same pattern; they never change its shape', async run({ page, assert }) {
-    const p = await page('#cc?e=m8');
+    const p = await page('#everyday?e=m8');
     const shape = () => p.evaluate(() => ({ nodes: [...document.querySelectorAll('#eg [data-n]')].map((b) => b.getAttribute('data-n')).join(','), on: [...document.querySelectorAll('#eg .en.on')].length, names: [...document.querySelectorAll('#eg .k-sys .en-n')].map((x) => x.textContent), note: (document.querySelector('.eco-n') || {}).textContent || '', one: (document.querySelector('.ecobar .oneid-h') || {}).textContent || '', svc: document.querySelectorAll('.ecobar .oneid-l li').length }));
     const all = await shape(), out = {};
     for (const eco of ['apple', 'google', 'ms']) { await click(p, '[data-eco="' + eco + '"]'); out[eco] = await shape(); }
@@ -150,7 +150,7 @@ export default [
     assert(mixed.nodes === all.nodes && mixed.on === all.on && mixed.names.includes('iPhone-like phone'), 'mixed devices relabel the morning without changing its shape: ' + mixed.names.join(', '));
   } },
   { name: 'events: the use cases tell their stories (AI context, intent, permissions, family, deletion, changes)', async run({ page, assert }) {
-    const p = await page('#cc?et=cases&e=aictx');
+    const p = await page('#everyday?et=cases&e=aictx');
     const r = await p.evaluate(() => {
       const E = window.PG.events, o = {}, txt = (s) => (document.querySelector(s) || {}).innerText || '';
       o.ctxRows = document.querySelectorAll('.ctxt tbody tr').length;
@@ -195,7 +195,7 @@ export default [
     assert(!r.junk.length, 'every use case and event renders: ' + r.junk.join(', '));
   } },
   { name: 'events: review presets are valid selectors, the keyboard reaches every connection, focus mode hides the layer', async run({ page, assert }) {
-    const p = await page('');
+    const p = await page('#everyday');
     const bad = await p.evaluate(() => {
       const E = window.PG.events, out = [];
       [E.day].concat(E.cases).concat(E.types).forEach((x) => { const c = x.cc, f = window.PCC1.fit({ s: c.s, j: c.j, q: c.q }); if (f.s !== c.s || f.j !== c.j || f.q !== c.q) out.push((x.id) + ': ' + JSON.stringify(c) + ' → ' + JSON.stringify({ s: f.s, j: f.j, q: f.q })); });
@@ -212,7 +212,7 @@ export default [
     await click(p, '[data-evcc]');
     const ws = await p.evaluate(() => window.PCC1.state());
     clean(p, 'presets', assert); await p.closeAll();
-    const fm = await page('#cc?fm=1&e=m6');
+    const fm = await page('#everyday?fm=1&e=m6');
     const hidden = await fm.evaluate(() => getComputedStyle(document.getElementById('evl')).display);
     clean(fm, 'fm', assert); await fm.closeAll();
     assert(!bad.length, 'review presets rewritten by the surface rules:\n' + bad.join('\n'));
@@ -222,7 +222,7 @@ export default [
     assert(hidden === 'none', 'focus mode hides the events layer');
   } },
   { name: 'events: devices across platforms: each platform account sees only its own devices, and the linking moves to what runs everywhere', async run({ page, assert }) {
-    const p = await page('#cc?et=cases&e=xplat');
+    const p = await page('#everyday?et=cases&e=xplat');
     const read = () => p.evaluate(() => {
       const e = window.PCC1.events(), E = window.PG.events, dv = window.PCC1.state().dv || E.dvDefault;
       return { dv, accounts: E.devAccounts(dv).map((a) => a.label + ':' + a.devices.join('+')), head: (document.querySelector('.dv-h') || {}).textContent || '', rows: [...document.querySelectorAll('.dv-acc li')].map((li) => li.innerText.replace(/\s+/g, ' ')),
@@ -246,12 +246,12 @@ export default [
     assert(scoped === false, 'scoping the email address on browser sync breaks the cross-platform join');
   } },
   { name: 'events: on a phone every tab, case and open question fits the screen', async run({ page, assert }) {
-    const p = await page('', { width: 390, height: 844 });
+    const p = await page('#everyday', { width: 390, height: 844 });
     const bad = await p.evaluate(async () => {
       const E = window.PG.events, W = document.documentElement.clientWidth, out = [];
       const views = [{ et: 'day', e: '' }, { et: 'all', e: '' }, { et: 'changes', e: '' }, { et: 'cases', e: '' }].concat(E.day.events.map((e) => ({ et: 'day', e: e.id }))).concat(E.cases.map((c) => ({ et: 'cases', e: c.id }))).concat(E.changes.map((c) => ({ et: 'changes', e: c.id })));
       for (const eco of ['all', 'ms', 'mixed']) for (const v of views) {
-        window.PCC1.set(Object.assign({ page: 'cc', eco }, v));
+        window.PCC1.set(Object.assign({ page: 'everyday', eco }, v));
         const n = document.querySelector('#eg [data-n]'); if (n && v.et === 'cases') n.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         const ek = document.querySelector('#evi [data-ek]'); if (ek) ek.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         const tag = eco + ':' + v.et + '/' + v.e;
@@ -272,7 +272,7 @@ export default [
     const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
     const AXE = fs.readFileSync(req.resolve('axe-core/axe.min.js'), 'utf8');
     const bad = [];
-    for (const [hash, width, js] of [['', 1280], ['#cc?e=m6', 1280], ['#cc?e=m5', 1280, '[data-ek="i_acct>s_maps"]'], ['#cc?et=cases&e=aictx&eco=google', 1280], ['#cc?et=cases&e=deletion', 1280], ['#cc?et=changes&e=ch2', 1280], ['#cc?et=all&e=passkey', 1280], ['#cc?e=m8', 390, '#evi [data-ek]'], ['#cc?et=cases&e=intent', 390], ['#cc?et=cases&e=xplat', 1280], ['#cc?eco=mixed&e=m2&dv=android.linux.none', 390]]) {
+    for (const [hash, width, js] of [['#everyday', 1280], ['#everyday?e=m6', 1280], ['#everyday?e=m5', 1280, '[data-ek="i_acct>s_maps"]'], ['#everyday?et=cases&e=aictx&eco=google', 1280], ['#everyday?et=cases&e=deletion', 1280], ['#everyday?et=changes&e=ch2', 1280], ['#everyday?et=all&e=passkey', 1280], ['#everyday?e=m8', 390, '#evi [data-ek]'], ['#everyday?et=cases&e=intent', 390], ['#everyday?et=cases&e=xplat', 1280], ['#everyday?eco=mixed&e=m2&dv=android.linux.none', 390]]) {
       const p = await page(hash, { width });
       if (js) await click(p, js);
       await p.addScriptTag({ content: AXE });

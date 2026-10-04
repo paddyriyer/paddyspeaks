@@ -229,10 +229,13 @@
     { id: 'dataset', label: 'one dataset', focus: 'ds_behavior' }, { id: 'tenant', label: 'one tenant', focus: 't_a' }, { id: 'vendor', label: 'one vendor', focus: 'v_adreach' },
     { id: 'agent', label: 'one AI agent', focus: 'ag_assist' }, { id: 'product', label: 'one product', focus: 'sy_wallet' }
   ];
+  /* The four lenses, worded as the essay words them (compare.js lenses): same data, a different question. */
   G.lenses = {
-    privacy: { q: 'Privacy asks: should this information exist, move, combine, persist, or be inferred?', incl: 'linkability · selective disclosure · purpose · minimization · inference · on-device processing · consent · retention · user expectation' },
-    security: { q: 'Security asks: can the wrong actor access it?', incl: 'passkeys · device trust · secure hardware roots of trust · tokenization · cryptographic credentials · session security · runtime isolation · API authorization' },
-    both: { q: 'Security creates trustworthy boundaries. Privacy decides what should cross them.', incl: '' }
+    all: { label: 'All four', q: 'Four lenses, same data, a different question. Security creates trustworthy boundaries; privacy decides what should cross them; QA proves it works; data governance decides who holds it and for how long.', incl: '' },
+    security: { label: 'Security', q: 'Security asks: can the wrong actor get at it?', incl: 'passkeys · device trust · secure hardware roots of trust · tokenization · cryptographic credentials · session security · runtime isolation · API authorization' },
+    privacy: { label: 'Privacy', q: 'Privacy asks: should it exist, move, combine, persist or be inferred?', incl: 'linkability · selective disclosure · purpose · minimization · inference · on-device processing · consent · retention · user expectation' },
+    qa: { label: 'QA', q: 'QA asks: how would anyone outside know it works as promised?', incl: 'tests · evidence · defaults · fallbacks · deletion end to end · re-runs after every release' },
+    gov: { label: 'Data governance', q: 'Data governance asks: who holds it, how long does it live, and can it really go?', incl: 'owners · retention · copies · keys · holds · vendors · export · deletion' }
   };
   G.converge = [
     ['Passkey', 'Prevents phishing and credential theft.', 'Removes the reusable shared secret; each site gets its own key.'],

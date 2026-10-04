@@ -46,6 +46,19 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   comparison. Since 2026-10-03 it also covers mixed devices (an iPhone-like
   phone with a Windows-like laptop, an Android-like tablet, a Linux laptop…):
   a *Your devices* picker and the *Devices across platforms* use case.
+- **v1 and the essay are one privacy model** (2026-10-04): the essay explains the
+  arrows, v1 lets you follow them. Nine views of the same graph — Command Center,
+  Products, Everyday arrows (the events layer moved here), Every layer, Future,
+  AI / agents, Reviews (four-lens review, QA, governance, what changed, feature
+  reviews), Evidence (now with documented claims), Ask privacy — and a global
+  lens of All four · Security · Privacy · QA · Data governance (`l=both` in old
+  links means all four). The shared vocabulary, the evidence labels, the 28 review
+  questions, deep links both ways (`?view=…` in, *Read the explanation* out) and
+  20 sync questions are written once in `articles/every-arrow/shared.js`; the
+  views are `privacy-command-center/modes.js`. Products reads `compare.js`
+  directly and never mixes its documented claims with synthetic Northstar data:
+  each wears its own band, and a Test is never shown as run. See the v1 README,
+  *One privacy model, two experiences*.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files
