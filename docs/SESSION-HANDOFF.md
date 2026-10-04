@@ -7,7 +7,7 @@ clones fresh each time). CLAUDE.md points here._
 ## TL;DR of current state
 
 - **NEWEST (2026-10-04): essay §13 “Every layer”.** Concepts from Paddy's privacy-engineering
-  notes, with all interview references removed, plus his three illustrations (edited the
+  notes, with all interview references removed, plus their three illustrations (edited the
   same way; see `docs/EVERY-ARROW.md` §E4). Tenth pattern; PDF re-rendered.
 
 - **2026-10-03, evening: the essay follows the Events layer.** *Every Arrow
