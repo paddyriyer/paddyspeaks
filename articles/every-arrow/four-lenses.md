@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — the four-lens review
 
-From *Every Arrow Is a Decision*, edition 4.0 (3 October 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision*, edition 4.0 (4 October 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 Four questions for every arrow a product draws:

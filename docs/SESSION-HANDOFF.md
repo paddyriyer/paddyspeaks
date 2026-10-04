@@ -6,7 +6,11 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-03, evening): the essay follows the Events layer.** *Every Arrow
+- **NEWEST (2026-10-04): essay §13 “Every layer”.** Concepts from Paddy's privacy-engineering
+  notes, with all interview references removed, plus their three illustrations (edited the
+  same way; see `docs/EVERY-ARROW.md` §E4). Tenth pattern; PDF re-rendered.
+
+- **2026-10-03, evening: the essay follows the Events layer.** *Every Arrow
   Is a Decision* gained §12 “Everyday arrows” (conceptual, uncited, names no company),
   a ninth pattern, a 28-question review and a re-rendered PDF; see `docs/EVERY-ARROW.md` §E4.
 

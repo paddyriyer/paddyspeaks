@@ -32,7 +32,7 @@ const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'as
 ok(C.products.map((p) => p.id).join() === want.join(), 'the eight products, in order: ' + want.join(', '));
 ok(C.lenses.map((l) => l.t).join(' · ') === 'Security · Privacy · QA · Data governance', 'the four lenses, in order');
 const sections = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"/g)].map((m) => m[1]);
-ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'everyday', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
+ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'everyday', 'layers', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
 for (const p of C.products) {
   const sec = new RegExp(`<section class="scene[^"]*" id="${p.id}"[\\s\\S]*?</section>`).exec(html);
   ok(!!sec, `#${p.id}: no section`); if (!sec) continue;
@@ -107,7 +107,7 @@ const one = (k) => [...(stamps[k] || [])][0];
 ok(one('products') === '8', 'eight products');
 ok(one('edition') === '4.0' && /<meta name="ps:edition" content="4.0">/.test(html), 'edition 4.0');
 const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
-ok(ld.version === '4.0' && ld.dateModified === '2026-10-03' && /article:modified_time" content="2026-10-03"/.test(html), 'modified date and version agree');
+ok(ld.version === '4.0' && ld.dateModified === '2026-10-04' && /article:modified_time" content="2026-10-04"/.test(html), 'modified date and version agree');
 ok(ld.datePublished === '2026-09-26' && /datetime="2026-09-26"/.test(html), 'publication date agrees');
 ok(ld.timeRequired === `PT${one('read')}M`, 'JSON-LD timeRequired is the full reading time');
 ok(+one('read.essay') < +one('read'), 'the essay alone is shorter than the essay with every table');
@@ -123,7 +123,7 @@ ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/four-lenses.md')), 'the M
 const kit = html.slice(html.indexOf('id="kit-questions"'), html.indexOf('class="btn"', html.indexOf('id="kit-questions"')));
 ok([...kit.matchAll(/<section data-l="(\w+)"/g)].map((m) => m[1]).join() === 'sec,pri,qa,gov', 'the review has one block per lens');
 for (const m of kit.matchAll(/<section data-l="(\w+)"[\s\S]*?<\/section>/g)) ok((m[0].match(/<li>/g) || []).length === 7, `the ${m[1]} block has seven questions`);
-ok((html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length === 9, 'nine patterns');
+ok((html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length === 10, 'ten patterns');
 const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
 const lines = [...coda.matchAll(/<li[^>]*>([^<]+)<\/li>/g)].map((m) => m[1].trim());
 ok(lines.join(' | ') === 'Some arrows copy data. | Some arrows create an identity. | Some arrows make an inference. | And some arrows open the door. | Every arrow is still a decision.', 'the five closing lines, in order: ' + lines.join(' | '));
@@ -182,6 +182,29 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
   const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
   ok(/on devices from different companies\./.test(coda), 'the closing thesis follows the person across devices');
 }
+
+/* ── 5e · every layer: a guarantee holds until the next layer ── */
+{
+  const f = /<section class="scene[^"]*" id="layers"[\s\S]*?<\/section>\n\n<section/.exec(html);
+  ok(!!f, 'the every-layer section is missing');
+  const b = f ? f[0] : '', text = b.replace(/<[^>]+>/g, ' ');
+  for (const line of ['stops being true in the next', 'Encryption hides the content, not the shape', 'TLS protects the arrow. Privacy decides whether the arrow should exist.', 'Identity does not require a name', 'Filtering is not isolation', 'Consent is distributed state', 'An agent can create the join that nobody wrote', 'Every guarantee has a boundary'])
+    ok(b.includes(line), `the every-layer section keeps “${line}”`);
+  ok(/What can be combined later\?[\s\S]*How would anyone prove the control works\?/.test(b), 'the questions at every hop, ending in proof');
+  ok(!/<a class="src"/.test(b) && /carries no citations/.test(b), 'the every-layer section makes no vendor claims, and says so');
+  ok(!/\b(Apple|Google|Microsoft|Amazon|Meta|iPhone|Android|Windows|Chrome|Safari|Firefox|Edge)\b/.test(text), 'the every-layer section names no company or product');
+  /* its illustrations exist in every size, carry real alt text, and open full size */
+  const figs = [...b.matchAll(/<figure class="art-fig" id="([\w-]+)">([\s\S]*?)<\/figure>/g)];
+  ok(figs.length === 3, 'three illustrations in the every-layer section');
+  for (const [, id, fg] of figs) {
+    for (const m of fg.matchAll(/(\/images\/[\w/.-]+\.(?:avif|webp|png))/g)) ok(fs.existsSync(path.join(ROOT, m[1])), `#${id}: ${m[1]} does not exist`);
+    const alt = (/alt="([^"]*)"/.exec(fg) || [, ''])[1];
+    ok(alt.length > 300, `#${id}: the illustration needs alt text that carries what it shows`);
+    ok(/width="\d+" height="\d+"/.test(fg) && /loading="lazy"/.test(fg), `#${id}: width, height and lazy loading`);
+  }
+}
+/* the essay is about the work, not about anyone's hiring process */
+ok(!/\b(interview\w*|job candidates?|onsite|recruit\w*|hiring|hard follow-up|say this|do not bluff)\b/i.test(html.replace(/<script[\s\S]*?<\/script>/g, '')), 'no interview or hiring language anywhere in the essay');
 
 /* ── 6 · a slim page ───────────────────────────────────────────── */
 const js = read('articles/every-arrow/lenses.js');

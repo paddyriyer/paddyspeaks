@@ -66,6 +66,26 @@ ninth pattern (*The link moves; it does not disappear*), one review question per
 (now 28), and “on devices from different companies” to the closing thesis. Its links
 into the Events layer are checked against `privacy-command-center/events.js`.
 
+**Every layer (§13, added 2026-10-04).** A third conceptual section, after §12, drawn from
+Paddy's privacy-engineering notes with every interview and hiring reference removed. Its
+thesis: each specialist's guarantee is true in their layer and can stop being true in the
+next, so privacy engineering follows the data across the boundaries. It covers the
+end-to-end flow and the questions at every hop (ending in “how would anyone prove the
+control works?”); network metadata, IP-plus-time as a join key, DNS and resolver logs,
+Encrypted Client Hello and traffic shape; TLS and who can read what once HTTPS is on (a
+table); cross-site tracking mechanisms (a table) and identity graphs; sessions, tokens
+and passkeys; pixels, payment references and fraud as user protection; copies, joins,
+tenant isolation and consent below the API; and agents as runtime joins with the
+invariants that must hold outside the model. Three illustrations, uploaded by Paddy as
+`images/privacya1-3.png` and **edited to remove interview content** (a “Key preparation
+focus areas” label, “(You)” on the data-architect row, and the two interview-technique
+panels, replaced by a panel on the section's thesis; the last panel was retitled), are
+served from `images/articles/every-arrow-is-a-decision/layers-{1,2,3}-{768,1536}.{avif,webp}`
+and link to the full-size PNGs. It added the tenth pattern (*Every guarantee has a
+boundary*). The structure test checks the section's lines, that it names no company or
+product, the illustrations' files and alt text, and that the essay carries no interview
+or hiring language anywhere.
+
 **Rules that bind edition 4**
 - **Every claim lives once, in `articles/every-arrow/compare.js`**, as
   `[kind, headline, detail, 'source keys']`. Kinds: **Documented** (the company says
