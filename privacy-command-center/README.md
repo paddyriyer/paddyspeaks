@@ -27,7 +27,7 @@ The workspace has three sections:
 - **Findings:** three to five findings, each classified as FACT, INFERENCE, UNKNOWN or CONTROL FAILURE, and each citing graph records.
 - **Decision:** risk, why it matters, mitigation and evidence needed. Executives get issue, options, recommendation and residual risk instead.
 
-Global navigation is four items: **Command Center · Reviews · Evidence · Ask privacy**. Consent, deletion, passkeys, AI and the rest are selector values, not pages. Saved views (under *Views*) are selector presets. **Focus mode** hides everything except the selectors and the workspace, and offers three walkthrough presets.
+Global navigation is nine views of the same graph: **Command Center · Products · Everyday arrows · Every layer · Future · AI / agents · Reviews · Evidence · Ask privacy** (see *One privacy model* below). Inside the Command Center, consent, deletion, passkeys, AI and the rest are still selector values, not pages. Saved views (under *Views*) are selector presets. **Focus mode** hides everything except the selectors and the workspace, and offers three walkthrough presets.
 
 ## Selectors
 
@@ -39,7 +39,7 @@ Global navigation is four items: **Command Center · Reviews · Evidence · Ask 
 | Question | 26 questions in two groups: *What is true today* (19, from *What do we know?* to *What is our worst day?*) and *What must still be possible in the future?* (7) | Which view is drawn |
 | Concern | 24, multi-select, including recoverability, legal hold / preservation and key lifecycle | Filters findings; picks the control chain for *Did the control really work?* |
 | Subject | one person, credential, feature, dataset, tenant, vendor, AI agent, product | Refines some views (one dataset → the join; one tenant → the tenant chain) |
-| Lens | Privacy, Security, Both | Privacy asks *should this exist, move, combine, persist or be inferred*; Security asks *can the wrong actor access it*; Both shows where they converge: passkey, wallet ID, private compute |
+| Lens | All four, Security, Privacy, QA, Data governance | The essay's four questions, word for word. Same data, a different question: the lens changes the arrow's questions, the findings (QA = control failures, unknowns and findings citing a control; governance = retention, deletion, vendors, recoverability, preservation, key lifecycle, or citing a key or hold; the rule is shown) and the decision's order, never the graph. *All four* shows where they converge and keeps one finding of each kind. `l=both` in an old link means all four |
 
 **The surface decides what the other selectors offer.** `G.relevance` in `graph.js` lists, for each surface, the journeys, questions, concerns and subjects that belong to it: wallet / payments offers *pay*, *live on one account* and *share identity*, never *read mail*. *All surfaces* offers everything. Changing the surface drops a selection that no longer belongs, and a link that names one falls back to the surface's default. The tests fail if a surface offers a question or concern that no finding on that surface answers.
 
@@ -83,6 +83,30 @@ The graph follows data across systems; this lens follows it across time. It is n
 - `G.tokenMap`, `G.holds` (LH-901 active, LH-877 released), `G.archive` (the five-year scenario), `G.preserve` (delete vs preserve) and `G.chains` (key destruction, legal hold, hold release).
 
 Transformation and recoverability stay off the main graph. They appear when the question asks across time, in the deletion view, in the identity views when the concern is identity, recoverability, legal hold, key lifecycle or deletion, and on **Evidence → Datasets over time**. The one-way functions on screen are illustrative, so the matching demonstrations compute real results; the records name the algorithm class a system would use. Legal hold is an engineering workflow here, not legal advice.
+
+## One privacy model, two experiences
+
+The essay *Every Arrow Is a Decision* explains the arrows; this lets you follow them. What both agree on is written once, in **`/articles/every-arrow/shared.js`** (`EA_SHARED`): the canonical entities and relations, the evidence labels (Documented · Setting · Limit · Test · Unknown), the shared phrases, the essay's twenty-eight review questions word for word, the TLS visibility table, the "Try this" line per product, the essay sections' deep links, the concepts this links back to in the essay, and twenty questions both must answer. Vendor claims stay in `/articles/every-arrow/compare.js` (`EA_CMP`), which this page now loads too: nothing here restates a claim.
+
+The views live in **`modes.js`** (`window.PCC_MODES(api)`, called once by `app.js`):
+
+| View | Route | What it does |
+|---|---|---|
+| Products | `#products?pr=&co=&fa=1` | The essay's eight products from `EA_CMP`: company, lens, every claim with its label and source. The arrow to watch is highlighted; *Follow this arrow* opens the SYNTHETIC pattern behind it (what moves, identifier, observer, purpose, copies, retention, control, evidence, failure boundary) and a link to the synthetic version |
+| Everyday arrows | `#everyday?e=&et=&eco=&dv=&connect=1` | The events layer (moved here from the Command Center; old `#cc?e=…` links follow it), *Connect to location history* on “Ask AI about the flight”, and *Many ecosystems*: devices plus mail, payments and AI from other providers, and the seven join points |
+| Every layer | `#layers?hop=` | Seventeen hops, person to archive; six questions per hop with their lens; the guarantee and where it stops; the TLS, HTTP, DNS and log panels |
+| Future | `#future?tf=&goal=` | Eight transformations × eight goals, recoverability class and what each depends on; then the existing transformation, archive, key and hold views on Northstar data, and the preservation lifecycle with *Can we open / interpret / match / prove / delete it?* |
+| AI / agents | `#ai?am=&rk=` | The agent runtime (user → model → retrieval → tools → join → inference → action → memory), six risks, ten controls starting from Northstar's guardrail records; a risk is covered only by the control it needs. Plus the existing inference, privileges and routing views |
+| Reviews | `#reviews?rv=lens|qa|gov|changes|features` | The four-lens review (the essay's 28 questions; Yes / No / Unknown / Not applicable / Needs evidence → findings, decisions, evidence needed, follow-up tests); QA templates with status from Northstar controls and the essay's tests, all NOT RUN; governance: every copy of one person and a register with ten overlays; *What changed?* before/after for each change and the thirteen triggers; the original feature reviews |
+| Evidence | `#evidence?ev=claims&ek=` | Adds the evidence labels and every documented claim, filterable by kind and lens |
+
+**Documented and synthetic never mix.** Vendor content wears a solid blue *Documented vendor information* band; Northstar and conceptual architecture wear a hatched *Synthetic — no company implementation is implied* band. A Test is a recommendation and is never shown as run.
+
+**Deep links from the essay** use `?view=`: `?view=product&product=browser`, `?view=layers&hop=tls`, `?view=journey&event=bought-coffee`, `?view=future&mode=hashing`, `?view=review&lens=qa`, `?view=ai&mode=agent`, `?view=ecosystems`, `?view=evidence`. `M.fromView` turns them into the routes above.
+
+**Read the explanation.** Findings carry *why it matters · mitigation · evidence needed · related arrow · related review question · essay context* (per concern, `CN` in `modes.js`), and views link to the essay paragraph that explains them (`X.concepts`).
+
+`tests/sync.test.mjs` opens every shared question, phrase and essay link here and checks it answers; `articles/every-arrow/tests/edition4.mjs` checks the essay side.
 
 ## Events layer
 

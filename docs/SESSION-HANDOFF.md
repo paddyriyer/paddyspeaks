@@ -1,12 +1,24 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-03 (Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-04 (the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-04): essay §13 “Every layer”.** Concepts from Paddy's privacy-engineering
+- **NEWEST (2026-10-04): one privacy model, two experiences.** At Paddy's request
+  the essay and the Command Center now share one model, written once in
+  `articles/every-arrow/shared.js` (phrases, evidence labels incl. Unknown, the 28
+  questions, the TLS table, deep links both ways, 20 sync questions). The Command
+  Center has nine views (new `modes.js`: Products from `compare.js` with the arrow
+  to watch, Everyday arrows (the events layer moved there), Every layer, Future,
+  AI / agents, Reviews with four-lens review / QA / governance / what changed) and a
+  four-lens switch (All four default; `l=both` → all). The essay gained a
+  “Try this in Privacy Command Center →” at the end of each major section, anchors
+  for the Command Center's “Read the explanation” links, and Unknown in its legend.
+  Tests: `privacy-command-center/tests/sync.test.mjs`, `edition4.mjs` §5f.
+
+- **2026-10-04: essay §13 “Every layer”.** Concepts from Paddy's privacy-engineering
   notes, with all interview references removed, plus their three illustrations (edited the
   same way; see `docs/EVERY-ARROW.md` §E4). Tenth pattern; PDF re-rendered.
 

@@ -16,27 +16,32 @@
   var SAVED_KEY = 'pcc.v1.views';
 
   /* ── state ─────────────────────────────────────────────── */
-  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'privacy', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all', dv: '' };
+  var PAGES = ['cc', 'products', 'everyday', 'layers', 'future', 'ai', 'reviews', 'evidence', 'ask'];
+  var M = null;   /* the modes (modes.js): Products, Everyday arrows, Every layer, Future, AI, Reviews */
+  var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'all', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all', dv: '' };
   var S = copy(DEF);
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function parse() {
     var h = location.hash.replace(/^#/, ''), parts = h.split('?'), page = parts[0] || 'cc', q = {};
     (parts[1] || '').split('&').forEach(function (kv) { if (!kv) return; var i = kv.indexOf('='); if (i > 0) q[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)); });
     var st = copy(DEF);
-    st.page = ['cc', 'reviews', 'evidence', 'ask'].indexOf(page) >= 0 ? page : 'cc';
+    st.page = PAGES.indexOf(page) >= 0 ? page : 'cc';
+    /* the events layer moved from the Command Center to Everyday arrows; old links follow it */
+    if (st.page === 'cc' && (q.e || q.et || q.eco || q.dv)) st.page = 'everyday';
     if (byId(G.personas, q.p)) st.p = q.p;
     if (byId(G.surfaces, q.s)) { st.s = q.s; st.j = byId(G.surfaces, q.s).j; }
     if (byId(G.journeys, q.j)) st.j = q.j;
     if (byId(G.questions, q.q)) st.q = q.q;
     if (q.c) st.c = q.c.split(',').filter(function (c) { return byId(G.concerns, c); });
     if (byId(G.subjects, q.u)) st.u = q.u;
-    if (G.lenses[q.l]) st.l = q.l;
+    if (q.l === 'both') st.l = 'all'; else if (G.lenses[q.l]) st.l = q.l;
     st.fm = q.fm === '1'; st.ask = q.ask || ''; st.ev = q.ev || 'all';
     var EVD = G.events;
-    if (['day', 'cases', 'all', 'changes'].indexOf(q.et) >= 0) st.et = q.et;
+    if (['day', 'cases', 'all', 'changes', 'eco'].indexOf(q.et) >= 0) st.et = q.et;
     if (EVD.ecos.some(function (x) { return x.id === q.eco; })) st.eco = q.eco;
     if (EVD.validDv(q.dv) && q.dv !== EVD.dvDefault) st.dv = q.dv;
-    if (q.e && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
+    if (q.e && st.et !== 'eco' && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
+    if (M) M.parseInto(q, st);
     return fit(st);
   }
   /* Only what belongs to the surface is offered (G.relevance). A link or preset
@@ -52,10 +57,11 @@
     return st;
   }
   function hashFor(st) {
-    var q = 'p=' + st.p + '&s=' + st.s + '&j=' + st.j + '&q=' + st.q + (st.c.length ? '&c=' + st.c.join(',') : '') + '&u=' + st.u + (st.l !== 'privacy' ? '&l=' + st.l : '') + (st.fm ? '&fm=1' : '');
+    var q = 'p=' + st.p + '&s=' + st.s + '&j=' + st.j + '&q=' + st.q + (st.c.length ? '&c=' + st.c.join(',') : '') + '&u=' + st.u + (st.l !== 'all' ? '&l=' + st.l : '') + (st.fm ? '&fm=1' : '');
     if (st.page === 'ask' && st.ask) q += '&ask=' + encodeURIComponent(st.ask);
     if (st.page === 'evidence' && st.ev !== 'all') q += '&ev=' + st.ev;
-    if (st.page === 'cc') q += (st.et !== 'day' ? '&et=' + st.et : '') + (st.e ? '&e=' + st.e : '') + (st.eco !== 'all' ? '&eco=' + st.eco : '') + (st.dv ? '&dv=' + st.dv : '');
+    if (st.page === 'everyday') q += (st.et !== 'day' ? '&et=' + st.et : '') + (st.e ? '&e=' + st.e : '') + (st.eco !== 'all' ? '&eco=' + st.eco : '') + (st.dv ? '&dv=' + st.dv : '');
+    var mq = M ? M.hashOf(st) : ''; if (mq) q += '&' + mq;
     return '#' + st.page + '?' + q;
   }
   function set(patch) {
@@ -128,7 +134,7 @@
   }
 
   /* ── shared bits ───────────────────────────────────────── */
-  var KCLS = { FACT: 'k-fact', INFERENCE: 'k-inf', UNKNOWN: 'k-unk', 'CONTROL FAILURE': 'k-fail', RECOMMENDATION: 'k-rec' };
+  var KCLS = { FACT: 'k-fact', INFERENCE: 'k-inf', UNKNOWN: 'k-unk', 'CONTROL FAILURE': 'k-fail', RECOMMENDATION: 'k-rec', RISK: 'k-fail', 'DESIGN QUESTION': 'k-inf', DECISION: 'k-rec', DOCUMENTED: 'k-doc', SETTING: 'k-set', LIMIT: 'k-lim', TEST: 'k-test' };
   function tag(k) { return '<span class="tag ' + (KCLS[k] || '') + '">' + esc(k) + '</span>'; }
   var ST = { ok: ['st-ok', 'Verified'], fail: ['st-fail', 'Failed'], unk: ['st-unk', 'Unknown'], warn: ['st-warn', 'Needs review'], wait: ['st-warn', 'Pending'] };
   function stTag(st, txt) { var s = ST[st] || ST.unk; return '<span class="st ' + s[0] + '">' + esc(txt || s[1]) + '</span>'; }
@@ -202,7 +208,9 @@
           $$('.arr', root).forEach(function (b) { var on = +b.getAttribute('data-a') === i; b.classList.toggle('sel', on); b.setAttribute('aria-pressed', on); });
           var tb = prev.z === h.z ? ZONE[h.z] + ' (no boundary crossed)' : ZONE[prev.z] + ' → ' + ZONE[h.z];
           var priv = [['What moved?', h.mv], ['Why?', h.why], ['Under which identity?', h.id + (h.sc && h.sc !== 'none' ? ' (' + h.sc + ')' : '')], ['Across which trust boundary?', tb], [view.learn ? 'How did it learn, and what does it now know?' : 'What can the receiver now learn?', h.obs]];
-          var rows = st.l === 'security' ? [['What moved?', h.mv], ['Security control', h.sec || 'None recorded']] : st.l === 'both' ? priv.concat([['Security control', h.sec || 'None recorded']]) : priv;
+          var cs = h.ctl && G.controls[h.ctl], proof = cs ? (cs.result === 'never' ? 'UNKNOWN: ' + name(h.ctl) + ' has never been tested' : name(h.ctl) + ': ' + cs.method + (cs.last ? ' · ' + cs.last : '')) : 'UNKNOWN: no control recorded on this arrow';
+          var sec = [['Security control', h.sec || 'None recorded']], qa4 = [['How would anyone know?', proof]], gov4 = [['Who holds it after this hop?', ZONE[h.z] + ': ' + h.n]];
+          var rows = st.l === 'security' ? [['What moved?', h.mv]].concat(sec) : st.l === 'qa' ? [['What moved?', h.mv]].concat(qa4) : st.l === 'gov' ? [['What moved?', h.mv]].concat(gov4) : st.l === 'all' ? priv.concat(sec, qa4, gov4) : priv;
           var ctl = h.ctl ? '<p class="insp-ctl">Control: <b>' + esc(name(h.ctl)) + '</b> ' + stTag(ctlState(h.ctl), freshness(G.controls[h.ctl] && G.controls[h.ctl].last).t) + '</p>' : '';
           $('#insp', root).innerHTML = '<div class="insp-h"><span class="eyebrow">Arrow</span><b class="' + (h.st === 'fail' ? 'red' : '') + '">' + esc(prev.n + ' → ' + h.n) + '</b></div><dl class="five">' + rows.map(function (r, k) { return '<div><dt>' + esc(r[0]) + '</dt><dd' + (k === 4 && h.st === 'fail' ? ' class="red"' : '') + '>' + esc(r[1]) + '</dd></div>'; }).join('') + '</dl>' + ctl + (h.ctl === 'c_server_filter' ? payloadHTML() : '');
         }
@@ -666,7 +674,7 @@
     }
     return {
       head: 'How it was transformed, and who can still undo it',
-      body: '<div class="seg" role="radiogroup" aria-label="Transformation">' + TABS.map(function (x) { return '<button role="radio" data-tt="' + x[0] + '" aria-checked="' + (x[0] === t) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      body: (view.noTabs ? '' : '<div class="seg" role="radiogroup" aria-label="Transformation">' + TABS.map(function (x) { return '<button role="radio" data-tt="' + x[0] + '" aria-checked="' + (x[0] === t) + '">' + x[1] + '</button>'; }).join('') + '</div>') +
         '<p class="tf-meta" id="tf-meta"></p><div id="tf-res" aria-live="polite"></div>',
       mount: function (root) {
         root.addEventListener('click', function (e) {
@@ -765,7 +773,7 @@
   var ORDER = { 'CONTROL FAILURE': 0, FACT: 1, INFERENCE: 2, UNKNOWN: 3 };
   function findingsFor(st, view) {
     var q = view.kind === 'control' && st.q !== 'unrecoverable' ? 'control' : st.q;
-    var lensOk = function (f) { return st.l === 'both' || f.l === 'both' || f.l === st.l; };
+    var lensOk = function (f) { return st.l === 'all' || !!M.lens4(f)[st.l]; };
     var sOk = function (f) { return st.s === 'all' || f.s.indexOf(st.s) >= 0; };
     var cOk = function (f) { return !st.c.length || f.c.some(function (c) { return st.c.indexOf(c) >= 0; }); };
     var score = function (f) { return (f.v.indexOf(q) >= 0 ? 4 : 0) + (st.c.length && cOk(f) ? 2 : 0) + (sOk(f) ? 1 : 0); };
@@ -774,8 +782,11 @@
     if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0 && (sOk(f) || lensOk(f) && cOk(f)); }));
     if (pool.length < 3) pool = pool.concat(G.findings.filter(function (f) { return pool.indexOf(f) < 0 && f.v.indexOf(q) >= 0; }));
     pool.sort(function (a, b) { return score(b) - score(a) || ORDER[a.k] - ORDER[b.k]; });
+    /* all four lenses: the best finding of each kind first, so a lens never crowds the others out */
+    if (st.l === 'all') { var seen = {}, first = pool.filter(function (f) { if (seen[f.k]) return false; seen[f.k] = 1; return true; }); pool = first.concat(pool.filter(function (f) { return first.indexOf(f) < 0; })); }
     pool = pool.slice(0, st.p === 'executive' ? 3 : 5);
-    if (st.l !== 'both' && pool.some(function (f) { return !lensOk(f); })) note = 'Few ' + st.l + '-only findings answer this; related findings are shown.';
+    if (st.l !== 'all' && pool.some(function (f) { return !lensOk(f); })) note = 'Few ' + (st.l === 'gov' ? 'data governance' : st.l === 'qa' ? 'QA' : st.l) + ' findings answer this; related findings are shown.';
+    if (M.lensRule[st.l]) note = (note ? note + ' ' : '') + M.lensRule[st.l];
     return { list: pool.sort(function (a, b) { return ORDER[a.k] - ORDER[b.k]; }), note: note };
   }
   function findingText(f) { return f.text === '{changes}' ? plural(G.changes.length, 'privacy-relevant change') + ' since the ' + G.lastReview + ' review; none went through review.' : f.text; }
@@ -784,7 +795,7 @@
     if (!r.list.length) return '<p class="empty">No findings match. Widen the surface or clear the concern.</p>';
     return '<ol class="fl">' + r.list.map(function (f) {
       var p = f.p && f.p[st.p];
-      return '<li class="fi">' + tag(f.k) + '<p>' + esc(findingText(f)) + '</p>' + (p ? '<p class="lensline"><b>' + esc(p[0]) + '</b> ' + esc(p[1]) + '</p>' : '') + (f.cite.length ? '<p class="cite">' + f.cite.map(function (c) { return esc(name(c)); }).join(' · ') + '</p>' : '') + '</li>';
+      return '<li class="fi">' + tag(f.k) + '<p>' + esc(findingText(f)) + '</p>' + (p ? '<p class="lensline"><b>' + esc(p[0]) + '</b> ' + esc(p[1]) + '</p>' : '') + (f.cite.length ? '<p class="cite">' + f.cite.map(function (c) { return esc(name(c)); }).join(' · ') + '</p>' : '') + M.findingMore(f) + '</li>';
     }).join('') + '</ol>' + (r.note ? '<p class="note">' + esc(r.note) + '</p>' : '');
   }
 
@@ -796,7 +807,7 @@
         '<div class="hl"><dt>Recommendation</dt><dd>' + esc(d.exec.rec) + '</dd></div><div><dt>Residual risk</dt><dd>' + esc(d.exec.res) + '</dd></div></dl>';
     }
     var F4 = { risk: ['Risk', d.risk], why: ['Why it matters', d.why], mit: ['Mitigation', d.mit], ev: ['Evidence needed', d.ev] };
-    var order = st.p === 'builder' ? ['mit', 'ev', 'risk', 'why'] : st.p === 'auditor' ? ['ev', 'risk', 'mit', 'why'] : ['risk', 'why', 'mit', 'ev'];
+    var order = st.p === 'builder' ? ['mit', 'ev', 'risk', 'why'] : st.p === 'auditor' || st.l === 'qa' ? ['ev', 'risk', 'mit', 'why'] : st.l === 'gov' ? ['mit', 'risk', 'ev', 'why'] : ['risk', 'why', 'mit', 'ev'];
     var lab = { builder: { mit: 'Mitigation · where the control lives' }, auditor: { ev: 'Evidence needed · the test' } }[st.p] || {};
     return '<dl class="dec">' + order.map(function (k, i) { return '<div' + (i === 0 ? ' class="hl"' : '') + '><dt>' + esc(lab[k] || F4[k][0]) + '</dt><dd>' + esc(F4[k][1]) + '</dd></div>'; }).join('') + '</dl>';
   }
@@ -808,7 +819,7 @@
    * case, the connection being asked about, and the review decisions on
    * connections live in memory for this visit only, and are never stored. */
   var EV = G.events, EVM = { key: '', hl: null, node: null, edge: null, dec: {}, whole: false, cur: null };
-  var EV_TABS = [['day', 'A morning'], ['cases', 'Use cases'], ['all', 'All events'], ['changes', 'What changed?']];
+  var EV_TABS = [['day', 'A morning'], ['cases', 'Use cases'], ['all', 'All events'], ['changes', 'What changed?'], ['eco', 'Many ecosystems']];
   var ACTS = [['keep', 'Keep connection'], ['scope', 'Scope it'], ['short', 'Shorten retention'], ['cut', 'Separate contexts']];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtDate(d) { var p = d.split('-'); return MON[+p[1] - 1] + ' ' + (+p[2]) + ', ' + p[0]; }
@@ -1089,6 +1100,7 @@
   }
 
   function tabBody(o) {
+    if (S.et === 'eco') return M.ecoTab(S);
     if (S.et === 'cases') {
       var c = o.def;
       return '<div class="cases" role="group" aria-label="Use cases">' + EV.cases.map(function (x) { return '<button type="button" class="cs' + (c && c.id === x.id ? ' sel' : '') + '" data-cs="' + x.id + '" id="cs-' + x.id + '" aria-pressed="' + !!(c && c.id === x.id) + '">' + esc(x.title) + '</button>'; }).join('') + '</div>' +
@@ -1112,8 +1124,8 @@
   function eventsLayer() {
     var o = evDef(), fams = null;
     var tabs = '<div class="evtab" role="group" aria-label="Events view">' + EV_TABS.map(function (t) {
-      var n = t[0] === 'cases' ? EV.cases.length : t[0] === 'all' ? EV.types.length : t[0] === 'changes' ? EV.changes.length : EV.day.events.length;
-      return '<button type="button" data-et="' + t[0] + '" id="et-' + t[0] + '" aria-pressed="' + (S.et === t[0]) + '"' + (t[0] === 'changes' ? ' class="t-chg"' : '') + '>' + esc(t[1]) + ' <span>' + n + '</span></button>';
+      var n = t[0] === 'cases' ? EV.cases.length : t[0] === 'all' ? EV.types.length : t[0] === 'changes' ? EV.changes.length : t[0] === 'eco' ? null : EV.day.events.length;
+      return '<button type="button" data-et="' + t[0] + '" id="et-' + t[0] + '" aria-pressed="' + (S.et === t[0]) + '"' + (t[0] === 'changes' ? ' class="t-chg"' : '') + '>' + esc(t[1]) + (n == null ? '' : ' <span>' + n + '</span>') + '</button>';
     }).join('') + '</div>';
     if (S.et === 'day') fams = EV.day.events.map(function (e) { return EV.type(e.type).fam; });
     if (S.et === 'cases' && o.def) fams = o.def.events.map(function (e) { return EV.type(e.type).fam; });
@@ -1122,7 +1134,7 @@
       '<div class="seg eco" role="radiogroup" aria-label="Ecosystem">' + EV.ecos.map(function (x) { return '<button role="radio" data-eco="' + x.id + '" aria-checked="' + (S.eco === x.id) + '">' + esc(x.label) + '</button>'; }).join('') + '</div></div>' +
       (S.eco === 'mixed' ? '<div class="ecobar">' + devicesHTML('bar') + '<p class="eco-n">One person, several platforms. Change the devices to see where the linking moves. ' + esc(EV.ecoNote) + '</p></div>' : S.eco !== 'all' ? '<div class="ecobar">' + oneId(S.eco) + '<p class="eco-n">' + esc(EV.ecoNote) + '</p></div>' : '') +
       tabs + '<div class="evtb">' + tabBody(o) + (fams && S.et !== 'all' ? famLegend(fams) : '') + '</div>' +
-      (o.open ? traceHTML(o) : '') +
+      (o.open && S.et !== 'eco' ? traceHTML(o) : '') +
       '</section>';
   }
   function evFocus(sel) { if (!sel) return; var el = $(sel); if (el) el.focus({ preventScroll: true }); }
@@ -1157,7 +1169,7 @@
       if (b.hasAttribute('data-evclose')) { EVM.whole = false; EVM.node = null; EVM.edge = null; if (S.et === 'cases' && EVM.hl) { EVM.hl = null; return renderEvents('#cs-' + S.e); } focusAfter = 'et-' + S.et; set({ e: '' }); return; }
       if (b.hasAttribute('data-evreset')) { EVM.dec = {}; return renderEvents('#evi h3'); }
       if (b.hasAttribute('data-evback')) { EVM.edge = null; EVM.node = null; return renderEvents('#evi h3'); }
-      if (b.hasAttribute('data-evcc')) { var c = (EVM.cur && EVM.cur.hlId ? EVM.cur.set.nodes[EVM.cur.hlId].type.cc : null) || (EVM.cur && EVM.cur.set.def.cc) || EV.day.cc; set({ s: c.s, j: c.j, q: c.q, c: [], u: 'person' }); var v = $('#vis'); if (v) { v.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); $('#visH').setAttribute('tabindex', '-1'); $('#visH').focus({ preventScroll: true }); } return; }
+      if (b.hasAttribute('data-evcc')) { var c = (EVM.cur && EVM.cur.hlId ? EVM.cur.set.nodes[EVM.cur.hlId].type.cc : null) || (EVM.cur && EVM.cur.set.def.cc) || EV.day.cc; set({ page: 'cc', s: c.s, j: c.j, q: c.q, c: [], u: 'person' }); var v = $('#vis'); if (v) { v.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); $('#visH').setAttribute('tabindex', '-1'); $('#visH').focus({ preventScroll: true }); } return; }
       if (a('data-do')) { var k = a('data-ek'), d = a('data-do'); if (EVM.dec[k] === d) delete EVM.dec[k]; else EVM.dec[k] = d; return renderEvents('[data-do="' + d + '"][data-ek="' + k + '"]'); }
       if (a('data-ek')) { EVM.edge = a('data-ek'); return renderEvents('#whyH'); }
       if (a('data-n')) { var n = a('data-n'), sn = EVM.cur.set.nodes[n]; EVM.edge = null; EVM.node = EVM.node === n ? null : n; if (sn && sn.ev && S.et === 'cases') { EVM.hl = n; EVM.node = null; } return renderEvents(EVM.node ? '#ncH' : '[data-n="' + n + '"]'); }
@@ -1182,9 +1194,9 @@
       '<div class="ms-pop" id="msPop" hidden><div class="ms-h"><span class="eyebrow">Privacy concerns</span><button type="button" class="linkbtn" id="msClear">Clear</button></div>' +
       offered(G.concerns, 'c', S.s).map(function (c) { return '<label><input type="checkbox" id="cc-' + c.id + '" value="' + c.id + '"' + (S.c.indexOf(c.id) >= 0 ? ' checked' : '') + '> ' + esc(c.label) + '</label>'; }).join('') + '</div></span></div>' +
       '<div class="refine"><span class="w">about</span>' + sel('selU', 'Subject', offered(G.subjects, 'u', S.s), S.u) +
-      '<span class="w">through the</span><div class="seg" role="radiogroup" aria-label="Lens">' + ['privacy', 'security', 'both'].map(function (l) { return '<button role="radio" data-l="' + l + '" aria-checked="' + (S.l === l) + '">' + l.charAt(0).toUpperCase() + l.slice(1) + '</button>'; }).join('') + '</div><span class="w">lens</span></div>' +
+      '<span class="w">through</span><div class="seg" role="radiogroup" aria-label="Lens">' + ['all', 'security', 'privacy', 'qa', 'gov'].map(function (l) { return '<button role="radio" data-l="' + l + '" aria-checked="' + (S.l === l) + '">' + esc(G.lenses[l].label) + '</button>'; }).join('') + '</div></div>' +
       '<p class="lensq">' + esc(G.lenses[S.l].q) + (G.lenses[S.l].incl ? ' <span>Includes ' + esc(G.lenses[S.l].incl) + '.</span>' : '') + '</p>' +
-      (S.l === 'both' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>'  + conv4() : '');
+      (S.l === 'all' ? '<div class="conv">' + G.converge.map(function (c) { return '<div class="cv"><b>' + esc(c[0]) + '</b><p><em>Security</em>' + esc(c[1]) + '</p><p><em>Privacy</em>' + esc(c[2]) + '</p></div>'; }).join('') + '</div>'  + conv4() : '');
   }
   function conv4() {
     var C = G.converge4;
@@ -1202,23 +1214,22 @@
 
   function ccPage() {
     var view = resolve(S), r = V[view.kind](S, view), per = byId(G.personas, S.p);
-    return eventsLayer() + selectorBar() + focusRow() +
+    return '<p class="evlink"><a href="#everyday"><b>Everyday arrows</b> One morning, eight events, and what each sets in motion →</a></p>' + selectorBar() + focusRow() +
       '<div class="ws">' +
         '<section class="card vis" aria-labelledby="visH" id="vis"><div class="sec-h"><span class="eyebrow">Graph</span><h2 id="visH" class="vis-h">' + esc(r.head) + '</h2><div class="tools">' + (r.tools || '') + '</div></div>' +
-          (view.principle ? '<p class="principle">' + esc(view.principle) + '</p>' : '') + emph(S) + (view.note ? '<p class="note">' + esc(view.note) + '</p>' : '') + r.body + '</section>' +
+          (view.principle ? '<p class="principle">' + esc(view.principle) + '</p>' : '') + emph(S) + (view.note ? '<p class="note">' + esc(view.note) + '</p>' : '') + r.body + M.viewRead(view) + '</section>' +
         '<div class="side">' +
           '<section class="card fnd" aria-labelledby="fH"><div class="sec-h"><span class="eyebrow">Findings</span><h2 id="fH">' + (S.p === 'executive' ? 'What matters' : 'What we found') + '</h2></div>' + findingsHTML(S, view) + '</section>' +
           '<section class="card dcs" aria-labelledby="dH"><div class="sec-h"><span class="eyebrow">Decision</span><h2 id="dH">' + (S.p === 'executive' ? 'What decision is required' : 'What to do') + '</h2></div><p class="asks">' + esc(per.label) + ': ' + esc(per.asks) + '</p>' + decisionHTML(S, view) + '</section>' +
         '</div></div>' +
       '<p class="always">What looks protected here, but stops being protected somewhere else?</p>';
   }
-  var focusAfter = null, keepPop = false;
+  var focusAfter = null, focusSel = null, keepPop = false;
   function closePop(e) { var pop = $('#msPop'); if (pop && !pop.hidden && !e.target.closest('.ms')) { pop.hidden = true; $('#selC').setAttribute('aria-expanded', 'false'); } var vm = $('#vmPop'); if (vm && !vm.hidden && !e.target.closest('.vm')) { vm.hidden = true; $('#vmBtn').setAttribute('aria-expanded', 'false'); } }
   function apply(s) { set({ page: 'cc', p: s.p, s: s.s, j: s.j, q: s.q, c: s.c.slice(), u: s.subj || 'person' }); }
   function mountCC() {
     var view = resolve(S), r = V[view.kind](S, view);
     if (r.mount) r.mount($('#vis'));
-    mountEvents();
     [['selP', 'p'], ['selJ', 'j'], ['selQ', 'q'], ['selU', 'u']].forEach(function (x) { $('#' + x[0]).addEventListener('change', function () { var o = {}; o[x[1]] = this.value; focusAfter = x[0]; set(o); }); });
     $('#selS').addEventListener('change', function () { focusAfter = 'selS'; set({ s: this.value, j: byId(G.surfaces, this.value).j }); });
     var pop = $('#msPop'), btn = $('#selC');
@@ -1230,8 +1241,8 @@
     $$('[data-fv]').forEach(function (b) { b.addEventListener('click', function () { apply(G.focus[+b.getAttribute('data-fv')].s); }); });
   }
 
-  function reviewsPage() {
-    return '<div class="pg-h"><h1>Reviews</h1><p>Each review opens the Command Center with its lenses set. Conditions are the controls that must hold, with their latest evidence.</p></div>' +
+  function featureReviews() {
+    return '<p>Each review opens the Command Center with its lenses set. Conditions are the controls that must hold, with their latest evidence.</p>' +
       '<div class="rv">' + G.reviews.map(function (r) {
         var sts = r.conds.map(ctlState), met = sts.filter(function (s) { return s === 'ok'; }).length;
         return '<article class="card rvc"><div class="rvh"><span class="eyebrow">' + esc(r.id) + ' · ' + esc(byId(G.surfaces, r.s).label) + '</span><h2>' + esc(r.feature) + '</h2><span class="stage">' + esc(r.stage) + '</span></div>' +
@@ -1247,9 +1258,11 @@
     var F2 = [['all', 'All'], ['fail', 'Failing'], ['never', 'Documented, not verified'], ['stale', 'Stale'], ['ok', 'Verified']];
     var shown = ids.filter(function (i) { return S.ev === 'all' || ctlClass(i) === S.ev; });
     var L = { fail: ['fail', 'failing'], never: ['unk', 'never tested'], stale: ['warn', 'stale'], ok: ['ok', 'verified'] };
-    var tabs = '<div class="seg evt" role="radiogroup" aria-label="Evidence view"><button role="radio" data-ev="all" aria-checked="' + (S.ev !== 'time') + '">Controls</button><button role="radio" data-ev="time" aria-checked="' + (S.ev === 'time') + '">Datasets over time</button></div>';
-    if (S.ev === 'time') return '<div class="pg-h"><h1>Evidence</h1><p>Each important record followed across time: where it is, why it exists, how it is protected, whether it can be recovered, and whether a hold overrides its end.</p></div>' + tabs + timeRegister();
-    return '<div class="pg-h"><h1>Evidence</h1><p>One record per control: the invariant it promises, where it lives, and the last proof that it holds.</p></div>' + tabs +
+    var tabs = '<div class="seg evt" role="radiogroup" aria-label="Evidence view"><button role="radio" data-ev="all" aria-checked="' + (S.ev !== 'time' && S.ev !== 'claims') + '">Controls</button><button role="radio" data-ev="time" aria-checked="' + (S.ev === 'time') + '">Datasets over time</button><button role="radio" data-ev="claims" aria-checked="' + (S.ev === 'claims') + '">Documented claims</button></div>';
+    var head = '<div class="pg-h"><h1>Evidence</h1><p>What shows a promise holds. Documented claims are the companies’ own; controls and datasets are Northstar’s, and synthetic. A test is a recommendation until someone runs it.</p></div>' + M.evidenceLegend() + tabs;
+    if (S.ev === 'claims') return head + M.claimsPage(S);
+    if (S.ev === 'time') return head + M.band('syn', 'Each Northstar record followed across time: where it is, why it exists, how it is protected, whether it can be recovered, and whether a hold overrides its end.') + timeRegister();
+    return head + M.band('syn', 'One record per Northstar control: the invariant it promises, where it lives, and the last proof that it holds.') +
       '<div class="seg evf" role="radiogroup" aria-label="Filter controls">' + F2.map(function (f) { return '<button role="radio" data-ev="' + f[0] + '" aria-checked="' + (S.ev === f[0]) + '">' + f[1] + ' <span>' + (counts[f[0]] || 0) + '</span></button>'; }).join('') + '</div>' +
       '<div class="evl">' + shown.map(function (id) {
         var c = G.controls[id], k = ctlClass(id), fr = freshness(c.last);
@@ -1366,7 +1379,7 @@
       return G.routing.requests.map(function (r) { return [/Unknown/.test(r.retained) ? 'UNKNOWN' : 'FACT', r.r + ': runs ' + ({ device: 'on device', private: 'in private compute', third: 'at a third party' })[r.zone] + '; leaves: ' + r.leaves.toLowerCase() + '; retained: ' + r.retained.toLowerCase() + '.', [r.zone === 'device' ? 'sy_odm' : r.zone === 'private' ? 'sy_pcc' : 'v_llm']]; })
         .concat([['RECOMMENDATION', 'Ask before any third-party hand-off and send the minimum prompt.', ['c_no_train']]]); } }
   ];
-  var KORDER = { FACT: 0, 'CONTROL FAILURE': 1, INFERENCE: 2, RECOMMENDATION: 3, UNKNOWN: 4 };
+  var KORDER = { FACT: 0, DOCUMENTED: 0, SETTING: 0, LIMIT: 0, 'CONTROL FAILURE': 1, INFERENCE: 2, TEST: 3, RECOMMENDATION: 3, UNKNOWN: 4 };
   function answer(text) {
     var hit = null; ASK.forEach(function (x) { if (!hit && x.q.toLowerCase() === text.toLowerCase()) hit = x; });
     if (!hit) ASK.forEach(function (x) { if (!hit && x.k.test(text)) hit = x; });
@@ -1376,7 +1389,7 @@
   G.answer = answer;
   function askPage() {
     var a = S.ask ? answer(S.ask) : null;
-    return '<div class="pg-h"><h1>Ask privacy</h1><p>Answers come from the graph. Each line says whether it is a fact, an inference, a recommendation or unknown, and names its records. Nothing is made up to fill a gap.</p></div>' +
+    return '<div class="pg-h"><h1>Ask privacy</h1><p>Answers come from the graph and from what the companies document. Each line says whether it is a fact, a documented claim, a setting, a limit, a test, an inference, a recommendation or unknown, and names its records. Nothing is made up to fill a gap.</p></div>' +
       '<form class="askf" id="askF"><label for="askI" class="sr-only">Ask a privacy question</label><input id="askI" value="' + esc(S.ask) + '" placeholder="Ask privacy…" autocomplete="off"><button class="btn" type="submit">Ask</button></form>' +
       '<div class="asks-l">' + ASK.map(function (x) { return '<button class="chip" data-ask="' + esc(x.q) + '">' + esc(x.q) + '</button>'; }).join('') + '</div>' +
       (a ? '<section class="card ans" aria-live="polite"><h2>' + esc(a.q) + '</h2>' + a.lines.map(function (l) { return '<div class="al">' + tag(l[0]) + '<div><p>' + esc(l[1]) + '</p>' + (l[2].length ? '<p class="cite">' + l[2].map(function (c) { return esc(name(c)); }).join(' · ') + '</p>' : '') + '</div></div>'; }).join('') + '</section>' : '');
@@ -1390,8 +1403,10 @@
     $('#vm').innerHTML = '<button class="tb" id="vmBtn" aria-haspopup="true" aria-expanded="false" aria-controls="vmPop">Views ▾</button>' + viewsMenu();
     var main = $('#main');
     try {
-      main.innerHTML = S.page === 'reviews' ? reviewsPage() : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
-      if (S.page === 'cc') mountCC();
+      var MP = M.pages[S.page];
+      main.innerHTML = MP ? MP.render(S) : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
+      if (MP) MP.mount(main); else if (S.page === 'cc') mountCC();
+      if (S.page === 'evidence') { M.mountLens(main); $$('[data-kind]', main).forEach(function (b) { b.addEventListener('click', function () { focusSel = '[data-kind="' + b.getAttribute('data-kind') + '"]'; set({ ek: b.getAttribute('data-kind') }); }); }); }
       /* each data cell carries its column name, so a phone can show a table as stacked rows */
       $$('table.rel, table.util, table.priv, table.pkt, table.otime', main).forEach(function (t) { var hs = $$('thead th', t).map(function (h) { return h.textContent; }); $$('tbody tr', t).forEach(function (r) { $$('td', r).forEach(function (c) { var h = hs[c.cellIndex]; if (h) c.setAttribute('data-h', h); }); }); });
       $$('[data-ev]', main).forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ ev: b.getAttribute('data-ev') }); }); });
@@ -1411,6 +1426,7 @@
     });
     $('#vmBtn').addEventListener('click', function () { var p = $('#vmPop'), open = p.hidden; p.hidden = !open; this.setAttribute('aria-expanded', open); if (open) $('.vm-i', p).focus(); });
     if (focusAfter) { var el = document.getElementById(focusAfter); if (el) el.focus(); focusAfter = null; }
+    if (focusSel) { var fe = $(focusSel); if (fe) { if (!fe.matches('button,a,input,select,[tabindex]')) fe.setAttribute('tabindex', '-1'); fe.focus(); } focusSel = null; }
   }
 
   document.addEventListener('click', closePop, true);
@@ -1424,8 +1440,20 @@
     if (e.key === '/') { e.preventDefault(); set({ page: 'ask' }); var i = $('#askI'); if (i) i.focus(); }
     if (S.fm && S.page === 'cc' && /^[123]$/.test(e.key)) apply(G.focus[+e.key - 1].s);
   });
+  /* the modes get what they need from here, and nothing else */
+  M = window.PCC_MODES({ G: G, EV: EV, V: V, $: $, $$: $$, esc: esc, name: name, plural: plural, tag: tag, stTag: stTag, mark: mark, freshness: freshness, fmtDate: fmtDate,
+    S: function () { return S; }, set: set, render: render, focusNext: function (sel) { focusSel = sel; }, answer: answer,
+    eventsLayer: eventsLayer, mountEvents: mountEvents, devicesHTML: devicesHTML, featureReviews: featureReviews });
+  for (var dk in M.defs) DEF[dk] = M.defs[dk];
+  ASK.push.apply(ASK, M.ask);
+  /* the essay links in with ?view=product&product=browser, ?view=layers&hop=tls …; turn that into a route */
+  (function () {
+    if (!/[?&]view=/.test(location.search)) return;
+    var p = {}; location.search.replace(/^\?/, '').split('&').forEach(function (kv) { var i = kv.indexOf('='); if (i > 0) p[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' ')); });
+    history.replaceState(null, '', location.pathname + M.fromView(p));
+  })();
   S = parse();
-  if (!/^#(cc|reviews|evidence|ask)/.test(location.hash)) history.replaceState(null, '', hashFor(S));
+  if (!new RegExp('^#(' + PAGES.join('|') + ')').test(location.hash) || location.hash.indexOf('#' + S.page) !== 0) history.replaceState(null, '', hashFor(S));
   render();
   window.PCC1 = { offered: offered, state: function () { return copy(S); }, resolve: resolve, findings: function () { return findingsFor(S, resolve(S)).list.map(function (f) { return f.id; }); }, set: set, fit: function (st) { return fit(Object.assign(copy(DEF), st)); },
     events: function () { return EVM.cur ? { set: EVM.cur.set, st: EVM.cur.st, R: EVM.cur.R, hl: EVM.cur.hlId, dec: copy(EVM.dec), edge: EVM.edge, node: EVM.node } : null; } };

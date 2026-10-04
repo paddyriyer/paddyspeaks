@@ -25,6 +25,7 @@ let passed = 0;
 const ok = (c, m) => { if (c) passed++; else fails.push(m); };
 const load = (f, name) => { const c = {}; c.window = c; vm.createContext(c); vm.runInContext(read(f), c); return c[name]; };
 const C = load('articles/every-arrow/compare.js', 'EA_CMP');
+const SH = load('articles/every-arrow/shared.js', 'EA_SHARED');
 const PG = load('privacy-command-center/graph.js', 'PG');
 
 /* ── 1 · the comparison ─────────────────────────────────────────── */
@@ -53,20 +54,8 @@ for (const p of C.products) {
   ok(!!link, `#${p.id}: no Command Center link`);
   if (link) {
     const u = link[1].replace(/&amp;/g, '&');
-    if (u.startsWith('/privacy-command-center/#cc?')) {
-      const q = Object.fromEntries(u.split('?')[1].split('&').map((kv) => kv.split('=')));
-      ok(PG.personas.some((x) => x.id === q.p), `#${p.id}: persona ${q.p} is not in the Command Center`);
-      ok(PG.surfaces.some((x) => x.id === q.s), `#${p.id}: surface ${q.s} is not in the Command Center`);
-      ok(PG.journeys.some((x) => x.id === q.j), `#${p.id}: journey ${q.j} is not in the Command Center`);
-      ok(PG.questions.some((x) => x.id === q.q), `#${p.id}: question ${q.q} is not in the Command Center`);
-      ok(['privacy', 'security', 'both'].includes(q.l), `#${p.id}: lens ${q.l}`);
-      /* the v1 surface must offer this journey and question, or the link falls back to the surface default */
-      const rel = PG.relevance && PG.relevance[q.s];
-      if (rel) ok(rel.j.includes(q.j) && rel.q.includes(q.q), `#${p.id}: surface ${q.s} does not offer journey ${q.j} / question ${q.q} (G.relevance)`);
-    } else {
-      const m = /^\/privacy-command-center\/v10\/#\/([a-z]+\/[a-z]+)$/.exec(u);
-      ok(!!m && read('privacy-command-center/v10/views-life.js').includes(`'${m[1]}'`) || read('privacy-command-center/v10/app.js').includes(`'${m && m[1]}'`), `#${p.id}: ${u} is not a Command Center route`);
-    }
+    ok(u === '/privacy-command-center/?view=product&product=' + p.id, `#${p.id}: the Command Center link must open this product (${u})`);
+    ok(!!SH.products[p.id] && b.includes('Try this in Privacy Command Center &rarr; <b>' + SH.products[p.id].try.replace(/&/g, '&amp;') + '</b>'), `#${p.id}: the “Try this” line comes from shared.js`);
   }
 }
 
@@ -150,7 +139,7 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
   const b = f ? f[0] : '';
   ok(/What must still be possible/.test(b), 'the future section asks what must still be possible years from now');
   for (const m of ['Encryption', 'Tokenization', 'Hashing', 'Keyed pseudonyms']) ok(new RegExp(`<h4 id="m-\\w+">${m}</h4>`).test(b), `the future section explains ${m}`);
-  for (const line of ['Deleting the key can be equivalent to deleting the data', 'the vault decides whether identity can come back', 'One-way does not necessarily mean unlinkable', 'Key lifecycle can quietly become data lifecycle', 'Preserved bytes are not necessarily preserved evidence'])
+  for (const line of ['Deleting the key can be equivalent to deleting the data', 'the vault decides whether identity can come back', 'One-way does not necessarily mean unlinkable', 'Key lifecycle can become data lifecycle', 'Preserved bytes are not necessarily preserved evidence'])
     ok(b.includes(line), `the future section keeps the line “${line}”`);
   ok(/cannot be recovered from the hash/.test(b) && !/(decrypt|reverse|unlock)[^.]{0,40}\bhash/i.test(b.replace(/cannot normally be reversed/, '')), 'a hash is one-way: nothing may suggest it can be decrypted or reversed');
   ok(!/rainbow/i.test(html), 'no rainbow tables');
@@ -201,6 +190,46 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
     const alt = (/alt="([^"]*)"/.exec(fg) || [, ''])[1];
     ok(alt.length > 300, `#${id}: the illustration needs alt text that carries what it shows`);
     ok(/width="\d+" height="\d+"/.test(fg) && /loading="lazy"/.test(fg), `#${id}: width, height and lazy loading`);
+  }
+}
+
+/* ── 5f · one privacy model: the essay side of articles/every-arrow/shared.js ── */
+{
+  const plain = (x) => x.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, ' ').replace(/&rsquo;|&lsquo;/g, '’').replace(/&ldquo;|&rdquo;/g, '"').replace(/&amp;/g, '&').replace(/&[a-z]+;/g, ' ').replace(/\s+/g, ' ');
+  const all = plain(html);
+  /* where an anchor points: its whole section, or from a heading to the next heading */
+  const region = (a) => {
+    const id = a.slice(1), at = html.indexOf(`id="${id}"`);
+    if (at < 0) return null;
+    const open = html.lastIndexOf('<', at), sceneEnd = html.indexOf('</section>\n\n<section', at), end = sceneEnd < 0 ? html.length : sceneEnd;
+    if (html.startsWith('<section class="scene', open)) return plain(html.slice(open, end));
+    const next = html.indexOf('<h3', at);
+    return plain(html.slice(open, next > 0 && next < end ? next : end));
+  };
+  for (const ph of SH.phrases) {
+    ok(all.includes(ph.t.replace(/\.$/, '')), `shared phrase “${ph.t}” must appear in the essay word for word`);
+    ok(html.includes(`id="${ph.essay.slice(1)}"`), `phrase ${ph.id}: essay anchor ${ph.essay} does not exist`);
+  }
+  for (const [k, c] of Object.entries(SH.concepts)) ok(html.includes(`id="${c.essay.slice(1)}"`), `concept ${k}: essay anchor ${c.essay} does not exist`);
+  ok(SH.sync.length === 20, 'twenty synchronisation questions');
+  for (const q of SH.sync) {
+    const r = region(q.essay);
+    ok(!!r, `“${q.q}”: essay anchor ${q.essay} does not exist`);
+    if (r) ok(r.toLowerCase().includes(q.ek.toLowerCase()), `“${q.q}”: the essay at ${q.essay} must answer it (expected “${q.ek}”)`);
+  }
+  /* the twenty-eight questions are the same words in both properties */
+  for (const l of ['sec', 'pri', 'qa', 'gov']) {
+    const m = new RegExp(`<section data-l="${l}"[^>]*>[\\s\\S]*?<ul>([\\s\\S]*?)</ul>`).exec(html);
+    const qs = m ? [...m[1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => plain(x[1]).trim()) : [];
+    ok(JSON.stringify(qs) === JSON.stringify(SH.review[SH.lensIds[l]]), `the ${l} review questions differ between the essay and shared.js`);
+  }
+  /* who can read what once HTTPS is on: one table, the same in both */
+  const t = /id="fig-https-reach"[\s\S]*?<\/table>/.exec(html), rows = t ? [...t[0].matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map((r) => [...r[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map((c) => plain(c[1]).trim())) : [[]];
+  ok(JSON.stringify(rows.slice(1)) === JSON.stringify(SH.tlsReach.rows) && JSON.stringify(rows[0].slice(1)) === JSON.stringify(SH.tlsReach.cols), 'the TLS visibility table differs between the essay and shared.js');
+  /* every major section ends with one compact way into the Command Center */
+  for (const [sid, v] of Object.entries(SH.sections)) {
+    const sec = new RegExp(`<section class="scene[^"]*" id="${sid}"[\\s\\S]*?</section>\\n\\n<section`).exec(html);
+    ok(!!sec && sec[0].includes(`<a href="/privacy-command-center/${v.app.replace(/&/g, '&amp;')}">Try this in Privacy Command Center &rarr;`), `#${sid}: no “Try this in Privacy Command Center” link to ${v.app}`);
   }
 }
 /* the essay is about the work, not about anyone's hiring process */

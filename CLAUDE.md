@@ -142,7 +142,17 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
 - The analyst is deterministic. Every statement is labelled FACT, INFERENCE,
   RECOMMENDATION or UNKNOWN and cites entities. Do not add text it cannot
   derive from the graph.
-- **The Events layer** (`events.js`, above the selectors in v1) traces what a
+- **One privacy model, two experiences.** The essay explains the arrows; the
+  Command Center lets you follow them. What both agree on (entities, the evidence
+  labels Documented · Setting · Limit · Test · Unknown, the shared phrases, the 28
+  review questions, the TLS table, deep links both ways, 20 sync questions) is
+  written once in **`articles/every-arrow/shared.js`**; the views are in
+  `privacy-command-center/modes.js` (Products, Everyday arrows, Every layer, Future,
+  AI / agents, Reviews). Change a phrase, question or link there, never in one
+  property only: `tests/sync.test.mjs` and `edition4.mjs` fail when they drift.
+  Vendor content (from `compare.js`) and synthetic content never share a band, and
+  a Test is never shown as run.
+- **The Events layer** (`events.js`, now the *Everyday arrows* view) traces what a
   person did as EVENT → IDENTIFIER → SYSTEM → DERIVED DATA → INFERENCE. Its
   Apple-like / Google-like / Microsoft-like views only relabel one identical
   pattern with familiar product categories (always suffixed “-like”); never make
