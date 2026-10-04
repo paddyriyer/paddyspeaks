@@ -141,7 +141,7 @@ try {
     pages.forEach((t, i) => ok(t.length >= 300, `PDF page ${i + 1} is nearly blank (${t.length} characters)`));
     const edition = /<meta name="ps:edition" content="([\d.]+)">/.exec(fs.readFileSync(path.join(ROOT, URL_.slice(1)), 'utf8'))[1];
     ok(pages.slice(1).every((t) => t.includes(`Edition ${edition}`)), `every PDF page after the first carries “Edition ${edition}” in its header`);
-    for (const p of ['Who proves you are you?', 'Who hears the kitchen?', 'Twenty-eight questions for any product', 'What must still be possible', 'One morning, many arrows', 'Many devices, many companies', 'Every arrow is still a decision.']) ok(pages.some((t) => t.includes(p)), `the PDF contains “${p}”`);
+    for (const p of ['Who proves you are you?', 'Who hears the kitchen?', 'Twenty-eight questions for any product', 'What must still be possible', 'One morning, many arrows', 'Many devices, many companies', 'Every guarantee has a boundary', 'Every arrow is still a decision.']) ok(pages.some((t) => t.includes(p)), `the PDF contains “${p}”`);
   }
 } finally {
   await browser.close();
