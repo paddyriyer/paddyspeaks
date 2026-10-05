@@ -144,6 +144,39 @@ then `EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`, then both edition-4
 Update `C.asOf` and the edition/revised stamps (`edition4.mjs`, `lenses.css` `@page`,
 the meta and JSON-LD dates) when the review date changes.
 
+### Ambient & wearable: the data subject may not be the user (2026-10-05)
+
+- **A ninth product, `wearable`** (§11, *Who else is inside the frame?*), compares
+  **one company**, Meta (Ray-Ban Meta and Oakley Meta AI glasses), because it was the
+  only one with camera glasses on sale and first-party documentation to cite. The
+  product carries a `single` reason; the build allows fewer than three companies only
+  with it, renders the overview row as one wide cell (“Meta only”), and labels the
+  reading *What is documented* / *What the documentation does not settle*. Google's
+  partners' and Snap's glasses (announced for autumn 2026) are listed under *What could
+  not be confirmed*.
+- **Meta's pages could be confirmed only through their search listings** (meta.com
+  is not reachable from the build environment), so every Meta claim is a paraphrase
+  of: the glasses privacy page (capture light, camera disabled when covered), the AI
+  Glasses Voice Privacy Notice (effective 22 July 2025: activation on the wake word,
+  accidental activations and background sound included, false wakes deleted within
+  90 days, recordings and transcripts kept up to a year, human review), media storage
+  (on the glasses until imported) and cloud media (30 days). The default of the
+  visual-data setting and where wake-word detection runs stay UNKNOWN. Re-check the
+  pages before relying on them.
+- **Home & voice** gained conceptual material after its table: the room hop by hop
+  with seven questions, *Audio is not the only data* (an illustrative table of raw
+  audio → transcript → intent → a fact that could be derived), and *When nobody meant
+  to ask* (the false activation test). The new section adds the ambient model, the
+  bystander gap (a design checklist, not a verdict), sensing vs storing, the café
+  menu with four designs, and intended vs adversarial flows. None of it names a
+  company; `edition4.mjs` checks that.
+- Everyday arrows gained *Not every arrow begins with a click* (the ambient morning);
+  Every layer gained *Some arrows start at a sensor*; patterns 11–14 (now fourteen);
+  the review gained fourteen questions (now forty-two). Counts written as words are
+  checked against what they count.
+- Shared: phrases, concepts, review questions, a sensor hop and twenty more sync
+  questions (`syncAmbient`) in `shared.js`.
+
 ### One privacy model with the Command Center (2026-10-04)
 
 The essay explains the arrows; the Privacy Command Center lets you follow them.

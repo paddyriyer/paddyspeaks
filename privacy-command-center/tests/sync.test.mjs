@@ -17,7 +17,7 @@ const X = load('articles/every-arrow/shared.js', 'EA_SHARED');
 const C = load('articles/every-arrow/compare.js', 'EA_CMP');
 const clean = (p, what, assert) => assert(!p.errors.length, what + ': page errors ' + p.errors.join(' | '));
 const text = (p) => p.evaluate(() => document.getElementById('main').innerText.replace(/\s+/g, ' '));
-const PAGES = ['#cc', '#products', '#everyday', '#layers', '#future', '#ai', '#reviews', '#evidence', '#ask'];
+const PAGES = ['#cc', '#products', '#everyday', '#layers', '#sensors', '#future', '#ai', '#reviews', '#evidence', '#ask'];
 
 export default [
   { name: 'sync: the twenty questions both properties answer each open a view here that answers them', async run({ page, assert }) {
@@ -30,6 +30,56 @@ export default [
       assert(t.toLowerCase().includes(q.ak.toLowerCase()), `${q.q}: ${q.app} must show “${q.ak}”`);
     }
   } },
+  { name: 'sync: the twenty ambient questions (whose data, which sensor, what left, what survived) each open a view that answers them', async run({ page, assert }) {
+    assert(X.syncAmbient.length === 20, 'twenty ambient questions');
+    for (const q of X.syncAmbient) {
+      const p = await page(q.app);
+      const t = await text(p), err = await p.evaluate(() => !!document.querySelector('.err'));
+      clean(p, q.app, assert); await p.closeAll();
+      assert(!err, `${q.q}: ${q.app} could not be drawn`);
+      assert(t.toLowerCase().includes(q.ak.toLowerCase()), `${q.q}: ${q.app} must show “${q.ak}”`);
+    }
+  } },
+  { name: 'sensors: sensed is not collected; the four designs change what leaves, the data subject is not the owner, and a test is never a result', async run({ page, assert }) {
+    const leave = {};
+    for (const alt of ['A', 'B', 'C', 'D']) {
+      const p = await page('#sensors?sm=cafe&alt=' + alt);
+      leave[alt] = await p.evaluate(() => [...document.querySelectorAll('.m-obs tbody tr')].map((r) => [r.querySelector('th').textContent, r.querySelector('.ss').textContent]));
+      clean(p, 'cafe ' + alt, assert); await p.closeAll();
+    }
+    const tx = (alt) => leave[alt].filter((r) => r[1] === 'Transmitted').map((r) => r[0]);
+    assert(tx('A').includes('The barista’s face') && !tx('B').includes('The barista’s face') && !tx('C').includes('The menu') && tx('D').length === 0, 'A sends faces, B crops them away, C sends no image, D sends nothing: ' + JSON.stringify({ A: tx('A'), B: tx('B'), C: tx('C') }));
+    const states = new Set(Object.values(leave).flat().map((r) => r[1]));
+    assert(['Ephemeral on device', 'Transmitted', 'Derived only', 'Unknown'].every((s) => states.has(s)) && !states.has('Collected'), 'explicit states, never “collected”: ' + [...states]);
+    const room = await page('#sensors?sm=room');
+    const r = await room.evaluate(() => ({ t: document.getElementById('main').innerText, runs: [...document.querySelectorAll('.fat .qs')].map((x) => x.textContent), unk: document.querySelectorAll('#dnH ~ .five .eb-unk').length }));
+    clean(room, 'room', assert); await room.closeAll();
+    assert(/Device owner\s*The host/i.test(r.t) && /Data subject\s*Guest B/i.test(r.t), 'the owner and the data subject are different people');
+    assert(r.runs.length === 4 && r.runs.every((x) => x === 'NOT RUN'), 'the false activation test is shown as not run');
+    assert(r.unk >= 3, 'what the architecture does not establish is UNKNOWN');
+    const f = await page('#sensors?sm=forget');
+    const o = await f.evaluate(() => { const before = document.querySelector('.rsum').innerText; document.querySelector('[data-drv="transcript"]').click(); return { before, after: document.querySelector('.rsum').innerText }; });
+    clean(f, 'forget', assert); await f.closeAll();
+    assert(/6 derivatives survive/.test(o.before) && /5 derivatives survive/.test(o.after), 'deleting the audio leaves six derivatives; reaching the transcript leaves five: ' + JSON.stringify(o));
+    const g = await page('#sensors?sm=gap');
+    const aw = await g.evaluate(() => [...document.querySelectorAll('.aw')].map((x) => x.textContent));
+    clean(g, 'gap', assert); await g.closeAll();
+    assert(aw.includes('Unclear') && aw.includes('Not applicable') && aw.includes('Clear'), 'awareness has its own states, and consent is not assessed: ' + aw);
+  } },
+  { name: 'sensors: “Whose data?” highlights flows about people other than the owner, across the room, the morning and the events graph', async run({ page, assert }) {
+    const a = await page('#everyday?et=amb&by=1&ds=employees');
+    const r = await a.evaluate(() => ({ hit: [...document.querySelectorAll('.ambl > li.ds-hit b')].map((b) => b.textContent), people: document.querySelectorAll('.bp').length }));
+    clean(a, 'amb', assert); await a.closeAll();
+    assert(r.hit.join() === 'The doorbell sees a delivery,Buy a coffee' && r.people >= 8, 'employees: the delivery and the coffee; every bystander shown: ' + JSON.stringify(r));
+    const e = await page('#everyday?ds=contacts&e=m3');
+    const g = await e.evaluate(() => ({ hit: document.querySelectorAll('#eg .ds-hit').length, note: document.getElementById('dsnote').innerText }));
+    clean(e, 'graph', assert); await e.closeAll();
+    assert(g.hit >= 1 && /concern contacts/.test(g.note), 'the events graph highlights records about contacts: ' + JSON.stringify(g));
+    const c = await page('#sensors?sm=cafe&alt=A&ds=bystanders');
+    const n = await c.evaluate(() => document.querySelectorAll('.m-obs tr.ds-hit').length);
+    clean(c, 'cafe bystanders', assert); await c.closeAll();
+    assert(n >= 4, 'the café highlights the barista, the customers, the screen and the phones: ' + n);
+  } },
   { name: 'sync: every shared phrase is shown, word for word, where shared.js says the Command Center shows it', async run({ page, assert }) {
     for (const ph of X.phrases) {
       const p = await page(ph.app);
@@ -40,12 +90,12 @@ export default [
     }
   } },
   { name: 'sync: every essay link (?view=…) lands on a real view, and the essay’s eight products are the Products view', async run({ page, assert }) {
-    const links = Object.values(X.sections).map((s) => s.app).concat(C.products.map((p) => '?view=product&product=' + p.id), ['?view=ai&mode=agent', '?view=ecosystems', '?view=future&mode=hold', '?view=journey&event=ask-flight&connect=1', '?view=layers&hop=tls']);
+    const links = Object.values(X.sections).map((s) => s.app).concat(X.links, C.products.map((p) => '?view=product&product=' + p.id), ['?view=ai&mode=agent', '?view=ecosystems', '?view=future&mode=hold', '?view=journey&event=ask-flight&connect=1', '?view=layers&hop=tls']);
     for (const u of links) {
       const p = await page(u);
       const r = await p.evaluate(() => ({ hash: location.hash, search: location.search, err: !!document.querySelector('.err'), cur: (document.querySelector('.nav a[aria-current]') || {}).textContent }));
       clean(p, u, assert); await p.closeAll();
-      assert(!r.err && !r.search && /^#(products|layers|everyday|future|ai|reviews|evidence)/.test(r.hash), `${u} → ${r.hash} (${r.cur})`);
+      assert(!r.err && !r.search && /^#(products|layers|sensors|everyday|future|ai|reviews|evidence)/.test(r.hash), `${u} → ${r.hash} (${r.cur})`);
     }
     const p = await page('#products');
     const r = await p.evaluate(() => [...document.querySelectorAll('[data-pr]')].map((b) => b.getAttribute('data-pr')));
@@ -80,7 +130,7 @@ export default [
     clean(p, 'qa', assert); await p.closeAll();
     const want = C.products.reduce((n, pr) => n + pr.cos.reduce((m, co) => m + ['sec', 'pri', 'qa', 'gov'].reduce((k, l) => k + pr.cells[co][l].filter((it) => it[0] === 'test').length, 0), 0), 0);
     assert(r.essayTests === want && /NOT RUN/.test(r.status) && /nobody has run them/.test(r.status), `the essay's ${want} tests are listed as not run: ${r.essayTests}`);
-    assert(r.statuses.length === 10 && r.statuses.every((s) => ['PASS', 'FAIL', 'NOT RUN', 'UNKNOWN'].includes(s)), 'ten templates, each PASS, FAIL, NOT RUN or UNKNOWN: ' + r.statuses);
+    assert(r.statuses.length === 14 && r.statuses.every((s) => ['PASS', 'FAIL', 'NOT RUN', 'UNKNOWN'].includes(s)), 'fourteen templates, each PASS, FAIL, NOT RUN or UNKNOWN: ' + r.statuses);
     const e = await page('#evidence?ev=claims');
     const t = await e.evaluate(() => ({ tests: [...document.querySelectorAll('.cl-test')].map((li) => li.innerText), legend: [...document.querySelectorAll('.evlg .eb')].map((b) => b.textContent) }));
     clean(e, 'claims', assert); await e.closeAll();
@@ -133,7 +183,7 @@ export default [
     const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
     const AXE = fs.readFileSync(req.resolve('axe-core/axe.min.js'), 'utf8');
     const bad = [];
-    for (const h of PAGES.concat(['#products?pr=mail&fa=1', '#layers?hop=tls', '#future?tf=hold', '#ai?rk=inject', '#reviews?rv=qa&tt=consent', '#reviews?rv=gov', '#reviews?rv=changes', '#everyday?et=eco', '#everyday?e=m8&connect=1', '#evidence?ev=claims'])) {
+    for (const h of PAGES.concat(['#products?pr=mail&fa=1', '#layers?hop=tls', '#future?tf=hold', '#ai?rk=inject', '#reviews?rv=qa&tt=consent', '#reviews?rv=gov', '#reviews?rv=changes', '#everyday?et=eco', '#everyday?e=m8&connect=1', '#evidence?ev=claims', '#sensors?sm=cafe&alt=C&ds=bystanders', '#sensors?sm=room', '#sensors?sm=forget', '#sensors?sm=gap&aw=doorbell', '#sensors?sm=attack&dev=glasses', '#sensors?sm=home', '#everyday?et=amb&by=1&ds=employees', '#everyday?ds=contacts&e=m3', '#products?pr=wearable&fa=1'])) {
       for (const width of [1280, 390]) {
         const p = await page(h, { width });
         await p.addScriptTag({ content: AXE });

@@ -25,7 +25,7 @@ export default [
     assert(r.cards === 3 && r.vis, 'exactly three workspace sections, got ' + r.cards);
     assert(r.fnd >= 3 && r.fnd <= 5, '3–5 findings, got ' + r.fnd);
     assert(r.dec === 4, 'decision shows risk, why, mitigation, evidence');
-    assert(JSON.stringify(r.nav) === JSON.stringify(['Command Center', 'Products', 'Everyday arrows', 'Every layer', 'Future', 'AI / agents', 'Reviews', 'Evidence', 'Ask privacy']), 'global navigation is the nine views of one graph: ' + r.nav.join(', '));
+    assert(JSON.stringify(r.nav) === JSON.stringify(['Command Center', 'Products', 'Everyday arrows', 'Every layer', 'Sensors & wearables', 'Future', 'AI / agents', 'Reviews', 'Evidence', 'Ask privacy']), 'global navigation is the ten views of one graph: ' + r.nav.join(', '));
     assert(/^#cc\?/.test(r.hash), 'state is written to the URL');
   } },
   { name: 'every question on every surface and journey resolves to a view with 3–5 classified findings', async run({ page, assert }) {
@@ -336,7 +336,7 @@ export default [
     assert(!bad.length, bad.join('\n'));
   } },
   { name: 'the product carries no hiring language, no privacy score, and registers its storage key', async run({ assert }) {
-    const text = ['index.html', 'app.js', 'graph.js', 'events.js', 'modes.js', 'pcc1.css', '../articles/every-arrow/shared.js'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
+    const text = ['index.html', 'app.js', 'graph.js', 'events.js', 'modes.js', 'sensors.js', 'pcc1.css', '../articles/every-arrow/shared.js'].map((f) => fs.readFileSync(path.join(DIR, f), 'utf8')).join('\n');
     /* “a known candidate” is the hashing idea (hash a guess and compare); a job candidate is not welcome */
     const hit = text.match(/interview|hiring|job candidates?|candidates? for (the )?(role|job)|recruit|job application/i);
     assert(!/rainbow/i.test(text), 'no attack-table language');
