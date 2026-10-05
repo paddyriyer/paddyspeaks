@@ -1565,6 +1565,38 @@
       ],
       "answer": 1,
       "explanation": "The core issue is that event timestamps are stored in local time zones, and the date picker interprets the user's selected dates in their local time zone without converting to a consistent UTC reference. When Tokyo user selects '2026-10-05', their system interprets it as 2026-10-05 00:00 JST (which is 2026-10-04 15:00 UTC), while San Francisco interprets it as 2026-10-05 00:00 PST (which is 2026-10-05 07:00 UTC)\u2014a 16-hour offset. The fix is to standardize all event timestamps to UTC at ingestion, then apply explicit time-zone conversion logic in the BI layer to display dates correctly for each viewer."
+    },
+    {
+      "id": "dash-new-043",
+      "type": "single",
+      "topic": "dashboard certification and usage telemetry",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "Your company requires all production dashboards to be 'certified' by a data governance team before stakeholders can access them. You implement a telemetry pipeline that tracks: dashboard_id, user_id, view_timestamp, filter_selections, and query_execution_time. The certification team wants to revoke certification for dashboards with high abandonment (opened but filters never changed for 3+ min). Which telemetry signal best indicates a user actually *understood* the dashboard versus simply loading it?",
+      "options": [
+        "A filter interaction within 30 seconds of dashboard load",
+        "At least one visual was scrolled-into-view AND a filter was changed within 2 minutes",
+        "The dashboard was kept open for longer than the median view duration",
+        "The user downloaded or exported the dashboard data"
+      ],
+      "answer": 1,
+      "explanation": "Scrolling into view combined with filter interaction within 2 minutes strongly suggests intentional exploration and comprehension. A single fast filter click (option A) may be accidental; long dwell time (option C) could indicate confusion; exports (option D) require intentional action but don't prove understanding of the dashboard logic itself."
+    },
+    {
+      "id": "dash-new-044",
+      "type": "single",
+      "topic": "date-range and time-zone handling",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "A global SaaS platform shows a 'Last 7 Days' dashboard in each user's local time zone. The underlying fact table stores `event_timestamp` in UTC. Your backend applies a time-zone offset when a user opens the dashboard (e.g., PST = UTC-7). However, QA discovers that users in UTC-11 (e.g., Solomon Islands) see 5\u201310% fewer events than those in UTC on the same calendar day. What is the root cause?",
+      "options": [
+        "The fact table's UTC timestamps are incorrectly stored; they need conversion at ingestion time",
+        "The 'Last 7 Days' relative filter is applied in the user's local time zone after offset, cutting off ~13 hours of yesterday's UTC data for UTC+13 zones",
+        "The dashboard's incremental refresh job runs on UTC midnight, missing events from ahead-of-UTC time zones until the next cycle",
+        "The time-zone offset is applied as a string concatenation instead of a numeric calculation, causing comparison failures"
+      ],
+      "answer": 1,
+      "explanation": "When applying a local time-zone offset to a 'Last 7 Days' filter, a UTC-11 user's local 'today' begins 11 hours *before* UTC today. The filter \"Last 7 days in local time\" truncates at the user's local midnight, which removes ~13 hours of yesterday's UTC data that a UTC user would include. Option A misses the real issue (UTC storage is standard); option C confuses refresh timing; option D is a technical distraction."
     }
   ]
 }

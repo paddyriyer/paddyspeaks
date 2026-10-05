@@ -6584,6 +6584,54 @@
       ],
       "answer": 1,
       "explanation": "Using a conditional variable in dbt allows you to apply a documented, testable patch within the model lineage without creating duplicate models or breaking dependencies. Adding a test that fails post-fix ensures the workaround is intentional and temporary. This is preferable to duplicating logic, silencing consumers, or relying on freshness checks which don't solve the data quality problem."
+    },
+    {
+      "id": "ds-new-120",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "Your payment processing pipeline reads transaction events from Kafka, processes them with Flink, and writes to Iceberg. The upstream payment service can emit duplicate events within a 5-second window due to network retries. You need exactly-once semantics end-to-end. Which approach best prevents duplicates from reaching downstream analytics without losing valid transactions?",
+      "options": [
+        "Use Kafka consumer group auto-commit with Flink's default checkpoint alignment and rely on Iceberg's UPSERT capability with a surrogate key derived from (transaction_id, timestamp)",
+        "Implement idempotent writes to Iceberg using transaction_id as the primary key, store processed offsets in a separate Iceberg control table, and use Flink's two-phase commit with Iceberg transactional writers",
+        "Configure Kafka to disable message retention and use Flink's session windows to deduplicate events, then write directly to Iceberg without checkpointing",
+        "Use Kafka exactly-once delivery guarantees alone since Iceberg automatically deduplicates writes based on content hashing"
+      ],
+      "answer": 1,
+      "explanation": "The correct approach combines Flink's exactly-once semantics via two-phase commit with Iceberg's transactional writes using an idempotent key (transaction_id). Storing processed offsets in Iceberg ensures recovery without reprocessing. Option 0 relies on Iceberg UPSERT but doesn't handle Flink recovery properly; Option 2 loses data; Option 3 misunderstands Kafka and Iceberg guarantees."
+    },
+    {
+      "id": "ds-new-121",
+      "type": "single",
+      "topic": "data contracts",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "Your organization enforces data contracts between producer and consumer teams. The payments team produces a `transactions` table with a contract specifying schema (transaction_id, amount, currency, timestamp). The analytics team's dbt model consumes this table and adds a `processing_fee` column calculated as amount * 0.02. Six months later, the payments team adds a `merchant_id` field to the contract. Your dbt test suite passes, but downstream reports break because merchant_id is NULL for historical data. What is the root cause?",
+      "options": [
+        "The dbt model violates the data contract by adding derived columns; contracts should prohibit transformations",
+        "The data contract was not versioned, and breaking changes (non-nullable field) were introduced without a major version bump or backfill strategy",
+        "Iceberg's schema evolution automatically added NULL for historical rows, causing type mismatches in the reporting layer",
+        "The analytics team did not subscribe to contract change notifications and should monitor the schema registry independently"
+      ],
+      "answer": 1,
+      "explanation": "Data contracts should include versioning and change management policies. Adding a non-nullable field (or one without default values) to historical data breaks the contract for downstream consumers. The contract should specify backward compatibility rules, deprecation timelines, and whether breaking changes require a major version bump and data migration. Option 0 is incorrect\u2014derived columns are allowed if documented. Option 2 conflates Iceberg mechanics with contract issues. Option 3 shifts blame instead of addressing the contract design flaw."
+    },
+    {
+      "id": "ds-new-122",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "You manage a 500GB Iceberg table in S3 with 2 years of historical data. Queries filtering on date_partition = '2025-01-15' return in 200ms, but queries filtering on user_id = 'X123' scan all partitions and take 45 seconds. The table schema includes (event_id, user_id, date_partition, amount, event_type). You want to optimize user_id queries without re-partitioning the entire table. Which solution leverages Iceberg's capabilities most effectively?",
+      "options": [
+        "Add a clustered index on user_id and rewrite all historical data to reorganize files by user_id",
+        "Use Iceberg's hidden partitioning to add a user_id bucket partition (bucket(user_id, 100)) to new incoming data, and rely on Iceberg's metadata pruning for older data",
+        "Enable Iceberg's Z-order clustering on user_id column, which automatically reorders data in existing files without full table rewrites",
+        "Create a secondary Iceberg table materialized on user_id, sync it nightly via MERGE, and query the secondary table for user_id lookups"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg's hidden partitioning (bucket transforms) can be added incrementally without rewriting history\u2014new data is bucketed, and the query engine uses metadata pruning to skip irrelevant partitions for both new and old data. This avoids the cost of full rewrites. Option 0 requires rewriting all data (expensive). Option 2 conflates Iceberg with Z-ordering (which is not a native Iceberg feature). Option 3 adds operational overhead with a separate table and ETL job."
     }
   ]
 }

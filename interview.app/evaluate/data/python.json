@@ -8724,6 +8724,54 @@
       ],
       "answer": 2,
       "explanation": "Option 2 (using savepoints) properly handles nested batches by creating isolated transaction points, allowing inner batches to roll back without affecting outer ones. Option 1 commits unconditionally if no exception occurs but doesn't support nesting. Option 3 (regular context manager) is simpler but doesn't use savepoints for nesting. Option 4 always commits regardless of errors, which violates the rollback-on-error requirement."
+    },
+    {
+      "id": "py-new-153",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You're building a data pipeline that processes user events. You define a dataclass with a `field(default_factory=list)` for storing tags. After processing event_1, you create event_2 from the same dataclass. Both events end up sharing the same tags list. What's the root cause and the correct fix?",
+      "options": [
+        "Dataclasses share mutable defaults by design; use `field(default_factory=lambda: [])` instead",
+        "Python's garbage collector isn't freeing the list; explicitly call `del event_1.tags`",
+        "Mutable defaults in dataclass fields reference the same object; use `field(default_factory=list)` as intended but check your instantiation code",
+        "This is expected behavior in dataclasses; use `field(default=None)` and initialize in `__post_init__`"
+      ],
+      "answer": 0,
+      "explanation": "The issue is a classic Python mutable default argument problem. `field(default_factory=list)` is already the correct approach\u2014if events are sharing lists, the code likely wasn't using `default_factory`. Option 0 clarifies both the problem and the proper fix using a factory function."
+    },
+    {
+      "id": "py-new-154",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "You're profiling a data aggregation service with 4 CPU cores. A multi-threaded implementation with 4 threads processes records sequentially through a shared aggregator. The CPU utilization never exceeds 25%. You switch to multiprocessing with 4 processes and see 85% CPU utilization with 3.5x faster throughput. What's the primary reason for this difference?",
+      "options": [
+        "The Global Interpreter Lock (GIL) prevents true parallelism in threads; multiprocessing bypasses it by using separate Python interpreters",
+        "Multiprocessing has lower overhead than threading when using shared memory structures",
+        "The aggregator shared between threads causes lock contention; multiprocessing avoids this by having isolated aggregators",
+        "Threads in Python are implemented as cooperative multitasking while multiprocessing uses preemptive scheduling"
+      ],
+      "answer": 0,
+      "explanation": "The GIL prevents multiple threads from executing Python bytecode simultaneously, even on multi-core systems. This is why threads achieved only 25% CPU. Multiprocessing creates separate Python processes with independent GILs, enabling true parallelism. This is the fundamental bottleneck in CPU-bound Python workloads using threads."
+    },
+    {
+      "id": "py-new-155",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You're building an ETL pipeline that routes data transformations based on record structure. You receive events with varying schemas: some have both 'user_id' and 'timestamp', others only 'user_id', and some have a 'nested' dict with 'metadata'. Using Python 3.10+ pattern matching, you need to handle all three cases. Which pattern correctly matches records with 'user_id' and 'timestamp' but excludes those with 'nested'?",
+      "options": [
+        "case {'user_id': uid, 'timestamp': ts}: ...",
+        "case {'user_id': uid, 'timestamp': ts, **rest} if 'nested' not in rest: ...",
+        "case {'user_id': _, 'timestamp': _} if not hasattr(record, 'nested'): ...",
+        "case {'user_id': uid, 'timestamp': ts} if 'nested' not in record: ..."
+      ],
+      "answer": 1,
+      "explanation": "Option 1 correctly uses `**rest` to capture remaining keys and then filters them with a guard clause. Option 0 would match the pattern even if 'nested' exists (structural matching doesn't care about extra keys). Option 3's guard is correct but doesn't capture 'nested' in the pattern itself. Option 1 is the most robust approach for conditional structural matching with negative constraints."
     }
   ]
 }

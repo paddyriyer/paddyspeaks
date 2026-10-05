@@ -15356,6 +15356,70 @@
       ],
       "answer": 2,
       "explanation": "Option 2 correctly uses BigQuery's syntax for a correlated scalar subquery with SELECT AS STRUCT, which returns one record per company. Option 0 has invalid LATERAL syntax in BigQuery (LATERAL is not a standard keyword; BigQuery uses implicit lateral joins). Option 1's CROSS JOIN cannot reference the outer table. Option 3 uses a window function but lacks a CTE wrapper, so the WHERE clause on a window function is invalid without a subquery."
+    },
+    {
+      "id": "sql-new-157",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You have a `page_views` table with columns `user_id INT, page STRING, view_time TIMESTAMP, session_duration INT`. You need to calculate the average session duration for pages '/home' and '/about', and also count total views for '/checkout'. Which query correctly uses FILTER to achieve this in one pass?",
+      "options": [
+        "SELECT AVG(session_duration) FILTER (WHERE page IN ('/home', '/about')), COUNT(*) FILTER (WHERE page = '/checkout') FROM page_views;",
+        "SELECT AVG(session_duration) WHERE page IN ('/home', '/about'), COUNT(*) WHERE page = '/checkout' FROM page_views;",
+        "SELECT AVG(CASE WHEN page IN ('/home', '/about') THEN session_duration END), COUNT(CASE WHEN page = '/checkout' THEN 1 END) FROM page_views;",
+        "SELECT FILTER(AVG(session_duration), page IN ('/home', '/about')), FILTER(COUNT(*), page = '/checkout') FROM page_views;"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is the correct syntax for aggregate functions in standard SQL and is supported in BigQuery, Snowflake, and PostgreSQL. It applies the WHERE condition only to that specific aggregate, not the entire result set. Options B and D use invalid syntax, while option C uses CASE WHEN which works but is less efficient than FILTER."
+    },
+    {
+      "id": "sql-new-158",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "In BigQuery, you query a table `clickstream(user_id STRING, timestamp TIMESTAMP, action STRING, properties JSON)`. The `properties` column contains nested JSON with variable structure. You need to extract a deeply nested field `properties.campaign.source` that may not exist in all rows, count rows per user where it exists, and also count rows where it's NULL. Which approach is most efficient?",
+      "options": [
+        "SELECT user_id, COUNT(*) FILTER (WHERE JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NOT NULL), COUNT(*) FILTER (WHERE JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NULL) FROM clickstream GROUP BY user_id;",
+        "SELECT user_id, COUNTIF(JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NOT NULL), COUNTIF(JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NULL) FROM clickstream GROUP BY user_id;",
+        "SELECT user_id, COUNT(CASE WHEN JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NOT NULL THEN 1 END), COUNT(CASE WHEN JSON_EXTRACT_SCALAR(properties, '$.campaign.source') IS NULL THEN 1 END) FROM clickstream GROUP BY user_id;",
+        "SELECT user_id, SAFE.JSON_EXTRACT_SCALAR(properties, '$.campaign.source') AS source FROM clickstream WHERE source IS NOT NULL GROUP BY user_id, source;"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery's COUNTIF is the most efficient and idiomatic function for this use case, as it avoids multiple JSON extractions and is optimized for the engine. Option 0 uses FILTER with JSON_EXTRACT_SCALAR which extracts twice per row. Option 2 uses CASE WHEN which is less optimal. Option 3 uses SAFE.JSON_EXTRACT_SCALAR incorrectly and doesn't count the nulls as requested."
+    },
+    {
+      "id": "sql-new-159",
+      "type": "single",
+      "topic": "Query planning",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "You're writing a query on a Snowflake table `orders(order_id INT, customer_id INT, amount DECIMAL, created_date DATE)` with 500M rows. The table is clustered on `customer_id`. You need to find the top 10 customers by total spend in 2024. Which query will generate the most optimal execution plan?",
+      "options": [
+        "SELECT customer_id, SUM(amount) as total_spend FROM orders WHERE created_date >= '2024-01-01' AND created_date < '2025-01-01' GROUP BY customer_id ORDER BY total_spend DESC LIMIT 10;",
+        "SELECT customer_id, SUM(amount) as total_spend FROM orders WHERE YEAR(created_date) = 2024 GROUP BY customer_id ORDER BY total_spend DESC LIMIT 10;",
+        "SELECT TOP 10 customer_id, SUM(amount) as total_spend FROM orders WHERE YEAR(created_date) = 2024 GROUP BY customer_id ORDER BY total_spend DESC;",
+        "WITH filtered AS (SELECT customer_id, amount FROM orders WHERE YEAR(created_date) = 2024) SELECT customer_id, SUM(amount) as total_spend FROM filtered GROUP BY customer_id ORDER BY total_spend DESC LIMIT 10;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is optimal because it uses date range predicates (>= and <) which allow Snowflake's query planner to efficiently prune partitions and leverage the clustering on customer_id. Option 1 uses YEAR() function which prevents partition pruning. Option 2 uses TOP instead of LIMIT (not standard Snowflake). Option 3 adds an unnecessary CTE that prevents pushdown of the date filter, increasing intermediate data processing."
+    },
+    {
+      "id": "sql-new-160",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You have a `sales` table with `region STRING, product_category STRING, revenue DECIMAL, quarter STRING`. You need to calculate the total revenue, average revenue per transaction for 'Electronics', and count of transactions for 'Furniture'. Using FILTER, what's the correct query?",
+      "options": [
+        "SELECT SUM(revenue), AVG(revenue) FILTER (WHERE product_category = 'Electronics'), COUNT(*) FILTER (WHERE product_category = 'Furniture') FROM sales;",
+        "SELECT SUM(revenue) FILTER (WHERE product_category IN ('Electronics', 'Furniture')), AVG(revenue) FILTER (WHERE product_category = 'Electronics'), COUNT(*) FILTER (WHERE product_category = 'Furniture') FROM sales;",
+        "SELECT SUM(revenue), AVG(FILTER(revenue, product_category = 'Electronics')), COUNT(FILTER(1, product_category = 'Furniture')) FROM sales;",
+        "SELECT SUM(revenue WHERE product_category IS NOT NULL), AVG(revenue) FOR product_category = 'Electronics', COUNT(*) FOR product_category = 'Furniture' FROM sales;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct: FILTER is applied only to the specific aggregate functions that need it, while SUM(revenue) operates on all rows. Options 1 unnecessarily filters SUM(), changing the semantics. Option 2 uses invalid FILTER syntax (FILTER is not a function to wrap values). Option 3 uses non-standard WHERE and FOR syntax in aggregate context."
     }
   ]
 }
