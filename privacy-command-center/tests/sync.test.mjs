@@ -179,6 +179,39 @@ export default [
       assert(r.h === q && r.n >= 2, q + ' → ' + r.h);
     }
   } },
+  { name: 'one click, one redraw: no view piles up listeners across renders (2026-10-05 incident)', async run({ page, assert }) {
+    /* every view, two controls clicked back and forth: the redraws per click must stay flat */
+    const cases = [['#products', '[data-pr="browser"]', '[data-pr="mail"]'], ['#layers', '.m-hops [data-hop="tls"]', '.m-hops [data-hop="dns"]'], ['#sensors', '[data-sf="camera"]', '[data-sf="network"]'],
+      ['#sensors?sm=room', '[data-hop2="mic"]', '[data-hop2="log"]'], ['#future', '[data-tf="hash"]', '[data-tf="token"]'], ['#ai', '[data-rk="inject"]', '[data-rk="memory"]'], ['#reviews', '[data-rv="qa"]', '[data-rv="lens"]'],
+      ['#everyday?e=m8', '[data-connect]', '[data-connect]'], ['#everyday?et=amb', '[data-by]', '[data-by]'], ['#evidence?ev=claims', '[data-kind="doc"]', '[data-kind="test"]'], ['#cc', '.refine [data-l="qa"]', '.refine [data-l="gov"]']];
+    const bad = [];
+    for (const [route, a, b] of cases) {
+      const p = await page(route);
+      await p.evaluate(() => { window.__r = 0; new MutationObserver(() => window.__r++).observe(document.getElementById('main'), { childList: true }); });
+      const per = [];
+      for (let i = 0; i < 8; i++) { await p.click(i % 2 ? b : a); await p.waitForTimeout(30); per.push(await p.evaluate(() => { const x = window.__r; window.__r = 0; return x; })); }
+      clean(p, route, assert); await p.closeAll();
+      if (Math.max.apply(null, per) > 1) bad.push(route + ': redraws per click ' + per.join(','));
+    }
+    assert(!bad.length, 'a click redraws more than once (listeners piling up):\n' + bad.join('\n'));
+  } },
+  { name: 'pop-ups open inside the window at every width (2026-10-05: the Views menu opened off the left edge)', async run({ page, assert }) {
+    const bad = [];
+    for (const route of ['#cc', '#sensors', '#everyday']) {
+      for (const width of [1440, 1100, 1000, 900, 760, 600, 390]) {
+        const p = await page(route, { width });
+        for (const [btn, pop] of [['#vmBtn', '#vmPop'], ['#selC', '#msPop']]) {
+          if (!(await p.$(btn))) continue;
+          await p.click(btn);
+          const r = await p.evaluate((sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return { l: b.left, r: b.right, w: b.width, W: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth }; }, pop);
+          if (!r.w || r.l < 0 || r.r > r.W || r.sw > r.W + 1) bad.push(route + '@' + width + ' ' + pop + ': [' + Math.round(r.l) + ', ' + Math.round(r.r) + '] in a ' + r.W + 'px window, page ' + r.sw + 'px wide');
+          await p.keyboard.press('Escape');
+        }
+        clean(p, route + '@' + width, assert); await p.closeAll();
+      }
+    }
+    assert(!bad.length, 'a pop-up opens outside the window:\n' + bad.join('\n'));
+  } },
   { name: 'sync: every view fits a phone and passes axe (no serious or critical issue)', async run({ page, assert }) {
     const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
     const AXE = fs.readFileSync(req.resolve('axe-core/axe.min.js'), 'utf8');
