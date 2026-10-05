@@ -6536,6 +6536,54 @@
       ],
       "answer": 0,
       "explanation": "RESTORE is the canonical Delta Lake recovery method. If files were VACUUMed, the S3 Trash folder (30-day retention by default) or external backups are the recovery path. This is the standard operational procedure. Options 2-4 are workarounds that risk data corruption or are unnecessarily complex."
+    },
+    {
+      "id": "ds-new-117",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "Your team processes user clickstream events. Currently, you batch-load events every 6 hours into Snowflake for dashboard updates. The product team now requires funnel analysis with <5 minute latency. You have 500K events/second throughput. Which architecture minimizes operational complexity while meeting the SLA?",
+      "options": [
+        "Switch entirely to Apache Kafka + Spark Streaming, rewrite all downstream models as real-time aggregations",
+        "Implement hybrid: stream events to Kafka for low-latency aggregates (Flink/Spark), batch-load raw events hourly to Snowflake for historical queries and dbt transformations",
+        "Use Snowflake Streams + Tasks to process batches every 5 minutes instead of every 6 hours",
+        "Deploy Kinesis Data Analytics to replace batch jobs; maintain all existing dbt models as-is"
+      ],
+      "answer": 1,
+      "explanation": "A hybrid approach balances operational overhead with SLA requirements\u2014streaming handles low-latency aggregates while batch maintains historical accuracy and allows dbt to manage complex transformations. Pure streaming would require rewriting all downstream logic and increases operational toil; more frequent batching alone cannot achieve sub-5-minute latency at scale."
+    },
+    {
+      "id": "ds-new-118",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "Your reverse ETL pipeline syncs customer segments from Snowflake to Salesforce daily at 8 PM UTC. Sales reps discovered that 15% of customers recently reassigned to a segment are missing the updated segment tag in SFDC for 8\u201316 hours post-sync. Investigation reveals Salesforce is applying custom workflow automation on segment updates (sends Slack notifications, updates account hierarchy). Which root cause and mitigation strategy is most likely correct?",
+      "options": [
+        "Snowflake's table locks are blocking concurrent reads; add read replicas and increase the sync parallelism from 4 to 8 threads",
+        "Salesforce workflow queue is backlogged; implement exponential backoff with jitter and split syncs into smaller batches to avoid API rate limits and workflow queuing",
+        "Network latency between your reverse ETL tool and Salesforce is causing TCP retransmits; use a CDN to proxy Salesforce API calls",
+        "Salesforce's bulk API is slower than the REST API; migrate from bulk API to concurrent REST calls with 50 requests per second"
+      ],
+      "answer": 1,
+      "explanation": "The 8\u201316 hour delay correlates with Salesforce's workflow automation backlog, not network or concurrency issues. Smaller batches and backoff strategies prevent rate-limiting and allow workflows to complete before the next sync cycle. Splitting batches reduces peak API load, which is the constraint here."
+    },
+    {
+      "id": "ds-new-119",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "Your dbt project has a `dim_product` model that depends on four upstream staging tables. The model is used by 30+ downstream reports and models. During development, you discover a bug in one staging dependency that requires a 2-week fix from the source team. How should you handle this while unblocking reports in production?",
+      "options": [
+        "Create a temporary copy of `dim_product` named `dim_product_hotfix`, apply a manual SQL patch, and have reports consume the hotfix version until the upstream fix is available",
+        "Add a dbt variable `use_patched_staging: true` that conditionally filters or transforms the problematic staging table within `dim_product`; document the workaround clearly and add a dbt test that will fail once upstream is fixed",
+        "Pause all dependent reports until the upstream fix is deployed; this prevents silent data quality issues",
+        "Use `source()` freshness checks to detect the stale data; downstream models will automatically skip refresh until freshness is restored"
+      ],
+      "answer": 1,
+      "explanation": "Using a conditional variable in dbt allows you to apply a documented, testable patch within the model lineage without creating duplicate models or breaking dependencies. Adding a test that fails post-fix ensures the workaround is intentional and temporary. This is preferable to duplicating logic, silencing consumers, or relying on freshness checks which don't solve the data quality problem."
     }
   ]
 }

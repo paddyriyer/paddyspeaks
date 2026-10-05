@@ -1533,6 +1533,38 @@
       ],
       "answer": 2,
       "explanation": "A security policy table in the semantic model ensures filtering occurs in the BI layer before aggregation, supporting consistent enforcement across all dashboards and query patterns. Option A (runtime parameters) is vulnerable to URL manipulation. Option B (database roles) works but requires infrastructure complexity and doesn't scale well when users belong to multiple hospitals. Option D (schema partitioning) is inflexible and doesn't support dynamic role assignments."
+    },
+    {
+      "id": "dash-new-041",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "A BI platform's semantic layer enforces row-level security (RLS) by adding a WHERE clause at query time: `WHERE region IN (SELECT region FROM user_permissions WHERE user_id = @current_user)`. A sales director who manages EMEA and APAC regions opens a dashboard containing a global revenue trend visual. The visual correctly shows only EMEA + APAC data. However, when the director clicks to drill down into a competitor analysis table powered by a different data source without RLS enforcement, they see all regions including restricted ones. Which approach best prevents this exposure?",
+      "options": [
+        "Add RLS filtering to every underlying data source and validate it with query logs before dashboard release",
+        "Remove the drill-down feature entirely and require users to navigate to separate secured reports",
+        "Implement RLS at the semantic layer (metric definitions and data model) rather than individual data sources, and enforce it on all downstream visuals regardless of source",
+        "Create separate dashboards for each user role and disable the ability to switch between them"
+      ],
+      "answer": 2,
+      "explanation": "Row-level security is most effective when enforced centrally at the semantic layer (the BI tool's data model), ensuring all visuals\u2014including drills and cross-source queries\u2014inherit the same filtering rules. Enforcing RLS only at individual data source levels creates gaps when users access unrestricted sources or drill into different datasets. Removing features or duplicating dashboards is operationally unsustainable."
+    },
+    {
+      "id": "dash-new-042",
+      "type": "single",
+      "topic": "date-range and time-zone handling",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "A global SaaS company operates in 8 time zones (UTC-8 to UTC+2). Their analytics dashboard displays 'Daily Active Users' with a date picker defaulting to 'Last 7 days'. A user in Tokyo (UTC+9) and a user in San Francisco (UTC-8) both open the dashboard at the same UTC timestamp. They select the same calendar date range, but Tokyo's user sees 47% more users than San Francisco's user for the same date. What is the root cause and the most robust fix?",
+      "options": [
+        "The database stores timestamps in different time zones per region; convert all to UTC in the ETL pipeline and use a time-zone-aware visual filter",
+        "Events are logged in local time zones; the date picker interprets dates in the viewer's local time zone without converting to UTC, causing each user to see a different UTC date range",
+        "Tokyo's database replicates 2 hours behind San Francisco's; implement cross-region synchronization before dashboard queries execute",
+        "The BI tool's caching layer does not account for time zone; disable caching for time-zone-sensitive metrics"
+      ],
+      "answer": 1,
+      "explanation": "The core issue is that event timestamps are stored in local time zones, and the date picker interprets the user's selected dates in their local time zone without converting to a consistent UTC reference. When Tokyo user selects '2026-10-05', their system interprets it as 2026-10-05 00:00 JST (which is 2026-10-04 15:00 UTC), while San Francisco interprets it as 2026-10-05 00:00 PST (which is 2026-10-05 07:00 UTC)\u2014a 16-hour offset. The fix is to standardize all event timestamps to UTC at ingestion, then apply explicit time-zone conversion logic in the BI layer to display dates correctly for each viewer."
     }
   ]
 }

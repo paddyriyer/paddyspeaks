@@ -15292,6 +15292,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses a recursive CTE: the anchor query finds direct reports of manager_id=5 (depth 0), and the recursive part joins org_hierarchy to descendants to find reports of those employees (depth increases). Option 1 is wrong because it starts with employee_id=5 instead of finding their reports. Options 2 and 3 don't capture the full recursive tree correctly."
+    },
+    {
+      "id": "sql-new-153",
+      "type": "single",
+      "topic": "LATERAL joins",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "In PostgreSQL, you have a `users(user_id INT, username TEXT)` table and an `orders(order_id INT, user_id INT, amount DECIMAL, created_at TIMESTAMP)` table. You need to fetch the top 3 orders by amount for each user, along with the user's username. Which query correctly uses a LATERAL join to achieve this?",
+      "options": [
+        "SELECT u.username, o.order_id, o.amount FROM users u JOIN LATERAL (SELECT order_id, amount FROM orders WHERE orders.user_id = u.user_id ORDER BY amount DESC LIMIT 3) o ON TRUE;",
+        "SELECT u.username, o.order_id, o.amount FROM users u, LATERAL orders o WHERE o.user_id = u.user_id ORDER BY o.amount DESC LIMIT 3;",
+        "SELECT u.username, o.order_id, o.amount FROM users u LEFT JOIN orders o ON o.user_id = u.user_id AND ROW_NUMBER() OVER (PARTITION BY u.user_id ORDER BY o.amount DESC) <= 3;",
+        "SELECT u.username, o.order_id, o.amount FROM users u CROSS APPLY (SELECT TOP 3 order_id, amount FROM orders WHERE user_id = u.user_id ORDER BY amount DESC) o;"
+      ],
+      "answer": 0,
+      "explanation": "LATERAL allows a subquery in the FROM clause to reference columns from preceding tables. Option 0 correctly uses JOIN LATERAL with a WHERE condition filtering by the outer u.user_id and an ON TRUE clause. Option 1 has invalid syntax (LATERAL with WHERE instead of ON), option 2 uses window functions incorrectly without a CTE, and option 3 uses CROSS APPLY which is SQL Server syntax, not PostgreSQL."
+    },
+    {
+      "id": "sql-new-154",
+      "type": "single",
+      "topic": "Transaction isolation",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "In PostgreSQL with READ COMMITTED isolation level, TX1 starts at 10:00:00 and reads `SELECT COUNT(*) FROM orders WHERE status = 'pending'`. At 10:00:05, TX2 commits an INSERT of a new pending order. At 10:00:10, TX1 re-reads the same query. What will TX1 observe?",
+      "options": [
+        "The same count as before, because READ COMMITTED takes a snapshot at transaction start.",
+        "The new count including the inserted order, because READ COMMITTED reads the latest committed data on each statement.",
+        "A phantom read error, because the row count changed between statements.",
+        "The new count only if TX1 is still within the same statement; otherwise a deadlock occurs."
+      ],
+      "answer": 1,
+      "explanation": "READ COMMITTED isolation in PostgreSQL reads the latest committed data for each statement, not a transaction-level snapshot. This allows non-repeatable reads and phantom reads. Since TX2 committed the order before TX1's second query, TX1 will see the incremented count. Option 0 describes REPEATABLE READ or SERIALIZABLE behavior, option 2 misidentifies phantom reads as errors, and option 3 incorrectly suggests deadlock."
+    },
+    {
+      "id": "sql-new-155",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "In a Snowflake table `product_feedback(product_id INT, rating INT, comment TEXT)`, you want to calculate average rating but exclude rows where rating equals the comment length (treating those as invalid entries). Which expression correctly handles this?",
+      "options": [
+        "AVG(NULLIF(rating, LENGTH(comment))) OVER (PARTITION BY product_id)",
+        "AVG(COALESCE(NULLIF(rating, LENGTH(comment)), 0)) OVER (PARTITION BY product_id)",
+        "AVG(CASE WHEN NULLIF(rating, LENGTH(comment)) IS NOT NULL THEN rating ELSE NULL END)",
+        "AVG(COALESCE(rating, NULLIF(LENGTH(comment), rating)))"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses NULLIF to convert invalid ratings to NULL when rating equals comment length, then AVG() naturally ignores NULLs. Option 0 compares rating (INT) to LENGTH result incorrectly. Option 1 replaces NULLs with 0, including those in the average, which is wrong. Option 4 has backwards logic and doesn't properly exclude invalid entries. A CASE expression explicitly checks for NULL and includes only valid ratings."
+    },
+    {
+      "id": "sql-new-156",
+      "type": "single",
+      "topic": "LATERAL joins",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "In BigQuery, you have `companies(company_id STRING, name STRING)` and `employees(employee_id STRING, company_id STRING, salary INT64, hire_date DATE)`. You want each company with its highest-paid employee's name and salary. How would you structure this with a LATERAL subquery (or equivalent)?",
+      "options": [
+        "SELECT c.name, STRUCT(e.employee_id, e.salary) AS top_emp FROM companies c, LATERAL (SELECT * FROM employees WHERE company_id = c.company_id ORDER BY salary DESC LIMIT 1) e;",
+        "SELECT c.name, e.salary FROM companies c CROSS JOIN (SELECT salary FROM employees WHERE company_id = c.company_id ORDER BY salary DESC LIMIT 1) e;",
+        "SELECT c.name, (SELECT AS STRUCT employee_id, salary FROM employees WHERE company_id = c.company_id ORDER BY salary DESC LIMIT 1) AS top_emp FROM companies c;",
+        "SELECT c.name, e.salary FROM companies c INNER JOIN employees e ON c.company_id = e.company_id WHERE ROW_NUMBER() OVER (PARTITION BY c.company_id ORDER BY e.salary DESC) = 1;"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses BigQuery's syntax for a correlated scalar subquery with SELECT AS STRUCT, which returns one record per company. Option 0 has invalid LATERAL syntax in BigQuery (LATERAL is not a standard keyword; BigQuery uses implicit lateral joins). Option 1's CROSS JOIN cannot reference the outer table. Option 3 uses a window function but lacks a CTE wrapper, so the WHERE clause on a window function is invalid without a subquery."
     }
   ]
 }

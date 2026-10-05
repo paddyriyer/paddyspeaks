@@ -8676,6 +8676,54 @@
       ],
       "answer": 0,
       "explanation": "The process() function is synchronous and blocking, which starves the event loop. While holding a semaphore slot, the coroutine blocks for 5 seconds, preventing the event loop from making progress on other tasks. Once all 100 semaphore slots are filled with blocked coroutines, no new tasks can acquire the semaphore, creating a deadlock. The fix is to move process() outside the semaphore context or make it async with await asyncio.sleep() calls."
+    },
+    {
+      "id": "py-new-150",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You're building a data transformation library where functions need to accept either a single dictionary or a list of dictionaries. You want to use type hints to express this constraint clearly. Which approach best captures the intent while maintaining type-checker compatibility?",
+      "options": [
+        "def transform(data: dict | list[dict]) -> list[dict]: ...",
+        "def transform(data: Union[dict, List[dict]]) -> List[dict]: ...",
+        "from typing import overload\n@overload\ndef transform(data: dict) -> dict: ...\n@overload\ndef transform(data: list[dict]) -> list[dict]: ...\ndef transform(data): ...",
+        "def transform(data: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]: ..."
+      ],
+      "answer": 2,
+      "explanation": "Using `@overload` decorators provides the most precise type information, allowing type checkers to understand the exact relationship between input and output types for each case. While options 1 and 4 are syntactically valid (PEP 604 union syntax), they don't convey that different inputs produce different output shapes. Option 3 is the most maintainable and IDE-friendly approach for this scenario."
+    },
+    {
+      "id": "py-new-151",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-10-05",
+      "prompt": "You're implementing a data catalog system where all dataset classes must register themselves in a central registry and validate that required methods are implemented. Which metaclass implementation correctly enforces this pattern?",
+      "options": [
+        "class DatasetMeta(type):\n    registry = {}\n    def __new__(mcs, name, bases, dct):\n        cls = super().__new__(mcs, name, bases, dct)\n        if name != 'Dataset':\n            mcs.registry[name] = cls\n        return cls",
+        "class DatasetMeta(type):\n    registry = {}\n    def __init__(cls, name, bases, dct):\n        super().__init__(name, bases, dct)\n        if 'get_schema' not in dct:\n            raise TypeError(f'{name} must implement get_schema')\n        cls.registry[name] = cls",
+        "class DatasetMeta(type):\n    registry = {}\n    def __call__(cls, *args, **kwargs):\n        instance = super().__call__(*args, **kwargs)\n        DatasetMeta.registry[cls.__name__] = instance\n        return instance",
+        "class DatasetMeta(type):\n    registry = {}\n    def __new__(mcs, name, bases, dct):\n        if 'get_schema' not in dct and bases:\n            raise TypeError(f'{name} must implement get_schema')\n        cls = super().__new__(mcs, name, bases, dct)\n        mcs.registry[name] = cls\n        return cls"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 correctly validates that subclasses (not the base class) implement required methods by checking `bases` and registers all classes in the metaclass dictionary. Option 1 doesn't validate method requirements. Option 2 uses `__init__` which runs after class creation and has scope issues with the registry. Option 3 properly validates only subclasses while registering all defined classes."
+    },
+    {
+      "id": "py-new-152",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-10-05",
+      "prompt": "You're implementing a context manager for batch processing data with automatic commit/rollback semantics. The batch should commit if no exceptions occur, but rollback on error. However, you also want to support nested batches where inner rollbacks don't affect outer batches. Which implementation is most robust?",
+      "options": [
+        "@contextmanager\ndef batch(self):\n    try:\n        yield\n        self.commit()\n    except Exception:\n        self.rollback()\n        raise",
+        "class Batch:\n    def __enter__(self): return self\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        if exc_type: self.rollback()\n        else: self.commit()\n        return False",
+        "class Batch:\n    def __enter__(self):\n        self.savepoint = self.create_savepoint()\n        return self\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        if exc_type: self.rollback_to_savepoint(self.savepoint)\n        else: self.release_savepoint(self.savepoint)\n        return False",
+        "@contextmanager\ndef batch(self):\n    self.begin()\n    try:\n        yield\n    finally:\n        self.commit()"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (using savepoints) properly handles nested batches by creating isolated transaction points, allowing inner batches to roll back without affecting outer ones. Option 1 commits unconditionally if no exception occurs but doesn't support nesting. Option 3 (regular context manager) is simpler but doesn't use savepoints for nesting. Option 4 always commits regardless of errors, which violates the rollback-on-error requirement."
     }
   ]
 }
