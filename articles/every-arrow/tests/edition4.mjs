@@ -4,7 +4,8 @@
  *
  *   node articles/every-arrow/tests/edition4.mjs
  *
- * The promises edition 4 makes about itself: eight products, three companies each,
+ * The promises edition 4 makes about itself: nine products, three companies each (one where
+ * only one company's product could be documented),
  * four lenses, every claim cited to a registered source, every Test ours and
  * uncited, no scoring; each product has its arrow, its reading and a working
  * Command Center link; old links to edition 3 are forwarded, and no edition-4 id
@@ -29,16 +30,18 @@ const SH = load('articles/every-arrow/shared.js', 'EA_SHARED');
 const PG = load('privacy-command-center/graph.js', 'PG');
 
 /* ── 1 · the comparison ─────────────────────────────────────────── */
-const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'assistant', 'voice'];
-ok(C.products.map((p) => p.id).join() === want.join(), 'the eight products, in order: ' + want.join(', '));
+const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'assistant', 'voice', 'wearable'];
+ok(C.products.map((p) => p.id).join() === want.join(), 'the nine products, in order: ' + want.join(', '));
 ok(C.lenses.map((l) => l.t).join(' · ') === 'Security · Privacy · QA · Data governance', 'the four lenses, in order');
 const sections = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"/g)].map((m) => m[1]);
 ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'everyday', 'layers', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
 for (const p of C.products) {
   const sec = new RegExp(`<section class="scene[^"]*" id="${p.id}"[\\s\\S]*?</section>`).exec(html);
   ok(!!sec, `#${p.id}: no section`); if (!sec) continue;
-  const b = sec[0];
-  ok(p.cos[0] === 'apple' && p.cos[1] === 'google', `${p.id}: Apple and Google come first`);
+  /* the generated comparison; a section may add uncited conceptual material after it */
+  const g = new RegExp(`<div data-gen="product:${p.id}">[\\s\\S]*?<!-- /gen:product:${p.id} -->`).exec(sec[0]), b = g ? g[0] : '';
+  ok(!!g, `#${p.id}: no generated comparison`);
+  ok(p.single ? p.cos.length < 3 && b.includes(p.single.replace(/’/g, '’')) : p.cos[0] === 'apple' && p.cos[1] === 'google', `${p.id}: Apple and Google come first, or the section says why fewer companies are compared`);
   ok(/<ol class="arrow"/.test(b) && (b.match(/<li class="hot">/g) || []).length === 1, `#${p.id}: the arrow with exactly one hop to watch`);
   ok(new RegExp(`<figure class="cmp" id="fig-${p.id}" data-fig="${p.id}">`).test(b), `#${p.id}: no comparison figure`);
   ok(/<div class="cmp-ctl" role="radiogroup"[^>]*hidden>/.test(b), `#${p.id}: the lens switch must be hidden until JavaScript runs (so print and no-JS show every lens)`);
@@ -46,9 +49,9 @@ for (const p of C.products) {
   ok(rows.join() === 'sec,pri,qa,gov', `#${p.id}: one row per lens`);
   const cols = [...b.matchAll(/<th scope="col">([^<]+)<small>/g)].map((m) => m[1]);
   ok(cols.join() === p.cos.map((c) => C.companies[c]).join(), `#${p.id}: company columns ${cols}`);
-  ok((b.match(/<td data-h=/g) || []).length === 12, `#${p.id}: twelve cells`);
-  ok((b.match(/data-k="test"/g) || []).length >= 3, `#${p.id}: a Test for every company`);
-  for (const k of ['Where they agree', 'Where they differ', 'The arrow to watch']) ok(b.includes(`<dt>${k}</dt>`), `#${p.id}: reading has “${k}”`);
+  ok((b.match(/<td data-h=/g) || []).length === 4 * p.cos.length, `#${p.id}: four cells per company`);
+  ok((b.match(/data-k="test"/g) || []).length >= p.cos.length, `#${p.id}: a Test for every company`);
+  for (const k of (p.single ? ['What is documented', 'What the documentation does not settle'] : ['Where they agree', 'Where they differ']).concat('The arrow to watch')) ok(b.includes(`<dt>${k}</dt>`), `#${p.id}: reading has “${k}”`);
   /* Command Center link: v1 selector values must exist in graph.js; v10 routes in its nav */
   const link = /<p class="pcc-link"><a href="([^"]+)">/.exec(b);
   ok(!!link, `#${p.id}: no Command Center link`);
@@ -93,10 +96,10 @@ const stamps = {};
 for (const m of html.matchAll(/<span data-ea="([\w.]+)">([^<]*)<\/span>/g)) (stamps[m[1]] = stamps[m[1]] || new Set()).add(m[2]);
 for (const [k, v] of Object.entries(stamps)) ok(v.size === 1, `data-ea="${k}" shows different values: ${[...v]}`);
 const one = (k) => [...(stamps[k] || [])][0];
-ok(one('products') === '8', 'eight products');
+ok(one('products') === String(C.products.length), 'the product count is stamped from compare.js');
 ok(one('edition') === '4.0' && /<meta name="ps:edition" content="4.0">/.test(html), 'edition 4.0');
 const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
-ok(ld.version === '4.0' && ld.dateModified === '2026-10-04' && /article:modified_time" content="2026-10-04"/.test(html), 'modified date and version agree');
+ok(ld.version === '4.0' && ld.dateModified === '2026-10-05' && /article:modified_time" content="2026-10-05"/.test(html), 'modified date and version agree');
 ok(ld.datePublished === '2026-09-26' && /datetime="2026-09-26"/.test(html), 'publication date agrees');
 ok(ld.timeRequired === `PT${one('read')}M`, 'JSON-LD timeRequired is the full reading time');
 ok(+one('read.essay') < +one('read'), 'the essay alone is shorter than the essay with every table');
@@ -111,8 +114,16 @@ ok(fs.existsSync(path.join(ROOT, 'articles/every-arrow/four-lenses.md')), 'the M
 /* ── 5 · the review, the patterns, the ending ──────────────────── */
 const kit = html.slice(html.indexOf('id="kit-questions"'), html.indexOf('class="btn"', html.indexOf('id="kit-questions"')));
 ok([...kit.matchAll(/<section data-l="(\w+)"/g)].map((m) => m[1]).join() === 'sec,pri,qa,gov', 'the review has one block per lens');
-for (const m of kit.matchAll(/<section data-l="(\w+)"[\s\S]*?<\/section>/g)) ok((m[0].match(/<li>/g) || []).length === 7, `the ${m[1]} block has seven questions`);
-ok((html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length === 10, 'ten patterns');
+for (const m of kit.matchAll(/<section data-l="(\w+)"[\s\S]*?<\/section>/g)) ok((m[0].match(/<li>/g) || []).length >= 7, `the ${m[1]} block has at least its seven questions`);
+/* counts written as words agree with what they count */
+{
+  const words = (n) => { const u = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'], t = ['', '', 'twenty', 'thirty', 'forty', 'fifty']; return n < 20 ? u[n] : t[Math.floor(n / 10)] + (n % 10 ? '-' + u[n % 10] : ''); };
+  const nq = (kit.match(/<li>/g) || []).length, np = (html.match(/<ol class="lessons">[\s\S]*?<\/ol>/)[0].match(/<li>/g) || []).length, nprod = C.products.length;
+  ok(new RegExp(`<h2 id="kit-h">${words(nq)} questions`, 'i').test(html) && new RegExp(`<span>${words(nq)} questions for any product</span>`, 'i').test(html), `the review heading says ${words(nq)} questions`);
+  ok(new RegExp(`<h2 id="patterns-h">${words(np)} patterns <span class="soft">across ${words(nprod)} products`, 'i').test(html), `the patterns heading says ${words(np)} patterns across ${words(nprod)} products`);
+  ok(new RegExp(`<h2 id="compare-h">${words(nprod)} products`, 'i').test(html) && new RegExp(`One lens, ${words(nprod)} products`).test(html), `${words(nprod)} products, in the whole picture and the path`);
+  ok(np === 14, 'fourteen patterns, the last four about sensing, derivatives and the room');
+}
 const coda = html.slice(html.indexOf('id="coda"'), html.indexOf('</section>', html.indexOf('id="coda"')));
 const lines = [...coda.matchAll(/<li[^>]*>([^<]+)<\/li>/g)].map((m) => m[1].trim());
 ok(lines.join(' | ') === 'Some arrows copy data. | Some arrows create an identity. | Some arrows make an inference. | And some arrows open the door. | Every arrow is still a decision.', 'the five closing lines, in order: ' + lines.join(' | '));
@@ -211,8 +222,8 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
     ok(html.includes(`id="${ph.essay.slice(1)}"`), `phrase ${ph.id}: essay anchor ${ph.essay} does not exist`);
   }
   for (const [k, c] of Object.entries(SH.concepts)) ok(html.includes(`id="${c.essay.slice(1)}"`), `concept ${k}: essay anchor ${c.essay} does not exist`);
-  ok(SH.sync.length === 20, 'twenty synchronisation questions');
-  for (const q of SH.sync) {
+  ok(SH.sync.length === 20 && SH.syncAmbient.length === 20, 'twenty synchronisation questions, and twenty for devices that sense a room');
+  for (const q of SH.sync.concat(SH.syncAmbient)) {
     const r = region(q.essay);
     ok(!!r, `“${q.q}”: essay anchor ${q.essay} does not exist`);
     if (r) ok(r.toLowerCase().includes(q.ek.toLowerCase()), `“${q.q}”: the essay at ${q.essay} must answer it (expected “${q.ek}”)`);
@@ -230,6 +241,12 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
   for (const [sid, v] of Object.entries(SH.sections)) {
     const sec = new RegExp(`<section class="scene[^"]*" id="${sid}"[\\s\\S]*?</section>\\n\\n<section`).exec(html);
     ok(!!sec && sec[0].includes(`<a href="/privacy-command-center/${v.app.replace(/&/g, '&amp;')}">Try this in Privacy Command Center &rarr;`), `#${sid}: no “Try this in Privacy Command Center” link to ${v.app}`);
+  }
+  for (const u of SH.links) ok(html.includes(`<a href="/privacy-command-center/${u.replace(/&/g, '&amp;')}">Try this in Privacy Command Center &rarr;`), `the essay links to ${u}`);
+  /* the ambient material names no company outside the generated comparison */
+  for (const id of ['vo-room', 'wr-subject']) {
+    const at = html.indexOf(`id="${id}"`), end = html.indexOf('</section>', at), t = plain(html.slice(at, end));
+    ok(!/\b(Apple|Google|Amazon|Meta|Microsoft|Samsung|Snap|Ring|Echo|Alexa|Siri|Nest|Ray-Ban)\b/.test(t), `the conceptual material from #${id} names no company or product`);
   }
 }
 /* the essay is about the work, not about anyone's hiring process */

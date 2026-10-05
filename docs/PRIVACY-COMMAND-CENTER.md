@@ -59,6 +59,14 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   directly and never mixes its documented claims with synthetic Northstar data:
   each wears its own band, and a Test is never shown as run. See the v1 README,
   *One privacy model, two experiences*.
+- **Ambient computing** (2026-10-05): *the data subject may not be the user.* A
+  tenth view, **Sensors & wearables** (`sensors.js`): smart glasses in a café with
+  four designs, the dinner table and the room hop by hop, the false activation
+  test, the device that did not forget, the bystander gap with awareness states,
+  the adversary view and one home across many ecosystems; the **Ambient morning**
+  on Everyday arrows; and a global **Whose data?** selector. Sensed is not
+  collected: observations carry explicit states. All synthetic; the essay's
+  documented Meta claims appear only under Products → Ambient & wearable.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files

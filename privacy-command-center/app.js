@@ -16,7 +16,7 @@
   var SAVED_KEY = 'pcc.v1.views';
 
   /* ── state ─────────────────────────────────────────────── */
-  var PAGES = ['cc', 'products', 'everyday', 'layers', 'future', 'ai', 'reviews', 'evidence', 'ask'];
+  var PAGES = ['cc', 'products', 'everyday', 'layers', 'sensors', 'future', 'ai', 'reviews', 'evidence', 'ask'];
   var M = null;   /* the modes (modes.js): Products, Everyday arrows, Every layer, Future, AI, Reviews */
   var DEF = { page: 'cc', p: 'reviewer', s: 'all', j: 'signin', q: 'know', c: [], u: 'person', l: 'all', fm: false, ask: '', ev: 'all', et: 'day', e: '', eco: 'all', dv: '' };
   var S = copy(DEF);
@@ -37,10 +37,10 @@
     if (q.l === 'both') st.l = 'all'; else if (G.lenses[q.l]) st.l = q.l;
     st.fm = q.fm === '1'; st.ask = q.ask || ''; st.ev = q.ev || 'all';
     var EVD = G.events;
-    if (['day', 'cases', 'all', 'changes', 'eco'].indexOf(q.et) >= 0) st.et = q.et;
+    if (['day', 'cases', 'all', 'changes', 'eco', 'amb'].indexOf(q.et) >= 0) st.et = q.et;
     if (EVD.ecos.some(function (x) { return x.id === q.eco; })) st.eco = q.eco;
     if (EVD.validDv(q.dv) && q.dv !== EVD.dvDefault) st.dv = q.dv;
-    if (q.e && st.et !== 'eco' && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
+    if (q.e && st.et !== 'eco' && st.et !== 'amb' && (st.et === 'day' ? EVD.day.events.some(function (x) { return x.id === q.e; }) : st.et === 'cases' ? EVD.caseById(q.e) : st.et === 'all' ? EVD.type(q.e) : EVD.changeById(q.e))) st.e = q.e;
     if (M) M.parseInto(q, st);
     return fit(st);
   }
@@ -819,7 +819,7 @@
    * case, the connection being asked about, and the review decisions on
    * connections live in memory for this visit only, and are never stored. */
   var EV = G.events, EVM = { key: '', hl: null, node: null, edge: null, dec: {}, whole: false, cur: null };
-  var EV_TABS = [['day', 'A morning'], ['cases', 'Use cases'], ['all', 'All events'], ['changes', 'What changed?'], ['eco', 'Many ecosystems']];
+  var EV_TABS = [['day', 'A morning'], ['cases', 'Use cases'], ['all', 'All events'], ['changes', 'What changed?'], ['eco', 'Many ecosystems'], ['amb', 'Ambient morning']];
   var ACTS = [['keep', 'Keep connection'], ['scope', 'Scope it'], ['short', 'Shorten retention'], ['cut', 'Separate contexts']];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function fmtDate(d) { var p = d.split('-'); return MON[+p[1] - 1] + ' ' + (+p[2]) + ', ' + p[0]; }
@@ -1101,6 +1101,7 @@
 
   function tabBody(o) {
     if (S.et === 'eco') return M.ecoTab(S);
+    if (S.et === 'amb') return M.ambTab(S);
     if (S.et === 'cases') {
       var c = o.def;
       return '<div class="cases" role="group" aria-label="Use cases">' + EV.cases.map(function (x) { return '<button type="button" class="cs' + (c && c.id === x.id ? ' sel' : '') + '" data-cs="' + x.id + '" id="cs-' + x.id + '" aria-pressed="' + !!(c && c.id === x.id) + '">' + esc(x.title) + '</button>'; }).join('') + '</div>' +
@@ -1124,7 +1125,7 @@
   function eventsLayer() {
     var o = evDef(), fams = null;
     var tabs = '<div class="evtab" role="group" aria-label="Events view">' + EV_TABS.map(function (t) {
-      var n = t[0] === 'cases' ? EV.cases.length : t[0] === 'all' ? EV.types.length : t[0] === 'changes' ? EV.changes.length : t[0] === 'eco' ? null : EV.day.events.length;
+      var n = t[0] === 'cases' ? EV.cases.length : t[0] === 'all' ? EV.types.length : t[0] === 'changes' ? EV.changes.length : t[0] === 'eco' ? null : t[0] === 'amb' ? null : EV.day.events.length;
       return '<button type="button" data-et="' + t[0] + '" id="et-' + t[0] + '" aria-pressed="' + (S.et === t[0]) + '"' + (t[0] === 'changes' ? ' class="t-chg"' : '') + '>' + esc(t[1]) + (n == null ? '' : ' <span>' + n + '</span>') + '</button>';
     }).join('') + '</div>';
     if (S.et === 'day') fams = EV.day.events.map(function (e) { return EV.type(e.type).fam; });
@@ -1134,7 +1135,7 @@
       '<div class="seg eco" role="radiogroup" aria-label="Ecosystem">' + EV.ecos.map(function (x) { return '<button role="radio" data-eco="' + x.id + '" aria-checked="' + (S.eco === x.id) + '">' + esc(x.label) + '</button>'; }).join('') + '</div></div>' +
       (S.eco === 'mixed' ? '<div class="ecobar">' + devicesHTML('bar') + '<p class="eco-n">One person, several platforms. Change the devices to see where the linking moves. ' + esc(EV.ecoNote) + '</p></div>' : S.eco !== 'all' ? '<div class="ecobar">' + oneId(S.eco) + '<p class="eco-n">' + esc(EV.ecoNote) + '</p></div>' : '') +
       tabs + '<div class="evtb">' + tabBody(o) + (fams && S.et !== 'all' ? famLegend(fams) : '') + '</div>' +
-      (o.open && S.et !== 'eco' ? traceHTML(o) : '') +
+      (o.open && S.et !== 'eco' && S.et !== 'amb' ? traceHTML(o) : '') +
       '</section>';
   }
   function evFocus(sel) { if (!sel) return; var el = $(sel); if (el) el.focus({ preventScroll: true }); }
@@ -1147,6 +1148,7 @@
   var evResizeBound = false;
   function mountEvents() {
     var root = $('#evl'); if (!root) return;
+    if (S.et === 'amb') M.mountAmb(root);
     if (EVM.cur && $('#eg')) { drawEdges(); if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawEdges); }
     if (!evResizeBound) { evResizeBound = true; var t = null; window.addEventListener('resize', function () { cancelAnimationFrame(t); t = requestAnimationFrame(drawEdges); }); }
     root.addEventListener('change', function (ev) {

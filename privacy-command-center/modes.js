@@ -69,6 +69,7 @@ window.PCC_MODES = function (A) {
     wallet: { moves: 'Transaction details from the wallet to the wallet maker: merchant, amount, time, place.', id: 'The account the wallet signs in to.', obs: 'The wallet maker, besides the merchant and the payment network.', why: 'Receipts, fraud checks, spending summaries.', copies: 'The wallet maker’s transaction history.', ret: 'Set by the wallet maker; may be documented.', ctl: 'A payment token that hides the card number from the merchant.', fail: 'The token hides the card, not the history: it says nothing about what the platform keeps.' },
     backup: { moves: 'Photos and files from the phone to the provider’s cloud.', id: 'The cloud account.', obs: 'Whoever holds the key: the provider, the user, or a recovery contact.', why: 'So nothing is lost with the phone.', copies: 'The cloud store, its replicas, and a recently-deleted bin.', ret: 'Until the user deletes it, plus the bin’s clock.', ctl: 'Encryption at rest; optionally a key only the user holds.', fail: 'Key custody. Whoever holds the key decides who can be compelled to open it.' },
     assistant: { moves: 'The question, plus whatever context the assistant attaches: mail, calendar, location.', id: 'The account, and identifiers inside the context.', obs: 'The on-device model, a private cloud tier, or a third-party model, depending on where it runs.', why: 'To answer the question.', copies: 'Conversation history, provider logs, possibly human review.', ret: 'Often longer than the answer needs; check the default.', ctl: 'On-device processing, attested private compute, no training by default.', fail: 'The arrow from device to cloud, and what is kept after the answer. “Verifiable” and “we promise” are different controls.' },
+    wearable: { moves: 'A frame from the camera and the spoken question, or only what was asked of it, from the glasses to the phone app and perhaps the cloud.', id: 'The glasses, the paired phone and the account.', obs: 'The service that answers; and, in the frame, everyone the camera saw.', why: 'To answer a question about what the wearer is looking at.', copies: 'The phone, the cloud for some features, and the voice history.', ret: 'Depends on the feature and the setting; unknown wherever it is not documented.', ctl: 'A capture light, and cropping or on-device recognition before anything is sent.', fail: 'The people in the frame. The owner’s settings and the owner’s awareness do not reach them.' },
     voice: { moves: 'Audio after the wake word, from the speaker to the cloud; then a transcript.', id: 'The household’s account and the device.', obs: 'The cloud service; sometimes a human reviewer.', why: 'To understand the request.', copies: 'The recording, the transcript, and anything learned from them.', ret: 'Set by a setting; deleting the recording may leave the transcript.', ctl: 'Local wake-word detection; settings to delete automatically and opt out of review.', fail: 'Deletion has to reach the transcript made from the audio, not only the audio.' }
   };
   function claimsOf(P, co, lid) { return (P.cells[co] && P.cells[co][CMP_LENS[lid]]) || []; }
@@ -98,7 +99,7 @@ window.PCC_MODES = function (A) {
       '<div class="m-pw"><section class="card prd" aria-labelledby="prH"><span class="eyebrow">' + esc(P.n) + '</span><h2 id="prH">' + esc(P.t) + '</h2><p class="lede">' + esc(P.lede) + '</p>' +
         '<div class="watch"><span class="eyebrow">The arrow to watch</span>' + arrowHTML(P) + '<p>' + esc(P.read.watch) + '</p>' +
         '<button type="button" class="btn" data-fa aria-expanded="' + !!st.fa + '">' + (st.fa ? 'Hide the arrow' : 'Follow this arrow') + '</button></div>' + follow +
-        readLink({ passkeys: 'recovery', browser: 'metadata', mail: 'metadata', messages: 'metadata', wallet: 'lenses', backup: 'recovery', assistant: 'agent', voice: 'deletion' }[P.id]) +
+        readLink({ passkeys: 'recovery', browser: 'metadata', mail: 'metadata', messages: 'metadata', wallet: 'lenses', backup: 'recovery', assistant: 'agent', voice: 'derivatives', wearable: 'subject' }[P.id]) +
         '<p class="readx"><a href="' + ESSAY + '#' + P.id + '">Read “' + esc(P.n) + '” in the essay →</a></p></section>' +
       '<section class="card clm" aria-labelledby="clH">' + band('doc') +
         '<h2 id="clH">What the companies document</h2>' + lensBar(st) +
@@ -124,6 +125,7 @@ window.PCC_MODES = function (A) {
 
   /* ═══════════ EVERY LAYER — a guarantee holds until the next layer ═══════════ */
   var HOPS = {
+    sensor: { moves: 'Sound, light, motion and position, before anyone has asked for anything.', observe: 'The device itself; what happens next depends on local processing.', ident: 'Often nobody yet; a voice or a face can become an identifier.', persists: 'Ideally nothing: a wake-word window or a frame buffer that is overwritten.', combine: 'Repeated observations of a room become a routine; faces become people.', prove: 'Run the false activation test and watch the network: nothing should leave before the wake word.', holds: 'A local wake word or on-device recognition decides what never becomes an arrow.', stops: 'Once activated, everything in the window travels together, including other people’s speech.', ctl: 'A local wake word; on-device recognition; indicators; minimisation before transmission', concept: 'sensing' },
     person: { moves: 'An intention: what the person wants, typed, spoken or tapped.', observe: 'People nearby, and the device’s own sensors.', ident: 'A face, a voice, or the account they are signed in to.', persists: 'Nothing yet, unless the device records it.', combine: 'Everything below is about this one person.', prove: 'Write down what the person expects to happen, and test against that expectation.', holds: 'The person decides to act.', stops: 'Once the action leaves their hands, every later hop decides for them.', ctl: 'Clear choices and defaults', concept: 'lenses' },
     device: { moves: 'Taps, sensor readings, the request being built, local history.', observe: 'The operating system, apps with permissions, keyboards and accessibility services.', ident: 'Device identifiers, an advertising ID, the platform account.', persists: 'Local history and caches, and backups that may sync to a cloud.', combine: 'The device ID with the account ID; app activity with location.', prove: 'Check what an app can read with each permission off, and what the backup contains.', holds: 'Hardware-backed keys and on-device processing keep secrets local.', stops: 'Backup and sync carry local data to a cloud the device does not control.', ctl: 'Permissions, a secure chip, an encrypted backup', concept: 'devices' },
     browser: { moves: 'The page request, cookies, site storage, and scripts from other sites.', observe: 'Every script on the page, extensions with page access, the browser’s sync service.', ident: 'Cookies, a fingerprint built from the browser’s features, the signed-in browser account.', persists: 'History, cookies, site storage, synced profiles.', combine: 'Third-party cookies or a fingerprint join visits across sites.', prove: 'Load a test page with a request logger and list every third party and what each receives.', holds: 'Same-origin rules and tracking protection limit what other sites read.', stops: 'A script the site itself embeds runs with the site’s own rights.', ctl: 'Tracking protection, partitioned storage, extension review', concept: 'metadata' },
@@ -167,6 +169,7 @@ window.PCC_MODES = function (A) {
     }
     if (id === 'db') return '<p><a class="btn ghost" href="#cc?p=reviewer&s=cloud&j=report&q=control&u=tenant">Open the tenant-isolation chain on synthetic data →</a></p>';
     if (id === 'ai') return '<p><a class="btn ghost" href="#ai">Open the agent runtime →</a></p>';
+    if (id === 'sensor') return '<p><a class="btn ghost" href="#sensors?sm=room">Follow the microphone through the room →</a></p>' + phrase('sensing');
     if (id === 'archive') return '<p><a class="btn ghost" href="#future?tf=hold">Open preservation and recoverability →</a></p>';
     return '';
   }
@@ -325,7 +328,7 @@ window.PCC_MODES = function (A) {
   var ANS = [['yes', 'Yes'], ['no', 'No'], ['unk', 'Unknown'], ['na', 'Not applicable'], ['ev', 'Needs evidence']];
   var RA = {};   /* answers: for this visit only, never stored */
   /* the QA test a review question leads to (index into each lens's seven) */
-  var RQ_TEST = { security: { 0: 'idstab', 2: 'keyrec', 5: 'keyrec' }, privacy: { 1: 'idstab', 6: 'infrem', 3: 'consent' }, qa: { 2: 'keyrec', 3: 'delete', 5: 'restore', 6: 'infrem' }, gov: { 3: 'delete', 5: 'hold', 1: 'delete' } };
+  var RQ_TEST = { security: { 0: 'idstab', 2: 'keyrec', 5: 'keyrec', 7: 'falsewake' }, privacy: { 1: 'idstab', 6: 'infrem', 3: 'consent', 10: 'indicator' }, qa: { 2: 'keyrec', 3: 'delete', 5: 'restore', 6: 'infrem', 7: 'indicator', 8: 'derivdel', 9: 'falsewake', 10: 'update' }, gov: { 3: 'delete', 5: 'hold', 1: 'delete', 7: 'derivdel', 10: 'delete' } };
   var TT = [
     ['consent', 'Consent revocation', 'When a person revokes consent, every system stops using their data.', 'Revoke for a test person; run every job that reads the data; check exports, vendor feeds and work already in flight.', 'No reads after the revocation time, and an acknowledgement from every consumer.', 'c_consent_read', 'consent'],
     ['delete', 'Delete end to end', 'A deleted person is gone from every copy.', 'Delete a canary person; search the database, cache, warehouse, logs, backups, feature store and vendor exports.', 'Gone everywhere, or a dated reason it is kept (a hold, a backup clock).', 'c_delete_orch', 'deletion'],
@@ -336,9 +339,13 @@ window.PCC_MODES = function (A) {
     ['restore', 'Archive restore', 'An old record can be restored and understood.', 'Restore a record from the oldest archive with its documented key, schema and rules.', 'Readable and interpretable, with its lineage.', 'c_restore_drill', 'hold'],
     ['hold', 'Legal hold', 'A hold stops deletion in scope and releases cleanly.', 'Place a test hold, request deletion, release the hold, then search every copy.', 'Skips logged during the hold; every copy deleted after release.', 'c_hold_release', 'hold'],
     ['aitool', 'AI tool policy', 'The agent calls only allowed tools, within the task’s purpose.', 'Plant an instruction in a retrieved email asking for an unrelated tool call.', 'The call is blocked and logged; a person is asked before any consequential action.', 'c_agent_policy', 'agent'],
+    ['falsewake', 'False activation', 'The device sends nothing when nobody meant to invoke it.', 'Play the correct wake word, similar phrases, television audio and conversation; measure activation, transmission, stored audio, transcripts and retention.', 'Only the wake word starts processing; nothing else leaves or is kept.', '', 'falsepos'],
+    ['indicator', 'Indicator matches capture', 'The light or tone is on whenever a sensor captures, and only then.', 'Capture by every path (button, voice, app, live AI) and record the indicator alongside a network capture.', 'The indicator is on for every capture and every transmission.', '', 'bystander'],
+    ['derivdel', 'Delete the source, check the derivative', 'Deleting a recording removes what was derived from it.', 'Delete a recording, then search for its transcript, intent, summary, embedding, analytics event and feedback sample.', 'Gone everywhere, or a dated reason it is kept.', '', 'derivatives'],
+    ['update', 'Settings after an update', 'Privacy settings, and what they do, survive a firmware or app update.', 'Record every privacy setting, update the device and the app, then re-check each setting and re-run the false activation test.', 'Every setting and its effect unchanged after an update.', '', 'falsepos'],
     ['infrem', 'Inference removal', 'When a connection is scoped, shortened or separated, the inference it enabled stops.', 'Separate the contexts for a test person, then ask the questions the inference answered.', 'The inference no longer appears, in answers or in stored segments.', 'c_join_policy', 'join']
   ];
-  var TT_PHRASE = { consent: 'consent', delete: 'deletion', tenant: 'filtering', pixel: 'metadata', keyrec: 'boundary', restore: 'recoverability', hold: 'preserved', aitool: 'authorised', infrem: 'combination', idstab: 'link' };
+  var TT_PHRASE = { falsewake: 'falsepos', indicator: 'awareness', derivdel: 'derivative', consent: 'consent', delete: 'deletion', tenant: 'filtering', pixel: 'metadata', keyrec: 'boundary', restore: 'recoverability', hold: 'preserved', aitool: 'authorised', infrem: 'combination', idstab: 'link' };
   function ttOf(id) { return TT.filter(function (t) { return t[0] === id; })[0]; }
   function reviewOutput() {
     var F = [], D = [], E = [], T = [];
@@ -377,11 +384,11 @@ window.PCC_MODES = function (A) {
     return '<p>For every claim: what is the promise, what test would prove it, what result is expected, and what evidence was collected.</p>' +
       '<section class="card" aria-labelledby="ttH">' + band('syn', 'The status comes from Northstar’s control records.') + '<h3 id="ttH">Test templates</h3>' +
       '<div class="m-tw"><table class="rel tt"><thead><tr><th scope="col">Test</th><th scope="col">The promise</th><th scope="col">Status</th></tr></thead><tbody>' + TT.map(function (t) {
-        var s = ctlStatus(t[5]);
+        var s = t[5] ? ctlStatus(t[5]) : ['never', 'NOT RUN'];
         return '<tr' + (sel && sel[0] === t[0] ? ' class="sel"' : '') + '><th scope="row"><button type="button" class="linkbtn" data-tt="' + t[0] + '" aria-expanded="' + !!(sel && sel[0] === t[0]) + '">' + esc(t[1]) + '</button></th><td>' + esc(t[2]) + '</td><td>' + qst(s) + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
-      (sel ? (function () { var c = G.controls[sel[5]], s = ctlStatus(sel[5]); return '<div class="ttd" id="ttd">' + dl([['What is the promise?', esc(sel[2])], ['What test would prove it?', esc(sel[3])], ['What is the expected result?', esc(sel[4])],
-        ['What evidence was collected?', esc(c ? c.method + (c.last ? ' · ' + c.last : ' · never run') : 'None recorded')], ['Status', qst(s) + ' <small>' + esc(name(sel[5])) + '</small>']]) + phrase(TT_PHRASE[sel[0]]) + readLink(sel[6]) + '</div>'; })() : '') + '</section>' +
+      (sel ? (function () { var c = G.controls[sel[5]], s = sel[5] ? ctlStatus(sel[5]) : ['never', 'NOT RUN']; return '<div class="ttd" id="ttd">' + dl([['What is the promise?', esc(sel[2])], ['What test would prove it?', esc(sel[3])], ['What is the expected result?', esc(sel[4])],
+        ['What evidence was collected?', esc(c ? c.method + (c.last ? ' · ' + c.last : ' · never run') : 'None recorded')], ['Status', qst(s) + (sel[5] ? ' <small>' + esc(name(sel[5])) + '</small>' : ' <small>No Northstar control records this test.</small>')]]) + phrase(TT_PHRASE[sel[0]]) + readLink(sel[6]) + '</div>'; })() : '') + '</section>' +
       '<section class="card" aria-labelledby="etH">' + band('doc', 'The tests below are the essay’s, not the companies’.') + '<h3 id="etH">Tests the essay recommends</h3><p>' + plural(tests.length, 'test') + ', every one ' + qst(['never', 'NOT RUN']) + '. They are recommendations; nobody has run them, and none is a finding about a company.</p>' +
       '<ul class="cls">' + tests.map(function (x) { return '<li class="cl cl-test">' + badge('test') + '<div><b>' + esc(x[0].n + ' · ' + C.companies[x[1]] + ': ' + x[2][1]) + '</b><p>' + esc(x[2][2]) + '</p></div></li>'; }).join('') + '</ul></section>';
   }
@@ -514,10 +521,11 @@ window.PCC_MODES = function (A) {
   function everydayPage(st) {
     return pgh('Everyday arrows', 'One morning, many arrows. Each ordinary action sets off the same chain: event → identifier → system → derived data → inference.', 'Everyday arrows') +
       '<p class="readx"><a href="' + ESSAY + '#everyday">Read “Everyday arrows” in the essay →</a> <span>Unlock, sign in, check email, search, directions, buy a coffee, share a file, ask the assistant.</span></p>' +
-      connectCard(st) + A.eventsLayer();
+      connectCard(st) + (st.et === 'amb' ? '' : SX().dsBar(st) + '<p class="small" id="dsnote" aria-live="polite"></p>') + A.eventsLayer();
   }
   function mountEveryday(root) {
     A.mountEvents();
+    if (A.S().et !== 'amb') { $$('.dsbar [data-ds]', root).forEach(function (b) { b.addEventListener('click', function () { A.focusNext('[data-ds="' + b.getAttribute('data-ds') + '"]'); A.set({ ds: b.getAttribute('data-ds') }); }); }); SX().highlightGraph(root, A.S()); }
     root.addEventListener('click', function (e) { var b = e.target.closest('[data-connect]'); if (b) { A.focusNext(b.getAttribute('data-connect') === '1' ? '.nobody' : '[data-connect]'); A.set({ connect: b.getAttribute('data-connect') === '1' }); } });
     var n = $('.nobody', root); if (n) n.setAttribute('tabindex', '-1');
   }
@@ -658,6 +666,9 @@ window.PCC_MODES = function (A) {
   ];
 
   /* ═══════════ routing ═══════════ */
+  /* Sensors & wearables (sensors.js) shares these helpers, and is created once, on first use */
+  var sx = null;
+  function SX() { return sx || (sx = window.PCC_SENSORS(A, { band: band, readLink: readLink, seg: seg, dl: dl, badge: badge, phrase: phrase, phraseText: phraseText, pgh: pgh, qst: qst, chips: chips })); }
   var DEFS = { pr: 'passkeys', co: '', fa: false, hop: 'dns', tf: 'encrypt', goal: '', am: 'runtime', rk: '', rv: 'lens', rp: '', tt: '', ov: 'owner', ch: '', connect: false, ek: '' };
   function parseInto(q, st) {
     if (byId(C.products, q.pr)) st.pr = q.pr;
@@ -675,6 +686,9 @@ window.PCC_MODES = function (A) {
     if (EV.changeById(q.ch)) st.ch = q.ch;
     if (X.evidence[q.ek] && q.ek !== 'unk') st.ek = q.ek;
     st.connect = q.connect === '1';
+    var V = SX().valid;
+    for (var k in V) if (V[k].indexOf(q[k]) >= 0) st[k] = q[k];
+    st.by = q.by === '1';
     return st;
   }
   function hashOf(st) {
@@ -684,7 +698,8 @@ window.PCC_MODES = function (A) {
     if (st.page === 'future') { put('tf', st.tf, DEFS.tf); put('goal', st.goal, ''); }
     if (st.page === 'ai') { put('am', st.am, DEFS.am); put('rk', st.rk, ''); }
     if (st.page === 'reviews') { put('rv', st.rv, DEFS.rv); put('rp', st.rp, ''); put('tt', st.tt, ''); put('ov', st.ov, DEFS.ov); put('ch', st.ch, ''); }
-    if (st.page === 'everyday') put('connect', st.connect, false);
+    if (st.page === 'everyday') { put('connect', st.connect, false); put('ds', st.ds, 'everyone'); put('by', st.by, false); }
+    if (st.page === 'sensors') { var D = SX().defs; ['sm', 'ds', 'sf', 'alt', 'hop2', 'aw', 'dev'].forEach(function (k) { put(k, st[k], D[k]); }); }
     if (st.page === 'evidence') put('ek', st.ek, '');
     return o.join('&');
   }
@@ -694,6 +709,8 @@ window.PCC_MODES = function (A) {
     var v = p.view, l = LENS_ALIAS[p.lens] ? '&l=' + LENS_ALIAS[p.lens] : '';
     if (v === 'product') return '#products?pr=' + (byId(C.products, p.product) ? p.product : 'passkeys') + (p.company && C.companies[p.company] ? '&co=' + p.company : '') + l;
     if (v === 'layers') return '#layers' + (HOPS[p.hop] ? '?hop=' + p.hop : '');
+    if ((v === 'journey' || v === 'everyday') && p.mode === 'ambient') return '#everyday?et=amb' + (p.bystanders ? '&by=1' : '');
+    if (v === 'sensors' || v === 'wearable' || v === 'ambient') return '#sensors' + (X.sensorModes[p.mode] ? '?sm=' + X.sensorModes[p.mode] : '');
     if (v === 'journey' || v === 'everyday') { var e = X.slugs[p.event] || (/^m[1-8]$/.test(p.event || '') ? p.event : ''); return '#everyday' + (e ? '?e=' + e + (p.connect ? '&connect=1' : '') : ''); }
     if (v === 'ecosystems') return '#everyday?et=eco';
     if (v === 'future') return '#future' + (X.futureModes[p.mode] ? '?tf=' + X.futureModes[p.mode] : '');
@@ -711,12 +728,14 @@ window.PCC_MODES = function (A) {
       layers: { render: layersPage, mount: mountLayers },
       future: { render: futurePage, mount: mountFuture },
       ai: { render: aiPage, mount: mountAi },
-      reviews: { render: reviewsPage, mount: mountReviews }
+      reviews: { render: reviewsPage, mount: mountReviews },
+      sensors: { render: function (st) { return SX().page.render(st); }, mount: function (root) { SX().page.mount(root); } }
     },
-    defs: DEFS, parseInto: parseInto, hashOf: hashOf, fromView: fromView,
+    defs: (function () { var o = {}, k, D = SX().defs; for (k in DEFS) o[k] = DEFS[k]; for (k in D) o[k] = D[k]; return o; })(),
+    ambTab: function (st) { return SX().ambTab(st); }, mountAmb: function (root) { SX().mountAmb(root); }, parseInto: parseInto, hashOf: hashOf, fromView: fromView,
     lens4: lens4, lensRule: LENS_RULE, lensQ: LENS_Q, lensBar: lensBar, mountLens: mountLens,
     findingMore: findingMore, viewRead: viewRead, readLink: readLink, band: band, badge: badge,
-    ecoTab: ecoTab, evidenceLegend: evidenceLegend, claimsPage: claimsPage, ask: ASK,
+    ecoTab: ecoTab, evidenceLegend: evidenceLegend, claimsPage: claimsPage, ask: ASK.concat(SX().ask),
     hops: HOPS, trans: TRANS, tests: TT, risks: RISKS
   };
 };

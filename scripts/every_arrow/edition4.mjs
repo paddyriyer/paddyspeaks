@@ -33,7 +33,7 @@ const SLUG = 'every-arrow-is-a-decision.html';
 const PDF = `${DIR}/every-arrow-is-a-decision.pdf`;
 const PDF_META = `${DIR}/pdf.json`;
 const WPM = 230;
-const EDITION = '4.0', REVISED = '4 October 2026';
+const EDITION = '4.0', REVISED = '5 October 2026';
 
 export function loadCompare() {
   const ctx = {}; ctx.window = ctx; vm.createContext(ctx);
@@ -47,6 +47,8 @@ export function loadShared() {
   return ctx.EA_SHARED;
 }
 
+/* a count written as words, for headings (“Forty-two questions”) */
+export const numberWord = (n) => { const u = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'], t = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty']; const w = n < 20 ? u[n] : t[Math.floor(n / 10)] + (n % 10 ? '-' + u[n % 10] : ''); return w.charAt(0).toUpperCase() + w.slice(1); };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 /* typographic apostrophes and dashes are kept; only markup-significant characters are escaped */
 
@@ -74,7 +76,8 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
   const ids = new Set();
   for (const p of C.products) {
     if (ids.has(p.id)) problems.push(`compare.js: duplicate product ${p.id}`); ids.add(p.id);
-    if (p.cos.length !== 3) problems.push(`${p.id}: compares ${p.cos.length} companies, expected 3`);
+    /* three companies, unless the product says why fewer (no comparable product with first-party documentation) */
+    if (p.cos.length !== 3 && !(p.single && p.cos.length < 3)) problems.push(`${p.id}: compares ${p.cos.length} companies, expected 3 (or say why in \`single\`)`);
     for (const co of p.cos) {
       if (!CO[co]) problems.push(`${p.id}: unknown company ${co}`);
       if (!p.names[co]) problems.push(`${p.id}: no product name for ${co}`);
@@ -103,14 +106,14 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
     const opts = L.map((l) => [l.id, l.t, l.id]);
     const sets = L.map((l, li) => `<div class="ov-set" data-l="${l.id}"><table class="cmp-t ov-t"><caption><span class="lz lz--${l.id}">${esc(l.t)}</span> ${esc(l.q)}</caption>` +
       `<thead><tr><th scope="col">Product</th><th scope="col">Apple</th><th scope="col">Google</th><th scope="col">And one more</th></tr></thead><tbody>` +
-      C.products.map((p) => `<tr><th scope="row"><a href="#${p.id}">${esc(p.n)}</a></th>${p.cos.map((co, i) => `<td data-h="${esc(CO[co])}">${i === 2 ? `<span class="co">${esc(CO[co])}</span>` : ''}${p.cells[co][l.id].map((it) => `<p class="h">${kindTag(it[0])}${esc(it[1])}</p>`).join('')}</td>`).join('')}</tr>`).join('') +
+      C.products.map((p) => `<tr><th scope="row"><a href="#${p.id}">${esc(p.n)}</a></th>${p.cos.map((co, i) => `<td data-h="${esc(CO[co])}"${p.single ? ` colspan="${4 - p.cos.length}"` : ''}>${i === 2 || p.single ? `<span class="co">${esc(CO[co])}${p.single ? ' only' : ''}</span>` : ''}${p.cells[co][l.id].map((it) => `<p class="h">${kindTag(it[0])}${esc(it[1])}</p>`).join('')}</td>`).join('')}</tr>`).join('') +
       `</tbody></table></div>`).join('');
     /* the static caption describes what shows without JavaScript and in print: every lens */
     const n = counts(C.products.flatMap((p) => p.cos.flatMap((co) => L.flatMap((l) => p.cells[co][l.id]))));
     return `${radios('Lens for the whole picture', opts, 'sec')}<figure class="cmp no-count" id="fig-overview" data-fig="overview">${sets}<figcaption class="cmp-read" aria-live="polite"><b>All four lenses</b> across ${C.products.length} products: ${countText(n)}.</figcaption></figure>`;
   };
   for (const p of C.products) {
-    if (p.cos[0] !== 'apple' || p.cos[1] !== 'google') problems.push(`${p.id}: columns must be Apple, Google, then the third company`);
+    if (!p.single && (p.cos[0] !== 'apple' || p.cos[1] !== 'google')) problems.push(`${p.id}: columns must be Apple, Google, then the third company`);
     R['product:' + p.id] = () => {
       const opts = [['all', 'All four lenses']].concat(L.map((l) => [l.id, l.t, l.id]));
       const rows = L.map((l) => `<tr data-l="${l.id}"><th scope="row"><span class="lz lz--${l.id}">${esc(l.t)}</span><span class="q">${esc(l.q)}</span></th>${p.cos.map((co) => `<td data-h="${esc(CO[co])}">${p.cells[co][l.id].map(item).join('')}</td>`).join('')}</tr>`).join('');
@@ -119,11 +122,11 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
       if (!tryLine) problems.push(`shared.js: no “Try this” line for ${p.id}`);
       return `<div class="lede"><p>${esc(p.lede)}</p></div>` +
         `<ol class="arrow" aria-label="The arrow in ${esc(p.n.toLowerCase())}">${p.arrow.map((a, i) => `<li${i === p.hot ? ' class="hot"' : ''}><span>${esc(a)}</span></li>`).join('')}</ol>` +
-        `<p class="arrow-cap">The highlighted hop is the arrow to watch. Compared: ${p.cos.map((co) => `<b>${esc(CO[co])}</b> ${esc(p.names[co])}`).join(' · ')}.</p>` +
+        `<p class="arrow-cap">The highlighted hop is the arrow to watch. Compared: ${p.cos.map((co) => `<b>${esc(CO[co])}</b> ${esc(p.names[co])}`).join(' · ')}.${p.single ? ' ' + esc(p.single) : ''}</p>` +
         `${radios('Lens for ' + p.n, opts, 'all')}<figure class="cmp" id="fig-${p.id}" data-fig="${p.id}"><table class="cmp-t"><caption>${esc(p.n)}: what each company documents, through four lenses</caption>` +
         `<thead><tr><th scope="col">Lens</th>${p.cos.map((co) => `<th scope="col">${esc(CO[co])}<small>${esc(p.names[co])}</small></th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>` +
         `<figcaption class="cmp-read" aria-live="polite"><b>All four lenses</b> for ${esc(p.cos.map((c) => CO[c]).join(', ').replace(/, ([^,]+)$/, ' and $1'))}: ${countText(n)}.</figcaption></figure>` +
-        `<dl class="reading"><div><dt>Where they agree</dt><dd>${esc(p.read.agree)}</dd></div><div><dt>Where they differ</dt><dd>${esc(p.read.differ)}</dd></div><div class="watch"><dt>The arrow to watch</dt><dd>${esc(p.read.watch)}</dd></div></dl>` +
+        `<dl class="reading"><div><dt>${p.single ? 'What is documented' : 'Where they agree'}</dt><dd>${esc(p.read.agree)}</dd></div><div><dt>${p.single ? 'What the documentation does not settle' : 'Where they differ'}</dt><dd>${esc(p.read.differ)}</dd></div><div class="watch"><dt>The arrow to watch</dt><dd>${esc(p.read.watch)}</dd></div></dl>` +
         `<p class="pcc-link"><a href="/privacy-command-center/?view=product&amp;product=${p.id}">Try this in Privacy Command Center &rarr; <b>${esc(tryLine || '')}</b></a></p>`;
     };
   }
@@ -193,9 +196,10 @@ export async function buildEdition4({ check = false, pdf = false } = {}) {
   /* the Markdown download, from the same data and the same review questions */
   const plain = (x) => x.replace(/<[^>]+>/g, '').replace(/&rsquo;/g, '’').replace(/&ldquo;/g, '“').replace(/&rdquo;/g, '”').replace(/&mdash;/g, '—').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   const kitHtml = html.slice(html.indexOf('id="kit-questions"'), html.indexOf('class="btn"', html.indexOf('id="kit-questions"')));
+  const kitCount = (kitHtml.match(/<li>/g) || []).length;
   const kit = [...kitHtml.matchAll(/<span class="lz lz--\w+">([^<]+)<\/span><\/h3><ul>([\s\S]*?)<\/ul>/g)].map((m) => `### ${plain(m[1])}\n\n` + [...m[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => `- [ ] ${plain(x[1])}`).join('\n'));
   const md = `# Every Arrow Is a Decision — the four-lens review\n\nFrom *Every Arrow Is a Decision*, edition ${EDITION} (${REVISED}), by Paddy Iyer.\nhttps://paddyspeaks.com/articles/every-arrow-is-a-decision.html\n\n` +
-    `Four questions for every arrow a product draws:\n\n${L.map((l) => `- **${l.t}.** ${l.q}`).join('\n')}\n\n## Twenty-eight questions for any product\n\n${kit.join('\n\n')}\n\nA question nobody can answer is a finding.\n\n` +
+    `Four questions for every arrow a product draws:\n\n${L.map((l) => `- **${l.t}.** ${l.q}`).join('\n')}\n\n## ${numberWord(kitCount)} questions for any product\n\n${kit.join('\n\n')}\n\nA question nobody can answer is a finding.\n\n` +
     `## The arrow to watch, product by product\n\n| Product | Compared | The arrow to watch |\n|---|---|---|\n${C.products.map((p) => `| ${p.n} | ${p.cos.map((c) => CO[c]).join(', ')} | ${p.read.watch.replace(/\|/g, '/')} |`).join('\n')}\n\n` +
     `Claims in the essay describe what each company documents, as reviewed on ${C.asOf}, with citations. The tests are recommendations. Nothing here is a score or legal advice.\n`;
 

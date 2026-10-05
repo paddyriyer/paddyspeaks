@@ -61,7 +61,7 @@ try {
     ok((await page.$$eval('.ov-set', (s) => s.filter((x) => !x.hidden).map((x) => x.getAttribute('data-l')))).join() === 'sec', 'the whole picture opens on Security alone');
     await page.click('#compare .cmp-ctl [data-l="gov"]');
     ok((await page.$$eval('.ov-set', (s) => s.filter((x) => !x.hidden).map((x) => x.getAttribute('data-l')))).join() === 'gov', 'the whole picture switches to Data governance');
-    ok(/Data governance<\/b> across 8 products/.test(await page.$eval('#fig-overview .cmp-read', (e) => e.innerHTML)), 'the whole picture announces its lens');
+    ok(/Data governance<\/b> across 9 products/.test(await page.$eval('#fig-overview .cmp-read', (e) => e.innerHTML)), 'the whole picture announces its lens');
     ok(/[?&]f=overview:gov/.test(page.url()), 'the whole picture writes its lens to the URL');
     for (const id of PRODUCTS) {
       ok(await visibleRows(page, id) === 'sec,pri,qa,gov', `#${id}: opens on all four lenses`);
@@ -141,7 +141,7 @@ try {
     pages.forEach((t, i) => ok(t.length >= 300, `PDF page ${i + 1} is nearly blank (${t.length} characters)`));
     const edition = /<meta name="ps:edition" content="([\d.]+)">/.exec(fs.readFileSync(path.join(ROOT, URL_.slice(1)), 'utf8'))[1];
     ok(pages.slice(1).every((t) => t.includes(`Edition ${edition}`)), `every PDF page after the first carries “Edition ${edition}” in its header`);
-    for (const p of ['Who proves you are you?', 'Who hears the kitchen?', 'Twenty-eight questions for any product', 'What must still be possible', 'One morning, many arrows', 'Many devices, many companies', 'Every guarantee has a boundary', 'Every arrow is still a decision.']) ok(pages.some((t) => t.includes(p)), `the PDF contains “${p}”`);
+    for (const p of ['Who proves you are you?', 'Who hears the kitchen?', 'Forty-two questions for any product', 'Who else is inside the frame?', 'The data subject may not be the user', 'What must still be possible', 'One morning, many arrows', 'Many devices, many companies', 'Every guarantee has a boundary', 'Every arrow is still a decision.']) ok(pages.some((t) => t.includes(p)), `the PDF contains “${p}”`);
   }
 } finally {
   await browser.close();

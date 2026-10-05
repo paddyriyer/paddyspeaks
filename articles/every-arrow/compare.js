@@ -1,6 +1,6 @@
 /* Every Arrow Is a Decision, edition 4 — the comparison.
  *
- * Eight everyday products, three companies each, four lenses. Every claim is
+ * Nine everyday products, up to three companies each, four lenses. Every claim is
  * what the company's OWN documentation says, cited, as reviewed on EA_CMP.asOf.
  * Nothing here is a score, a rank or a verdict on a company.
  *
@@ -363,6 +363,36 @@
     }
   });
 
+  /* ── 9 · ambient & wearable ──────────────────────────────── */
+  /* One company only, on purpose: when this was reviewed, Meta's were the camera glasses
+   * on sale with first-party documentation. Google's partners and Snap had announced
+   * camera glasses for autumn 2026; they are listed under “What could not be confirmed”. */
+  P({ id: 'wearable', n: 'Ambient & wearable', t: 'Who else is inside the frame?',
+    lede: 'Camera glasses put a camera, microphones and an assistant into something you already wear. The person asking the question owns the glasses; the people in the frame, at the next table or behind the counter do not. The questions move from “what did I share?” to “what did the glasses observe, about whom, and what survived?”',
+    arrow: ['A scene and voices nearby', 'Glasses camera and microphones', 'Wake word or capture', 'Phone app and cloud', 'Stored media and recordings'], hot: 3,
+    cos: ['meta'],
+    single: 'Only one company is compared: when this was reviewed, Meta’s were the camera glasses on sale with first-party documentation to cite.',
+    names: { meta: 'Ray-Ban Meta and Oakley Meta AI glasses' },
+    cells: {
+      meta: {
+        sec: [d('The camera stops if the light is covered', 'Meta documents that if the glasses detect the capture light is blocked or tampered with, the camera is disabled until the light is clear.', 'mtGlassesPrivacy')],
+        pri: [d('A light for the people around you', 'A white capture light on the front blinks while photos or video are being captured for the gallery; Meta describes it as there to let others know.', 'mtGlassesPrivacy'),
+          l('Background sound is part of the interaction', 'Meta’s voice privacy notice says voice interactions include accidental activations and any background sound while the assistant is listening.', 'mtVoiceNotice'),
+          s('Visual data from AI features', 'Meta documents a setting for storing visual data from AI experiences such as live AI; its default could not be confirmed on Meta’s own page.', 'mtVisualData')],
+        qa: [d('Mistaken wakes are labelled and deleted', 'When Meta’s systems detect an activation nobody intended, it is labelled a false wake and deleted within 90 days of detection.', 'mtVoiceNotice'),
+          t('Say something close to the wake word', 'With a television and a conversation nearby, use similar-sounding phrases, then read the voice activity log: anything the wearer did not intend to send is a finding.')],
+        gov: [d('Voice kept up to a year', 'Voice recordings, transcripts and related data are kept for up to one year to improve Meta’s products, can be deleted sooner in the voice activity log, and may be reviewed by trained people.', 'mtVoiceNotice'),
+          d('Photos stay on the glasses until imported', 'Captured media stays on the glasses until it is imported into the Meta AI app, then moves to the phone’s photo library.', 'mtMediaStorage'),
+          l('Some sharing goes through the cloud', 'Features such as sending a photo by voice can send media to Meta’s cloud, where it is kept for 30 days and then deleted automatically.', 'mtCloudMedia')]
+      }
+    },
+    read: {
+      agree: 'A capture light that the camera depends on, voice recordings kept up to a year by default and deletable, false wakes deleted within 90 days, and media that stays on the glasses until imported.',
+      differ: 'What the people in the frame are told beyond the light, the default for visual data from AI features, and whether wake-word detection runs on the glasses or the phone.',
+      watch: 'The arrow from the glasses to the cloud: what is sent (a frame, audio, or only what was asked), how long it is kept, and whether the people in it know.'
+    }
+  });
+
   /* ── sources: the company's own page wherever possible ───── */
   var S = C.sources = {};
   var src = function (k, g, c, u) { S[k] = { g: g, c: c, u: u }; };
@@ -492,6 +522,12 @@
   src('ssWalletPrivacy', 'Samsung', 'Samsung US, “Samsung Wallet privacy notice”.', 'https://www.samsung.com/us/samsung-wallet/privacy-notice/');
   src('ssDigitalId', 'Samsung', 'Samsung US, “Digital ID in Samsung Wallet”.', 'https://www.samsung.com/us/apps/samsung-wallet/digital-id/');
   src('ssRewards', 'Samsung', 'Samsung Mobile Security, “Mobile Security Rewards Program”.', 'https://security.samsungmobile.com/rewardsProgram.smsb');
+  /* Meta: the glasses pages could be confirmed only through their search listings (see the method) */
+  src('mtGlassesPrivacy', 'Meta', 'Meta, “Privacy settings for Meta AI glasses”.', 'https://www.meta.com/ai-glasses/privacy/');
+  src('mtVoiceNotice', 'Meta', 'Meta, “AI Glasses Voice Privacy Notice”, effective 22 July 2025.', 'https://www.meta.com/legal/ai-glasses/voice-controls-privacy-notice/');
+  src('mtMediaStorage', 'Meta', 'Meta Help, “How media storage works with AI glasses and the Meta AI mobile app”.', 'https://www.meta.com/help/ai-glasses/1427588664906909/');
+  src('mtCloudMedia', 'Meta', 'Meta Help, “Learn more about cloud media on AI glasses”.', 'https://www.meta.com/help/ai-glasses/734190441863923/');
+  src('mtVisualData', 'Meta', 'Meta Help, “Storing visual data from AI experiences”.', 'https://www.meta.com/help/ai-glasses/1381548946634724/');
   /* Amazon */
   src('amzPrivacy', 'Amazon', 'Amazon Help, “Alexa, Echo devices, and your privacy”.', 'https://www.amazon.com/gp/help/customer/display.html?nodeId=GVP69FUJ48X9DK8V');
   src('ringE2E', 'Amazon', 'Ring Support, “Using video end-to-end encryption”.', 'https://ring.com/support/articles/7e3lk/using-video-end-to-end-encryption-e2ee');

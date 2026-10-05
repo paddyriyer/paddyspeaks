@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — the four-lens review
 
-From *Every Arrow Is a Decision*, edition 4.0 (4 October 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision*, edition 4.0 (5 October 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 Four questions for every arrow a product draws:
@@ -10,7 +10,7 @@ Four questions for every arrow a product draws:
 - **QA.** How would anyone outside know it works as promised?
 - **Data governance.** Who holds it, how long does it live, and can it really go?
 
-## Twenty-eight questions for any product
+## Forty-two questions for any product
 
 ### Security
 
@@ -21,6 +21,8 @@ Four questions for every arrow a product draws:
 - [ ] What happens on a compromised or second-hand device?
 - [ ] If recovery is required, who controls the key or the mapping?
 - [ ] Are the links kept for security (phone number, recovery email, devices, IP address) used for nothing else?
+- [ ] Can an unauthorised person activate or access this sensor?
+- [ ] Can a stolen session or device retrieve earlier captures?
 
 ### Privacy
 
@@ -31,6 +33,10 @@ Four questions for every arrow a product draws:
 - [ ] Could the purpose be met by proving an attribute instead of revealing the data?
 - [ ] Should the original remain recoverable, or would a pseudonymous or irreversible representation meet the purpose?
 - [ ] What can be inferred when this activity is joined with other activity, on this device and on the person’s other devices?
+- [ ] Whose data is being sensed, and is that person the device owner?
+- [ ] What incidental information enters the frame or the microphone?
+- [ ] Can filtering or minimisation happen before transmission?
+- [ ] Does a bystander understand that capture is happening?
 
 ### QA
 
@@ -41,6 +47,10 @@ Four questions for every arrow a product draws:
 - [ ] Is the test re-run after every release and every policy change?
 - [ ] Can we restore and interpret an old protected record using the documented recovery path?
 - [ ] When a connection is scoped, shortened or separated, does the inference it enabled really stop?
+- [ ] Does sensor activation match the indicator the person sees?
+- [ ] Does a do-not-save setting prevent both raw and derived records from persisting?
+- [ ] What happens during a false activation?
+- [ ] Do the settings survive an update?
 
 ### Data governance
 
@@ -51,6 +61,10 @@ Four questions for every arrow a product draws:
 - [ ] Which controls can the vendor or a government withdraw, and who would be told?
 - [ ] Does a preservation hold include the keys, mappings, schemas, metadata and derived copies needed to make the record meaningful?
 - [ ] Which connections changed since the last review (a new receiver, identifier, processor, purpose or retention period), and did each go through review?
+- [ ] What retention applies to raw media, and what to transcripts and derivatives?
+- [ ] Can the device owner delete data about another person?
+- [ ] What can a non-user whose data was captured do about it?
+- [ ] What happens to captures and derivatives when the account is deleted?
 
 A question nobody can answer is a finding.
 
@@ -66,5 +80,6 @@ A question nobody can answer is a finding.
 | Cloud backup | Apple, Google, Microsoft | Key custody. Whoever holds the key — provider, user or recovery contact — decides who can be compelled to open it. |
 | AI assistant | Apple, Google, Microsoft | The arrow from device to cloud tier, and what is retained after the answer. “Verifiable” and “we promise” are different kinds of control. |
 | Home & voice | Apple, Google, Amazon | The arrow from the speaker to the cloud, now that generative assistants need it — and whether deletion covers the transcripts made from the audio. |
+| Ambient & wearable | Meta | The arrow from the glasses to the cloud: what is sent (a frame, audio, or only what was asked), how long it is kept, and whether the people in it know. |
 
 Claims in the essay describe what each company documents, as reviewed on 30 September 2026, with citations. The tests are recommendations. Nothing here is a score or legal advice.

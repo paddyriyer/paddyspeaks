@@ -152,6 +152,12 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
   property only: `tests/sync.test.mjs` and `edition4.mjs` fail when they drift.
   Vendor content (from `compare.js`) and synthetic content never share a band, and
   a Test is never shown as run.
+- **The data subject may not be the user.** `sensors.js` (the *Sensors & wearables*
+  view, the ambient morning, *Whose data?*) is synthetic architecture reasoning:
+  never claim a real device records continuously or performs an inference, and
+  never label everything a sensor saw “collected” — use the explicit states
+  (ephemeral on device, transmitted, stored, derived only, persisted, unknown).
+  Awareness is tracked separately from consent, with no legal conclusions.
 - **The Events layer** (`events.js`, now the *Everyday arrows* view) traces what a
   person did as EVENT → IDENTIFIER → SYSTEM → DERIVED DATA → INFERENCE. Its
   Apple-like / Google-like / Microsoft-like views only relabel one identical
@@ -164,8 +170,10 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
 
 ## Every Arrow Is a Decision (`articles/every-arrow-is-a-decision.html`)
 
-Edition 4 (2026-09-30): eight everyday products, as Apple, Google and one other company
+Edition 4 (2026-09-30): nine everyday products, as Apple, Google and one other company
 each document them, through four lenses — security, privacy, QA and data governance.
+The ninth, *Ambient & wearable* (2026-10-05), compares one company (Meta) and says why
+in its `single` field; never add empty columns to make it look like three.
 Edition 3 (the 31-scene field guide, with scene 31 “One account. One life.”) is archived at
 `articles/every-arrow/edition-3.html` (noindex). Read **`docs/EVERY-ARROW.md`** (§E4
 for the live essay) before touching either or `articles/every-arrow/`.
