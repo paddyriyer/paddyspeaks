@@ -1227,6 +1227,14 @@
       '<p class="always">What looks protected here, but stops being protected somewhere else?</p>';
   }
   var focusAfter = null, focusSel = null, keepPop = false;
+  /* A pop-up opens beside its button; where the header or the sentence wraps, that side can be
+   * off the screen. Shift it back inside the window (8px margin), never past either edge. */
+  function inView(el) {
+    el.style.transform = '';
+    var W = document.documentElement.clientWidth, r = el.getBoundingClientRect();
+    if (r.left < 8) el.style.transform = 'translateX(' + Math.round(8 - r.left) + 'px)';
+    else if (r.right > W - 8) el.style.transform = 'translateX(' + Math.round(W - 8 - r.right) + 'px)';
+  }
   function closePop(e) { var pop = $('#msPop'); if (pop && !pop.hidden && !e.target.closest('.ms')) { pop.hidden = true; $('#selC').setAttribute('aria-expanded', 'false'); } var vm = $('#vmPop'); if (vm && !vm.hidden && !e.target.closest('.vm')) { vm.hidden = true; $('#vmBtn').setAttribute('aria-expanded', 'false'); } }
   function apply(s) { set({ page: 'cc', p: s.p, s: s.s, j: s.j, q: s.q, c: s.c.slice(), u: s.subj || 'person' }); }
   function mountCC() {
@@ -1235,10 +1243,10 @@
     [['selP', 'p'], ['selJ', 'j'], ['selQ', 'q'], ['selU', 'u']].forEach(function (x) { $('#' + x[0]).addEventListener('change', function () { var o = {}; o[x[1]] = this.value; focusAfter = x[0]; set(o); }); });
     $('#selS').addEventListener('change', function () { focusAfter = 'selS'; set({ s: this.value, j: byId(G.surfaces, this.value).j }); });
     var pop = $('#msPop'), btn = $('#selC');
-    btn.addEventListener('click', function () { var open = pop.hidden; pop.hidden = !open; btn.setAttribute('aria-expanded', open); if (open) { var f = $('input', pop); if (f) f.focus(); } });
+    btn.addEventListener('click', function () { var open = pop.hidden; pop.hidden = !open; btn.setAttribute('aria-expanded', open); if (open) { inView(pop); var f = $('input', pop); if (f) f.focus(); } });
     pop.addEventListener('change', function (e) { focusAfter = e.target.id; keepPop = true; set({ c: $$('input:checked', pop).map(function (i) { return i.value; }) }); });
     $('#msClear').addEventListener('click', function () { focusAfter = 'selC'; set({ c: [] }); });
-    if (keepPop) { pop.hidden = false; btn.setAttribute('aria-expanded', 'true'); keepPop = false; }
+    if (keepPop) { pop.hidden = false; inView(pop); btn.setAttribute('aria-expanded', 'true'); keepPop = false; }
     $$('[data-l]').forEach(function (b) { b.addEventListener('click', function () { focusAfter = null; set({ l: b.getAttribute('data-l') }); }); });
     $$('[data-fv]').forEach(function (b) { b.addEventListener('click', function () { apply(G.focus[+b.getAttribute('data-fv')].s); }); });
   }
@@ -1406,8 +1414,11 @@
     var main = $('#main');
     try {
       var MP = M.pages[S.page];
-      main.innerHTML = MP ? MP.render(S) : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
-      if (MP) MP.mount(main); else if (S.page === 'cc') mountCC();
+      /* A mode's view mounts on a fresh wrapper, never on #main: #main outlives every render,
+       * so a listener bound to it would pile up, one more per render, and each click would
+       * redraw twice as often as the last (2026-10-05 incident, docs/INCIDENTS.md). */
+      main.innerHTML = MP ? '<div class="mp">' + MP.render(S) + '</div>' : S.page === 'evidence' ? evidencePage() : S.page === 'ask' ? askPage() : ccPage();
+      if (MP) MP.mount(main.firstElementChild); else if (S.page === 'cc') mountCC();
       if (S.page === 'evidence') { M.mountLens(main); $$('[data-kind]', main).forEach(function (b) { b.addEventListener('click', function () { focusSel = '[data-kind="' + b.getAttribute('data-kind') + '"]'; set({ ek: b.getAttribute('data-kind') }); }); }); }
       /* each data cell carries its column name, so a phone can show a table as stacked rows */
       $$('table.rel, table.util, table.priv, table.pkt, table.otime', main).forEach(function (t) { var hs = $$('thead th', t).map(function (h) { return h.textContent; }); $$('tbody tr', t).forEach(function (r) { $$('td', r).forEach(function (c) { var h = hs[c.cellIndex]; if (h) c.setAttribute('data-h', h); }); }); });
@@ -1426,7 +1437,7 @@
       var m = loadSaved(), label = byId(G.personas, S.p).label + ' · ' + byId(G.questions, S.q).label.replace('?', '');
       m.push({ label: label, s: { p: S.p, s: S.s, j: S.j, q: S.q, c: S.c.slice(), subj: S.u } }); storeSaved(m); render(); $('#status').textContent = 'Saved “' + label + '”';
     });
-    $('#vmBtn').addEventListener('click', function () { var p = $('#vmPop'), open = p.hidden; p.hidden = !open; this.setAttribute('aria-expanded', open); if (open) $('.vm-i', p).focus(); });
+    $('#vmBtn').addEventListener('click', function () { var p = $('#vmPop'), open = p.hidden; p.hidden = !open; this.setAttribute('aria-expanded', open); if (open) { inView(p); $('.vm-i', p).focus(); } });
     if (focusAfter) { var el = document.getElementById(focusAfter); if (el) el.focus(); focusAfter = null; }
     if (focusSel) { var fe = $(focusSel); if (fe) { if (!fe.matches('button,a,input,select,[tabindex]')) fe.setAttribute('tabindex', '-1'); fe.focus(); } focusSel = null; }
   }

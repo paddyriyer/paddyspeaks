@@ -60,6 +60,16 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
 
 ## 4. Log
 
+### 2026-10-05 — Privacy Command Center: each click redrew twice as often as the last; pop-ups opened off the screen
+- Impact:        Every view added in #917 and #918 (Products, Every layer, Sensors, Future, AI / agents, Reviews, Everyday arrows, Evidence) slowed down with use: the *n*th click on a control redrew the page 2^(n−1) times. Measured locally on Paddy's reported URL (`#sensors?…&sf=network`): 1, 2, 4 … 512 redraws per click, about 2 s per click by the tenth, and the tab soon froze. Separately, the *Views* menu opened off the left edge of the window whenever the header wrapped (every width below ~1150px; at 390px its left edge was −30px), and the *concerns* pop-up could push the page wider than the window (at 1100px the page became 1230px wide). No data was lost; the page is static.
+- Window:        redraws from the #917 merge (2026-10-04 06:15 UTC) to this fix; the pop-up placement since v1 shipped (#893, 2026-09-30 20:41 UTC).
+- Detected by:   Paddy, 2026-10-05 ("The pages are having serious performance issues"; then a screenshot of the Views menu off-screen: "Drop down lists fail pathetically"). About 40 hours after the redraw bug shipped. No test or monitor caught either.
+- Cause:         Claude session (the one that wrote #917/#918). `app.js` rendered each mode into `#main` and then called `MP.mount(#main)`; the mode views in `modes.js` and `sensors.js` bound `root.addEventListener('click', …)` to that root. `#main` survives every render, so each render added one more listener, and each listener re-rendered. The pop-ups were absolutely positioned against their button (`right:0` / `left:0`) with nothing keeping them inside the window.
+- Why it wasn't caught: every test loaded a view and clicked once or twice; none counted redraws or clicked repeatedly. The phone-width checks ran with the pop-ups closed.
+- Fix:           this PR. Mode views mount on a fresh wrapper (`<div class="mp">`, `display: contents`) that is replaced on every render, so its listeners die with it. Pop-ups are shifted back inside the window when they open (`inView()` in `app.js`), and the header toolbar sits at the right edge (`.tbar { margin-left: auto }`). Verified locally: one redraw per click on all eleven routes; the Views menu at [566, 846] in a 1000px window and [8, 288] at 390px, with no sideways scroll. Production check after merge: Paddy's URL, click any control ten times — each click instant; open Views at a narrow window — fully visible.
+- Guardrails added: this PR. `privacy-command-center/tests/sync.test.mjs` — *one click, one redraw* (eleven routes, eight alternating clicks, fails when any click redraws `#main` more than once; it reported 1 → 128 without the fix) and *pop-ups open inside the window at every width* (seven widths × three routes, both pop-ups; it reported the −30px and 1230px cases without the fix). Both run in the Accessibility workflow.
+- Follow-ups:    a new view in `modes.js`/`sensors.js` must bind to the root it is given and nothing older (comment in `app.js` `render()`); owner: any session adding a view.
+
 ### 2026-10-03 — Retention cohorts inflated by launch-day `first_seen` stamps
 
 - **Impact:** Dashboard only — no data collection affected. The Journeys →
