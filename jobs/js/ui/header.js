@@ -20,7 +20,8 @@
   ];
 
   function brand() {
-    return el('a', { class: 'jsHeader-brand', href: '/', 'aria-label': 'PaddySpeaks home' }, [
+    /* named by its visible text (“PaddySpeaks JobSignal”): an aria-label that left it out failed WCAG 2.5.3 */
+    return el('a', { class: 'jsHeader-brand', href: '/' }, [
       el('span', { class: 'ps', text: 'PaddySpeaks' }),
       el('span', { class: 'sep', 'aria-hidden': 'true', text: '/' }),
       el('span', { class: 'pn', text: 'JobSignal' })

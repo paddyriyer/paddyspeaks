@@ -14,11 +14,13 @@ clones fresh each time). CLAUDE.md points here._
   data?*. The hero image was updated separately (#918). See `docs/EVERY-ARROW.md` and
   the v1 README.
 
-- **Open follow-up: axe-core 4.14.** Accessibility CI is pinned to `axe-core@4.13.0`
-  (#918) because 4.14.0 (5 Oct 2026) newly fails `label-content-name-mismatch` on the
-  v10 explorer (`.brand`, `#searchBtn`), edition 3 (timeline tabs, `.mine` buttons) and
-  the jobs header (`.jsHeader-brand`). Upgrade in its own PR: fix those accessible
-  names (the visible text must be part of the name), then move the pin.
+- **2026-10-05: Command Center hotfix + axe-core 4.14.** Mode views piled up click
+  listeners on `#main` (each click redrew twice as often as the last) and the Views
+  pop-up opened off-screen; fixed with guardrail tests, incident in
+  `docs/INCIDENTS.md`. Accessibility CI then moved to `axe-core@4.14.0` after fixing
+  its new `label-content-name-mismatch` findings (v10 brand and search button,
+  edition-3 tabs and trail buttons, jobs header): the visible text is now part of
+  each accessible name.
 
 - **2026-10-04: one privacy model, two experiences.** At Paddy's request
   the essay and the Command Center now share one model, written once in

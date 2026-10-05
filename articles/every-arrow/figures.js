@@ -275,7 +275,8 @@
     dial.appendChild(host);
     var btns = Q.map(function (q, i) {
       var a = (i / N) * Math.PI * 2 - Math.PI / 2;
-      var b = el('button', { type: 'button', 'class': 'dq', role: 'tab', 'aria-controls': 'eqPanel', 'aria-label': (i + 1) + '. ' + q[0] + ': ' + q[1] }, '<span class="dn">0' + (i + 1) + '</span>' + q[0]);
+      /* named by what it shows, then the question (WCAG 2.5.3: the visible label is part of the name) */
+      var b = el('button', { type: 'button', 'class': 'dq', role: 'tab', 'aria-controls': 'eqPanel' }, '<span class="dn">0' + (i + 1) + '</span> ' + q[0] + '<span class="sr">: ' + q[1] + '</span>');
       b.style.left = (50 + Math.cos(a) * 41) + '%'; b.style.top = (50 + Math.sin(a) * 41) + '%';
       b.addEventListener('click', function () { sel(i); EA.changed('eight'); });
       host.appendChild(b); return b;
