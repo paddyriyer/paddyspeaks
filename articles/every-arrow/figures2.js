@@ -211,7 +211,7 @@
     }
     F.forEach(function (m, i) {
       var card = el('div', { 'class': 'mine' }, '<span class="n">0' + (i + 1) + '</span><h3>' + esc(m[0]) + '</h3><p>' + esc(m[1]) + '</p>');
-      var b = el('button', { type: 'button', 'aria-pressed': 'false', 'aria-label': 'Our deletion reaches: ' + m[0] }, 'Reached?');
+      var b = el('button', { type: 'button', 'aria-pressed': 'false', 'aria-label': 'Reached? ' + m[0] }, 'Reached?');
       b.addEventListener('click', function () { on[i] = !on[i]; cov(); EA.changed('forget'); });
       card.appendChild(b); wrap.appendChild(card); cards.push({ card: card, b: b });
     });

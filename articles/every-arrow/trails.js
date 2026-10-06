@@ -530,7 +530,7 @@
       step = Math.max(0, Math.min(N - 1, i));
       var w = tr.world(step, H), c = w.cap;
       last = w;
-      rail.querySelectorAll(".tl-stop").forEach(function(b, k){ var l = tr.label(k, H); b.querySelector("span").textContent = l || tr.steps[k][1]; b.setAttribute("aria-selected", String(k === step)); b.setAttribute("aria-label", (k+1) + " of " + N + ", " + tr.steps[k][0] + ": " + (l || tr.steps[k][1])); b.classList.toggle("done", k < step); b.classList.toggle("safe", any()); b.tabIndex = k === step ? 0 : -1; });
+      rail.querySelectorAll(".tl-stop").forEach(function(b, k){ var l = tr.label(k, H); b.querySelector("span").textContent = l || tr.steps[k][1]; b.setAttribute("aria-selected", String(k === step)); b.removeAttribute("aria-label"); b.setAttribute("aria-posinset", String(k+1)); b.setAttribute("aria-setsize", String(N)); b.classList.toggle("done", k < step); b.classList.toggle("safe", any()); b.tabIndex = k === step ? 0 : -1; });
       fill.style.width = "calc((100% - 100% / var(--n)) * " + (step / (N - 1)) + ")"; fill.style.background = any() ? "var(--coolc)" : "";
       q("cap").innerHTML = "<span class=\"tl-tag" + (c.safe ? " safe" : "") + "\">" + esc(c.tag) + "</span><div>" + (/\d/.test(c.tag) ? "" : "<p class=\"tl-when\">" + esc(tr.steps[step][0]) + "</p>") + "<h3>" + esc(c.title) + "</h3><p>" + esc(c.body) + "</p><div class=\"tl-myth\"><div><b>What it feels like</b>" + esc(c.myth) + "</div><div class=\"real" + (c.safe ? " safe" : "") + "\"><b>What is true</b>" + esc(c.real) + "</div></div></div>";
       q("atitle").textContent = w.art.title; q("art").innerHTML = w.art.html; q("th").textContent = w.traceH;
