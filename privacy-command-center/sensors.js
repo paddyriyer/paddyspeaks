@@ -6,10 +6,11 @@
  * real product works. Vendor claims appear only where they are cited, from
  * /articles/every-arrow/compare.js, under the DOCUMENTED band.
  *
- * Six views (#sensors?sm=…): cafe (what the device saw; the flagship), room (the
+ * Seven views (#sensors?sm=…): cafe (what the device saw; the flagship), room (the
  * dinner table, the room hop by hop, the false-activation test), forget (the device
  * that did not forget), gap (the bystander gap and awareness), attack (intended and
- * adversarial flows), home (one home, many ecosystems). Plus the ambient morning on
+ * adversarial flows), home (one home, many ecosystems), tag (a tracker tag in someone
+ * else’s bag: the person located is not the owner, and the alert is the only notice). Plus the ambient morning on
  * Everyday arrows, the "Whose data?" selector (ds) and Ask privacy questions.
  *
  * Sensed is not collected: every observation carries a state — ephemeral on device,
@@ -22,8 +23,8 @@ window.PCC_SENSORS = function (A, H) {
 
   /* ── whose data? ─────────────────────────────────────────── */
   var DS = [['everyone', 'Everyone'], ['me', 'Me'], ['household', 'Household'], ['contacts', 'Contacts'], ['bystanders', 'Bystanders'], ['children', 'Children'], ['employees', 'Employees']];
-  var SUBJ = { owner: 'Device owner', household: 'Household member', child: 'Child', guest: 'Guest', passer: 'Passer-by', employee: 'Employee', customer: 'Customer', stranger: 'Stranger', contact: 'Contact', none: 'Nobody (an object)' };
-  var GROUP = { me: ['owner'], household: ['household', 'child'], contacts: ['contact'], bystanders: ['guest', 'passer', 'employee', 'customer', 'stranger'], children: ['child'], employees: ['employee'] };
+  var SUBJ = { owner: 'Device owner', household: 'Household member', child: 'Child', guest: 'Guest', passer: 'Passer-by', employee: 'Employee', customer: 'Customer', stranger: 'Stranger', contact: 'Contact', carrier: 'The person carrying it', none: 'Nobody (an object)' };
+  var GROUP = { me: ['owner'], household: ['household', 'child'], contacts: ['contact'], bystanders: ['guest', 'passer', 'employee', 'customer', 'stranger', 'carrier'], children: ['child'], employees: ['employee'] };
   function inGroup(ds, subj) { return ds === 'everyone' ? subj !== 'none' : (GROUP[ds] || []).indexOf(subj) >= 0; }
   function dsBar(st) {
     return '<div class="dsbar"><span class="eyebrow">Whose data?</span>' + seg('Data subject', 'ds', DS, st.ds) +
@@ -102,6 +103,7 @@ window.PCC_SENSORS = function (A, H) {
     cafe: ['A question about a menu, on camera glasses', { owner: ['clear', 'They asked the question.'], bystander: ['unclear', 'Depends on whether they noticed an indicator, and what they took it to mean.'], indicator: ['partial', 'A light can say “capturing”; it cannot say what is sent or kept.'], setting: ['partial', 'The owner’s settings; the people in the frame have none.'], consent: ['na', 'The owner authorised the feature. Nobody else was asked, and this view draws no legal conclusion.'], purpose: ['clear', 'Read the menu.'] }],
     dinner: ['“Play some music” at the dinner table', { owner: ['partial', 'The host set the speaker up, but did not ask.'], bystander: ['partial', 'Guests may know a speaker is there, not when it is listening.'], indicator: ['partial', 'A light or tone on activation, if they notice it.'], setting: ['partial', 'The host’s account decides what is kept.'], consent: ['na', 'No legal conclusion is drawn here.'], purpose: ['clear', 'Play music.'] }],
     doorbell: ['The doorbell sees a delivery', { owner: ['clear', 'The owner installed the camera.'], bystander: ['unclear', 'The driver may not know whether it records, or for how long.'], indicator: ['unk', 'Depends on the device.'], setting: ['partial', 'The owner’s motion and retention settings.'], consent: ['na', 'No legal conclusion is drawn here.'], purpose: ['clear', 'See who is at the door.'] }],
+    tag: ['A tag in someone else’s bag', { owner: ['clear', 'They paired the tag and see it on their map.'], bystander: ['unclear', 'The person carrying it knows only if their phone alerts them, or the tag makes a sound.'], indicator: ['partial', 'Nothing on the tag can be seen in a closed bag; an alert or a sound, if either happens.'], setting: ['partial', 'The owner’s settings, and the alert setting on the carrier’s phone, if it has one.'], consent: ['na', 'Being alerted is not agreeing to be located. No legal conclusion is drawn here.'], purpose: ['clear', 'Find a lost object.'] }],
     meeting: ['A video meeting', { owner: ['clear', 'They joined the meeting.'], bystander: ['partial', 'Coworkers know the meeting, maybe not a transcript or a summary.'], indicator: ['partial', 'A recording banner, if recording; a summary may have none.'], setting: ['partial', 'The organiser’s or the company’s.'], consent: ['na', 'No legal conclusion is drawn here.'], purpose: ['clear', 'Meet.'] }]
   };
   var AW_ROWS = [['owner', 'Owner awareness'], ['bystander', 'Bystander awareness'], ['indicator', 'Visible indicator'], ['setting', 'Setting'], ['consent', 'Consent or authorisation'], ['purpose', 'Purpose']];
@@ -227,18 +229,62 @@ window.PCC_SENSORS = function (A, H) {
       '</tbody></table></div>' + phrase('onehome') + phrase('samequestions') + '<p><a class="btn ghost" href="#everyday?et=eco">Follow the devices in the events graph →</a></p></section>';
   }
 
+
+  /* ═══════════ 7 · A TAG IN SOMEONE ELSE’S BAG — the person located is not the owner ═══════════ */
+  var PHONES = [['other', 'A different platform from the tag'], ['same', 'The same platform as the tag']];
+  var ALERTS = [['shared', 'A specification shared across platforms'], ['own', 'Its own platform only'], ['none', 'No alert']];
+  /* [id, hop, what it carries, who can read it, data subjects, state] */
+  var TAGHOPS = [
+    ['beacon', 'The tag broadcasts', 'An identifier that keeps changing', 'Anyone nearby with a receiver; nobody can follow one fixed identifier', ['carrier'], 'eph'],
+    ['relay', 'A passing phone hears it', 'The tag’s identifier, and the passing phone’s own location', 'The passing phone, for a moment', ['carrier', 'passer'], 'eph'],
+    ['report', 'An encrypted report leaves the phone', 'Where and when the tag was seen, sealed to the owner’s key', 'Nobody but the owner, if it is end-to-end encrypted', ['carrier'], 'tx'],
+    ['store', 'The network holds the report', 'Ciphertext', 'The operator holds it and cannot read it', ['carrier'], 'st'],
+    ['map', 'The owner’s app shows a map', 'A location history, decrypted', 'The owner', ['carrier'], 'st'],
+    ['detect', 'The carrier’s phone looks for tags', 'Tags away from their owners, seen again and again', 'The carrier’s own phone, on the device', ['carrier'], 'eph']
+  ];
+  var ALERT_TESTS = ['Does it fire?', 'How soon?', 'On which phones?', 'For which makers’ tags?', 'Can the carrier find the tag?', 'Can the carrier stop it?'];
+  function tagTold(st) { return st.al === 'shared' || st.al === 'own' && st.ph === 'same'; }
+  function tag(st) {
+    var told = tagTold(st), hit = st.ds !== 'everyone';
+    return '<section class="card" aria-labelledby="tgH">' + band('syn', 'A synthetic scenario. No company’s tag or network is implied.') + '<h2 id="tgH">A tag in someone else’s bag</h2>' +
+      '<div class="cf4"><div><span class="eyebrow">The owner</span><p>Paired the tag to find a lost bag.</p></div>' +
+        '<div><span class="eyebrow">Where the tag is</span><p>In a bag that belongs to someone else.</p></div>' +
+        '<div><span class="eyebrow">Who is located</span><p>Whoever carries the bag. They never paired it, opened the owner’s app or saw its settings.</p></div>' +
+        '<div><span class="eyebrow">What could tell them</span><p>Their own phone, or a sound from the tag.</p></div></div>' +
+      '<p class="q2">Will the person carrying it know, and soon enough to act?</p>' +
+      '<div class="sfbar"><span class="eyebrow">The carrier’s phone</span>' + seg('The carrier’s phone', 'ph', PHONES, st.ph) + '</div>' +
+      '<div class="sfbar"><span class="eyebrow">Alert design</span>' + seg('Alert design', 'al', ALERTS, st.al) + '</div>' +
+      '<div class="m-tw"><table class="rel m-tag"><caption>One location report, hop by hop</caption><thead><tr><th scope="col">Hop</th><th scope="col">What it carries</th><th scope="col">Who can read it</th><th scope="col">Data subject</th><th scope="col">State</th></tr></thead><tbody>' +
+        TAGHOPS.map(function (h) {
+          var off = h[0] === 'detect' && !told, on = hit && h[4].some(function (k) { return inGroup(st.ds, k); });
+          return '<tr class="' + (on ? 'ds-hit' : '') + '"><th scope="row">' + esc(h[1]) + '</th><td>' + esc(off ? 'Nothing it can recognise, under this design' : h[2]) + '</td><td>' + esc(h[3]) + '</td><td>' + esc(h[4].map(function (k, i) { return i ? SUBJ[k].toLowerCase() : SUBJ[k]; }).join(' and a ')) + '</td><td>' +
+            (off ? stateTag('unk') + ' <small>no detection</small>' : stateTag(h[5]) + (h[5] === 'st' ? ' <small>how long: unknown until documented</small>' : '')) + '</td></tr>';
+        }).join('') +
+      '</tbody></table></div>' +
+      '<p class="rsum" aria-live="polite">' + (told ? A.tag('INFERENCE') + ' Under this design the carrier’s phone can alert them once the tag has been away from its owner and near them for a while. How soon is unknown until it is tested.'
+        : A.tag('FACT') + ' Under this design the carrier’s phone cannot recognise this tag. Only a sound from the tag, if it plays one, could tell them.') + '</p>' +
+      phrase('carrier') + phrase('platform') + '</section>' +
+      '<section class="card" aria-labelledby="taH"><h2 id="taH">The alert, measured</h2>' + band('syn', 'What a review measures. A recommendation; nobody has run it here.') +
+      '<p>Use a tag paired to an account you control, carried by someone who agreed to carry it, on a route chosen in advance. The results describe the alert, not the owner.</p>' +
+      '<div class="m-tw"><table class="rel"><thead><tr><th scope="col">Measure</th><th scope="col">Status</th></tr></thead><tbody>' +
+        ALERT_TESTS.map(function (t) { return '<tr><th scope="row">' + esc(t) + '</th><td>' + qst(['never', 'NOT RUN']) + '</td></tr>'; }).join('') +
+      '</tbody></table></div>' + readLink('tracker') +
+      '<p><a class="btn ghost" href="#products?pr=tracker">What the companies document about their trackers →</a></p></section>' +
+      awarenessCard('tag');
+  }
+
   /* ═══════════ the page ═══════════ */
-  var SM = [['cafe', 'What the device saw'], ['room', 'The room'], ['forget', 'Did not forget'], ['gap', 'Bystander gap'], ['attack', 'Under attack'], ['home', 'One home']];
+  var SM = [['cafe', 'What the device saw'], ['room', 'The room'], ['forget', 'Did not forget'], ['gap', 'Bystander gap'], ['attack', 'Under attack'], ['home', 'One home'], ['tag', 'A tag in a bag']];
   function page(st) {
     var sm = SM.some(function (x) { return x[0] === st.sm; }) ? st.sm : 'cafe';
-    var body = sm === 'room' ? room(st) : sm === 'forget' ? forget(st) : sm === 'gap' ? gap(st) : sm === 'attack' ? attack(st) : sm === 'home' ? home(st) : cafe(st);
-    return pgh('Sensors & wearables', 'Some arrows do not begin with a click. A microphone hears a room, a camera sees a scene, a wearable observes whoever is nearby. Ask what the system observed, about whom, what it turned that into, and what survived.', 'Ambient computing') +
+    var body = sm === 'room' ? room(st) : sm === 'forget' ? forget(st) : sm === 'gap' ? gap(st) : sm === 'attack' ? attack(st) : sm === 'home' ? home(st) : sm === 'tag' ? tag(st) : cafe(st);
+    return pgh('Sensors & wearables', 'Some arrows do not begin with a click. A microphone hears a room, a camera sees a scene, a wearable observes whoever is nearby, a tag reports where a bag has gone. Ask what the system observed, about whom, what it turned that into, and what survived.', 'Ambient computing') +
       '<p class="keyline">' + esc(phraseText('subject')) + '</p>' + seg('Scenario', 'sm', SM, sm) + dsBar(st) + '<div class="sens">' + body + '</div>' + readLink('room');
   }
   function mount(root) {
     mountDs(root);
     root.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-sm],[data-sf],[data-alt],[data-hop2],[data-drv],[data-aw],[data-dev]'); if (!b) return;
+      var b = e.target.closest('[data-sm],[data-sf],[data-alt],[data-hop2],[data-drv],[data-aw],[data-dev],[data-ph],[data-al]'); if (!b) return;
       var a = function (n) { return b.getAttribute(n); };
       if (b.hasAttribute('data-sm')) { A.focusNext('[data-sm="' + a('data-sm') + '"]'); A.set({ sm: a('data-sm') }); }
       else if (b.hasAttribute('data-sf')) { A.focusNext('[data-sf="' + a('data-sf') + '"]'); A.set({ sf: a('data-sf') }); }
@@ -246,6 +292,8 @@ window.PCC_SENSORS = function (A, H) {
       else if (b.hasAttribute('data-hop2')) { A.focusNext('[data-hop2="' + a('data-hop2') + '"]'); A.set({ hop2: a('data-hop2') }); }
       else if (b.hasAttribute('data-aw')) { A.focusNext('[data-aw="' + a('data-aw') + '"]'); A.set({ aw: a('data-aw') }); }
       else if (b.hasAttribute('data-dev')) { A.focusNext('[data-dev="' + a('data-dev') + '"]'); A.set({ dev: a('data-dev') }); }
+      else if (b.hasAttribute('data-ph')) { A.focusNext('[data-ph="' + a('data-ph') + '"]'); A.set({ ph: a('data-ph') }); }
+      else if (b.hasAttribute('data-al')) { A.focusNext('[data-al="' + a('data-al') + '"]'); A.set({ al: a('data-al') }); }
       else { var k = a('data-drv'); reach[k] = !reach[k]; A.focusNext('[data-drv="' + k + '"]'); A.render(); }
     });
   }
@@ -349,6 +397,15 @@ window.PCC_SENSORS = function (A, H) {
     ask('What happens if the microphone activates accidentally?', /activates accidentally|accidental/i, function () {
       return asLines(claims('wearable', 'meta', /false wake|mistaken/i), 1).concat([['TEST', 'Run the false activation test and read the activity log.', []], ['RECOMMENDATION', phraseText('falsepos'), []]]);
     }),
+    ask('Who is located when a tag is in someone else’s bag?', /tag.*someone else|who is located/i, function () {
+      return [['FACT', 'The owner sees the tag on a map. The tag is in someone else’s bag, so the location is theirs.', []], ['INFERENCE', 'In the synthetic scenario the person carrying the bag never paired the tag, opened the owner’s app or saw its settings.', []], ['RECOMMENDATION', phraseText('carrier'), []]];
+    }),
+    ask('Will the person carrying a tracker be alerted?', /carrying a tracker|be alerted|unwanted track/i, function () {
+      return asLines(claims('tracker', null, /alert/i), 4).concat([['UNKNOWN', 'Whether Samsung’s SmartTags raise the cross-platform alerts Apple and Google document, and how soon any alert appears, is not stated in the pages reviewed.', []], ['TEST', 'Carry a tag paired to an account you control, with phones from each platform, and record when each alerts.', []]]);
+    }),
+    ask('Can the company running a tracker network see where a tag is?', /tracker network|see where a tag/i, function () {
+      return asLines(claims('tracker', null, /cannot|not even|encrypt/i), 3).concat([['UNKNOWN', 'How long each network keeps location reports about an item is not stated in the pages reviewed.', []]]);
+    }),
     ask('What changed after this firmware or privacy-setting update?', /firmware|setting update/i, function () {
       return asLines(claims('voice', 'amazon', /removed|withdrawn/i), 1).concat([['TEST', 'After every update, re-check each privacy setting and re-run the false activation test.', []], ['UNKNOWN', 'Whether a given update changed what is sent or kept is unknown until it is tested.', []]]);
     })
@@ -357,8 +414,8 @@ window.PCC_SENSORS = function (A, H) {
   return {
     page: { render: page, mount: mount },
     ambTab: ambTab, mountAmb: mountAmb, highlightGraph: highlightGraph,
-    defs: { sm: 'cafe', ds: 'everyone', sf: '', alt: 'A', hop2: 'proc', aw: 'cafe', dev: 'speaker', by: false },
-    valid: { sm: SM.map(function (x) { return x[0]; }), ds: DS.map(function (x) { return x[0]; }), sf: SENSORS.map(function (x) { return x[0]; }), alt: ['A', 'B', 'C', 'D'], hop2: HOPS.map(function (x) { return x[0]; }), aw: Object.keys(AWARE_FLOWS), dev: DEVS.map(function (x) { return x[0]; }) },
-    dsBar: dsBar, ask: ASK, obs: OBS, alts: ALTS, amb: AMB, hops: HOPS, paths: PATHS, home: HOME, join: JOIN
+    defs: { sm: 'cafe', ds: 'everyone', sf: '', alt: 'A', hop2: 'proc', aw: 'cafe', dev: 'speaker', ph: 'other', al: 'shared', by: false },
+    valid: { sm: SM.map(function (x) { return x[0]; }), ds: DS.map(function (x) { return x[0]; }), sf: SENSORS.map(function (x) { return x[0]; }), alt: ['A', 'B', 'C', 'D'], hop2: HOPS.map(function (x) { return x[0]; }), aw: Object.keys(AWARE_FLOWS), dev: DEVS.map(function (x) { return x[0]; }), ph: PHONES.map(function (x) { return x[0]; }), al: ALERTS.map(function (x) { return x[0]; }) },
+    dsBar: dsBar, ask: ASK, obs: OBS, alts: ALTS, amb: AMB, hops: HOPS, paths: PATHS, home: HOME, join: JOIN, taghops: TAGHOPS, tagTold: tagTold
   };
 };

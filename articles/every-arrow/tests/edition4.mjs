@@ -4,7 +4,7 @@
  *
  *   node articles/every-arrow/tests/edition4.mjs
  *
- * The promises edition 4 makes about itself: nine products, three companies each (one where
+ * The promises edition 4 makes about itself: ten products, three companies each (one where
  * only one company's product could be documented),
  * four lenses, every claim cited to a registered source, every Test ours and
  * uncited, no scoring; each product has its arrow, its reading and a working
@@ -30,8 +30,8 @@ const SH = load('articles/every-arrow/shared.js', 'EA_SHARED');
 const PG = load('privacy-command-center/graph.js', 'PG');
 
 /* ── 1 · the comparison ─────────────────────────────────────────── */
-const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'assistant', 'voice', 'wearable'];
-ok(C.products.map((p) => p.id).join() === want.join(), 'the nine products, in order: ' + want.join(', '));
+const want = ['passkeys', 'browser', 'mail', 'messages', 'wallet', 'backup', 'assistant', 'voice', 'wearable', 'tracker'];
+ok(C.products.map((p) => p.id).join() === want.join(), 'the ten products, in order: ' + want.join(', '));
 ok(C.lenses.map((l) => l.t).join(' · ') === 'Security · Privacy · QA · Data governance', 'the four lenses, in order');
 const sections = [...html.matchAll(/<section class="scene[^"]*" id="([\w-]+)"/g)].map((m) => m[1]);
 ok(sections.join() === ['lenses', 'compare', ...want, 'future', 'everyday', 'layers', 'patterns', 'kit', 'method', 'coda'].join(), 'sections in order: ' + sections.join(', '));
@@ -99,7 +99,7 @@ const one = (k) => [...(stamps[k] || [])][0];
 ok(one('products') === String(C.products.length), 'the product count is stamped from compare.js');
 ok(one('edition') === '4.0' && /<meta name="ps:edition" content="4.0">/.test(html), 'edition 4.0');
 const ld = JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)[1]);
-ok(ld.version === '4.0' && ld.dateModified === '2026-10-05' && /article:modified_time" content="2026-10-05"/.test(html), 'modified date and version agree');
+ok(ld.version === '4.0' && ld.dateModified === '2026-10-06' && /article:modified_time" content="2026-10-06"/.test(html), 'modified date and version agree');
 ok(ld.datePublished === '2026-09-26' && /datetime="2026-09-26"/.test(html), 'publication date agrees');
 ok(ld.timeRequired === `PT${one('read')}M`, 'JSON-LD timeRequired is the full reading time');
 ok(+one('read.essay') < +one('read'), 'the essay alone is shorter than the essay with every table');
@@ -244,7 +244,7 @@ ok(/A person does not live inside one application\./.test(coda) && /Privacy engi
   }
   for (const u of SH.links) ok(html.includes(`<a href="/privacy-command-center/${u.replace(/&/g, '&amp;')}">Try this in Privacy Command Center &rarr;`), `the essay links to ${u}`);
   /* the ambient material names no company outside the generated comparison */
-  for (const id of ['vo-room', 'wr-subject']) {
+  for (const id of ['vo-room', 'wr-subject', 'tr-subject']) {
     const at = html.indexOf(`id="${id}"`), end = html.indexOf('</section>', at), t = plain(html.slice(at, end));
     ok(!/\b(Apple|Google|Amazon|Meta|Microsoft|Samsung|Snap|Ring|Echo|Alexa|Siri|Nest|Ray-Ban)\b/.test(t), `the conceptual material from #${id} names no company or product`);
   }

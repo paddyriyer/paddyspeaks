@@ -67,6 +67,11 @@ Two companion pieces built on 2026-09-26 from Paddy's field guide
   on Everyday arrows; and a global **Whose data?** selector. Sensed is not
   collected: observations carry explicit states. All synthetic; the essay's
   documented Meta claims appear only under Products → Ambient & wearable.
+- **Item trackers** (2026-10-06): *A tag in a bag* (`#sensors?sm=tag`): a synthetic
+  tag in someone else's bag, one location report hop by hop with explicit states,
+  the carrier's phone (`ph`) and the alert design (`al`) deciding whether the person
+  carrying it is told, the alert's measures (all NOT RUN) and awareness separate
+  from consent. Vendor claims stay under Products → Item trackers.
 - **`/privacy-command-center/v10/` is the earlier full explorer**, renamed
   **Northstar Privacy Explorer (v10)**, marked `noindex`, and left out of the
   sitemap and search. Everything below this section describes v10; its files

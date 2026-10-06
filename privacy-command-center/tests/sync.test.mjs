@@ -179,10 +179,25 @@ export default [
       assert(r.h === q && r.n >= 2, q + ' → ' + r.h);
     }
   } },
+  { name: 'item trackers: the person located is not the owner, and whether they are told depends on the alert design, not the owner', async run({ page, assert }) {
+    const want = { 'other,shared': true, 'same,shared': true, 'other,own': false, 'same,own': true, 'other,none': false, 'same,none': false };
+    for (const [k, told] of Object.entries(want)) {
+      const [ph, al] = k.split(',');
+      const p = await page('#sensors?sm=tag&ph=' + ph + '&al=' + al + '&ds=bystanders');
+      const r = await p.evaluate(() => ({ sum: document.querySelector('.rsum').innerText, hits: document.querySelectorAll('.m-tag tr.ds-hit').length, notRun: [...document.querySelectorAll('#taH ~ .m-tw .qs')].map((x) => x.textContent), synth: !!document.querySelector('.sens .band-syn'), doc: !!document.querySelector('.sens .band-doc'), t: document.getElementById('main').innerText }));
+      clean(p, k, assert); await p.closeAll();
+      assert(told ? /^INFERENCE/.test(r.sum) && /can alert them/.test(r.sum) : /^FACT/.test(r.sum) && /cannot recognise/.test(r.sum), `${k}: told=${told}: ${r.sum}`);
+      assert(r.hits === 6, `${k}: every hop is about the person carrying it, a bystander: ${r.hits}`);
+      assert(r.notRun.length === 6 && r.notRun.every((x) => x === 'NOT RUN'), `${k}: the alert measures are tests, never results`);
+      assert(r.synth && !r.doc, `${k}: synthetic, with no vendor claim in the scenario`);
+      assert(!/\b(Apple|Google|Samsung|AirTag|SmartTag|Find My|Find Hub|Tile)\b/.test(r.t.replace(/What the companies document about their trackers/, '')), `${k}: the scenario names no company or product`);
+      assert(/Being alerted is not agreeing to be located/.test(r.t) && /No legal conclusion/.test(r.t), `${k}: awareness is not consent, and no legal conclusion`);
+    }
+  } },
   { name: 'one click, one redraw: no view piles up listeners across renders (2026-10-05 incident)', async run({ page, assert }) {
     /* every view, two controls clicked back and forth: the redraws per click must stay flat */
     const cases = [['#products', '[data-pr="browser"]', '[data-pr="mail"]'], ['#layers', '.m-hops [data-hop="tls"]', '.m-hops [data-hop="dns"]'], ['#sensors', '[data-sf="camera"]', '[data-sf="network"]'],
-      ['#sensors?sm=room', '[data-hop2="mic"]', '[data-hop2="log"]'], ['#future', '[data-tf="hash"]', '[data-tf="token"]'], ['#ai', '[data-rk="inject"]', '[data-rk="memory"]'], ['#reviews', '[data-rv="qa"]', '[data-rv="lens"]'],
+      ['#sensors?sm=room', '[data-hop2="mic"]', '[data-hop2="log"]'], ['#sensors?sm=tag', '[data-al="own"]', '[data-ph="same"]'], ['#future', '[data-tf="hash"]', '[data-tf="token"]'], ['#ai', '[data-rk="inject"]', '[data-rk="memory"]'], ['#reviews', '[data-rv="qa"]', '[data-rv="lens"]'],
       ['#everyday?e=m8', '[data-connect]', '[data-connect]'], ['#everyday?et=amb', '[data-by]', '[data-by]'], ['#evidence?ev=claims', '[data-kind="doc"]', '[data-kind="test"]'], ['#cc', '.refine [data-l="qa"]', '.refine [data-l="gov"]']];
     const bad = [];
     for (const [route, a, b] of cases) {
@@ -216,7 +231,7 @@ export default [
     const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
     const AXE = fs.readFileSync(req.resolve('axe-core/axe.min.js'), 'utf8');
     const bad = [];
-    for (const h of PAGES.concat(['#products?pr=mail&fa=1', '#layers?hop=tls', '#future?tf=hold', '#ai?rk=inject', '#reviews?rv=qa&tt=consent', '#reviews?rv=gov', '#reviews?rv=changes', '#everyday?et=eco', '#everyday?e=m8&connect=1', '#evidence?ev=claims', '#sensors?sm=cafe&alt=C&ds=bystanders', '#sensors?sm=room', '#sensors?sm=forget', '#sensors?sm=gap&aw=doorbell', '#sensors?sm=attack&dev=glasses', '#sensors?sm=home', '#everyday?et=amb&by=1&ds=employees', '#everyday?ds=contacts&e=m3', '#products?pr=wearable&fa=1'])) {
+    for (const h of PAGES.concat(['#products?pr=mail&fa=1', '#layers?hop=tls', '#future?tf=hold', '#ai?rk=inject', '#reviews?rv=qa&tt=consent', '#reviews?rv=gov', '#reviews?rv=changes', '#everyday?et=eco', '#everyday?e=m8&connect=1', '#evidence?ev=claims', '#sensors?sm=cafe&alt=C&ds=bystanders', '#sensors?sm=room', '#sensors?sm=forget', '#sensors?sm=gap&aw=doorbell', '#sensors?sm=attack&dev=glasses', '#sensors?sm=home', '#everyday?et=amb&by=1&ds=employees', '#everyday?ds=contacts&e=m3', '#products?pr=wearable&fa=1', '#sensors?sm=tag', '#sensors?sm=tag&ph=same&al=own&ds=bystanders', '#products?pr=tracker&fa=1'])) {
       for (const width of [1280, 390]) {
         const p = await page(h, { width });
         await p.addScriptTag({ content: AXE });

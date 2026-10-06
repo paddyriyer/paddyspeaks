@@ -120,12 +120,13 @@ Ambient computing starts arrows nobody clicked. **`sensors.js`** (`window.PCC_SE
 | Bystander gap | `gap` | Phone camera vs camera glasses, and awareness per flow (`aw`): owner awareness, bystander awareness, indicator, setting, consent or authorisation, purpose — Clear · Partial · Unclear · Not applicable · Unknown. No legal conclusions |
 | Under attack | `attack` | Twelve adversary paths for a speaker, a doorbell or glasses (`dev`): what each reaches and the control that narrows it |
 | One home | `home` | Nine devices from seven ecosystems and the twelve join points between them |
+| A tag in a bag | `tag` | A tracker tag in someone else's bag: one location report hop by hop (the passing phone, the encrypted report, the network, the owner's map, the carrier's own phone), with the carrier's phone (`ph`: another platform or the same) and the alert design (`al`: shared across platforms, own platform only, none) deciding whether the person carrying it is told; the alert's six measures (NOT RUN) and awareness, which is not consent. Names no company |
 
 **Sensed is not collected.** Every observation wears one state: Ephemeral on device · Transmitted · Stored · Derived only · Persisted · Unknown.
 
 **Whose data?** (`ds`: Everyone · Me · Household · Contacts · Bystanders · Children · Employees) highlights, with an outline and a label (never by dimming), the flows about that group: in the Sensors scenarios, in the **Ambient morning** tab of Everyday arrows (`et=amb`, `by=1` shows bystanders: a partner, a child, a guest, the delivery driver, a passer-by, a pedestrian, the barista, coworkers), and on the events graph (records about contacts, the household or bystanders, `SUBJ_NODES`).
 
-Also: a **Sensor** hop at the start of Every layer; four QA templates (false activation, indicator matches capture, delete the source and check the derivative, settings after an update — no Northstar control records them, so they read NOT RUN); fifteen Ask privacy questions; and `?view=sensors&mode=cafe|room|forget|gap|attack|home` and `?view=journey&mode=ambient&bystanders=1` from the essay. `tests/sync.test.mjs` checks the twenty ambient sync questions and the scenarios' promises.
+Also: a **Sensor** hop at the start of Every layer; four QA templates (false activation, indicator matches capture, delete the source and check the derivative, settings after an update — no Northstar control records them, so they read NOT RUN); eighteen Ask privacy questions; and `?view=sensors&mode=cafe|room|forget|gap|attack|home|tag` and `?view=journey&mode=ambient&bystanders=1` from the essay. `tests/sync.test.mjs` checks the twenty ambient sync questions and the scenarios' promises.
 
 ## Events layer
 
