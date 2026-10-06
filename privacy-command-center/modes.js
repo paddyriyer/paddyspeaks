@@ -70,6 +70,7 @@ window.PCC_MODES = function (A) {
     backup: { moves: 'Photos and files from the phone to the provider’s cloud.', id: 'The cloud account.', obs: 'Whoever holds the key: the provider, the user, or a recovery contact.', why: 'So nothing is lost with the phone.', copies: 'The cloud store, its replicas, and a recently-deleted bin.', ret: 'Until the user deletes it, plus the bin’s clock.', ctl: 'Encryption at rest; optionally a key only the user holds.', fail: 'Key custody. Whoever holds the key decides who can be compelled to open it.' },
     assistant: { moves: 'The question, plus whatever context the assistant attaches: mail, calendar, location.', id: 'The account, and identifiers inside the context.', obs: 'The on-device model, a private cloud tier, or a third-party model, depending on where it runs.', why: 'To answer the question.', copies: 'Conversation history, provider logs, possibly human review.', ret: 'Often longer than the answer needs; check the default.', ctl: 'On-device processing, attested private compute, no training by default.', fail: 'The arrow from device to cloud, and what is kept after the answer. “Verifiable” and “we promise” are different controls.' },
     wearable: { moves: 'A frame from the camera and the spoken question, or only what was asked of it, from the glasses to the phone app and perhaps the cloud.', id: 'The glasses, the paired phone and the account.', obs: 'The service that answers; and, in the frame, everyone the camera saw.', why: 'To answer a question about what the wearer is looking at.', copies: 'The phone, the cloud for some features, and the voice history.', ret: 'Depends on the feature and the setting; unknown wherever it is not documented.', ctl: 'A capture light, and cropping or on-device recognition before anything is sent.', fail: 'The people in the frame. The owner’s settings and the owner’s awareness do not reach them.' },
+    tracker: { moves: 'Where a tag was seen and when, from a passing phone to the network, sealed to the owner’s key; then onto the owner’s map.', id: 'The tag’s identifier, which keeps changing; the owner’s account holds the key.', obs: 'The owner. The network holds the report and, if it is end-to-end encrypted, cannot read it.', why: 'To find a lost object.', copies: 'The network’s store of reports and the owner’s app.', ret: 'Unknown wherever it is not documented.', ctl: 'End-to-end encryption, identifiers that change, and an alert on the phone of whoever the tag travels with.', fail: 'The person carrying it. Encryption keeps the network out; it does not change whose location the report is.' },
     voice: { moves: 'Audio after the wake word, from the speaker to the cloud; then a transcript.', id: 'The household’s account and the device.', obs: 'The cloud service; sometimes a human reviewer.', why: 'To understand the request.', copies: 'The recording, the transcript, and anything learned from them.', ret: 'Set by a setting; deleting the recording may leave the transcript.', ctl: 'Local wake-word detection; settings to delete automatically and opt out of review.', fail: 'Deletion has to reach the transcript made from the audio, not only the audio.' }
   };
   function claimsOf(P, co, lid) { return (P.cells[co] && P.cells[co][CMP_LENS[lid]]) || []; }
@@ -94,12 +95,12 @@ window.PCC_MODES = function (A) {
         [lensChip('all') + ' Failure boundary', '<b>' + esc(F.fail) + '</b>', 'hl']]) +
       '<p class="small">' + esc(phraseText('boundary')) + '</p>' +
       '<p><a class="btn ghost" href="' + esc(X.products[P.id].synth) + '">Open the interactive synthetic version →</a></p></section>';
-    return pgh('Products', 'Eight everyday products, as their makers document them. Pick a product, then a company and a lens. Every claim is cited; every test is ours, and none has been run.', 'Documented claims') +
+    return pgh('Products', 'The essay’s ' + C.products.length + ' everyday products, as their makers document them. Pick a product, then a company and a lens. Every claim is cited; every test is ours, and none has been run.', 'Documented claims') +
       seg('Product', 'pr', C.products.map(function (p) { return [p.id, p.n]; }), P.id) +
       '<div class="m-pw"><section class="card prd" aria-labelledby="prH"><span class="eyebrow">' + esc(P.n) + '</span><h2 id="prH">' + esc(P.t) + '</h2><p class="lede">' + esc(P.lede) + '</p>' +
         '<div class="watch"><span class="eyebrow">The arrow to watch</span>' + arrowHTML(P) + '<p>' + esc(P.read.watch) + '</p>' +
         '<button type="button" class="btn" data-fa aria-expanded="' + !!st.fa + '">' + (st.fa ? 'Hide the arrow' : 'Follow this arrow') + '</button></div>' + follow +
-        readLink({ passkeys: 'recovery', browser: 'metadata', mail: 'metadata', messages: 'metadata', wallet: 'lenses', backup: 'recovery', assistant: 'agent', voice: 'derivatives', wearable: 'subject' }[P.id]) +
+        readLink({ passkeys: 'recovery', browser: 'metadata', mail: 'metadata', messages: 'metadata', wallet: 'lenses', backup: 'recovery', assistant: 'agent', voice: 'derivatives', wearable: 'subject', tracker: 'tracker' }[P.id]) +
         '<p class="readx"><a href="' + ESSAY + '#' + P.id + '">Read “' + esc(P.n) + '” in the essay →</a></p></section>' +
       '<section class="card clm" aria-labelledby="clH">' + band('doc') +
         '<h2 id="clH">What the companies document</h2>' + lensBar(st) +
@@ -699,7 +700,7 @@ window.PCC_MODES = function (A) {
     if (st.page === 'ai') { put('am', st.am, DEFS.am); put('rk', st.rk, ''); }
     if (st.page === 'reviews') { put('rv', st.rv, DEFS.rv); put('rp', st.rp, ''); put('tt', st.tt, ''); put('ov', st.ov, DEFS.ov); put('ch', st.ch, ''); }
     if (st.page === 'everyday') { put('connect', st.connect, false); put('ds', st.ds, 'everyone'); put('by', st.by, false); }
-    if (st.page === 'sensors') { var D = SX().defs; ['sm', 'ds', 'sf', 'alt', 'hop2', 'aw', 'dev'].forEach(function (k) { put(k, st[k], D[k]); }); }
+    if (st.page === 'sensors') { var D = SX().defs; Object.keys(SX().valid).forEach(function (k) { put(k, st[k], D[k]); }); }
     if (st.page === 'evidence') put('ek', st.ek, '');
     return o.join('&');
   }

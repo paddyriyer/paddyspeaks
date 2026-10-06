@@ -33,7 +33,7 @@ const SLUG = 'every-arrow-is-a-decision.html';
 const PDF = `${DIR}/every-arrow-is-a-decision.pdf`;
 const PDF_META = `${DIR}/pdf.json`;
 const WPM = 230;
-const EDITION = '4.0', REVISED = '5 October 2026';
+const EDITION = '4.0', REVISED = '6 October 2026';
 
 export function loadCompare() {
   const ctx = {}; ctx.window = ctx; vm.createContext(ctx);

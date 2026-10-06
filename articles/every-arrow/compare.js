@@ -1,6 +1,6 @@
 /* Every Arrow Is a Decision, edition 4 — the comparison.
  *
- * Nine everyday products, up to three companies each, four lenses. Every claim is
+ * Ten everyday products, up to three companies each, four lenses. Every claim is
  * what the company's OWN documentation says, cited, as reviewed on EA_CMP.asOf.
  * Nothing here is a score, a rank or a verdict on a company.
  *
@@ -393,10 +393,59 @@
     }
   });
 
+  /* ── 10 · item trackers ──────────────────────────────────── */
+  /* The vendors' pages could be confirmed only through their search listings, as for
+   * Meta (see the method); every claim is a paraphrase of what those listings show. */
+  P({ id: 'tracker', n: 'Item trackers', t: 'Who is the tag following?',
+    lede: 'A tracker tag is made to find keys, a bag or a bike. It reports where it is through other people’s phones that pass by, and the owner sees it on a map. Put the same tag in someone else’s bag and the person being located is not the owner, has no account and installed nothing. The question moves from “where are my keys?” to “who else can this tell about me, and would I know?”',
+    arrow: ['A tag in a bag', 'Phones passing by', 'Encrypted location report', 'The owner’s map', 'An alert to the person carrying it'], hot: 3,
+    cos: ['apple', 'google', 'samsung'],
+    names: { apple: 'AirTag and the Find My network', google: 'Find Hub network and unknown tracker alerts', samsung: 'Galaxy SmartTag and SmartThings Find' },
+    cells: {
+      apple: {
+        sec: [d('Not even Apple sees where it is', 'Apple documents that Find My network reports are end-to-end encrypted: only the owner sees where an AirTag is, and neither Apple nor the devices that relayed it learn the location or each other’s identity.', 'apFindMySec apAirTagIntro'),
+          d('An identifier that keeps changing', 'The key an AirTag broadcasts is replaced about every 15 minutes, so a passer-by cannot follow one fixed signal.', 'apFindMySec')],
+        pri: [d('An alert for the person it travels with', 'If an AirTag or a compatible tracker separated from its owner is seen moving with you over time, your iPhone alerts you; a separated tag also plays a sound when it is moved.', 'apUnwanted apPsTrackers'),
+          l('Only once it is away from its owner', 'The alert depends on the tracker being separated from its owner and seen with you over time; Apple’s guide says to consider your safety before disabling one, because the owner then stops getting its location.', 'apUnwanted apPsTrackers')],
+        qa: [d('One specification, two platforms', 'Apple and Google wrote one industry specification, Detecting Unwanted Location Trackers, so iOS 17.5 and later and Android 6.0 and later can alert about trackers from either network and from makers who adopt it; the work continues in an IETF working group.', 'apDult24 ietfDult'),
+          t('Carry someone else’s tag for a day', 'Put a test tag paired to another account in a bag and carry it on an ordinary route with an iPhone and an Android phone. Record when each alerts, what it shows and whether the steps to find and disable the tag work.')],
+        gov: [d('A located device’s location, for a day', 'Apple’s Find My privacy notice says that when you locate a device, its location is kept for up to 24 hours to provide the service, then deleted.', 'apFindMyPrivacy'),
+          d('A paired tag points to an account', 'Every AirTag has a serial number and a paired AirTag is associated with an Apple Account; Apple says it can provide the paired account details in response to a valid request from law enforcement.', 'apAirTagUpdate')]
+      },
+      google: {
+        sec: [d('Locations Google cannot read', 'Find Hub encrypts item locations end to end with a key unlocked by the phone’s PIN, pattern or password, so Google cannot decrypt or use them; taking part needs a screen lock.', 'gFindHubBlog gFindHubData')],
+        pri: [s('Several phones before one location', 'By default the network waits until several Android devices have detected an item, then shows the owner an aggregated location; it is meant for busy places, and other settings widen it or turn it off.', 'gFindHubBlog gFindHubData'),
+          d('Alerts, and a scan you can run', 'Android 6.0 and later can alert you when someone else’s tracker, separated from its owner, is moving with you; Scan now looks for trackers nearby, AirTags included.', 'gUnknownTrackers')],
+        qa: [l('A scan sees what is near, not what followed', 'Google notes that a tracker found by a manual scan is near you now but may not have travelled with you, and only trackers separated from their owners appear.', 'gUnknownTrackers'),
+          t('A busy street and a quiet one', 'Carry a test tag along a busy route and a quiet one. Compare when its owner sees a location under the default setting with when the person carrying it is alerted.')],
+        gov: [d('A policy against tracking people', 'Google’s Find Hub acceptable use policy forbids tracking people, or learning about someone by placing a tag, without their knowledge and consent; Google may disable access for violations.', 'gFindHubAup'),
+          s('Encrypted recent locations, by default', 'By default an Android device stores its encrypted recent locations with Google and takes part in the network; a setting turns that participation off.', 'gFindHubData')]
+      },
+      samsung: {
+        sec: [d('A private ID that changes every 15 minutes', 'Samsung says SmartThings Find data is encrypted and protected by Knox, and a device’s private ID changes every 15 minutes, so that its location is revealed only to its owner.', 'ssStFindEvolve')],
+        pri: [s('Unknown tag alerts, on or off', 'SmartThings Find can notify you when an unknown SmartTag is moving with you; the alerts are a setting in the SmartThings app, and a manual search shows nearby unknown tags with their signal strength, on Android and iOS.', 'ssStFind300')],
+        qa: [t('With the alert off, and on', 'Carry a test SmartTag paired to another account with the alert off and then on. Record whether and when a Galaxy phone, another Android phone and an iPhone alert, and whether the manual search finds it.')],
+        gov: [d('One account at a time', 'Samsung says a SmartTag can be tracked and accessed by only one device or SmartThings Find account at a time, and its location is shared only with people the owner chooses.', 'ssSmartTag2')]
+      }
+    },
+    read: {
+      agree: 'All three say the company running the network cannot read the location, use identifiers that change, and can alert a person when an unknown tracker seems to travel with them.',
+      differ: 'Apple and Google document alerts across iPhone and Android through one shared specification; Samsung documents its own alert, as a setting, and a manual search. Google shows a location only after several devices report it, by default. Apple documents what it can give law enforcement; Samsung limits a tag to one account.',
+      watch: 'The arrow from the owner’s map back to the person carrying the tag: whether that person is told, how soon, and on which phone.'
+    }
+  });
+
   /* ── sources: the company's own page wherever possible ───── */
   var S = C.sources = {};
   var src = function (k, g, c, u) { S[k] = { g: g, c: c, u: u }; };
   /* Apple */
+  src('apFindMySec', 'Apple', 'Apple Platform Security, “Find My security”.', 'https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web');
+  src('apAirTagIntro', 'Apple', 'Apple Newsroom, “Apple introduces AirTag”, April 2021.', 'https://www.apple.com/newsroom/2021/04/apple-introduces-airtag/');
+  src('apUnwanted', 'Apple', 'Apple Support, “What to do if you get an alert that an AirTag, set of AirPods, Find My network accessory, or compatible Bluetooth location-tracking device is with you”.', 'https://support.apple.com/en-us/119874');
+  src('apPsTrackers', 'Apple', 'Apple Personal Safety User Guide, “Detect unwanted trackers”.', 'https://support.apple.com/guide/personal-safety/detect-unwanted-trackers-ips139b15fd9/web');
+  src('apDult24', 'Apple', 'Apple Newsroom, “Apple and Google deliver support for unwanted tracking alerts in iOS and Android”, May 2024.', 'https://www.apple.com/newsroom/2024/05/apple-and-google-deliver-support-for-unwanted-tracking-alerts-in-ios-and-android/');
+  src('apFindMyPrivacy', 'Apple', 'Apple Legal, “Find My & Privacy”.', 'https://www.apple.com/legal/privacy/data/en/find-my/');
+  src('apAirTagUpdate', 'Apple', 'Apple Newsroom, “An update on AirTag and unwanted tracking”, February 2022.', 'https://www.apple.com/newsroom/2022/02/an-update-on-airtag-and-unwanted-tracking/');
   src('apPasskeySec', 'Apple', 'Apple Support, “About the security of passkeys”.', 'https://support.apple.com/en-us/102195');
   src('apKeychain', 'Apple', 'Apple Platform Security, “iCloud Keychain security overview”.', 'https://support.apple.com/guide/security/icloud-keychain-security-overview-sec1c89c6f3b/web');
   src('apPlatformSec', 'Apple', 'Apple, Apple Platform Security guide (PDF).', 'https://help.apple.com/pdf/security/en_US/apple-platform-security-guide.pdf');
@@ -436,6 +485,10 @@
   src('apSiriImprove', 'Apple', 'Apple Support, “Turn Improve Siri & Dictation on or off”.', 'https://support.apple.com/en-us/127070');
   src('apHsv', 'Apple', 'Apple Support, “iCloud HomeKit Secure Video”.', 'https://support.apple.com/guide/icloud/icloud-homekit-secure-video-mme054c72692/icloud');
   /* Google */
+  src('gFindHubBlog', 'Google', 'Google Online Security Blog, “How we built the new Find Hub network with user security and privacy in mind”, April 2024.', 'https://security.googleblog.com/2024/04/find-my-device-network-security-privacy-protections.html');
+  src('gFindHubData', 'Google', 'Android Help, “How Find Hub protects your data”.', 'https://support.google.com/android/answer/14796936?hl=en');
+  src('gUnknownTrackers', 'Google', 'Android Help, “Find unknown trackers”.', 'https://support.google.com/android/answer/13658562?hl=en');
+  src('gFindHubAup', 'Google', 'Google Help, “Find Hub acceptable use policy”.', 'https://support.google.com/product-documentation/answer/14799569?hl=en');
   src('gPasskeyE2E', 'Google', 'Google, “More users can now save passkeys in Google Password Manager”, September 2024.', 'https://blog.google/innovation-and-ai/technology/safety-security/google-password-manager-passkeys-update-september-2024/');
   src('gPasskeysAbout', 'Google', 'Google Account, “Passkeys”.', 'https://www.google.com/account/about/passkeys/');
   src('gChromeVrp', 'Google', 'Chromium, “Chrome VRP news and FAQ”.', 'https://chromium.googlesource.com/chromium/src/+/main/docs/security/vrp-faq.md');
@@ -518,6 +571,9 @@
   src('waBackups', 'Meta', 'Engineering at Meta, “How WhatsApp is enabling end-to-end encrypted backups”, September 2021.', 'https://engineering.fb.com/2021/09/10/security/whatsapp-e2ee-backups/');
   src('waGovReq', 'Meta', 'WhatsApp Help Center, “About government requests for user data”.', 'https://faq.whatsapp.com/808280033839222/');
   /* Samsung */
+  src('ssStFindEvolve', 'Samsung', 'Samsung Newsroom, “Evolving for the Better: SmartThings Ecosystem Gives Galaxy Users Better Control Over Their Connected Devices”.', 'https://news.samsung.com/global/evolving-for-the-better-smartthings-ecosystem-gives-galaxy-users-better-control-over-their-connected-devices');
+  src('ssStFind300', 'Samsung', 'Samsung Newsroom, “Samsung SmartThings Find Rapidly Expands With Over 300 Million Nodes Helping To Locate Devices”.', 'https://news.samsung.com/global/samsung-smartthings-find-rapidly-expands-with-over-300-million-nodes-helping-to-locate-devices');
+  src('ssSmartTag2', 'Samsung', 'Samsung Newsroom, “Introducing New Samsung Galaxy SmartTag2: A Smart Way to Keep Track of Important Things in Your Life”.', 'https://news.samsung.com/us/introducing-new-samsung-galaxy-smarttag2-a-smart-way-to-keep-track-of-important-things-in-your-life/');
   src('ssWalletSec', 'Samsung', 'Samsung US Support, “How secure is Samsung Wallet?”.', 'https://www.samsung.com/us/support/answer/ANS10002617/');
   src('ssWalletPrivacy', 'Samsung', 'Samsung US, “Samsung Wallet privacy notice”.', 'https://www.samsung.com/us/samsung-wallet/privacy-notice/');
   src('ssDigitalId', 'Samsung', 'Samsung US, “Digital ID in Samsung Wallet”.', 'https://www.samsung.com/us/apps/samsung-wallet/digital-id/');
@@ -535,6 +591,7 @@
   src('amzVrp', 'Amazon', 'HackerOne, “Amazon Vulnerability Research Program — devices”.', 'https://hackerone.com/amazonvrp-devices?view_policy=true');
   src('amzSettings', 'Amazon', 'Amazon, “Personalize your Alexa privacy settings”.', 'https://www.amazon.com/b?ie=UTF8&node=23608614011');
   /* standards, regulators and dated press (named as such) */
+  src('ietfDult', 'Standards, regulators and press', 'IETF, “Detecting Unwanted Location Trackers (dult)” working group.', 'https://datatracker.ietf.org/wg/dult/about/');
   src('ietfLongfellow', 'Standards, regulators and press', 'IETF 124, CFRG, “Longfellow ZK” (slides).', 'https://datatracker.ietf.org/meeting/124/materials/slides-124-cfrg-longfellow-zk-01');
   src('nccBackup', 'Standards, regulators and press', 'NCC Group, public report on Google’s encrypted backup design, October 2018 (PDF).', 'https://www.nccgroup.com/media/2biaan4n/_final_public_report_ncc_group_google_encryptedbackup_2018-10-10_v10.pdf');
   src('ftcAlexa', 'Standards, regulators and press', 'U.S. Federal Trade Commission, “FTC and DOJ charge Amazon with violating children’s privacy law by keeping kids’ Alexa voice recordings forever”, May 2023. A settlement; Amazon did not admit wrongdoing.', 'https://www.ftc.gov/news-events/news/press-releases/2023/05/ftc-doj-charge-amazon-violating-childrens-privacy-law-keeping-kids-alexa-voice-recordings-forever');

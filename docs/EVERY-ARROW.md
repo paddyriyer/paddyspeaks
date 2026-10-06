@@ -144,6 +144,27 @@ then `EA_DEPS=… node scripts/every_arrow/build.mjs --pdf`, then both edition-4
 Update `C.asOf` and the edition/revised stamps (`edition4.mjs`, `lenses.css` `@page`,
 the meta and JSON-LD dates) when the review date changes.
 
+### Item trackers: who is the tag following? (2026-10-06)
+
+- **A tenth product, `tracker`** (§12, *Who is the tag following?*), compares Apple
+  (AirTag and the Find My network), Google (Find Hub and unknown tracker alerts) and
+  Samsung (Galaxy SmartTag and SmartThings Find). The vendors' pages are not reachable
+  from the build environment either, so, as for Meta, every claim paraphrases what
+  their search listings show; the IETF DULT working group page is the standards
+  source. Not stated in the pages reviewed, so listed under *What could not be
+  confirmed*: whether SmartTags raise the cross-platform alerts, how long each network
+  keeps location reports about an item, and how soon an alert appears.
+- The section's conceptual material names no company (`edition4.mjs` checks
+  `#tr-subject` onward): four parties to one location report (owner, passing phones,
+  network operator, the person carrying it), *the alert is the only notice* (what a
+  review measures about it), awareness is still not consent, and how to test it
+  without tracking anyone. Two shared phrases (*A tag’s location is the location of
+  whoever carries it*; *Protection that depends on the platform protects only that
+  platform*), a concept, and two review questions (now forty-four).
+- Sections after it renumber (13–18) and alternate backgrounds again. The print
+  overview table is tighter so each lens still fits one page with ten rows, and the
+  site's related links and footer are hidden in print.
+
 ### Ambient & wearable: the data subject may not be the user (2026-10-05)
 
 - **A ninth product, `wearable`** (§11, *Who else is inside the frame?*), compares

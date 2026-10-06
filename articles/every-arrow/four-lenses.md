@@ -1,6 +1,6 @@
 # Every Arrow Is a Decision — the four-lens review
 
-From *Every Arrow Is a Decision*, edition 4.0 (5 October 2026), by Paddy Iyer.
+From *Every Arrow Is a Decision*, edition 4.0 (6 October 2026), by Paddy Iyer.
 https://paddyspeaks.com/articles/every-arrow-is-a-decision.html
 
 Four questions for every arrow a product draws:
@@ -10,7 +10,7 @@ Four questions for every arrow a product draws:
 - **QA.** How would anyone outside know it works as promised?
 - **Data governance.** Who holds it, how long does it live, and can it really go?
 
-## Forty-two questions for any product
+## Forty-four questions for any product
 
 ### Security
 
@@ -37,6 +37,7 @@ Four questions for every arrow a product draws:
 - [ ] What incidental information enters the frame or the microphone?
 - [ ] Can filtering or minimisation happen before transmission?
 - [ ] Does a bystander understand that capture is happening?
+- [ ] If it can locate an object, how is a person told that the object is travelling with them, and on which phones?
 
 ### QA
 
@@ -51,6 +52,7 @@ Four questions for every arrow a product draws:
 - [ ] Does a do-not-save setting prevent both raw and derived records from persisting?
 - [ ] What happens during a false activation?
 - [ ] Do the settings survive an update?
+- [ ] Does the safeguard reach people who use a different platform from the owner?
 
 ### Data governance
 
@@ -81,5 +83,6 @@ A question nobody can answer is a finding.
 | AI assistant | Apple, Google, Microsoft | The arrow from device to cloud tier, and what is retained after the answer. “Verifiable” and “we promise” are different kinds of control. |
 | Home & voice | Apple, Google, Amazon | The arrow from the speaker to the cloud, now that generative assistants need it — and whether deletion covers the transcripts made from the audio. |
 | Ambient & wearable | Meta | The arrow from the glasses to the cloud: what is sent (a frame, audio, or only what was asked), how long it is kept, and whether the people in it know. |
+| Item trackers | Apple, Google, Samsung | The arrow from the owner’s map back to the person carrying the tag: whether that person is told, how soon, and on which phone. |
 
 Claims in the essay describe what each company documents, as reviewed on 30 September 2026, with citations. The tests are recommendations. Nothing here is a score or legal advice.

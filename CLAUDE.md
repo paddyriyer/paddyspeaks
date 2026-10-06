@@ -170,10 +170,12 @@ or `articles/every-arrow/edition-3.html`. Both come from Paddy's field guide
 
 ## Every Arrow Is a Decision (`articles/every-arrow-is-a-decision.html`)
 
-Edition 4 (2026-09-30): nine everyday products, as Apple, Google and one other company
+Edition 4 (2026-09-30): ten everyday products, as Apple, Google and one other company
 each document them, through four lenses — security, privacy, QA and data governance.
 The ninth, *Ambient & wearable* (2026-10-05), compares one company (Meta) and says why
-in its `single` field; never add empty columns to make it look like three.
+in its `single` field; never add empty columns to make it look like three. The tenth,
+*Item trackers* (2026-10-06), compares Apple, Google and Samsung: the person located
+may not be the owner, and the alert on their own phone is the only notice.
 Edition 3 (the 31-scene field guide, with scene 31 “One account. One life.”) is archived at
 `articles/every-arrow/edition-3.html` (noindex). Read **`docs/EVERY-ARROW.md`** (§E4
 for the live essay) before touching either or `articles/every-arrow/`.

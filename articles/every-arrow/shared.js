@@ -127,7 +127,10 @@
       { id: 'minimise', t: 'Minimisation can happen before storage — or before transmission.', essay: '#wr-cafe', app: '#sensors?sm=cafe' },
       { id: 'adversarial', t: 'The privacy model must include both intended and adversarial flows.', essay: '#wr-attack', app: '#sensors?sm=attack' },
       { id: 'onehome', t: 'The person lives in one home. The data lives in many ecosystems.', essay: '#ev-ambient', app: '#sensors?sm=home' },
-      { id: 'samequestions', t: 'Different ecosystems. Different defaults. The same questions follow the data.', essay: '#patterns', app: '#sensors?sm=home' }
+      { id: 'samequestions', t: 'Different ecosystems. Different defaults. The same questions follow the data.', essay: '#patterns', app: '#sensors?sm=home' },
+      /* item trackers */
+      { id: 'carrier', t: 'A tag’s location is the location of whoever carries it.', essay: '#tr-subject', app: '#sensors?sm=tag' },
+      { id: 'platform', t: 'Protection that depends on the platform protects only that platform.', essay: '#tr-alert', app: '#sensors?sm=tag' }
     ],
 
     /* ── the four-lens review: the essay's twenty-eight questions ──
@@ -155,7 +158,8 @@
         'Whose data is being sensed, and is that person the device owner?',
         'What incidental information enters the frame or the microphone?',
         'Can filtering or minimisation happen before transmission?',
-        'Does a bystander understand that capture is happening?'
+        'Does a bystander understand that capture is happening?',
+        'If it can locate an object, how is a person told that the object is travelling with them, and on which phones?'
       ],
       qa: [
         'What would an outsider need to verify the claim: source, logs, an audit, a research environment?',
@@ -168,7 +172,8 @@
         'Does sensor activation match the indicator the person sees?',
         'Does a do-not-save setting prevent both raw and derived records from persisting?',
         'What happens during a false activation?',
-        'Do the settings survive an update?'
+        'Do the settings survive an update?',
+        'Does the safeguard reach people who use a different platform from the owner?'
       ],
       gov: [
         'Who holds the key, and who could be compelled to use it?',
@@ -185,7 +190,7 @@
       ]
     },
 
-    /* ── products: the essay's eight, in its order ───────────────
+    /* ── products: the essay's, in its order ───────────────────
      * `try` is the one line the essay ends the product with; `synth` opens the
      * matching view on SYNTHETIC Northstar data. The arrow, the arrow to watch
      * and every claim come from EA_CMP. */
@@ -198,7 +203,8 @@
       backup: { try: 'Change who holds the key.', synth: '#cc?p=reviewer&s=cloud&j=delete&q=delete' },
       assistant: { try: 'Move processing between device, private cloud and a third party.', synth: '#cc?p=reviewer&s=ai&j=ai&q=leftdevice' },
       voice: { try: 'Follow the speaker to the cloud and the transcript.', synth: '#sensors?sm=room' },
-      wearable: { try: 'Follow the glasses to the cloud, and the people in the frame.', synth: '#sensors?sm=cafe' }
+      wearable: { try: 'Follow the glasses to the cloud, and the people in the frame.', synth: '#sensors?sm=cafe' },
+      tracker: { try: 'Follow the tag to the owner’s map, and back to the person carrying it.', synth: '#sensors?sm=tag' }
     },
 
     /* ── essay → Command Center: one compact link per major section ── */
@@ -210,7 +216,8 @@
       patterns: { app: '?view=evidence', t: 'See each pattern as evidence: what is documented, what is a test, what is unknown.' },
       kit: { app: '?view=review&lens=qa', t: 'Run the review interactively.' },
       voice: { app: '?view=sensors&mode=room', t: 'Explore the room.' },
-      wearable: { app: '?view=sensors&mode=cafe', t: 'Explore smart glasses in a café.' }
+      wearable: { app: '?view=sensors&mode=cafe', t: 'Explore smart glasses in a café.' },
+      tracker: { app: '?view=sensors&mode=tag', t: 'Follow a tag in someone else’s bag.' }
     },
     /* further links inside sections (checked like the ones above) */
     links: ['?view=journey&mode=ambient&bystanders=1', '?view=layers&hop=sensor'],
@@ -235,6 +242,7 @@
       sensing: { t: 'Why sensing is different from storage', essay: '#wr-sensing', line: 'Inspecting for a moment, transforming on the device, sending and keeping are different decisions.' },
       bystander: { t: 'Why bystander awareness matters', essay: '#wr-gap', line: 'How obvious capture is to the person being captured is a property to evaluate, not assume.' },
       derivatives: { t: 'Why deleting raw data may leave derivatives', essay: '#vo-derived', line: 'A request becomes audio, a transcript, an intent and perhaps a derived fact, each with its own clock.' },
+      tracker: { t: 'Why the alert is the only notice', essay: '#tr-alert', line: 'A tag in a bag cannot tell anyone it is there; the carrier’s own phone has to.' },
       room: { t: 'Why ambient computing changes the privacy boundary', essay: '#pt-room', line: 'The people nearby and the surroundings become part of the data flow.' },
       falsepos: { t: 'Why a false activation is a privacy event', essay: '#vo-false', line: 'Did audio leave the room when nobody meant to ask?' },
       cafe: { t: 'Why incidental data should be discarded early', essay: '#wr-cafe', line: 'Only the menu text was needed; the faces, the screen and the speech were incidental.' },
@@ -316,6 +324,6 @@
 
   /* `?view=` deep links (the form the essay uses) → the Command Center's own routes */
   X.slugs = { 'unlock': 'm1', 'sign-in': 'm2', 'check-email': 'm3', 'search-coffee': 'm4', 'directions': 'm5', 'bought-coffee': 'm6', 'share-file': 'm7', 'ask-flight': 'm8' };
-  X.sensorModes = { cafe: 'cafe', saw: 'cafe', room: 'room', dinner: 'room', forget: 'forget', deletion: 'forget', gap: 'gap', bystanders: 'gap', attack: 'attack', adversary: 'attack', home: 'home' };
+  X.sensorModes = { cafe: 'cafe', saw: 'cafe', room: 'room', dinner: 'room', forget: 'forget', deletion: 'forget', gap: 'gap', bystanders: 'gap', attack: 'attack', adversary: 'attack', home: 'home', tag: 'tag', tracker: 'tag' };
   X.futureModes = { encryption: 'encrypt', tokenization: 'token', hashing: 'hash', hmac: 'hmac', pseudonym: 'hmac', hold: 'hold', archive: 'hold' };
 })(typeof window !== 'undefined' ? window : globalThis);
