@@ -48,13 +48,21 @@
   }
   function saveDraft() { try { localStorage.setItem(DRAFT, JSON.stringify(draft)); } catch (e) { /* private mode */ } }
 
-  fetch('queue.json', { cache: 'no-cache' }).then(function (r) { return r.json(); }).then(function (q) {
+  // A fresh URL every load: the CDN in front of GitHub Pages may otherwise serve
+  // a queue from before the last run for up to ten minutes.
+  fetch('queue.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (q) {
     queue = q;
-    // Drop drafted decisions for reports that are no longer in either list
-    // (applied by a run since the draft was made).
-    var known = {};
-    (q.pending || []).concat(q.auto_approved || []).forEach(function (r) { known[r.id] = true; });
-    Object.keys(draft).forEach(function (id) { if (!known[id]) delete draft[id]; });
+    // Forget decisions the queue no longer needs: reports that have left the
+    // list (applied by a run), and committed approvals of reports that are
+    // already live.
+    var pending = {}, live = {};
+    (q.pending || []).forEach(function (r) { pending[r.id] = true; });
+    (q.auto_approved || []).forEach(function (r) { live[r.id] = true; });
+    Object.keys(draft).forEach(function (id) {
+      var d = draft[id];
+      if (!pending[id] && !live[id]) delete draft[id];
+      else if (d.sent && !pending[id] && d.action !== 'reject') delete draft[id];
+    });
     saveDraft();
     health();
     render();
@@ -66,7 +74,7 @@
     var h = queue.health || {};
     var d = h.discovery || {};
     var u = h.model_usage;
-    var bits = ['Last run ' + (h.run_date || 'never')];
+    var bits = ['Last run ' + (h.run_date || 'never') + (h.mode ? ' (' + h.mode + ')' : '')];
     if (d.results != null) bits.push(plural(d.results, 'item') + ' read from ' + plural(d.sources_ok || 0, 'source'));
     if (d.reports_queued != null) bits.push(plural(d.reports_queued, 'report') + ' found');
     if (u) bits.push(plural(u.calls, 'model call') + ' (' + u.input_tokens + ' in / ' + u.output_tokens + ' out tokens)');
@@ -142,7 +150,7 @@
   function bulk(action) {
     shown().forEach(function (r) {
       if (!selected[r.id]) return;
-      if (action === 'undo') { delete draft[r.id]; return; }
+      if (action === 'undo') { if (draft[r.id] && !draft[r.id].sent) delete draft[r.id]; return; }
       if (draft[r.id]) return;                       // decided reports are locked
       var out = { report: r.id, action: action };
       if (view === 'auto') out.note = 'unpublished after auto-approval';
@@ -171,7 +179,8 @@
     });
 
     var status = d
-      ? chip((auto && d.action === 'reject' ? 'Unpublish' : LABEL[d.action]) + ' · drafted', d.action === 'approve' ? 'ok' : d.action === 'reject' ? 'bad' : 'info')
+      ? chip((auto && d.action === 'reject' ? 'Unpublish' : LABEL[d.action]) + (d.sent ? ' · committed, applies on the next run' : ' · drafted'),
+          d.action === 'approve' ? 'ok' : d.action === 'reject' ? 'bad' : 'info')
       : auto ? chip('Live', 'ok') : chip('Waiting', 'muted');
 
     var head = el('div', { cls: 'rv-head' }, [
@@ -209,7 +218,7 @@
 
   function actions(r, d, auto, edit) {
     var locked = !!d;
-    var undo = el('button', { type: 'button', cls: 'rv-btn', text: 'Undo', hidden: !locked,
+    var undo = el('button', { type: 'button', cls: 'rv-btn', text: 'Undo', hidden: !locked || !!(d && d.sent),
       onclick: function () { delete draft[r.id]; saveDraft(); render(); } });
     if (auto) {
       return el('div', { cls: 'rv-actions' }, [
@@ -366,12 +375,27 @@
     return {
       decided_by: who,
       decided_at: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
-      decisions: Object.keys(draft).sort().map(function (k) { return draft[k]; })
+      decisions: unsent().map(function (k) {
+        var d = draft[k], out = {};
+        Object.keys(d).forEach(function (f) { if (f !== 'sent') out[f] = d[f]; });
+        return out;
+      })
     };
   }
 
+  function unsent() { return Object.keys(draft).sort().filter(function (k) { return !draft[k].sent; }); }
+
+  function markSent() {
+    var at = new Date().toISOString();
+    unsent().forEach(function (k) { draft[k].sent = at; });
+    selected = {};
+    saveDraft();
+    render();
+  }
+
   function tray() {
-    var ids = Object.keys(draft);
+    var ids = unsent();
+    var waiting = Object.keys(draft).length - ids.length;
     var counts = { approve: 0, reject: 0, merge: 0 };
     ids.forEach(function (k) { counts[draft[k].action] = (counts[draft[k].action] || 0) + 1; });
     var parts = [];
@@ -380,7 +404,9 @@
     if (counts.merge) parts.push(counts.merge + ' merge');
     $('rv-tray-text').textContent = ids.length
       ? plural(ids.length, 'decision') + ' drafted (' + parts.join(', ') + '). Nothing changes on the site until they are committed.'
-      : 'No decisions drafted yet. Approve or reject reports above; they collect here.';
+      : waiting
+        ? plural(waiting, 'committed decision') + ' will be applied by the next run (a few minutes after the commit). Reload this page then.'
+        : 'No decisions drafted yet. Approve or reject reports above; they collect here.';
     var box = $('rv-tray-actions');
     clear(box);
     $('rv-tray').classList.toggle('rv-tray-live', ids.length > 0);
@@ -391,11 +417,14 @@
     var gh = REPO_NEW + '?filename=' + encodeURIComponent(name) + '&value=' + encodeURIComponent(json);
     var blob = URL.createObjectURL(new Blob([json + '\n'], { type: 'application/json' }));
     box.appendChild(gh.length < 7500
-      ? el('a', { cls: 'rv-btn rv-primary', href: gh, target: '_blank', rel: 'noopener', text: 'Commit ' + plural(ids.length, 'decision') + ' on GitHub ↗' })
+      ? el('a', { cls: 'rv-btn rv-primary', href: gh, target: '_blank', rel: 'noopener', onclick: markSent,
+          text: 'Commit ' + plural(ids.length, 'decision') + ' on GitHub ↗' })
       : el('span', { cls: 'rv-muted', text: 'Too many for a GitHub link — download the file and commit it.' }));
-    box.appendChild(el('a', { cls: 'rv-btn', href: blob, download: name, text: 'Download file' }));
+    box.appendChild(el('a', { cls: 'rv-btn', href: blob, download: name, text: 'Download file', onclick: markSent }));
     box.appendChild(el('button', { type: 'button', cls: 'rv-btn', text: 'Clear all', onclick: function () {
-      if (window.confirm('Discard ' + plural(ids.length, 'drafted decision') + '?')) { draft = {}; saveDraft(); render(); }
+      if (window.confirm('Discard ' + plural(ids.length, 'drafted decision') + '?')) {
+        ids.forEach(function (k) { delete draft[k]; }); saveDraft(); render();
+      }
     } }));
   }
 

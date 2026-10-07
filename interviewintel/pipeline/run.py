@@ -98,8 +98,9 @@ def main(argv: list[str]) -> int:
     store.write_json(config.LEDGER, ledger)
     store.write_json(config.SEEN, seen)
     store.write_json(config.HEALTH, health)
-    out = publish.build(ledger, today, {k: health.get(k) for k in ("run_date", "sources", "model", "discovery",
-                                                                    "model_usage")})
+    out = publish.build(ledger, today, {k: health.get(k) for k in ("run_date", "mode", "sources", "model", "discovery",
+                                                                    "model_usage", "auto_published",
+                                                                    "decision_files_applied")})
     print(json.dumps(out, sort_keys=True))
     return status
 
