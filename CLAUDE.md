@@ -113,10 +113,12 @@ The interview question discovery engine is documented in
 - **Transform, never copy; no personal data.** Practice questions are rewrites
   (long shared word runs are flagged); evidence is never published; emails,
   phones, handles and author names are scrubbed before the model sees text.
-- **Nothing unreviewed is public.** Reports enter `pending`. Decisions are
-  committed files in `interviewintel/decisions/`, written by the review page;
-  only approved material reaches `interview.app/reported/data/`. Auto-publish
-  is off.
+- **Auto-approval at 70+ (the owner's decision, 2026-10-07); everything else is
+  reviewed.** Reports enter `pending`; unflagged, non-duplicate reports scoring
+  ≥ 70 are approved automatically and listed on the review page, where they can
+  be unpublished. Decisions are committed files in `interviewintel/decisions/`,
+  written by the review page (with bulk select); only approved material reaches
+  `interview.app/reported/data/`. Never lower the threshold below 50.
 - **AI material is always labelled** and never claims to come from the
   interview. **No seeded questions, ever** — the board shipped empty.
 - All judgement is Python (`interviewintel/pipeline/`), shipped as data; the

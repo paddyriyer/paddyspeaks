@@ -214,8 +214,20 @@ def queue(ledger: dict) -> dict:
     decided = sorted((r for r in ledger["reports"].values() if r["status"] != "pending" and r.get("decided_at")),
                      key=lambda r: (r["decided_at"] or "", r["id"]), reverse=True)[:40]
     live_q = [q for q in ledger["questions"].values() if q["status"] in ("approved", "pending")]
+    auto = sorted((r for r in ledger["reports"].values()
+                   if r["status"] == "approved" and str(r.get("decided_by") or "").startswith("auto")),
+                  key=lambda r: (r.get("decided_at") or "", r["id"]), reverse=True)[:60]
+    auto_items = []
+    for r in auto:
+        q = ledger["questions"].get(r["question_id"]) or {}
+        auto_items.append({k: r.get(k) for k in ("id", "question_id", "confidence", "band", "company_name",
+                                                  "role_name", "source_type", "source_title", "url",
+                                                  "decided_at", "decided_by")}
+                          | {"title": q.get("title"), "question": q.get("question")})
     return {
         "pending": items,
+        "auto_approved": auto_items,
+        "auto_threshold": config.AUTO_PUBLISH_MIN_CONFIDENCE,
         "recently_decided": [{k: r.get(k) for k in ("id", "question_id", "status", "decided_by", "decided_at",
                                                      "decision_note", "url")} for r in decided],
         "merge_targets": sorted(({"id": q["id"], "title": q["title"], "status": q["status"],

@@ -105,9 +105,13 @@ BAND_PUBLISHABLE = 90       # 90–100: clear experience and explicit question
 BAND_STRONG = 70            # 70–89: strong evidence, some metadata missing
 BAND_REVIEW = 50            # 50–69: possible, needs review
                             # < 50: never published automatically
-# Optional, later (brief §9): auto-approve reports at or above this score that
-# have no flags and no possible duplicates. None = everything waits for a person.
-AUTO_PUBLISH_MIN_CONFIDENCE: int | None = None
+# Auto-approval (brief §9). The owner's decision, 2026-10-07: the strong (70–89)
+# and clear (90–100) bands are approved automatically. A report with a flag
+# (e.g. too close to its source's wording) or a possible duplicate still waits
+# for a person, and nothing below 50 is ever auto-approved. Every
+# auto-approved report is listed on the review page, where it can be
+# unpublished. None = everything waits for a person.
+AUTO_PUBLISH_MIN_CONFIDENCE: int | None = BAND_STRONG
 DROP_BELOW = 30             # below this a report is not even queued
 
 # --- deduplication (brief §7) ------------------------------------------------

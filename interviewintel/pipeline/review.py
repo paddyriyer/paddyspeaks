@@ -186,7 +186,8 @@ def apply_pending_files(ledger: dict, directory: Path | None = None) -> tuple[li
 
 
 def auto_publish(ledger: dict, threshold: int | None = -1, when: str | None = None) -> int:
-    """Brief §9, 'later': off unless a threshold is configured."""
+    """Brief §9: approve unflagged, non-duplicate pending reports at or above
+    the threshold (config.AUTO_PUBLISH_MIN_CONFIDENCE; never below 50)."""
     if threshold == -1:
         threshold = config.AUTO_PUBLISH_MIN_CONFIDENCE
     if threshold is None:
