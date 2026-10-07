@@ -42,7 +42,7 @@ def block() -> str:
 
 def targets():
     files = set()
-    for pat in ("index.html", "*/index.html", "*/quiz.html", "sql.html", "python.html"):
+    for pat in ("index.html", "*/index.html", "*/*/index.html", "*/quiz.html", "sql.html", "python.html"):
         for p in ROOT.glob(pat):
             if '<nav class="ip-topnav"' in p.read_text(encoding="utf-8") or START in p.read_text(encoding="utf-8"):
                 files.add(p)

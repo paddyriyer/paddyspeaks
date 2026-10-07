@@ -1,0 +1,91 @@
+name: Interview Intelligence
+
+# Finds interview questions people have shared publicly, turns them into
+# reviewed practice questions, and publishes what has been approved
+# (docs/INTERVIEW-INTEL.md).
+#
+# Built on existing infrastructure only — no new service, no new secret:
+#   sources  free, keyless public APIs and feeds (Hacker News, Stack Exchange,
+#            DEV, Medium tag RSS) and the existing community form's sheet
+#   model    the existing ANTHROPIC_API_KEY, on Claude Haiku, capped per run
+#   compute  GitHub Actions; hosting GitHub Pages
+#
+#   schedule          weekly: apply decisions → discover → enrich → publish
+#   push (decisions)  a reviewer committed a decision file: apply → enrich → publish
+#   workflow_dispatch either, by hand
+#
+# Nothing reaches the public pages without a person's approval. Without
+# ANTHROPIC_API_KEY nothing is classified, extracted or enriched (never faked).
+
+on:
+  schedule:
+    - cron: '37 6 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - 'interviewintel/decisions/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'all = look for new reports; publish = apply decisions and publish only'
+        required: true
+        default: 'all'
+        type: choice
+        options: [all, publish]
+
+concurrency:
+  group: interview-intel
+  cancel-in-progress: false
+
+jobs:
+  run:
+    # Never run in mirror/fork repos, matching the other workflows here.
+    if: github.repository == 'paddyriyer/paddyspeaks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # The rules this product depends on — no invented question or company,
+      # no copied post, no personal data, nothing unapproved published.
+      - name: Pipeline tests
+        run: python3 -m interviewintel.tests.test_pipeline
+
+      - run: pip install anthropic
+
+      - name: Run
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          mode="${{ inputs.mode }}"
+          if [ -z "$mode" ]; then
+            if [ "${{ github.event_name }}" = "push" ]; then mode=publish; else mode=all; fi
+          fi
+          python3 -m interviewintel.pipeline.run "$mode"
+
+      # Re-check the committed output with the same tests before publishing it.
+      - name: Tests on the fresh data
+        run: python3 -m interviewintel.tests.test_pipeline
+
+      - name: Commit if changed
+        run: |
+          git config user.name "PaddySpeaks Bot"
+          git config user.email "bot@paddyspeaks.com"
+          git add interviewintel/data interview.app/reported/data admin/interview-discovery/queue.json
+          git diff --cached --quiet && echo "No changes" && exit 0
+          pub=$(python3 -c "import json;print(len(json.load(open('interview.app/reported/data/questions.json'))['questions']))")
+          pend=$(python3 -c "import json;print(len(json.load(open('admin/interview-discovery/queue.json'))['pending']))")
+          git commit -m "🤖 Interview Intelligence: ${pub} published, ${pend} awaiting review ($(date -u +%Y-%m-%d))"
+          for attempt in 1 2 3 4; do
+            git push && break
+            echo "push failed, retrying in $((2 ** attempt))s"
+            sleep $((2 ** attempt))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done
