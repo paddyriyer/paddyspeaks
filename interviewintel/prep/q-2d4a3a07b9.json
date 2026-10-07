@@ -1,0 +1,64 @@
+{
+ "question": "After a newly designed data architecture begins handling production workloads, what specific, non-negotiable metrics would you use to evaluate whether the system is genuinely good, scalable, and resilient against future business shifts?",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Evaluating a data architecture in production",
+  "skills_tested": [
+   "SLOs and observability",
+   "Cost management",
+   "Data quality",
+   "Scalability testing",
+   "Architecture review"
+  ],
+  "why_asked": "Interviewers often ask this because many architectures look good on a diagram and fail in their first year. The question tests whether you define success measurably across reliability, quality, performance, cost and adaptability, and whether you know which numbers are leading indicators.",
+  "hints": [
+   "Group metrics: reliability, freshness and quality, performance, cost, and adaptability. Pick two or three per group.",
+   "Make each one an SLO with a target and a measurement window, not just a dashboard number.",
+   "Scalability is a curve, not a point: how cost and latency grow as volume doubles.",
+   "Resilience to business change is measurable too: lead time to add a new source or metric, and how often changes break consumers.",
+   "Include adoption and trust: if people export to spreadsheets, the architecture is failing whatever the dashboards say."
+  ],
+  "approach": "Define success as a small set of non-negotiable SLOs, each with an owner and a target, reviewed monthly.\n\nReliability:\n- Pipeline success rate per critical dataset (for example 99.5% of scheduled runs succeed first time).\n- Mean time to detect and mean time to recover from data incidents.\n- Recovery tested in practice: restore from backup within the stated RTO, with data loss within the RPO.\n\nFreshness and quality:\n- Freshness SLO per dataset (for example 95% of days the finance mart is ready by 06:00).\n- Data quality test pass rate, and the number of incidents found by consumers before the data team (should trend to zero).\n- Reconciliation against systems of record (totals match within a tolerance).\n\nPerformance:\n- Query latency percentiles (p50, p95) for the top workloads, measured from real usage.\n- Concurrency headroom: performance at peak, such as month-end.\n\nScalability and cost:\n- Unit cost (cost per TB processed, per query, per pipeline run) and its trend as volume grows. Costs should grow at most linearly with volume.\n- Load-test results at 2-3x current peak.\n\nAdaptability to business change:\n- Lead time to onboard a new source or add a new metric.\n- Change failure rate: deployments that break downstream consumers.\n- Schema change handling: share of upstream changes absorbed without incident.\n\nAdoption and trust:\n- Active users and queries on governed datasets, against spreadsheet exports and shadow pipelines.\n- Certified-dataset coverage of top reports.\n\nThen act: publish an architecture scorecard, review it monthly, and tie each red metric to an owner and a fix.",
+  "sample_solution": {
+   "language": "SQL",
+   "code": "-- Freshness SLO attainment per dataset over the last 30 days.\n-- dataset_runs: one row per scheduled load (dataset, run_date, ready_at, sla_time)\nSELECT dataset,\n       COUNT(*)                                                 AS scheduled_days,\n       SUM(CASE WHEN ready_at <= sla_time THEN 1 ELSE 0 END)    AS on_time_days,\n       ROUND(100.0 * SUM(CASE WHEN ready_at <= sla_time THEN 1 ELSE 0 END)\n             / COUNT(*), 1)                                     AS attainment_pct,\n       MAX(ready_at - sla_time)                                 AS worst_delay\nFROM dataset_runs\nWHERE run_date >= CURRENT_DATE - INTERVAL '30' DAY\nGROUP BY dataset\nORDER BY attainment_pct;\n\n-- Unit cost trend: is cost growing faster than volume?\n-- daily_usage: (usage_date, platform_cost_usd, tb_processed)\nSELECT DATE_TRUNC('month', usage_date)                 AS month,\n       SUM(platform_cost_usd)                          AS cost_usd,\n       SUM(tb_processed)                               AS tb,\n       SUM(platform_cost_usd) / NULLIF(SUM(tb_processed), 0) AS usd_per_tb\nFROM daily_usage\nGROUP BY 1\nORDER BY 1;",
+   "explanation": "Two of the scorecard's metrics, written so they can be computed rather than asserted. The first turns freshness into an SLO: attainment against the promised time, worst delay, and the datasets at the top of the list are where to look first. The second checks scalability economically: if USD per TB rises month over month while volume grows, the architecture is scaling worse than linearly and needs attention before the budget conversation forces it.\n\nIn the interview, name the categories, give one concrete SLO per category with a target, and say how often you review them and who owns each."
+  },
+  "common_mistakes": [
+   "Listing vanity metrics (number of tables, pipelines) instead of outcomes.",
+   "Metrics without targets or owners, so nothing triggers action.",
+   "Ignoring cost until finance raises it.",
+   "Measuring infrastructure health but not data correctness or freshness.",
+   "No measure of how quickly the platform absorbs business change."
+  ],
+  "follow_ups": [
+   "Which three metrics would you put on the CIO's monthly slide?",
+   "Freshness attainment is 98% but users still complain. What do you look at next?",
+   "How would you load-test a warehouse at month-end volumes before it happens?",
+   "How do you measure 'trust' in data quantitatively?"
+  ],
+  "related_concepts": [
+   "SLOs and SLIs",
+   "Data observability",
+   "Unit economics",
+   "DORA metrics",
+   "RPO and RTO",
+   "Data contracts"
+  ],
+  "estimated_minutes": 20,
+  "similar_questions": [
+   {
+    "question": "Six months after a cloud warehouse migration, how would you prove to leadership it was worth it?",
+    "what_changes": "Before-and-after comparison: the same metrics, framed as a business case."
+   },
+   {
+    "question": "Define SLOs for a real-time fraud-scoring data pipeline.",
+    "what_changes": "Latency and availability dominate, measured in seconds, with explicit error budgets."
+   },
+   {
+    "question": "What would make you decide a data platform needs re-architecting rather than incremental fixes?",
+    "what_changes": "You turn the metrics into decision thresholds and a migration case."
+   }
+  ]
+ }
+}

@@ -1,0 +1,63 @@
+{
+ "question": "Explain your approach to determining grain in a fact table. Describe how you decide what the atomic level should be in data modeling and walk through your process for making this decision.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Choosing the grain of a fact table",
+  "skills_tested": [
+   "Dimensional modelling",
+   "Business process analysis",
+   "Aggregation",
+   "Requirements analysis"
+  ],
+  "why_asked": "Interviewers often ask this because grain is the single decision that makes a fact table right or wrong. Get it wrong and every downstream number is silently off; get it right and most later questions become easy.",
+  "hints": [
+   "Grain is a business statement first: 'one row per order line', not 'one row per ID'.",
+   "Start from the business process and its atomic event, the lowest level the source system records.",
+   "Check every dimension and measure against the grain: does it have exactly one value per row?",
+   "Prefer the most atomic grain the source supports; you can always aggregate up, never down.",
+   "Watch for facts at different grains (order header freight against line amounts) and decide how to handle them."
+  ],
+  "approach": "1. Pick the business process. A fact table models one process: taking orders, shipping, payments, account balances.\n\n2. Declare the grain in one sentence, in business language: 'one row per product on a customer order line, as placed'. Write it in the table's documentation.\n\n3. Prefer the atomic grain, the lowest level captured by the source. Atomic facts answer unknown future questions and can be rolled up to any summary; summary facts cannot be drilled down.\n\n4. Choose the fact table type by how the process behaves:\n- Transaction grain: one row per event (an order line, a payment).\n- Periodic snapshot: one row per entity per period (account balance per day), for states measured at intervals.\n- Accumulating snapshot: one row per process instance, updated as milestones occur (order placed, shipped, delivered), for pipeline and lag analysis.\n\n5. Test dimensions against the grain. Each dimension must have exactly one value per row. If a dimension has many values per row (several promotions on one line), either the grain is wrong or you need a bridge table.\n\n6. Test measures against the grain. Measures must be true at that level and additive where possible. A header-level amount such as order freight cannot sit on every line unchanged, or it is double counted when summed. Allocate it to lines with a documented rule, or keep it in a header-grain fact.\n\n7. Validate with data: count rows against the source, check the declared key is unique, and reconcile totals.\n\nTrade-offs: atomic grain costs storage and compute; for very high-volume events add aggregate tables on top, but keep the atomic fact as the foundation.",
+  "sample_solution": {
+   "language": "SQL",
+   "code": "-- Grain: one row per product on a customer order line, as placed.\nCREATE TABLE fact_order_line (\n  order_date_key   INT         NOT NULL,   -- dim_date\n  customer_key     BIGINT      NOT NULL,   -- dim_customer (SCD2 version at order time)\n  product_key      BIGINT      NOT NULL,   -- dim_product\n  store_key        BIGINT      NOT NULL,   -- dim_store\n  order_number     VARCHAR(20) NOT NULL,   -- degenerate dimension\n  line_number      SMALLINT    NOT NULL,\n  quantity         INT         NOT NULL,\n  unit_price       DECIMAL(12,2) NOT NULL,\n  discount_amount  DECIMAL(12,2) NOT NULL,\n  line_amount      DECIMAL(12,2) NOT NULL, -- quantity * unit_price - discount\n  allocated_freight DECIMAL(12,2) NOT NULL, -- header freight split by line_amount\n  PRIMARY KEY (order_number, line_number)\n);\n\n-- Validate the declared grain: must return no rows\nSELECT order_number, line_number, COUNT(*)\nFROM fact_order_line\nGROUP BY order_number, line_number\nHAVING COUNT(*) > 1;\n\n-- Allocate header-level freight to lines so it sums back exactly\nSELECT l.order_number, l.line_number,\n       ROUND(h.freight * l.line_amount\n             / SUM(l.line_amount) OVER (PARTITION BY l.order_number), 2) AS allocated_freight\nFROM stg_order_line l\nJOIN stg_order_header h ON h.order_number = l.order_number;",
+   "explanation": "The grain is stated in the comment and enforced by the primary key, and the duplicate check proves it on real data. Every dimension has exactly one value per order line; order_number is a degenerate dimension, kept for drill-down and counting orders. Freight lives on the order header, so it is allocated to lines in proportion to line_amount; summing allocated_freight across an order returns the header freight (apart from rounding, which you can push onto the largest line). Without that step, joining header freight onto lines would multiply it by the number of lines."
+  },
+  "common_mistakes": [
+   "Declaring grain as a technical key instead of a business event.",
+   "Mixing header-level and line-level measures in one table and double counting.",
+   "Choosing a summary grain to save space, then being unable to answer detailed questions.",
+   "Adding a dimension that has several values per row without a bridge table.",
+   "Never testing the declared grain for duplicates."
+  ],
+  "follow_ups": [
+   "When would you use an accumulating snapshot instead of a transaction fact?",
+   "An order line can have several promotions. How do you model that?",
+   "How do you handle late-arriving dimension rows for a fact that has already loaded?",
+   "The table has 50 billion rows. What do you build on top, and how do you keep it consistent?"
+  ],
+  "related_concepts": [
+   "Kimball dimensional modelling",
+   "Atomic grain",
+   "Transaction, periodic and accumulating snapshots",
+   "Degenerate dimensions",
+   "Bridge tables",
+   "Additive measures"
+  ],
+  "estimated_minutes": 15,
+  "similar_questions": [
+   {
+    "question": "Design the fact table for a subscription business that needs monthly recurring revenue by plan and region.",
+    "what_changes": "A periodic snapshot grain (subscription per month) instead of a transaction grain."
+   },
+   {
+    "question": "Model the order-to-delivery pipeline so you can measure time between each step.",
+    "what_changes": "An accumulating snapshot with milestone dates that are updated as the order progresses."
+   },
+   {
+    "question": "A source system sends one row per invoice with a JSON array of lines. How do you model the fact?",
+    "what_changes": "Same grain decision, plus exploding the nested lines and handling invoice-level charges."
+   }
+  ]
+ }
+}

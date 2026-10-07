@@ -1,0 +1,70 @@
+{
+ "question": "Design an end-to-end analytics platform for a multi-tenant contact-center IVR system. You must ingest streaming JSON event logs from 40+ enterprise tenants with varying volumes (30,000–45,000 calls per day for mid-size tenants). The JSON contains multiple record types (call, transfer, prompt, intent, checkpoint, system, interaction) with nested arrays and unstable schemas that evolve over time. Requirements: (1) Dashboards covering a 16-month historical window with older data remaining retrievable but rarely queried; (2) Users need summary trends (hourly/daily) with drill-down capability to individual call records, and export functionality; (3) A subset of near-real-time dashboards must show data no more than 5 minutes old; (4) Strict tenant isolation with zero risk of cross-tenant data leaks; (5) Each tenant views dashboards in their own time zone. Design the architecture addressing: ingestion and schema drift handling, transformation engine choice and trade-offs, storage and serving layers for performance at scale, simultaneous batch and real-time pipelines, structural tenant isolation guarantees, hot vs. cold data strategy, multi-tenant deployment scaling, and infrastructure sizing and validation. Recommend AWS or Microsoft Fabric with justification.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Multi-tenant streaming and batch analytics architecture",
+  "skills_tested": [
+   "Lakehouse design",
+   "Schema drift",
+   "Tenant isolation",
+   "Lambda and Kappa trade-offs",
+   "Time zones",
+   "Capacity planning",
+   "Cloud platform choice"
+  ],
+  "why_asked": "Interviewers often ask this because it combines the hardest parts of analytics engineering at once: unstable nested JSON, real-time and historical views of the same data, and multi-tenancy where a single leak ends the business relationship. It shows whether you design isolation and correctness into the structure instead of bolting them on.",
+  "hints": [
+   "Size it first: 40 tenants at about 40,000 calls a day, with tens of events per call, is tens of millions of events a day and modest throughput per second.",
+   "Land the raw JSON untouched (bronze), then parse each record type into its own typed table; unknown fields go into a variant or JSON column rather than failing the load.",
+   "Make tenant_id part of every key, every partition and every access policy, and test isolation with a negative test.",
+   "Store timestamps in UTC; convert to the tenant's time zone at query time, or pre-aggregate in local time where daily rollups must match the tenant's day.",
+   "One streaming pipeline that writes both a 5-minute serving table and the historical tables avoids maintaining two codebases."
+  ],
+  "approach": "Sizing. 40 tenants × about 40,000 calls a day × about 30 events per call is about 48 million events a day, roughly 550 a second on average with peaks several times higher. At 2 KB an event that is about 100 GB a day raw, around 2 TB a month compressed in columnar form over 16 months. Big enough to need partitioning and lifecycle tiers; not big enough for exotic infrastructure.\n\nIngestion and schema drift. Events arrive on a stream (Kinesis or Event Hubs; Kafka if the tenants push to a shared endpoint) keyed by tenant_id and call_id. Bronze stores every event unchanged with tenant_id, record_type, received_at and the raw payload, append-only, so any parse can be re-run. Silver has one typed table per record type (call, transfer, prompt, intent, checkpoint, system, interaction); known fields become columns, nested arrays are exploded into child tables or stored as arrays, and unknown fields land in an extras JSON column plus a schema registry entry that alerts the data team. A new field never breaks the load; promoting it to a column is a deliberate change.\n\nTransformation engine. Spark Structured Streaming (Databricks on AWS, or Spark in Fabric) for bronze to silver to gold, with micro-batches every 1-2 minutes, so the same code serves both the 5-minute dashboards and history. Gold has hourly and daily aggregates per tenant in the tenant's local day, and a call-detail table for drill-down and export.\n\nServing. Recent gold and call detail serve from a fast analytical store (Fabric Direct Lake semantic model, or Redshift/ClickHouse on AWS); drill-down goes by call_id to silver. Exports run as asynchronous jobs that write a file to the tenant's own bucket or folder.\n\nTenant isolation, structurally: tenant_id on every row, every table partitioned by tenant_id and date; row-level security bound to the user's tenant claim from SSO, enforced in the warehouse, not the BI tool; large or regulated tenants get their own schema or workspace; service identities scoped per tenant for exports; and a CI test that queries as tenant A and asserts zero rows from tenant B.\n\nHot and cold. 0-90 days in the hot serving store; 90 days to 16 months as compressed Delta or Iceberg in object storage, still queryable but slower; older data moves to archive tiers, with a documented restore path.\n\nTime zones. Store UTC; keep a tenant table with an IANA zone; gold daily tables are computed per tenant in local time (so 'Tuesday' matches the tenant's Tuesday, across daylight-saving changes); hourly drill-down converts at query time.\n\nPlatform recommendation. If the customer is a Microsoft shop with Power BI users, Fabric: OneLake plus Direct Lake gives fast dashboards over the same Delta tables, and workspace and RLS controls map to tenants; watch capacity-unit sizing and noisy neighbours. If engineering-led with heavy streaming and custom services, AWS: Kinesis, then S3 with Iceberg, then EMR or Databricks, then Redshift or ClickHouse, with QuickSight or an embedded BI tool. Decide on the team's skills and the BI front end, not on feature lists.\n\nValidation. Load-test with replayed production volumes at 3x peak; measure end-to-end freshness against the 5-minute SLA; run the isolation test suite on every deployment; reconcile gold totals against silver counts daily.",
+  "sample_solution": {
+   "language": "SQL (Spark / Delta Lake)",
+   "code": "-- Bronze: every event, untouched, so any parse can be re-run\nCREATE TABLE bronze_ivr_event (\n  tenant_id    STRING   NOT NULL,\n  record_type  STRING   NOT NULL,\n  call_id      STRING,\n  received_at  TIMESTAMP NOT NULL,\n  payload      STRING   NOT NULL          -- raw JSON\n) USING DELTA\nPARTITIONED BY (tenant_id, date(received_at));\n\n-- Silver: one typed table per record type; unknown fields kept, not lost\nCREATE TABLE silver_call (\n  tenant_id     STRING NOT NULL,\n  call_id       STRING NOT NULL,\n  started_at    TIMESTAMP,                -- UTC\n  ended_at      TIMESTAMP,\n  ani_hash      STRING,                   -- caller number, hashed\n  disposition   STRING,\n  extras        STRING                    -- JSON of fields not yet promoted\n) USING DELTA\nPARTITIONED BY (tenant_id, date(started_at));\n\nINSERT INTO silver_call\nSELECT tenant_id,\n       get_json_object(payload, '$.callId'),\n       to_timestamp(get_json_object(payload, '$.start')),\n       to_timestamp(get_json_object(payload, '$.end')),\n       sha2(get_json_object(payload, '$.ani'), 256),\n       get_json_object(payload, '$.disposition'),\n       to_json(map_filter(from_json(payload, 'map<string,string>'),\n               (k, v) -> k NOT IN ('callId','start','end','ani','disposition')))\nFROM bronze_ivr_event\nWHERE record_type = 'call';\n\n-- Gold: daily totals in each tenant's own day, not the UTC day\nCREATE TABLE gold_daily_calls USING DELTA PARTITIONED BY (tenant_id) AS\nSELECT c.tenant_id,\n       to_date(from_utc_timestamp(c.started_at, t.time_zone)) AS local_day,\n       count(*)                                               AS calls,\n       avg(unix_timestamp(c.ended_at) - unix_timestamp(c.started_at)) AS avg_seconds\nFROM silver_call c\nJOIN tenant t ON t.tenant_id = c.tenant_id\nGROUP BY c.tenant_id, to_date(from_utc_timestamp(c.started_at, t.time_zone));\n\n-- Isolation test, run on every deploy: as tenant A, other tenants' rows must be invisible\n-- SELECT count(*) FROM gold_daily_calls WHERE tenant_id <> current_tenant();  -- expect 0",
+   "explanation": "Bronze keeps the raw truth, so schema drift is cheap: when a tenant adds a field it lands in extras (the map_filter keeps everything not yet promoted), the registry flags it, and a later change promotes it to a column and backfills from bronze. Partitioning every layer by tenant_id and date gives pruning for queries, a natural unit for per-tenant deletion and retention, and a physical boundary that row-level security builds on.\n\nThe gold table computes local days with each tenant's IANA time zone, so a tenant in Sydney and one in New York each see their own Tuesday, and daylight-saving changes are handled by the time zone database rather than fixed offsets. The commented isolation query is the shape of the automated negative test: run it with each tenant's credentials and fail the deployment if it returns anything.\n\nThe parsing logic is shown for one record type; the others follow the same pattern, with nested arrays (prompts, intents) exploded into child tables keyed by tenant_id and call_id."
+  },
+  "common_mistakes": [
+   "Parsing JSON straight into strict tables, so the first schema change from a tenant stops the pipeline.",
+   "Isolation by convention (a WHERE clause in the dashboard) instead of enforced policies and partitioning.",
+   "Computing daily aggregates on UTC days and showing them to tenants in other time zones.",
+   "Two separate codebases for streaming and batch that drift apart.",
+   "Keeping 16 months in the hot store, or archiving data with no restore path.",
+   "Recommending a cloud without tying the choice to the team's skills and the BI front end."
+  ],
+  "follow_ups": [
+   "One tenant sends ten times its usual volume during an outage. How do you protect the other tenants?",
+   "A tenant leaves and asks for all their data to be deleted. Walk through it across all layers.",
+   "How would you handle late events that arrive hours after the call ended?",
+   "How do you test the 5-minute freshness SLA continuously in production?",
+   "What would make you move a tenant from shared tables to a dedicated workspace?"
+  ],
+  "related_concepts": [
+   "Medallion architecture",
+   "Delta Lake and Iceberg",
+   "Schema registry",
+   "Row-level security",
+   "Spark Structured Streaming",
+   "Direct Lake",
+   "Data lifecycle tiers",
+   "IANA time zones"
+  ],
+  "estimated_minutes": 60,
+  "similar_questions": [
+   {
+    "question": "Design analytics for a multi-tenant e-commerce SaaS where each merchant sees only their own orders, in near real time and over three years.",
+    "what_changes": "Fewer record types but far more tenants, so the shared-versus-dedicated tenancy trade-off dominates."
+   },
+   {
+    "question": "Design an ingestion pipeline for IoT devices whose firmware changes the telemetry schema every month.",
+    "what_changes": "Schema evolution and late data are the core problems; tenancy is simpler."
+   },
+   {
+    "question": "Design a call-centre reporting platform that must keep seven years of call records for compliance but only shows 90 days on dashboards.",
+    "what_changes": "Retention, legal hold and archive retrieval become central, and the real-time requirement relaxes."
+   }
+  ]
+ }
+}

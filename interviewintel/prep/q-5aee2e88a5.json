@@ -1,0 +1,67 @@
+{
+ "question": "You are responsible for ensuring that development and QA environments have realistic, high-volume data for dashboard testing and validation. Production environments have superior data quality, structural complexity, and volume, making it hard to catch issues like chart layout problems, date-range filter bugs, and query performance degradation before production deployment. Describe your approach to solving this problem. What conversations would you have, what strategies would you employ, what tools would you use, and what data pipelines would you build to enable non-production dashboard validation with realistic data while maintaining data security?",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Realistic, safe data for non-production environments",
+  "skills_tested": [
+   "Test data management",
+   "Data masking",
+   "Synthetic data",
+   "Pipeline design",
+   "Stakeholder management",
+   "Security and compliance"
+  ],
+  "why_asked": "Interviewers often ask this because the gap between production data and test data hides real bugs (empty charts, broken filters, slow queries) until release. The question tests whether you can balance realism, volume and security, and whether you start with people and policy as well as pipelines.",
+  "hints": [
+   "Begin with conversations: security and privacy teams, data owners, and the people who test dashboards.",
+   "Classify columns by sensitivity first; that decides mask, tokenise, synthesise or drop.",
+   "Keep the shape of production (volumes, distributions, skew, nulls, date ranges, edge cases) even when values are fake.",
+   "Masking must be deterministic and consistent across tables, or joins break.",
+   "Automate a refresh pipeline with checks, so non-production stays current and nobody copies production by hand."
+  ],
+  "approach": "1. Conversations first.\n- Security, privacy and compliance: what data may leave production, under which controls, and what counts as personal or confidential.\n- Data owners: which tables and columns matter for testing.\n- Dashboard developers and QA: which bugs escaped before (layouts with long labels, date filters across year boundaries, empty states, performance at volume) so the test data reproduces them.\n\n2. Classify and decide treatment per column.\n- Direct identifiers (names, emails, account numbers): replace with deterministic tokens or realistic fakes.\n- Quasi-identifiers (birth date, postcode): generalise or perturb.\n- Sensitive measures (salary, balances): add noise or scale while keeping distributions.\n- Free text: drop or replace.\n- Everything else: keep.\n\n3. Choose a strategy per data set.\n- Masked production subset: production volume and shape, masked in a secure zone before it reaches non-production. The best realism.\n- Synthetic generation: where no production copy is allowed. Model distributions and relationships from production statistics (not records), then generate at full volume.\n- Hand-crafted edge-case fixtures: small, versioned data sets for specific scenarios (zero rows, nulls, long strings, leap days, time zones), loaded on top of the bulk data.\n\n4. Build the pipeline. Extract inside production, mask with deterministic keyed hashing so the same customer gets the same token in every table, subset with referential integrity (sample customers, then take all their related rows), optionally scale up, load to dev and QA on a schedule, and validate: row counts, distributions and null rates against production statistics, and a scan proving no raw identifiers leaked.\n\n5. Tools. dbt or Spark for the masking transforms; warehouse dynamic masking or clone features where available; synthetic data libraries (SDV, Faker) or vendor test-data-management tools; performance tests with production-like volumes and query plans.\n\n6. Governance. Access control on non-production, an approved refresh process instead of ad-hoc copies, audit logs, and a documented exception path.",
+  "sample_solution": {
+   "language": "SQL (dbt model)",
+   "code": "-- models/nonprod/customer_masked.sql\n-- Runs inside the production account; only this output is shared to dev/QA.\n-- Deterministic: the same customer gets the same token in every table,\n-- so joins and distinct counts behave exactly as in production.\n{{ config(materialized='table') }}\n\nwith sampled as (\n  -- keep 10% of customers, chosen stably by hash, so related tables can follow\n  select *\n  from {{ source('prod', 'customer') }}\n  where mod(abs(hash(customer_id)), 100) < 10\n)\n\nselect\n  sha2(concat(customer_id, '{{ var(\"mask_salt\") }}'), 256)     as customer_id,\n  'Customer ' || substr(sha2(customer_id, 256), 1, 8)           as customer_name,\n  concat(substr(sha2(email, 256), 1, 12), '@example.test')      as email,\n  date_trunc('month', birth_date)                               as birth_date,   -- generalised\n  left(postcode, 3)                                             as postcode_area, -- generalised\n  round(annual_income * (0.9 + 0.2 * uniform(0::float, 1::float, random())), -3)\n                                                                as annual_income, -- noised\n  segment,                                                      -- not sensitive: kept\n  created_at,                                                   -- keeps real date ranges\n  country\nfrom sampled\n\n-- Orders follow the same sample and the same tokens:\n--   select sha2(concat(o.customer_id, salt), 256) as customer_id, o.*  (minus raw ids)\n--   from prod.orders o join sampled s on s.customer_id = o.customer_id",
+   "explanation": "The model keeps what dashboards need to be tested properly: real date ranges, real segment and country distributions, real cardinality, and consistent keys across tables. It removes or transforms what must not leave production. Sampling by a hash of customer_id means every related table can apply the same filter and stay referentially complete; tokenising with a secret salt (kept in production) means the same customer maps to the same token everywhere, so joins and distinct counts behave as in production, while tokens cannot be reversed by someone without the salt.\n\nThe syntax is Snowflake-flavoured dbt; the pattern carries to any warehouse. Add a post-hook test that scans the output for patterns of real emails or account numbers and fails the build if it finds one."
+  },
+  "common_mistakes": [
+   "Copying production to dev 'just this once' without masking.",
+   "Random (non-deterministic) masking that breaks joins and distinct counts.",
+   "Sampling each table independently, leaving orphaned foreign keys.",
+   "Tiny test data sets that never reveal performance problems.",
+   "Synthetic data with uniform distributions that hide skew and edge cases.",
+   "No validation that masked data actually contains no personal data."
+  ],
+  "follow_ups": [
+   "How do you test a dashboard's performance when non-production has 10% of the volume?",
+   "Legal says no production-derived data may leave production at all. What changes?",
+   "How would you keep test data current when production schemas change weekly?",
+   "How do you prove to an auditor that non-production contains no personal data?"
+  ],
+  "related_concepts": [
+   "Test data management",
+   "Deterministic tokenisation",
+   "Data masking",
+   "Synthetic data",
+   "Referential integrity sampling",
+   "Zero-copy cloning",
+   "k-anonymity"
+  ],
+  "estimated_minutes": 25,
+  "similar_questions": [
+   {
+    "question": "Design a process to give data scientists production-like data for model development without exposing customer identities.",
+    "what_changes": "Model utility matters more than dashboard layout, so preserving statistical relationships dominates."
+   },
+   {
+    "question": "How would you load-test a BI semantic layer before a launch with 5,000 users?",
+    "what_changes": "The focus shifts from data realism to concurrency and query-pattern realism."
+   },
+   {
+    "question": "Build seed data for an analytics engineering CI pipeline that runs on every pull request.",
+    "what_changes": "Small, fast, deterministic fixtures matter more than volume."
+   }
+  ]
+ }
+}

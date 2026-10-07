@@ -125,7 +125,9 @@ interview or candidate: never claim or imply that your material, your solution o
 from an interviewer, a candidate or the source, and never describe what "the interviewer wanted".
 Write "interviewers often ask this because…" style general reasoning only. Be correct and concrete.
 `sample_solution.code` is runnable code in `language` (or "" for a verbal answer, e.g. behavioral).
-`similar_questions` are new questions on the same skill, each saying what changes."""
+`similar_questions` are new questions on the same skill, each saying what changes.
+Write `approach` and `sample_solution.explanation` as plain text: short paragraphs separated by
+blank lines, lists as lines starting with "- " or "1. ". No markdown emphasis, headings or tables."""
 
 ENRICH_SCHEMA = {
     "type": "object",

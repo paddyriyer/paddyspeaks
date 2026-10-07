@@ -1,0 +1,65 @@
+{
+ "question": "What modeling decisions in a system design are difficult to reverse after implementation? Which decisions are critical to get right early on, and what are the consequences of getting them wrong?",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Irreversible design decisions",
+  "skills_tested": [
+   "Data modelling",
+   "System design judgement",
+   "Migration planning",
+   "API design",
+   "Risk assessment"
+  ],
+  "why_asked": "Interviewers often ask this because seniority shows in knowing which decisions deserve debate and which do not. A strong answer separates one-way doors from two-way doors, gives concrete examples with real migration costs, and explains how to keep options open where certainty is low.",
+  "hints": [
+   "Sort decisions by the cost of undoing them, not by how technical they sound: anything that shapes stored data or external contracts is expensive.",
+   "Think about who else depends on the decision: other teams, customers' integrations, years of history on disk.",
+   "Identifiers and keys are the classic trap: their type, scope and meaning leak everywhere.",
+   "For each example, say what going wrong actually costs: a migration, a backfill, a compatibility layer kept forever, or lost data that cannot be recovered.",
+   "Finish with mitigations: versioning, keeping raw data, abstraction at the boundary, and small experiments before committing."
+  ],
+  "approach": "Frame it as one-way doors and two-way doors. A two-way door (which library, which dashboard tool, an internal function signature) can be changed next sprint. A one-way door shapes stored data or other people's code, so the cost of changing it grows every day it stays in production.\n\nThe decisions that are hard to reverse:\n\n1. Grain and identity of core entities. What one row means, and what the primary key is. Getting the grain wrong (an order table that is really order lines) breaks every aggregate built on it. Getting identity wrong (email as customer key, a 32-bit ID, IDs that are not globally unique across regions) means rekeying billions of rows and every foreign key.\n2. Partitioning and sharding keys. They decide which queries are cheap forever. Partition a multi-tenant table by date only and every per-tenant delete or query scans everything; resharding later moves terabytes under load.\n3. Event and API contracts. Once external clients or other teams consume a field, renaming or changing its meaning needs a versioned API and a long deprecation, and some consumers never move.\n4. History semantics. Whether you keep history (SCD type 2, append-only events) or overwrite. History you never captured cannot be recreated.\n5. Time handling. Storing local times without zones, or mixing them, corrupts every cross-region comparison and is painful to repair.\n6. Consistency and ownership boundaries. Which service owns which data, and synchronous versus event-driven coupling. Splitting or merging these later means rewriting integrations.\n7. Storage format and engine for the system of record, and the encryption and retention design for regulated data.\n\nWhat goes wrong when you get them wrong: long migrations and dual-writes; backfills that need history you no longer have; compatibility layers that live forever; silent wrong numbers (grain errors) that undermine trust; and in regulated domains, compliance exposure.\n\nHow to manage the risk: spend design time on the one-way doors and decide the two-way doors quickly; write the grain, keys and contracts down and review them with consumers; keep raw, immutable inputs so you can rebuild derived models; version every external contract from day one; use surrogate keys and UTC; and prototype with production-like data before committing.",
+  "sample_solution": {
+   "language": "",
+   "code": "",
+   "explanation": "A strong spoken answer, about three minutes:\n\n\"I sort decisions by how expensive they are to undo. Most choices are two-way doors and I make them quickly. The ones I slow down for shape stored data or other people's code.\n\nThe biggest is the grain and identity of core entities: what one row means and what its key is. If an orders table is really order lines, every revenue number is wrong, and fixing it means rebuilding every model on top. If the key is an email address or a 32-bit integer, changing it means rekeying everything that references it.\n\nSecond, partitioning keys, because they decide which queries stay cheap forever. Third, contracts other teams or customers consume: events and APIs. Once a field is public, changing it needs versioning and a long deprecation. Fourth, history: if I overwrite instead of keeping history, I can never answer 'what did we believe last March?'. And fifth, time zones.\n\nTo manage the risk I keep raw, immutable inputs so derived models can be rebuilt, version every contract from day one, use surrogate keys and UTC, and write the grain and keys down for review before building. That turns a one-way door into something closer to a two-way one.\""
+  },
+  "common_mistakes": [
+   "Listing tools and frameworks, which are usually cheap to change, instead of data shapes and contracts.",
+   "Naming decisions without explaining what makes them expensive to undo.",
+   "No concrete example of the cost of getting one wrong.",
+   "Forgetting that history you did not capture cannot be recovered later.",
+   "Treating every decision as critical, which signals poor prioritisation."
+  ],
+  "follow_ups": [
+   "You inherited a table keyed on email address. How would you migrate to a surrogate key without downtime?",
+   "How do you decide between SCD type 2 and snapshotting for a dimension?",
+   "What is your process for changing a field that 30 downstream teams consume?",
+   "Which decision have you personally regretted, and what did reversing it cost?"
+  ],
+  "related_concepts": [
+   "One-way and two-way doors",
+   "Grain",
+   "Surrogate keys",
+   "Partitioning",
+   "API versioning",
+   "Slowly changing dimensions",
+   "Expand-contract migrations"
+  ],
+  "estimated_minutes": 15,
+  "similar_questions": [
+   {
+    "question": "What would you insist on reviewing before a new team ships its first public event schema?",
+    "what_changes": "The focus narrows to contracts: naming, versioning, compatibility rules and ownership."
+   },
+   {
+    "question": "Walk through migrating a production table's primary key from INT to BIGINT with zero downtime.",
+    "what_changes": "It becomes a concrete migration plan: expand, dual-write, backfill, switch reads, contract."
+   },
+   {
+    "question": "Which early choices in a startup's analytics stack are worth getting right, and which are not?",
+    "what_changes": "Same reasoning under tighter time and budget, so explicitly deferring decisions is part of the answer."
+   }
+  ]
+ }
+}

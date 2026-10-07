@@ -17,6 +17,7 @@ Read this before touching `interviewintel/`, `interview.app/reported/` or
 | `interviewintel/data/seen.json` | Every URL ever processed, and why it was or wasn't used |
 | `interviewintel/data/health.json` | What the last run did |
 | `interviewintel/decisions/*.json` | Review decisions, one file per batch, applied once |
+| `interviewintel/prep/q-*.json` | Answers written in review: published instead of generated material, never overwritten by a run, tied to the exact question text |
 | `interview.app/reported/` | Public pages: questions, trending, companies, how it works |
 | `interview.app/reported/data/` | Public JSON — **approved material only** |
 | `admin/interview-discovery/` | The review page (`noindex`) and `queue.json` |

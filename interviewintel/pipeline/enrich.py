@@ -41,13 +41,13 @@ def validate(raw: dict) -> tuple[dict | None, str]:
     prep = {
         "topic": normalize.clean(raw.get("topic"))[:80],
         "skills_tested": _strs(raw.get("skills_tested"), 8, 80),
-        "why_asked": normalize.clean(raw.get("why_asked"))[:900],
+        "why_asked": normalize.clean(raw.get("why_asked"))[:1200],
         "hints": _strs(raw.get("hints"), 5),
-        "approach": (raw.get("approach") or "").strip()[:2500],
+        "approach": (raw.get("approach") or "").strip()[:5000],
         "sample_solution": {
-            "language": normalize.clean(sol.get("language"))[:24],
-            "code": (sol.get("code") or "").rstrip()[:6000],
-            "explanation": (sol.get("explanation") or "").strip()[:2500],
+            "language": normalize.clean(sol.get("language"))[:40],
+            "code": (sol.get("code") or "").rstrip()[:14000],
+            "explanation": (sol.get("explanation") or "").strip()[:5000],
         },
         "common_mistakes": _strs(raw.get("common_mistakes"), 6),
         "follow_ups": _strs(raw.get("follow_ups"), 6),
@@ -65,11 +65,15 @@ def validate(raw: dict) -> tuple[dict | None, str]:
 
 
 def run(model, ledger: dict, today: str, budget: int = config.MAX_ENRICH) -> dict:
+    from . import authored   # local import: authored imports this module
+
     stats = {"enriched": 0, "rejected": 0, "errors": []}
     if model is None:
         return stats
+    docs = authored.load()
     todo = [q for q in ledger["questions"].values()
-            if q["status"] == "approved" and q.get("prep_for") != text_hash(q)]
+            if q["status"] == "approved" and q.get("prep_for") != text_hash(q)
+            and not authored.for_question(q, docs)]       # an authored answer needs no model call
     todo.sort(key=lambda q: q["id"])
     for q in todo[:budget]:
         try:

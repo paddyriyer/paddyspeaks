@@ -1,0 +1,65 @@
+{
+ "question": "When designing a new data architecture from scratch, what foundational decision-making rules or trade-offs guide your early choices in selecting data modeling patterns and the technical stack?",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Architecture decision-making and trade-offs",
+  "skills_tested": [
+   "Architecture decision records",
+   "Trade-off analysis",
+   "Technology selection",
+   "Data modelling patterns",
+   "Total cost of ownership"
+  ],
+  "why_asked": "Interviewers often ask this because architects are judged on how they decide, not on which tools they like. A good answer shows explicit principles, a repeatable way to compare options, and an honest list of the trade-offs being accepted.",
+  "hints": [
+   "Start from non-negotiables: regulatory, latency, data volume, skills of the team, budget.",
+   "State a few principles you apply by default and when you break them.",
+   "Use a weighted decision matrix for the stack, and write the result as an architecture decision record (ADR).",
+   "Choose modelling patterns per layer: raw and immutable, integrated, and consumption-ready.",
+   "Prefer reversible choices where uncertainty is high, and say which choices are one-way doors."
+  ],
+  "approach": "Start with constraints that remove options: data residency and regulation, latency (batch, near-real-time, real-time), scale today and in three years, the team's skills, budget and existing contracts or cloud commitments.\n\nThen apply a few default principles, each with its exception:\n- Managed services over self-hosted, unless cost at scale or a hard requirement says otherwise.\n- Store raw data immutably and cheaply; derive everything else, so models can be rebuilt.\n- Open table formats (Delta, Iceberg) to avoid lock-in on the storage layer.\n- One way to do each job (one orchestrator, one transformation framework), unless a workload genuinely differs.\n- Simplicity first: add streaming, microservices or a graph store only for requirements that need them.\n\nModelling patterns by layer:\n- Raw or bronze: source-shaped, append-only, with load metadata.\n- Integration: Data Vault when there are many volatile sources and audit matters; a normalised core when several applications share the data; skip it for a small, stable source set.\n- Consumption: dimensional models (star schemas) for BI, wide denormalised tables for ML features, and a semantic layer so metrics are defined once.\n\nStack selection: score options in a weighted matrix (fit to requirements, operability, cost over 3 years, team skills, ecosystem and support, lock-in risk). Prototype the top two on a real workload. Record the decision, the alternatives and the accepted trade-offs in an ADR, with a date to revisit it.\n\nState the trade-offs openly: speed of delivery against flexibility; cost against latency; centralised governance against domain autonomy; best-of-breed tools against integration effort.",
+  "sample_solution": {
+   "language": "Text (decision matrix and ADR)",
+   "code": "Decision: transformation and storage stack for the analytics platform\n\nCriteria (weight)      Option A: Snowflake + dbt   Option B: Databricks + Delta   Option C: Self-hosted Spark + Iceberg\nFit to requirements (25%)        4                          5                              4\nOperability (20%)                5                          4                              2\n3-year cost (20%)                3                          4                              4\nTeam skills (15%)                5                          3                              2\nEcosystem/support (10%)          5                          5                              3\nLock-in risk (10%)               2                          4                              5\nWeighted score                 4.05                       4.20                           3.30\n\nADR-007  Status: accepted  Date: 2026-03-02  Revisit: 2027-03\nContext: SQL-heavy analyst team; ML workloads growing; 40 TB today, 4x in 3 years.\nDecision: Option B, with dbt for SQL models on Databricks SQL.\nConsequences: Python and SQL on one engine; Delta keeps storage open.\n  Accepted trade-offs: higher operational learning curve than Option A;\n  cluster policies needed to control cost.\nAlternatives rejected: A (lock-in, ML weaker), C (operability cost too high for team size).",
+   "explanation": "The matrix makes the trade-offs visible and arguable: anyone can challenge a weight or a score, rather than an opinion. The scores here are illustrative, not a recommendation. The ADR records why, what was given up, and when to look again, so a successor understands the decision instead of re-litigating it.\n\nIn the interview, walk through constraints, then principles, then patterns by layer, then the matrix and ADR, and end with the two or three trade-offs you knowingly accepted."
+  },
+  "common_mistakes": [
+   "Leading with favourite tools instead of constraints and requirements.",
+   "Applying one modelling pattern to every layer and every use case.",
+   "Not writing decisions down, so they are re-debated every quarter.",
+   "Ignoring the team's skills and the cost of operating the stack.",
+   "Presenting choices as having no downside."
+  ],
+  "follow_ups": [
+   "When is Data Vault worth its complexity?",
+   "How would you decide between batch and streaming for a new requirement?",
+   "Your matrix is close between two options. What breaks the tie?",
+   "How do you revisit a decision when the context changes?"
+  ],
+  "related_concepts": [
+   "Architecture decision records",
+   "Weighted decision matrix",
+   "Medallion architecture",
+   "Data Vault",
+   "Dimensional modelling",
+   "Semantic layer",
+   "Open table formats"
+  ],
+  "estimated_minutes": 20,
+  "similar_questions": [
+   {
+    "question": "Your CTO wants to standardise on one cloud data platform across three business units. How do you run the decision?",
+    "what_changes": "Stakeholder alignment and migration cost dominate, not just technical fit."
+   },
+   {
+    "question": "When would you choose a data mesh over a central data platform?",
+    "what_changes": "The trade-off is organisational: ownership, domain maturity and governance."
+   },
+   {
+    "question": "Write the ADR for moving from nightly batch to streaming ingestion for one critical source.",
+    "what_changes": "One concrete decision with costs, risks and a rollback plan."
+   }
+  ]
+ }
+}

@@ -19,7 +19,7 @@ import types
 import unittest
 from unittest import mock
 
-from interviewintel.pipeline import (classify_rules, config, confidence, dedupe, discover, enrich, extract,
+from interviewintel.pipeline import (authored, classify_rules, config, confidence, dedupe, discover, enrich, extract,
                                      feeds, http, llm, normalize, providers, publish, review, sources, store)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -611,6 +611,32 @@ class TestEnrichment(unittest.TestCase):
         prep, why = enrich.validate(raw)
         self.assertIsNone(prep)
         self.assertIn("claims", why)
+
+
+class TestAuthoredAnswers(unittest.TestCase):
+    """Answers written in review (interviewintel/prep/) are valid AI material,
+    are never cut short by validation, and win over generated material."""
+
+    def test_every_authored_answer_is_complete_and_honest(self):
+        docs = authored.load()
+        for qid, doc in docs.items():
+            prep, why = enrich.validate(doc["prep"])
+            self.assertIsNotNone(prep, f"{qid}: {why}")
+            self.assertTrue(doc.get("question"), qid)
+            raw, kept = doc["prep"], prep
+            self.assertEqual(raw["approach"].strip(), kept["approach"], f"{qid}: approach would be truncated")
+            self.assertEqual(raw["sample_solution"]["code"].rstrip(), kept["sample_solution"]["code"], f"{qid}: code truncated")
+            self.assertEqual(raw["sample_solution"]["explanation"].strip(), kept["sample_solution"]["explanation"],
+                             f"{qid}: explanation truncated")
+
+    def test_authored_answer_wins_and_is_tied_to_the_question_text(self):
+        q = {"id": "q-x", "question": "Explain grain.", "category": "SQL", "status": "approved"}
+        prep = FakeModel().enrich({})
+        docs = {"q-x": {"question": "Explain grain.", "written": "2026-10-07", "prep": prep}}
+        got = authored.for_question(q, docs)
+        self.assertEqual(got["model"], "authored")
+        self.assertIsNone(authored.for_question(dict(q, question="Explain grain, edited."), docs),
+                          "an edited question must not keep an answer written for the old text")
 
 
 class TestFrontEnd(unittest.TestCase):

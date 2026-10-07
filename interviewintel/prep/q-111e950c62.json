@@ -1,0 +1,69 @@
+{
+ "question": "Design an anomaly detection system for a data quality monitoring platform. Compare and contrast different approaches: Z-score, moving average, EWMA (exponential weighted moving average), Prophet, Isolation Forest, and custom ML models. Explain the trade-offs of each approach in terms of latency, accuracy, false positive rate, and computational overhead.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Anomaly detection for data quality metrics",
+  "skills_tested": [
+   "Time-series statistics",
+   "Seasonality",
+   "False-positive control",
+   "System design",
+   "Model selection",
+   "Operational ML"
+  ],
+  "why_asked": "Interviewers often ask this because data quality alerting fails in two familiar ways: too many false alarms, so people mute it, or thresholds so loose that real breakages slip through. Comparing detectors shows whether you can match a method to the shape of the metric and to the cost of a wrong alert, rather than reaching for the most sophisticated model.",
+  "hints": [
+   "Start from the metrics, not the algorithms: row counts are seasonal, null rates are usually flat, freshness is a threshold problem.",
+   "Z-scores assume a stable mean and variance; ask what happens to a daily row count on a Monday morning.",
+   "EWMA reacts quickly with O(1) state per series, which matters when you track hundreds of thousands of series.",
+   "Prophet and Isolation Forest are batch tools; say where they run (offline baselines) and where the cheap online check runs.",
+   "False positives are a product problem: require persistence (k of n points), add a minimum absolute change, and let users give feedback."
+  ],
+  "approach": "1. Classify the metrics. Volume metrics (row count, bytes) have daily and weekly seasonality and trend. Ratio metrics (null %, duplicate %) are usually flat with occasional level shifts. Timing metrics (freshness, latency) are best served by explicit SLAs plus a learned upper bound. Schema changes are discrete events, not a statistics problem.\n\n2. Compare the detectors on the axes the question names:\n- Z-score on a rolling window: microseconds, no training, but it assumes stationarity, so it false-alarms on seasonal metrics and is distorted by the very outliers it should catch. A robust variant (median and MAD) fixes the second problem.\n- Moving average bands: simple and explainable, slow to adapt, and lags behind level shifts.\n- EWMA with control limits: O(1) state per series, adapts to drift, tunable through the smoothing factor; the default online detector for flat or slowly drifting metrics.\n- Prophet (or STL decomposition): models trend plus daily and weekly seasonality and holidays, so it is much more accurate for volume metrics. It costs seconds per series per fit, so it fits offline (nightly) and publishes expected bands; the online path just compares against the band.\n- Isolation Forest: multivariate. It catches 'row count normal but null rate and duplicate rate both shifted', at the cost of explainability and a training pipeline. Use it on feature vectors per pipeline run, not on single series.\n- Custom ML (gradient boosting on lagged features, or autoencoders): the best accuracy when labelled incidents exist, and the highest operational cost: labels, retraining, drift monitoring, explanations.\n\n3. Architecture: a cheap online tier (robust z or EWMA, plus hard SLA rules) scores every metric update within seconds; an offline tier refits seasonal baselines nightly and writes expected ranges per series per time bucket; the alert stage applies persistence (for example 3 of the last 5 points), a minimum absolute delta, severity from the size of the deviation, and deduplication per pipeline.\n\n4. Close the loop: record user feedback (true or false alarm), measure precision per detector, and tune per metric class, not globally.",
+  "sample_solution": {
+   "language": "Python",
+   "code": "\"\"\"Three online detectors with O(1) or O(window) state per series, plus the\nalert gate that keeps false positives down. Standard library only.\"\"\"\nfrom collections import deque\nfrom statistics import median\n\n\nclass RobustZ:\n    \"\"\"Median/MAD z-score over a rolling window: not skewed by past outliers.\"\"\"\n    def __init__(self, window=48, threshold=4.0):\n        self.values, self.threshold = deque(maxlen=window), threshold\n\n    def score(self, x):\n        if len(self.values) < 10:                 # not enough history yet\n            self.values.append(x)\n            return 0.0, False\n        m = median(self.values)\n        mad = median(abs(v - m) for v in self.values) or 1e-9\n        z = 0.6745 * (x - m) / mad               # 0.6745 makes MAD comparable to a std dev\n        self.values.append(x)\n        return z, abs(z) > self.threshold\n\n\nclass EWMA:\n    \"\"\"Exponentially weighted mean and variance with control limits.\"\"\"\n    def __init__(self, alpha=0.2, k=3.0, warmup=10):\n        self.alpha, self.k, self.warmup = alpha, k, warmup\n        self.mean, self.var, self.n = None, 0.0, 0\n\n    def score(self, x):\n        self.n += 1\n        if self.mean is None:\n            self.mean = x\n            return 0.0, False\n        diff = x - self.mean\n        std = self.var ** 0.5 or 1e-9\n        z = diff / std\n        flagged = self.n > self.warmup and abs(z) > self.k\n        # update after scoring, so an anomaly does not hide itself\n        self.mean += self.alpha * diff\n        self.var = (1 - self.alpha) * (self.var + self.alpha * diff * diff)\n        return z, flagged\n\n\nclass SeasonalBand:\n    \"\"\"Compare against an expected range per hour-of-week, refitted offline\n    (e.g. nightly with Prophet or STL) and loaded here as a lookup.\"\"\"\n    def __init__(self, bands):                   # {hour_of_week: (low, high)}\n        self.bands = bands\n\n    def score(self, x, hour_of_week):\n        low, high = self.bands.get(hour_of_week, (float(\"-inf\"), float(\"inf\")))\n        return x, not (low <= x <= high)\n\n\nclass AlertGate:\n    \"\"\"Alert only when k of the last n points are flagged and the change is\n    large enough to matter in absolute terms.\"\"\"\n    def __init__(self, k=3, n=5, min_abs_change=0.0):\n        self.recent, self.k, self.min_abs = deque(maxlen=n), k, min_abs_change\n\n    def update(self, flagged, x, baseline):\n        self.recent.append(flagged and abs(x - baseline) >= self.min_abs)\n        return sum(self.recent) >= self.k\n\n\nif __name__ == \"__main__\":\n    # null percentage of a column, then a broken upstream starts writing NULLs\n    series = [1.1, 0.9, 1.0, 1.2, 1.0, 0.8, 1.1, 1.0, 0.9, 1.0, 1.1, 1.0,\n              9.5, 38.0, 40.2, 41.0]\n    det, gate = EWMA(alpha=0.2, k=3.0), AlertGate(k=2, n=3, min_abs_change=2.0)\n    for t, x in enumerate(series):\n        baseline = det.mean if det.mean is not None else x\n        z, flagged = det.score(x)\n        if gate.update(flagged, x, baseline):\n            print(f\"t={t} null%={x} z={z:.1f} -> ALERT\")",
+   "explanation": "The example feeds a null-rate series into the EWMA detector. The first spike (t=12) is flagged but not alerted, because the gate needs 2 of the last 3 points flagged with a change of at least 2 percentage points. The alert fires at t=13 and t=14. By t=15 it stops, even though the column is still 41% NULL: the EWMA has adapted to the new level. That is the classic weakness of adaptive detectors against a sustained level shift, and the reason to freeze the baseline while an incident is open, and to back adaptive detectors with a fixed rule (for example, null rate above 5% for a column that has never exceeded 2%).\n\nThe trade-offs in one place:\n- Latency: z-score, EWMA and band lookups are microseconds per point and fit the online path; Prophet and Isolation Forest are fitted offline.\n- Accuracy: seasonal models win on volume metrics; EWMA and robust z are enough for flat ratios; multivariate methods catch combinations no single series shows.\n- False positives: controlled less by the detector than by the gate (persistence, absolute minimum, per-metric thresholds) and by feedback.\n- Cost: one float pair per series for EWMA, against a model per series (Prophet) or a training pipeline (Isolation Forest, custom ML)."
+  },
+  "common_mistakes": [
+   "Using a plain z-score on row counts with weekly seasonality and drowning users in Monday alerts.",
+   "Updating the baseline with the anomalous point before scoring it, so the anomaly hides itself.",
+   "Proposing Prophet or a deep model for 100,000 series without saying where and how often it is fitted.",
+   "Treating schema changes or freshness as a statistical problem instead of an explicit rule.",
+   "Alerting on every flagged point with no persistence, minimum absolute change or deduplication.",
+   "Never measuring precision, so thresholds are never tuned."
+  ],
+  "follow_ups": [
+   "How would you detect a slow drift, such as a null rate rising 0.1% a day for a month?",
+   "How do you avoid alerting after a planned backfill or a holiday?",
+   "How would you evaluate detectors when you have very few labelled incidents?",
+   "A pipeline has run only three times. What do you do before there is history?",
+   "How would you explain to a user why an Isolation Forest alert fired?"
+  ],
+  "related_concepts": [
+   "EWMA control charts",
+   "Median absolute deviation",
+   "STL decomposition",
+   "Prophet",
+   "Isolation Forest",
+   "CUSUM",
+   "Alert fatigue",
+   "Precision and recall"
+  ],
+  "estimated_minutes": 40,
+  "similar_questions": [
+   {
+    "question": "Design alerting for daily revenue in a payments company where weekends and month-end look nothing like a normal Tuesday.",
+    "what_changes": "Seasonality and calendar effects dominate, so the baseline has to be calendar-aware and business-reviewed."
+   },
+   {
+    "question": "Detect when a pipeline's output distribution shifts even though row counts and null rates look normal.",
+    "what_changes": "You compare distributions (PSI, KS test, histograms) rather than single summary metrics."
+   },
+   {
+    "question": "Design anomaly detection for API latency across 10,000 endpoints with a 1-minute alerting SLA.",
+    "what_changes": "Percentile metrics and much tighter latency push you toward streaming sketches and strictly online detectors."
+   }
+  ]
+ }
+}
