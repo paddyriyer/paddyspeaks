@@ -1,10 +1,20 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-06 (item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-07 (Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-10-07): Interview Intelligence.** At Paddy's request, a discovery
+  engine that finds public interview reports through a search API (never by
+  crawling or visiting LinkedIn), extracts only evidence-backed questions with
+  Claude, deduplicates them, scores confidence, and queues them for review at
+  `/admin/interview-discovery/`. Approved questions publish to
+  `/interview.app/reported/` (questions, trending, company intelligence, how it
+  works). Ships EMPTY: it needs secrets `ANTHROPIC_API_KEY` + a search key
+  (`EXA_API_KEY` by default) in the main repo, then a reviewer's decisions.
+  See `docs/INTERVIEW-INTEL.md`.
 
 - **NEWEST (2026-10-06): item trackers.** At Paddy's request ("we missed AirTag and
   other tracking devices"): the essay has a tenth product, *Item trackers* (Apple,

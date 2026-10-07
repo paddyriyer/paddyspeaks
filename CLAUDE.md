@@ -93,6 +93,32 @@ or `jobsignal/`.
   index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
+## Interview Intelligence (`/interview.app/reported/`)
+
+The interview question discovery engine is documented in
+**`docs/INTERVIEW-INTEL.md`** — read it before touching `interviewintel/`,
+`interview.app/reported/` or `admin/interview-discovery/`.
+
+- **No crawling, no LinkedIn access, no login, no cookies.** Discovery reads only
+  what a search API (Exa / Tavily / Brave / Google CSE) returns. `http.py` talks
+  to those API hosts and nothing else; a test enforces it.
+- **Never invent a question or an attribution.** Every question, company, role
+  and stage needs its own verbatim evidence span that `extract.py` finds in the
+  source; a company also needs an interview cue. Otherwise it is UNKNOWN.
+- **Transform, never copy; no personal data.** Practice questions are rewrites
+  (long shared word runs are flagged); evidence is never published; emails,
+  phones, handles and author names are scrubbed before the model sees text.
+- **Nothing unreviewed is public.** Reports enter `pending`. Decisions are
+  committed files in `interviewintel/decisions/`, written by the review page;
+  only approved material reaches `interview.app/reported/data/`. Auto-publish
+  is off.
+- **AI material is always labelled** and never claims to come from the
+  interview. **No seeded questions, ever** — the board shipped empty.
+- All judgement is Python (`interviewintel/pipeline/`), shipped as data; the
+  JS formats and filters. Guardrail: `python3 -m interviewintel.tests.test_pipeline`
+  (in Validate Content). Runs: `.github/workflows/interview-intel.yml`, daily
+  and on every pushed decision file.
+
 ## FlightDeck (`/ic-flightdeck/`)
 
 Read **`docs/FLIGHTDECK.md`** before touching `ic-flightdeck/`. A self-contained
@@ -349,6 +375,7 @@ recrawl hint and learns to ignore a feed whose dates are reliably wrong.
 
 - `jobs/` — JobSignal: static pages + the board data the pipeline commits
 - `jobsignal/` — JobSignal ingestion pipeline (Python, stdlib only)
+- `interviewintel/` — Interview Intelligence discovery pipeline + its ledger and review decisions
 - `articles/` — Blog post HTML files (self-contained)
 - `article_metadata.json` — Article metadata (title, date, category, slug, hero_image, read_time)
 - `index.html` — Hand-crafted homepage (DO NOT auto-generate)
