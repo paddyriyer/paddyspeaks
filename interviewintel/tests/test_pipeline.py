@@ -641,7 +641,8 @@ class TestAuthoredAnswers(unittest.TestCase):
 
 class TestFrontEnd(unittest.TestCase):
     JS = [ROOT / "interview.app" / "reported" / "js" / "reported.js",
-          ROOT / "admin" / "interview-discovery" / "review.js"]
+          ROOT / "admin" / "interview-discovery" / "review.js",
+          ROOT / "interview.app" / "reported" / "js" / "teaser.js"]
 
     def test_never_injects_source_or_ai_text_as_html(self):
         for path in self.JS:
