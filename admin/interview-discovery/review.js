@@ -50,9 +50,11 @@
     var d = h.discovery || {};
     var bits = ['Queue generated ' + (queue.generated || '?'),
       'last run ' + (h.run_date || 'never'),
-      'search: ' + (h.provider || 'not run'),
+      'sources: ' + ((h.sources || []).join(', ') || 'not run'),
       'model: ' + (h.model || 'none')];
-    if (d.queries != null) bits.push(d.queries + ' searches, ' + (d.results || 0) + ' results, ' + (d.reports_queued || 0) + ' reports queued');
+    if (d.results != null) bits.push((d.sources_ok || 0) + ' sources answered, ' + d.results + ' items, ' + (d.reports_queued || 0) + ' reports queued');
+    var u = h.model_usage;
+    if (u) bits.push(u.calls + ' model calls (' + u.input_tokens + ' in / ' + u.output_tokens + ' out tokens)');
     document.getElementById('rv-health').textContent = bits.join(' · ');
   }
 

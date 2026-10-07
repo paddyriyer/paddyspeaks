@@ -15,11 +15,12 @@ import pathlib
 import re
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
 from interviewintel.pipeline import (classify_rules, config, confidence, dedupe, discover, enrich, extract,
-                                     http, normalize, providers, publish, queries, review, sources, store)
+                                     feeds, http, llm, normalize, providers, publish, review, sources, store)
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 TODAY = _dt.date(2026, 10, 7)
@@ -88,29 +89,31 @@ def proposal(**kw):
     return base
 
 
-class FixtureProvider:
+class FixtureSource:
+    """A source with the same interface as feeds.py's: collect(today, errors)."""
     name = "fixture"
 
     def __init__(self, rows):
         self.rows = rows
 
-    def search(self, q, n):
+    def collect(self, today, errors):
         return [providers.SearchResult(r["url"], r.get("title", ""), r["text"], r.get("published"), "fixture",
-                                       q.as_operator_string()) for r in self.rows]
-
-
-ONE_QUERY = [queries.Query("x")]
+                                       "fixture", preset_class=r.get("preset_class")) for r in self.rows]
 
 
 class TestNetworkBoundary(unittest.TestCase):
-    def test_refuses_linkedin_and_any_page(self):
-        c = http.Client(budget=5, delay_s=0)
-        for url in ("https://www.linkedin.com/posts/x", "https://linkedin.com/feed", "https://example.org/a"):
-            with self.assertRaises(http.HostNotAllowed):
+    def test_refuses_linkedin_and_any_web_page(self):
+        c = http.Client(budget=20, delay_s=0)
+        for url in ("https://www.linkedin.com/posts/x", "https://linkedin.com/feed", "https://example.org/a",
+                    "https://dev.to/someone/my-interview-1abc",          # an article page, not the API
+                    "https://medium.com/@x/my-google-interview-123",      # a post page, not a feed
+                    "https://docs.google.com/document/d/abc",             # anything but the published sheet
+                    "http://hn.algolia.com/api/v1/search"):               # plain http
+            with self.assertRaises(http.HostNotAllowed, msg=url):
                 c.request_json("GET", url)
 
     def test_no_code_path_fetches_a_source_page(self):
-        """Only http.py may open a connection, and it only talks to provider APIs."""
+        """Only http.py may open a connection, and only to API and feed endpoints."""
         for f in (ROOT / "interviewintel").rglob("*.py"):
             text = f.read_text(encoding="utf-8")
             if f.name in ("http.py", "test_pipeline.py"):
@@ -122,9 +125,104 @@ class TestNetworkBoundary(unittest.TestCase):
 
     def test_no_cookie_or_session_handling(self):
         text = (ROOT / "interviewintel" / "pipeline" / "http.py").read_text(encoding="utf-8")
-        code = re.sub(r'""".*?"""', "", text, flags=re.S)
+        code = re.sub(r'"""'+r'.*?'+r'"""', "", text, flags=re.S)
         for banned in ("http.cookiejar", "HTTPCookieProcessor", "Cookie", "li_at", "JSESSIONID"):
             self.assertNotIn(banned, code)
+
+
+class TestNoExtraCost(unittest.TestCase):
+    """The owner's rule: built on existing infrastructure, no new spend."""
+
+    def test_default_sources_are_free(self):
+        self.assertEqual(set(feeds.DEFAULT), set(feeds.SOURCES))
+        for host in ("hn.algolia.com", "api.stackexchange.com", "dev.to", "medium.com", "docs.google.com"):
+            self.assertIn(host, http.FREE_HOSTS)
+        self.assertFalse(http.FREE_HOSTS & http.PAID_HOSTS)
+
+    def test_no_paid_search_api_unless_explicitly_configured(self):
+        wf = (ROOT / ".github" / "workflows" / "interview-intel.yml").read_text(encoding="utf-8")
+        for key in ("EXA_API_KEY", "TAVILY_API_KEY", "BRAVE_SEARCH_API_KEY", "GOOGLE_CSE_KEY", "INTEL_SEARCH_PROVIDER"):
+            self.assertNotIn(key, wf)
+
+    def test_default_model_is_the_existing_cheap_one(self):
+        self.assertEqual(llm.DEFAULT_MODEL, "claude-haiku-4-5")
+
+    def test_haiku_request_shape(self):
+        """Haiku takes structured outputs but no effort and no fallback beta."""
+        sent = {}
+
+        class Msgs:
+            def create(self, **kw):
+                sent.update(kw)
+                block = types.SimpleNamespace(type="text", text=json.dumps({"same": True, "reason": "x"}))
+                return types.SimpleNamespace(content=[block], stop_reason="end_turn", stop_details=None,
+                                             usage=types.SimpleNamespace(input_tokens=10, output_tokens=5))
+
+        fake = types.SimpleNamespace(Anthropic=lambda **kw: types.SimpleNamespace(messages=Msgs(), beta=None))
+        with mock.patch.dict(sys.modules, {"anthropic": fake}), \
+                mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test", "INTEL_MODEL": ""}):
+            m = llm.Claude()
+            self.assertTrue(m.same("a", "b"))
+        self.assertEqual(sent["model"], "claude-haiku-4-5")
+        self.assertEqual(set(sent["output_config"]), {"format"})
+        self.assertNotIn("betas", sent)
+        self.assertEqual((m.tokens_in, m.tokens_out), (10, 5))
+
+    def test_each_run_is_capped(self):
+        self.assertLessEqual(config.MAX_CLASSIFY + config.MAX_EXTRACT + config.MAX_ADJUDICATE + config.MAX_ENRICH, 80)
+
+
+class TestFeeds(unittest.TestCase):
+    """Parsers against the documented response shapes of each free source."""
+
+    def test_hacker_news(self):
+        doc = {"hits": [{"objectID": "41", "comment_text": "<p>I was asked in an interview to design a cache &amp; "
+                         "explain eviction.</p>", "story_title": "Ask HN: interview stories", "author": "someone",
+                         "created_at": "2026-10-01T10:00:00.000Z"}, {"objectID": "42"}]}
+        (r,) = feeds.HackerNews.parse(doc, "q")
+        self.assertEqual(r.url, "https://news.ycombinator.com/item?id=41")
+        self.assertIn("design a cache & explain", r.text)
+        self.assertEqual(r.published, "2026-10-01")
+        self.assertNotIn("someone", json.dumps(r.__dict__))
+
+    def test_stack_exchange(self):
+        doc = {"items": [{"link": "https://stackoverflow.com/questions/1/x", "title": "Interview question: 2nd max",
+                          "body": "<p>In my interview I was asked to find the second highest salary.</p>",
+                          "creation_date": 1790000000, "owner": {"display_name": "someone"}}]}
+        (r,) = feeds.StackExchange.parse(doc, "stackoverflow")
+        self.assertEqual(r.url, "https://stackoverflow.com/questions/1/x")
+        self.assertNotIn("someone", json.dumps(r.__dict__))
+
+    def test_devto_article(self):
+        r = feeds.DevTo.parse_article({"url": "https://dev.to/u/my-interview-1", "title": "My Meta interview",
+                                       "body_markdown": "I was asked **two** questions.", "published_at": "2026-09-30T00:00:00Z",
+                                       "user": {"name": "someone"}}, "interview")
+        self.assertEqual((r.url, r.published), ("https://dev.to/u/my-interview-1", "2026-09-30"))
+        self.assertNotIn("someone", json.dumps(r.__dict__))
+
+    def test_medium_rss(self):
+        xml = ('<?xml version="1.0"?><rss xmlns:content="http://purl.org/rss/1.0/modules/content/" '
+               'xmlns:dc="http://purl.org/dc/elements/1.1/"><channel><item><title>My Amazon loop</title>'
+               '<link>https://medium.com/@x/my-amazon-loop-1?source=rss----tag</link><dc:creator>Someone</dc:creator>'
+               '<pubDate>Wed, 01 Oct 2026 10:00:00 GMT</pubDate>'
+               '<content:encoded><![CDATA[<p>I was asked to design a rate limiter.</p>]]></content:encoded>'
+               '</item></channel></rss>')
+        (r,) = feeds.Medium.parse(xml, "interview-questions")
+        self.assertEqual(r.published, "2026-10-01")
+        self.assertEqual(sources.canonical_url(r.url), "https://medium.com/@x/my-amazon-loop-1")
+        self.assertNotIn("Someone", json.dumps(r.__dict__))
+
+    def test_community_form_drops_the_name(self):
+        csv_text = ("Timestamp,Question,Topic,Difficulty,Company,Name\n"
+                    "8/26/2026 1:38:36,Design a data model for a ride-sharing app's trips and payments,"
+                    "Data Modeling,Medium,Citi,Jane Doe\n"
+                    "8/27/2026 1:00:00,short,SQL,Easy,,\n")
+        (r,) = feeds.Community.parse(csv_text)
+        self.assertEqual(r.preset_class, "A")
+        self.assertEqual(r.published, "2026-08-26")
+        self.assertIn("Interviewed at: Citi", r.text)
+        self.assertNotIn("Jane", json.dumps(r.__dict__))
+        self.assertEqual(sources.source_type(sources.canonical_url(r.url)), "community")
 
 
 class TestSources(unittest.TestCase):
@@ -288,7 +386,7 @@ class Sandbox(unittest.TestCase):
     def discover(self, rows, model, ledger=None, seen=None, today=TODAY):
         ledger = ledger or store.empty_ledger()
         seen = seen or {"urls": {}, "fingerprints": {}}
-        out = discover.run(FixtureProvider(rows), model, ledger, seen, [], today, plan=ONE_QUERY)
+        out = discover.run([FixtureSource(rows)], model, ledger, seen, [], today)
         return ledger, seen, out
 
     def public(self, name):
@@ -320,6 +418,35 @@ class TestEndToEnd(Sandbox):
         led, seen, out = self.discover(self.rows(), model, led, seen)
         self.assertEqual(model.calls["classify"], 1)
         self.assertEqual(out["stats"]["already_seen"], 3)
+
+    def test_a_source_whose_every_request_failed_is_not_ok(self):
+        class Down:
+            name = "down"
+
+            def collect(self, today, errors):
+                errors.append("down: URLError")
+                return []
+        led, seen = store.empty_ledger(), {"urls": {}, "fingerprints": {}}
+        out = discover.run([Down()], None, led, seen, [], TODAY)
+        self.assertEqual(out["stats"].get("sources_ok", 0), 0)
+        self.assertEqual(out["stats"]["sources_failed"], 1)
+
+    def test_community_submissions_skip_the_classifier(self):
+        (r,) = feeds.Community.parse("Timestamp,Question,Topic,Difficulty,Company\n"
+                                     "8/26/2026 1:38:36,Find customers who bought on three consecutive days,SQL,Medium,Amazon\n")
+        url = sources.canonical_url(r.url)
+        p = proposal(evidence="Find customers who bought on three consecutive days",
+                     company="Amazon", company_evidence="Interviewed at: Amazon",
+                     role=None, role_evidence=None, interview_stage=None, stage_evidence=None)
+        model = FakeModel({url: [p]})
+        led, seen = store.empty_ledger(), {"urls": {}, "fingerprints": {}}
+        src = types.SimpleNamespace(name="community", collect=lambda today, errors: [r])
+        out = discover.run([src], model, led, seen, [], TODAY)
+        self.assertEqual(model.calls["classify"], 0, "the form is already interview questions")
+        self.assertEqual(out["stats"]["reports_queued"], 1)
+        (rep,) = led["reports"].values()
+        self.assertEqual((rep["company"], rep["source_type"]), ("amazon", "community"))
+        self.assertEqual(rep["source_title"], "Submitted to PaddySpeaks by a candidate")
 
     def test_without_a_model_nothing_is_guessed(self):
         led, seen, out = self.discover(self.rows()[:1], None)

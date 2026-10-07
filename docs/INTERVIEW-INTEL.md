@@ -1,6 +1,7 @@
 # Interview Intelligence — the interview question discovery engine
 
-> **Promise:** an interview intelligence engine, not a LinkedIn mirror.
+> **Promise:** an interview intelligence engine, not a LinkedIn mirror —
+> built on existing infrastructure, with no new service and no new spend.
 > We organise interview knowledge people have shared publicly. We keep the
 > link, never the post; we never invent a question, a company or a date; and
 > nothing reaches the site until a person has approved it.
@@ -11,6 +12,7 @@ Read this before touching `interviewintel/`, `interview.app/reported/` or
 | Path | What it is |
 | --- | --- |
 | `interviewintel/pipeline/` | The pipeline (Python 3.12 stdlib; the `anthropic` SDK is imported only by `llm.py`) |
+| `interviewintel/pipeline/feeds.py` | The free sources: community form, Hacker News, Stack Exchange, DEV, Medium |
 | `interviewintel/data/ledger.json` | **The interview database**: canonical questions and every report of them, any status |
 | `interviewintel/data/seen.json` | Every URL ever processed, and why it was or wasn't used |
 | `interviewintel/data/health.json` | What the last run did |
@@ -18,21 +20,61 @@ Read this before touching `interviewintel/`, `interview.app/reported/` or
 | `interview.app/reported/` | Public pages: questions, trending, companies, how it works |
 | `interview.app/reported/data/` | Public JSON — **approved material only** |
 | `admin/interview-discovery/` | The review page (`noindex`) and `queue.json` |
-| `.github/workflows/interview-intel.yml` | Daily run; also runs when a decision file is pushed |
+| `.github/workflows/interview-intel.yml` | Weekly run; also runs when a decision file is pushed |
 | `interviewintel/tests/test_pipeline.py` | The guardrails (also in Validate Content) |
+
+## Cost: existing infrastructure only
+
+At the owner's request (2026-10-07) this runs on what PaddySpeaks already has:
+
+| Need | What it uses | New cost |
+| --- | --- | --- |
+| Sources | Free, keyless public APIs and feeds + the existing community form's published sheet | none |
+| Judgement | The existing `ANTHROPIC_API_KEY`, on **Claude Haiku 4.5** (the model the other question bots use) | cents per run |
+| Compute | GitHub Actions, **weekly** (+ on each pushed decision file) | none |
+| Hosting | GitHub Pages | none |
+
+Per-run caps (`config.py`): ≤ 30 classifications, ≤ 15 extractions, ≤ 10
+tie-breaks, ≤ 10 enrichments, ≤ 60 requests to the free APIs, ≤ 4,000
+characters of source text per model call. Community-form rows skip the
+classifier entirely, and the free-source prefilter drops anything that is not
+about an interview before a model reads it. Each URL is read by a model once,
+ever (`seen.json`). At Haiku's list price ($1 / $5 per million input / output
+tokens) a full-cap run is roughly 150k input and 60k output tokens — about
+$0.45, and a typical run far less. `health.json` (and the review page) records
+the calls and tokens of every run, so the real figure is visible.
+
+No paid search API is used. Adapters for Exa, Tavily, Brave and Google CSE
+remain in `providers.py`, dormant: they run only if someone sets
+`INTEL_SEARCH_PROVIDER` and a key, and the workflow passes neither (a test
+checks). A larger model can be chosen with `INTEL_MODEL` — also a cost decision.
+
+## Sources
+
+| Source | How it is read | Why it is allowed |
+| --- | --- | --- |
+| Community form (`/interview.app/submit/`) | Its published CSV — the same one `ingest_submissions.py` reads | Candidates submit questions to PaddySpeaks to be published; the name column is never read |
+| Hacker News | `hn.algolia.com/api/v1/search_by_date` | Public, documented, keyless API |
+| Stack Exchange | `api.stackexchange.com/2.3/search/advanced` (Stack Overflow, Software Engineering, Data Science, Cross Validated) | Public API, keyless quota; content CC BY-SA, so we link to it |
+| DEV | `dev.to/api/articles` by tag | Public, documented, keyless API |
+| Medium | `medium.com/feed/tag/<tag>` | Public RSS feeds |
+
+**LinkedIn** has no free public API or feed, and we never visit it. A
+LinkedIn interview experience reaches PaddySpeaks when its author submits it
+through the community form — the organic route, with consent.
 
 ## Architecture
 
 ```
-SEARCH API            providers.py   Exa · Tavily · Brave · Google CSE (one adapter each)
-  ↓                   queries.py     LinkedIn site: searches + first-person web searches +
-URL DISCOVERY                        COMPANY × ROLE × TECH/TYPE × YEAR, rotated per run
-  ↓                   sources.py     canonical URL, blocked domains, source type,
-SOURCE FILTER                        personal data scrubbed, repost fingerprint (class E)
-  ↓                   classify_rules.py + llm.classify
-AI CLASSIFIER                        A first-person · B list · C advice · D promo · E dup · F irrelevant
-  ↓                   llm.extract    questions WITH verbatim evidence spans
-QUESTION EXTRACTOR
+FREE SOURCES          feeds.py       community form · HN · Stack Exchange · DEV · Medium
+  ↓                                  (optional, off: providers.py paid search APIs)
+URL DISCOVERY         discover.gather  canonical URL, de-duplicated across sources
+  ↓                   sources.py     blocked domains, source type, personal data
+SOURCE FILTER                        scrubbed, repost fingerprint (class E)
+  ↓                   classify_rules.py (free prefilter: must be about an interview)
+AI CLASSIFIER         + llm.classify A first-person · B list · C advice · D promo · E dup · F irrelevant
+  ↓                                  (community rows are class A without a call)
+QUESTION EXTRACTOR    llm.extract    questions WITH verbatim evidence spans
   ↓                   extract.py     evidence must be in the source; attribution needs its own
 NORMALIZER                           evidence + an interview cue; copying flagged
   ↓                   dedupe.py      lexical similarity; borderline pairs → llm.same
@@ -49,8 +91,8 @@ PADDYSPEAKS INTERVIEW DATABASE
 INTERVIEW PRACTICE UI                /interview.app/reported/ (formats and filters only)
 ```
 
-**Modularity.** A new search provider is a class in `providers.py`; a new kind
-of source needs at most a line in `sources.py`. Neither touches the ledger,
+**Modularity.** A new source is a class in `feeds.py` (free) or
+`providers.py` (paid, optional) with one method, `collect(today, errors)`. Neither touches the ledger,
 whose shape is source-independent: a report is (URL, what the source supports,
 review status), and a question is the canonical practice question. All
 judgement lives in Python and ships as data; the JavaScript formats and
@@ -58,10 +100,12 @@ filters (the JobSignal rule — one implementation of every judgement).
 
 ## The rules (each is a test)
 
-1. **No crawling, no LinkedIn access, no login.** `http.py` talks only to the
-   search providers' API hosts; nothing else opens a connection; there is no
-   cookie handling. We read only what a provider returns for a query. Pages
-   behind a login (Glassdoor, Blind), job boards and personal profiles
+1. **No crawling, no LinkedIn access, no login, no new spend.** `http.py` talks
+   only to the hosts in `ALLOWED_HOSTS` — the free APIs and feeds above (on
+   `dev.to`, `medium.com` and `docs.google.com` only their API / feed paths)
+   and the dormant paid search APIs; nothing else opens a connection; there
+   is no cookie handling. A source's web page is never fetched. Pages behind a
+   login (Glassdoor, Blind), job boards and personal profiles
    (`linkedin.com/in/`) are blocked domains.
 2. **Never invent a question.** The model must quote a verbatim span of the
    source for every question; `extract.check` drops the question when that
@@ -80,7 +124,8 @@ filters (the JobSignal rule — one implementation of every judgement).
    before any text is sent to the model or stored. Social-post titles (which
    carry the author's name) are replaced with "Public LinkedIn post"; bylines
    are stripped from other titles. Provider author fields are dropped in the
-   adapter. A practice question containing personal data is rejected.
+   source parser (authors, usernames, the form's name column). A practice
+   question containing personal data is rejected.
 6. **Nothing unreviewed is public.** Discovery writes `pending` reports. Only
    approved reports of approved questions reach `interview.app/reported/data/`.
    Auto-publishing exists but is off (`AUTO_PUBLISH_MIN_CONFIDENCE = None`) and,
@@ -146,7 +191,7 @@ question text and the model's `concept_key`.
 
 * ≥ 0.86 and same category → the report attaches to the existing question.
 * 0.55–0.86 → the model is asked whether they test the same problem
-  (`llm.same`, budgeted). Yes → attach. No, or no model → shown to the reviewer
+  (`llm.same`, capped per run). Yes → attach. No, or no model → shown to the reviewer
   as a possible duplicate with a one-click merge.
 * "Find the second highest salary" and "Write SQL to return the employee with
   the second-highest salary" score 0.875 and group; "second" vs "third highest"
@@ -199,35 +244,32 @@ shape does not change.
 
 ```bash
 python3 -m interviewintel.tests.test_pipeline           # guardrails, no network
-INTEL_TODAY=2026-10-07 python3 -m interviewintel.pipeline.run plan   # this run's searches
+python3 -m interviewintel.pipeline.run plan             # which sources this run reads
 python3 -m interviewintel.pipeline.run publish          # decisions → enrich → publish
-python3 -m interviewintel.pipeline.run all              # + discovery (needs keys)
+python3 -m interviewintel.pipeline.run all              # + discovery from the free sources
 ```
 
-Configuration (GitHub Actions): secrets `ANTHROPIC_API_KEY` and one provider's
-key — `EXA_API_KEY`, `TAVILY_API_KEY`, `BRAVE_SEARCH_API_KEY`, or
-`GOOGLE_CSE_KEY` + `GOOGLE_CSE_CX`; repository variables
-`INTEL_SEARCH_PROVIDER` (default `exa`) and `INTEL_MODEL` (default
-`claude-opus-5-5`). A missing key skips its stage; it never fakes one. Bing Web
-Search is not offered (Microsoft retired the Bing Search APIs in 2025).
+Configuration: the existing `ANTHROPIC_API_KEY` secret, nothing else. Optional
+environment: `INTEL_SOURCES` (comma list; default all five free sources),
+`INTEL_MODEL` (default `claude-haiku-4-5`), `INTEL_COMMUNITY_CSV`. Without the
+key, sources are still read but nothing is classified, extracted or enriched;
+those URLs are retried on the next run with a key, never guessed at.
 
 Model calls use the official `anthropic` SDK with structured outputs
-(`output_config.format`, JSON schemas in `prompts.py`), the server-side refusal
-fallback, and per-call effort (classifier `low`; extraction, tie-break and
-enrichment `low`/`medium`). Source text is fenced as untrusted data.
-
-**Cost per daily run** (budgets in `config.py`): ≤ 24 searches, ≤ 60
-classifications, ≤ 30 extractions, ≤ 20 tie-breaks, ≤ 15 enrichments. Each URL
-is classified once, ever (`seen.json`).
+(`output_config.format`, JSON schemas in `prompts.py`). Source text is fenced
+as untrusted data. On a larger model (only if `INTEL_MODEL` is changed) the
+calls also set effort and the server-side refusal fallback.
 
 ## Known limits
 
-* The search adapters follow each provider's public API reference but were not
-  exercised against the live APIs when this was built (no keys in the build
-  environment). The first run's `health.json` will show any request-shape
-  error per query; one failed query never sinks a run.
-* LinkedIn content is only as complete as the provider's index of it. Brave and
-  Google return snippets only, which often hold too little to support a
-  question; Exa and Tavily return page text and are the better fit.
+* The free sources were not reachable from the build environment, so their
+  parsers are tested against the APIs' documented response shapes, not live
+  responses. The first run's `interviewintel/data/health.json` shows any
+  per-source error; one failed request never sinks a run, and a run in which
+  every source failed exits 1 and commits nothing.
+* Free sources skew to engineers who write in public (HN, Stack Exchange, DEV,
+  Medium). Coverage of a given company or role grows mostly through the
+  community form; the company pages say so by showing counts, not shares,
+  until 20 reports.
 * Similarity is lexical with a model tie-break, not embeddings. An embedding
   backend can replace `normalize.similarity` without touching the ledger.

@@ -92,8 +92,8 @@
       all = doc.questions || [];
       if (!all.length) {
         listBox.appendChild(el('li', { cls: 'rq-empty' }, [
-          'No reported questions have been approved yet. The discovery engine searches public interview ',
-          'reports every day, and a question appears here only after a person has reviewed its source. ',
+          'No reported questions have been approved yet. Every week the discovery engine reads public interview ',
+          'write-ups and questions shared through the Contribute form, and a question appears here only after a person has reviewed its source. ',
           'Nothing on this page is invented or seeded. ',
           el('a', { href: '/interview.app/reported/about/', text: 'How it works →' })
         ]));

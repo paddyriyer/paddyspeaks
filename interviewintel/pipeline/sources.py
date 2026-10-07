@@ -14,7 +14,7 @@ import hashlib
 import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-TRACKING = re.compile(r"^(utm_|fbclid|gclid|mc_|ref$|refId|trk|trackingId|lipi|rcm|originalSubdomain)", re.I)
+TRACKING = re.compile(r"^(utm_|fbclid|gclid|mc_|ref$|refId|trk|trackingId|lipi|rcm|originalSubdomain|source$)", re.I)
 
 # Never a source of interview knowledge for us. Reasons are documented in
 # docs/INTERVIEW-INTEL.md §Sources.
@@ -32,6 +32,7 @@ BLOCKED_DOMAINS = {
 }
 
 SOURCE_TYPES = {
+    "community": "Submitted to PaddySpeaks by a candidate",
     "linkedin_post": "Public LinkedIn post",
     "forum": "Public forum thread",
     "blog": "Blog or article",
@@ -40,10 +41,9 @@ SOURCE_TYPES = {
     "other": "Public web page",
 }
 
-_FORUMS = ("reddit.com", "news.ycombinator.com", "leetcode.com/discuss", "stackexchange.com",
-           "dev.to", "hashnode", "discuss.")
-_QA = ("stackoverflow.com", "quora.com")
-_BLOGS = ("medium.com", "substack.com", "blogspot.", "wordpress.", "github.io", "/blog")
+_FORUMS = ("reddit.com", "news.ycombinator.com", "leetcode.com/discuss", "stackexchange.com", "discuss.")
+_QA = ("stackoverflow.com", "stackexchange.com", "quora.com")
+_BLOGS = ("medium.com", "dev.to", "hashnode", "substack.com", "blogspot.", "wordpress.", "github.io", "/blog")
 
 
 def canonical_url(url: str) -> str:
@@ -77,6 +77,8 @@ def blocked_reason(url: str) -> str | None:
 def source_type(url: str) -> str:
     p = urlsplit(url)
     hp = (p.netloc + p.path).lower()
+    if hp.startswith("paddyspeaks.com/interview.app/submit"):
+        return "community"
     if p.netloc.endswith("linkedin.com") and ("/posts/" in p.path or "/pulse/" in p.path or "/feed/update/" in p.path):
         return "linkedin_post"
     if "youtube.com" in hp or "youtu.be" in hp:
@@ -115,8 +117,8 @@ def has_personal_data(text: str) -> bool:
 def public_title(url: str, title: str) -> str:
     """A title we can show. Social-post titles name their author; we don't."""
     st = source_type(url)
-    if st == "linkedin_post":
-        return "Public LinkedIn post"
+    if st in ("linkedin_post", "community"):
+        return SOURCE_TYPES[st]
     t = scrub(re.sub(r"\s+", " ", title or "")).strip()
     # "… | Jane Doe" / "Jane Doe on X: …" — trailing or leading bylines go.
     t = re.sub(r"\s+[|\-–—]\s+[^|\-–—]{2,40}$", "", t) if st in ("forum", "blog") else t

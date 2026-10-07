@@ -99,9 +99,14 @@ The interview question discovery engine is documented in
 **`docs/INTERVIEW-INTEL.md`** — read it before touching `interviewintel/`,
 `interview.app/reported/` or `admin/interview-discovery/`.
 
-- **No crawling, no LinkedIn access, no login, no cookies.** Discovery reads only
-  what a search API (Exa / Tavily / Brave / Google CSE) returns. `http.py` talks
-  to those API hosts and nothing else; a test enforces it.
+- **Existing infrastructure only, no new spend** (the owner's rule). Sources are
+  free, keyless public APIs and feeds (Hacker News, Stack Exchange, DEV, Medium
+  RSS) plus the existing community form's sheet; the model is the existing
+  `ANTHROPIC_API_KEY` on Claude Haiku, capped per run; the run is weekly. The
+  paid search adapters stay dormant — never wire one in without asking.
+- **No crawling, no LinkedIn access, no login, no cookies.** `http.py` talks only
+  to those API and feed endpoints; a source's web page is never fetched; a
+  test enforces it.
 - **Never invent a question or an attribution.** Every question, company, role
   and stage needs its own verbatim evidence span that `extract.py` finds in the
   source; a company also needs an interview cue. Otherwise it is UNKNOWN.
@@ -116,7 +121,7 @@ The interview question discovery engine is documented in
   interview. **No seeded questions, ever** — the board shipped empty.
 - All judgement is Python (`interviewintel/pipeline/`), shipped as data; the
   JS formats and filters. Guardrail: `python3 -m interviewintel.tests.test_pipeline`
-  (in Validate Content). Runs: `.github/workflows/interview-intel.yml`, daily
+  (in Validate Content). Runs: `.github/workflows/interview-intel.yml`, weekly
   and on every pushed decision file.
 
 ## FlightDeck (`/ic-flightdeck/`)

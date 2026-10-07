@@ -19,6 +19,10 @@ SALES = re.compile(r"\b(enroll now|use (?:my )?code|discount|limited seats|buy n
                    r"link in (?:bio|comments)|comment ['\"]?\w+['\"]? (?:below )?(?:to|and i'll)|"
                    r"free pdf|download the pdf)\b", re.I)
 QUESTIONISH = re.compile(r"\?|\b(asked|question|write a|design a|how would you|explain)\b", re.I)
+# Free sources are broad (every Stack Overflow post that says "interview"), so
+# a page must be about an interview before a model is paid to read it.
+INTERVIEWISH = re.compile(r"\b(interview(?:ed|er|ers|s|ing)?|onsite|on-site|phone screen|technical screen|"
+                          r"hiring loop|interview loop|coding round|system design round)\b", re.I)
 
 
 def prefilter(title: str, text: str) -> str | None:
@@ -28,6 +32,8 @@ def prefilter(title: str, text: str) -> str | None:
         return "recruiting advertisement"
     if not QUESTIONISH.search(blob):
         return "no question or interview account in the text"
+    if not INTERVIEWISH.search(blob):
+        return "not about an interview"
     removed = blob.count("[email removed]") + blob.count("[number removed]")
     if removed >= 3:
         return "mostly contact details"

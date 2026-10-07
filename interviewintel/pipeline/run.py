@@ -2,17 +2,18 @@
 
     python3 -m interviewintel.pipeline.run all        # decisions → discover → enrich → publish
     python3 -m interviewintel.pipeline.run publish    # decisions → enrich → publish (no searching)
-    python3 -m interviewintel.pipeline.run plan       # print this run's searches and exit
+    python3 -m interviewintel.pipeline.run plan       # print this run's sources (and searches) and exit
 
 Environment (all optional; each missing piece skips its stage, never fakes it):
-  INTEL_SEARCH_PROVIDER   exa | tavily | brave | google | fixture   (default: exa)
-  <provider key>          see providers.py
-  ANTHROPIC_API_KEY       the classifier, extractor, tie-breaker and enrichment
-  INTEL_MODEL             default claude-opus-5-5
+  INTEL_SOURCES           comma list from feeds.SOURCES (default: all free sources)
+  ANTHROPIC_API_KEY       the existing key: classifier, extractor, tie-breaker, enrichment
+  INTEL_MODEL             default claude-haiku-4-5
+  INTEL_SEARCH_PROVIDER   OPTIONAL paid search API (exa | tavily | brave | google);
+                          unset = none, which is the default and costs nothing
   INTEL_TODAY             YYYY-MM-DD, for reproducible runs and tests
 
 Exit status: 0 on success, including "nothing new". 1 when decisions could
-not be applied cleanly or every search failed, so the workflow does not
+not be applied cleanly or every source failed, so the workflow does not
 commit a half-run.
 """
 from __future__ import annotations
@@ -22,7 +23,7 @@ import json
 import os
 import sys
 
-from . import config, discover, enrich, http, llm, providers, publish, queries, review, store
+from . import config, discover, enrich, feeds, http, llm, providers, publish, queries, review, store
 
 
 def _today() -> _dt.date:
@@ -42,8 +43,10 @@ def main(argv: list[str]) -> int:
     mode = (argv[1] if len(argv) > 1 else "all").lower()
     today = _today()
     if mode == "plan":
-        for q in queries.plan(today):
-            print(q.as_operator_string())
+        print("free sources:", os.environ.get("INTEL_SOURCES", ",".join(feeds.DEFAULT)))
+        if os.environ.get("INTEL_SEARCH_PROVIDER"):
+            for q in queries.plan(today):
+                print(q.as_operator_string())
         return 0
     if mode not in ("all", "publish"):
         print(__doc__)
@@ -65,33 +68,38 @@ def main(argv: list[str]) -> int:
     health["model"] = getattr(model, "model", None)
 
     if mode == "all":
-        name = os.environ.get("INTEL_SEARCH_PROVIDER", "exa")
-        try:
-            provider = providers.get(name, http.Client(budget=config.MAX_QUERIES + 4), today)
-        except providers.NotConfigured as e:
-            provider = None
-            health["provider"] = f"{name}: not configured ({e})"
-            print(f"search: not configured ({e}); discovery skipped")
-        if provider is not None:
-            bank = store.read_json(config.BANK, [])
-            result = discover.run(provider, model, ledger, seen, bank if isinstance(bank, list) else [], today)
-            health["provider"] = name
-            health["discovery"] = result["stats"]
-            health["errors"] = result["errors"][:50]
-            print(json.dumps(result["stats"], sort_keys=True))
-            if result["stats"].get("queries", 0) == 0 and result["errors"]:
-                print("every search failed; not publishing this run")
-                status = 1
+        client = http.Client(budget=config.MAX_HTTP + config.MAX_QUERIES)
+        wanted = [x.strip() for x in os.environ.get("INTEL_SOURCES", ",".join(feeds.DEFAULT)).split(",") if x.strip()]
+        srcs = [feeds.SOURCES[n](client) for n in wanted if n in feeds.SOURCES]
+        paid = os.environ.get("INTEL_SEARCH_PROVIDER", "").strip()
+        if paid:
+            try:
+                srcs.append(providers.SearchEngine(providers.get(paid, client, today), queries.plan(today)))
+            except providers.NotConfigured as e:
+                print(f"optional search API: not configured ({e}); skipped")
+        health["sources"] = [getattr(s, "name", "?") for s in srcs]
+        bank = store.read_json(config.BANK, [])
+        result = discover.run(srcs, model, ledger, seen, bank if isinstance(bank, list) else [], today)
+        health["discovery"] = result["stats"]
+        health["errors"] = result["errors"][:50]
+        print(json.dumps(result["stats"], sort_keys=True))
+        if srcs and not result["stats"].get("sources_ok"):
+            print("every source failed; not publishing this run")
+            status = 1
 
     health["auto_published"] = review.auto_publish(ledger, when=today.isoformat())
     e = enrich.run(model, ledger, today.isoformat())
     health["enrichment"] = {"written": e["enriched"], "rejected": e["rejected"]}
     health.setdefault("errors", []).extend(e["errors"][:20])
 
+    if model is not None:
+        health["model_usage"] = {"calls": model.calls, "input_tokens": model.tokens_in,
+                                 "output_tokens": model.tokens_out}
     store.write_json(config.LEDGER, ledger)
     store.write_json(config.SEEN, seen)
     store.write_json(config.HEALTH, health)
-    out = publish.build(ledger, today, {k: health.get(k) for k in ("run_date", "provider", "model", "discovery")})
+    out = publish.build(ledger, today, {k: health.get(k) for k in ("run_date", "sources", "model", "discovery",
+                                                                    "model_usage")})
     print(json.dumps(out, sort_keys=True))
     return status
 

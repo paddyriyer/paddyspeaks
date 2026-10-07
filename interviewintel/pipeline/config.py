@@ -126,12 +126,16 @@ TREND_WINDOWS = (7, 30, 90)
 TREND_MIN_COUNT = 2            # a topic needs this many reports in the window to trend
 
 # --- per-run budgets (cost control) -------------------------------------------
-MAX_QUERIES = 24
+# Sources are free. The only cost is the Claude calls on the existing key, so
+# each run is capped and each URL is read by the model once, ever (seen.json).
+# At these caps a weekly run on Haiku costs cents; see docs/INTERVIEW-INTEL.md.
+MAX_CLASSIFY = 30
+MAX_EXTRACT = 15
+MAX_ADJUDICATE = 10
+MAX_ENRICH = 10
+MAX_HTTP = 60                  # requests to free APIs and feeds per run
+MAX_QUERIES = 24               # only if an optional paid search API is switched on
 RESULTS_PER_QUERY = 10
-MAX_CLASSIFY = 60
-MAX_EXTRACT = 30
-MAX_ADJUDICATE = 20
-MAX_ENRICH = 15
-SOURCE_TEXT_LIMIT = 6000       # characters of provider-supplied text sent to the model
+SOURCE_TEXT_LIMIT = 4000       # characters of source text sent to the model
 EVIDENCE_LIMIT = 200           # characters of a source we keep as evidence, at most
 COPY_RUN_LIMIT = 10            # a practice question may not share a run of more words than this with its source

@@ -7,14 +7,14 @@ clones fresh each time). CLAUDE.md points here._
 ## TL;DR of current state
 
 - **NEWEST (2026-10-07): Interview Intelligence.** At Paddy's request, a discovery
-  engine that finds public interview reports through a search API (never by
-  crawling or visiting LinkedIn), extracts only evidence-backed questions with
-  Claude, deduplicates them, scores confidence, and queues them for review at
-  `/admin/interview-discovery/`. Approved questions publish to
-  `/interview.app/reported/` (questions, trending, company intelligence, how it
-  works). Ships EMPTY: it needs secrets `ANTHROPIC_API_KEY` + a search key
-  (`EXA_API_KEY` by default) in the main repo, then a reviewer's decisions.
-  See `docs/INTERVIEW-INTEL.md`.
+  engine that finds public interview reports and turns them into reviewed
+  practice questions: `/interview.app/reported/` (questions, trending, company
+  intelligence, how it works) and the review page `/admin/interview-discovery/`.
+  **Existing infrastructure only** (Paddy, same day: "I don't want to spend extra
+  money"): free public APIs/feeds (HN, Stack Exchange, DEV, Medium RSS) + the
+  existing community form; the existing `ANTHROPIC_API_KEY` on Haiku, capped;
+  weekly. No paid search API. Ships EMPTY; fills after the first weekly run and
+  a reviewer's decisions. See `docs/INTERVIEW-INTEL.md`.
 
 - **NEWEST (2026-10-06): item trackers.** At Paddy's request ("we missed AirTag and
   other tracking devices"): the essay has a tenth product, *Item trackers* (Apple,

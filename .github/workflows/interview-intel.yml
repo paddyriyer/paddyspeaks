@@ -1,23 +1,25 @@
 name: Interview Intelligence
 
-# Discovers public interview reports through a search API, turns them into
+# Finds interview questions people have shared publicly, turns them into
 # reviewed practice questions, and publishes what has been approved
 # (docs/INTERVIEW-INTEL.md).
 #
-#   schedule          daily: apply decisions → discover → enrich → publish
+# Built on existing infrastructure only — no new service, no new secret:
+#   sources  free, keyless public APIs and feeds (Hacker News, Stack Exchange,
+#            DEV, Medium tag RSS) and the existing community form's sheet
+#   model    the existing ANTHROPIC_API_KEY, on Claude Haiku, capped per run
+#   compute  GitHub Actions; hosting GitHub Pages
+#
+#   schedule          weekly: apply decisions → discover → enrich → publish
 #   push (decisions)  a reviewer committed a decision file: apply → enrich → publish
 #   workflow_dispatch either, by hand
 #
-# Nothing reaches the public pages without a person's approval. Each stage
-# whose secret is missing is skipped, not faked: no search key → no
-# discovery; no ANTHROPIC_API_KEY → nothing is classified, extracted or
-# enriched. Secrets: ANTHROPIC_API_KEY and the provider's key (EXA_API_KEY,
-# TAVILY_API_KEY, BRAVE_SEARCH_API_KEY, or GOOGLE_CSE_KEY + GOOGLE_CSE_CX).
-# Repository variables: INTEL_SEARCH_PROVIDER (default exa), INTEL_MODEL.
+# Nothing reaches the public pages without a person's approval. Without
+# ANTHROPIC_API_KEY nothing is classified, extracted or enriched (never faked).
 
 on:
   schedule:
-    - cron: '37 6 * * *'
+    - cron: '37 6 * * 1'
   push:
     branches: [main]
     paths:
@@ -25,7 +27,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'all = search for new reports; publish = apply decisions and publish only'
+        description: 'all = look for new reports; publish = apply decisions and publish only'
         required: true
         default: 'all'
         type: choice
@@ -61,13 +63,6 @@ jobs:
       - name: Run
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
-          GOOGLE_CSE_KEY: ${{ secrets.GOOGLE_CSE_KEY }}
-          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
-          INTEL_SEARCH_PROVIDER: ${{ vars.INTEL_SEARCH_PROVIDER || 'exa' }}
-          INTEL_MODEL: ${{ vars.INTEL_MODEL }}
         run: |
           mode="${{ inputs.mode }}"
           if [ -z "$mode" ]; then

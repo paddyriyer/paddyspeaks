@@ -1,6 +1,6 @@
-"""One discovery pass (brief §16), from SEARCH API down to ADMIN REVIEW.
+"""One discovery pass (brief §16), from the sources down to ADMIN REVIEW.
 
-    queries.plan → provider.search → sources filter → classify → extract
+    feeds (free sources) → sources filter → classify → extract
     → extract.check → normalise → dedupe → confidence → ledger (pending)
 
 Every source passes through `seen`, so it is paid for once. Every outcome —
@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import datetime as _dt
 
-from . import classify_rules, config, confidence, dedupe, extract, normalize, queries, sources, store
+from . import classify_rules, config, confidence, dedupe, extract, normalize, store
+from . import sources as sources_mod
 from .providers import SearchResult
 
 
@@ -21,29 +22,36 @@ class Stats(dict):
         self[key] = self.get(key, 0) + n
 
 
-def search_all(provider, plan: list[queries.Query], stats: Stats, errors: list[str]) -> list[SearchResult]:
+def gather(sources, today: _dt.date, stats: Stats, errors: list[str]) -> list[SearchResult]:
+    """Every source's results, de-duplicated by canonical URL. Sources are
+    asked in order, so the community form (first by default) wins ties."""
     found: dict[str, SearchResult] = {}
-    for q in plan:
+    for src in sources:
+        before = len(errors)
         try:
-            rows = provider.search(q, config.RESULTS_PER_QUERY)
-        except Exception as e:  # noqa: BLE001 - one failed query never sinks a run
-            errors.append(f"search {q.as_operator_string()!r}: {type(e).__name__}: {e}"[:300])
+            rows = src.collect(today, errors)
+        except Exception as e:  # noqa: BLE001 - one failed source never sinks a run
+            errors.append(f"{getattr(src, 'name', 'source')}: {type(e).__name__}: {e}"[:300])
+            stats.bump("sources_failed")
             continue
-        stats.bump("queries")
+        if not rows and len(errors) > before:
+            stats.bump("sources_failed")      # every request it made failed
+            continue
+        stats.bump("sources_ok")
         for r in rows:
             stats.bump("results")
-            url = sources.canonical_url(r.url)
+            stats.bump("results_" + r.provider)
+            url = sources_mod.canonical_url(r.url)
             if url and url not in found:
                 r.url = url
                 found[url] = r
     return list(found.values())
 
 
-def run(provider, model, ledger: dict, seen: dict, bank: list[dict], today: _dt.date,
-        plan: list[queries.Query] | None = None) -> dict:
+def run(sources_list, model, ledger: dict, seen: dict, bank: list[dict], today: _dt.date) -> dict:
     iso = today.isoformat()
     stats, errors = Stats(), []
-    results = search_all(provider, plan if plan is not None else queries.plan(today), stats, errors)
+    results = gather(sources_list, today, stats, errors)
     adj = dedupe.Adjudicator(model)
     classified = extracted = 0
 
@@ -60,17 +68,17 @@ def run(provider, model, ledger: dict, seen: dict, bank: list[dict], today: _dt.
         entry = {"first_seen": iso, "last_seen": iso, "outcome": None, "class": None}
         seen["urls"][url] = entry
 
-        why = sources.blocked_reason(url)
+        why = sources_mod.blocked_reason(url)
         if why:
             entry["outcome"] = "blocked: " + why
             stats.bump("blocked")
             continue
-        text = sources.scrub(normalize.clean(r.text))
+        text = sources_mod.scrub(normalize.clean(r.text))
         if len(text) < 80:
             entry["outcome"] = "skipped: the provider returned too little text to judge"
             stats.bump("too_short")
             continue
-        fp = sources.fingerprint(text)
+        fp = sources_mod.fingerprint(text)
         if fp in seen["fingerprints"] and seen["fingerprints"][fp] != url:
             entry.update(outcome="duplicate of " + seen["fingerprints"][fp], **{"class": "E"})
             stats.bump("class_E")
@@ -86,19 +94,24 @@ def run(provider, model, ledger: dict, seen: dict, bank: list[dict], today: _dt.
             del seen["urls"][url]           # try again on a run that has a model
             stats.bump("deferred")
             continue
-        if classified >= config.MAX_CLASSIFY:
+        if classified >= config.MAX_CLASSIFY and not r.preset_class:
             del seen["urls"][url]
             stats.bump("over_budget")
             continue
 
-        doc = {"url": url, "title": sources.scrub(r.title), "published": r.published, "text": text}
-        try:
-            classified += 1
-            cls = model.classify(doc)
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"classify {url}: {type(e).__name__}: {e}"[:300])
-            del seen["urls"][url]
-            continue
+        doc = {"url": url, "title": sources_mod.scrub(r.title), "published": r.published, "text": text}
+        if r.preset_class:
+            cls = {"class": r.preset_class, "reason": f"{r.provider}: known without a model call",
+                   "seo_list": False, "recruiting_ad": False, "selling_course": False, "spam": False,
+                   "states_specific_questions": True}
+        else:
+            try:
+                classified += 1
+                cls = model.classify(doc)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"classify {url}: {type(e).__name__}: {e}"[:300])
+                del seen["urls"][url]
+                continue
         if classify_rules.looks_like_sales(text):
             cls["selling_course"] = True
         entry["class"] = cls["class"]
@@ -143,8 +156,8 @@ def run(provider, model, ledger: dict, seen: dict, bank: list[dict], today: _dt.
                 qid = dedupe.attach_new(rec, ledger, iso)
             ledger["reports"][rid] = {
                 "id": rid, "question_id": qid, "status": "pending",
-                "url": url, "source_type": sources.source_type(url),
-                "source_title": sources.public_title(url, r.title),
+                "url": url, "source_type": sources_mod.source_type(url),
+                "source_title": sources_mod.public_title(url, r.title),
                 "source_date": r.published, "discovered": iso, "last_seen": iso,
                 "provider": r.provider, "query": r.query,
                 "classification": {k: cls.get(k) for k in ("class", "reason", "seo_list", "selling_course",

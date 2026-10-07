@@ -1,4 +1,9 @@
-"""Search providers (brief §1, §16): the URL-discovery stage.
+"""OPTIONAL paid search providers (brief §1). Off by default.
+
+PaddySpeaks runs on free sources (feeds.py): public, keyless APIs and feeds
+plus its own community form. These adapters exist only so a search API can be
+switched on later by setting INTEL_SEARCH_PROVIDER and its key; until then
+they cost nothing and are never called.
 
 Every adapter turns a `Query` into a list of `SearchResult`s and nothing else.
 A new provider is a new class here plus one line in PROVIDERS — the ledger,
@@ -33,6 +38,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlencode
 
+from . import config
 from .http import Client
 from .queries import Query
 
@@ -45,6 +51,7 @@ class SearchResult:
     published: str | None     # YYYY-MM-DD when the provider states it
     provider: str
     query: str
+    preset_class: str | None = None   # known without a model call (the community form)
 
 
 class NotConfigured(RuntimeError):
@@ -171,6 +178,23 @@ class Google:
         return [SearchResult(r.get("link") or "", r.get("title") or "", r.get("snippet") or "",
                              None, self.name, q.as_operator_string())
                 for r in doc.get("items") or []]
+
+
+class SearchEngine:
+    """Wraps a provider as a source: runs this run's planned queries."""
+
+    def __init__(self, provider, plan):
+        self.provider, self.plan = provider, plan
+        self.name = getattr(provider, "name", "search")
+
+    def collect(self, today, errors: list[str]) -> list[SearchResult]:
+        out = []
+        for q in self.plan:
+            try:
+                out += self.provider.search(q, config.RESULTS_PER_QUERY)
+            except Exception as e:  # noqa: BLE001 - one failed query never sinks a run
+                errors.append(f"{self.name} {q.as_operator_string()!r}: {type(e).__name__}: {e}"[:300])
+        return out
 
 
 class Fixture:
