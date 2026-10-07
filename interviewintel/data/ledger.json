@@ -1,6 +1,7 @@
 {
  "applied_decisions": [
-  "2026-10-07T223410.json"
+  "2026-10-07T223410.json",
+  "2026-10-07T224104.json"
  ],
  "questions": {
   "q-111e950c62": {
@@ -804,10 +805,80 @@
    "edited": false,
    "id": "q-a13340fa20",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Use a methodical, layered debugging approach: (1) Verify the alert rule configuration and thresholds are correct; (2) Check infrastructure health and data pipeline completion; (3) Trace event flow from raw data through quality checks using distributed tracing; (4) Examine logs at each stage for errors, silenced exceptions, or unexpected branching; (5) Replay the event through the pipeline to confirm the rule should have triggered; (6) Check dead letter queues and retry mechanisms for stuck events; (7) Verify alert generation and delivery mechanisms; (8) Review metrics and monitoring to identify where the failure occurred; (9) Implement safeguards to prevent recurrence, including improved logging, circuit breakers, and comprehensive alerts on pipeline failures.",
+    "common_mistakes": [
+     "Assuming the alert rule executed and triggered without checking logs; always verify the rule was actually evaluated",
+     "Not checking if the rule is disabled, archived, or has a feature flag that silences it",
+     "Failing to check the actual configured threshold against the metric value—off-by-one or comparison direction errors",
+     "Ignoring the idempotency cache; the alert may have been delivered on a previous run and suppressed as a duplicate",
+     "Not examining dead letter queues or retry mechanisms; failed alerts may be stuck in queues waiting for replay",
+     "Collecting metrics without correlation IDs, making it impossible to join metrics to specific requests"
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "How would you set up alerting on the alerting system itself—e.g., alert if no quality alerts are generated for a rule in 24 hours?",
+     "How would you handle the scenario where the same alert is triggered multiple times per day without duplicating notifications?",
+     "If the DLQ grows without bound, how would you implement a circuit breaker to stop enqueuing alerts until the system recovers?",
+     "How would you design a dashboard to help customers self-service debug missing alerts without exposing internal infrastructure?",
+     "What would you log to minimize data volume while still enabling root cause analysis?",
+     "How would you perform a historical replay of all quality checks for a customer to identify if this was a one-time or systemic issue?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by identifying which component failed: data ingestion, quality check execution, alert generation, or alert delivery",
+     "Consider that the issue might not be a bug but a misconfiguration, threshold mismatch, or silent failure in one layer",
+     "Think about what would prevent an alert from being triggered even when the condition is met: feature flags, disabled rules, sampling, or rule evaluation logic",
+     "A 40% NULL rate is significant; trace whether the quality check rule even executed and what its result was",
+     "Remember that in distributed systems, the absence of a log is also important data—what should have been logged but wasn't?"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Distributed Tracing (OpenTelemetry, Jaeger)",
+     "Structured Logging and Log Aggregation (ELK, Loki)",
+     "Dead Letter Queues and Message Replay",
+     "Idempotency and Idempotency Keys",
+     "Circuit Breaker and Retry Patterns",
+     "Observability: Metrics, Logs, Traces (Three Pillars)",
+     "Feature Flags and Configuration Management",
+     "Event Sourcing and Event Replay"
+    ],
+    "sample_solution": {
+     "code": "// 1. AUDIT THE RULE CONFIGURATION\naudit_rule(customer_id, rule_id):\n  rule = fetch_rule(rule_id)\n  log(\"Rule Config\", {rule_id, threshold: rule.null_threshold, enabled: rule.enabled})\n  assert rule.enabled == true\n  assert rule.null_threshold <= 0.40\n\n// 2. TRACE EVENT PIPELINE WITH DISTRIBUTED TRACING\nclass DataQualityPipeline:\n  def process_dataset(self, dataset_id, trace_id):\n    try:\n      span_ingest = tracer.start_span(\"data_ingestion\", trace_id)\n      rows = ingest_data(dataset_id)\n      span_ingest.add_event(\"rows_loaded\", {count: len(rows)})\n      \n      span_check = tracer.start_span(\"quality_check\", trace_id)\n      null_count = count_nulls(rows)\n      null_ratio = null_count / len(rows)\n      span_check.add_event(\"null_check_result\", {\n        null_count, null_ratio, rule_id, \n        should_alert: null_ratio >= rule.threshold\n      })\n      \n      if null_ratio >= rule.threshold:\n        span_alert = tracer.start_span(\"alert_generation\", trace_id)\n        alert_event = create_alert_event(dataset_id, null_ratio, timestamp.now())\n        # Idempotent: include idempotency_key\n        alert_event.idempotency_key = hash(dataset_id + rule_id + timestamp.date)\n        \n        span_queue = tracer.start_span(\"alert_enqueue\", trace_id)\n        try:\n          enqueue_alert(alert_event, idempotency_key=alert_event.idempotency_key)\n          span_queue.set_status(\"success\")\n        except Exception as e:\n          span_queue.set_status(\"failed\", {error: str(e)})\n          # Send to DLQ with full context\n          send_to_dlq(alert_event, trace_id, reason=str(e), retry_count=0)\n      else:\n        span_check.add_event(\"alert_not_triggered\", {reason: \"below_threshold\"})\n    except Exception as e:\n      tracer.record_exception(e, trace_id)\n      log(\"ERROR\", {stage: \"pipeline\", error: str(e), trace_id})\n      raise\n\n// 3. IMPLEMENT COMPREHENSIVE LOGGING\nclass StructuredLogger:\n  def log_rule_evaluation(self, rule_id, dataset_id, result, trace_id):\n    log_entry = {\n      timestamp: now(),\n      trace_id,\n      event_type: \"rule_evaluation\",\n      rule_id,\n      dataset_id,\n      condition_met: result.triggered,\n      metric_value: result.null_ratio,\n      threshold: result.threshold,\n      decision: \"alert_sent\" if result.triggered else \"no_alert\",\n      reason: result.reason  // \"below_threshold\" or error details\n    }\n    emit_to_log_sink(log_entry)\n\n// 4. HANDLE DEAD LETTER QUEUES WITH REPLAY\nclass DLQHandler:\n  def process_dlq(self):\n    for failed_event in dlq.read(batch_size=100):\n      log(\"Processing DLQ event\", {event_id: failed_event.id, reason: failed_event.reason})\n      \n      // Attempt replay with exponential backoff\n      retry_count = failed_event.retry_count\n      if retry_count > MAX_RETRIES:\n        log(\"DLQ event exceeded max retries\", {event_id, retry_count})\n        send_to_dead_letter_sink(failed_event)  // For manual inspection\n        continue\n      \n      try:\n        // Use original trace context for observability\n        enqueue_alert(failed_event.alert_event, \n                     idempotency_key=failed_event.idempotency_key,\n                     original_trace_id=failed_event.trace_id)\n        dlq.acknowledge(failed_event.id)\n        metrics.increment(\"dlq_replay_success\")\n      except Exception as e:\n        failed_event.retry_count += 1\n        dlq.requeue(failed_event, \n                   delay=exponential_backoff(retry_count),\n                   reason=str(e))\n        metrics.increment(\"dlq_replay_failure\")\n\n// 5. IMPLEMENT IDEMPOTENCY FOR ALERT DELIVERY\nclass IdempotentAlertDelivery:\n  def send_alert(self, alert_event, idempotency_key):\n    // Check if already processed\n    existing = idempotency_cache.get(idempotency_key)\n    if existing:\n      log(\"Alert already delivered\", {idempotency_key, delivered_at: existing.timestamp})\n      return existing.delivery_result\n    \n    // Deliver alert\n    try:\n      delivery_result = deliver_to_channels(alert_event)\n      idempotency_cache.set(idempotency_key, {\n        timestamp: now(),\n        delivery_result,\n        ttl: 24_hours\n      })\n      metrics.increment(\"alert_delivered\")\n      return delivery_result\n    except Exception as e:\n      metrics.increment(\"alert_delivery_failed\", {channel: e.channel})\n      raise\n\n// 6. METRICS AND MONITORING\nclass ObservabilityMetrics:\n  def emit_metrics(self, rule_id, dataset_id, null_ratio, triggered):\n    // Gauge: actual metric value\n    metrics.gauge(\"data_quality.null_ratio\", null_ratio, \n                 {rule_id, dataset_id})\n    \n    // Counter: evaluation results\n    metrics.increment(\n      \"data_quality.rule_evaluation\",\n      {rule_id, dataset_id, result: \"alert_triggered\" if triggered else \"no_alert\"}\n    )\n    \n    // Track pipeline health\n    metrics.increment(\"pipeline.stage_completion\", \n                     {stage: \"quality_check\", success: true})\n    \n    // Alert delivery success\n    if triggered:\n      metrics.increment(\"alerts.generated\", {rule_id})\n\n// 7. DEBUG QUERY: TRACE SPECIFIC DATASET\nfunction debug_missing_alert(customer_id, dataset_id, rule_id):\n  // Fetch all related logs and traces\n  traces = query_traces({\n    service: \"data_quality_platform\",\n    dataset_id,\n    time_range: [yesterday, now]\n  })\n  \n  for trace in traces:\n    print(\"Trace:\", trace.id)\n    for span in trace.spans:\n      print(\"  Span:\", span.name, \"Status:\", span.status)\n      for event in span.events:\n        print(\"    Event:\", event.name, event.attributes)\n  \n  // Check rule state\n  rule = fetch_rule(rule_id)\n  print(\"Rule enabled:\", rule.enabled)\n  print(\"Rule threshold:\", rule.null_threshold)\n  \n  // Check DLQ\n  dlq_events = query_dlq({dataset_id, rule_id})\n  print(\"DLQ events:\", len(dlq_events))\n  for event in dlq_events:\n    print(\"  Event:\", event.id, \"Reason:\", event.reason, \"Retries:\", event.retry_count)\n  \n  // Check idempotency cache for this date\n  idempotency_key = hash(dataset_id + rule_id + yesterday.date)\n  cached = idempotency_cache.get(idempotency_key)\n ",
+     "explanation": "This solution demonstrates a comprehensive debugging methodology for distributed data quality systems. The approach: (1) Validates rule configuration to eliminate misconfiguration, (2) Uses distributed tracing to track the event through every stage with correlation IDs, (3) Implements structured logging at decision points, (4) Handles failure gracefully with DLQ and replay logic, (5) Ensures idempotency to prevent duplicate alerts and allow safe retries, (6) Emits detailed metrics to support observability, (7) Provides a debug query that aggregates all available signals. Each component has clear instrumentation, making it possible to pinpoint whether the failure was in rule evaluation, alert generation, delivery, or infrastructure. The emphasis on immutable trace IDs and event replay means you can always deterministically re-run the decision logic.",
+     "language": "System Design / Pseudo-C"
+    },
+    "similar_questions": [
+     {
+      "question": "A real-time fraud detection system fails to flag a $50,000 transaction matching a known-fraud pattern. Walk through your debugging approach.",
+      "what_changes": "Instead of NULL checks, the decision is pattern matching; instead of alerts, the system must block transactions. DLQ handling becomes critical because delayed detections are failures. Replay becomes harder because you cannot re-run the same transaction. Idempotency is essential to avoid double-block"
+     },
+     {
+      "question": "A machine learning model serving platform stops returning predictions for 5% of requests without logging errors. Design your debugging and observability strategy.",
+      "what_changes": "The failure mode is silent (no error logged) rather than audible. You must instrument the system to detect absence of a response, not presence of an error. Root cause could be model loading, feature engineering, or network timeouts. Trace context and feature provenance become critical. You need A/B "
+     },
+     {
+      "question": "Customers report they never received billing alerts despite owing $100k+. Debug the notification system.",
+      "what_changes": "The cost is financial, so idempotency and transactionality are non-negotiable. Replay must be auditable for compliance. You must distinguish between 'alert not generated' (business logic) and 'alert not delivered' (infrastructure). Logs must be immutable and retention policies must be strict. Focus "
+     }
+    ],
+    "skills_tested": [
+     "Distributed Systems Debugging",
+     "Observability and Logging Strategy",
+     "Event-Driven Architecture",
+     "Dead Letter Queue Management",
+     "Idempotent Processing",
+     "Metrics and Monitoring",
+     "Transactional Guarantees",
+     "Root Cause Analysis"
+    ],
+    "topic": "Debugging Missing Alerts in a Data Quality Platform",
+    "why_asked": "Interviewers often ask this because data quality platforms operate in distributed environments where failures are difficult to trace. Debugging missing alerts requires systematic thinking about the entire pipeline: data ingestion, quality checks, alert generation, delivery, and infrastructure. This tests whether a candidate can design maintainable, observable systems and diagnose complex issues methodically rather than guessing."
+   },
+   "prep_for": "825ed0594243",
    "question": "Debug a scenario in a data quality platform where a customer reports never receiving an alert despite 40% of rows being NULL. Walk through your debugging approach including logging strategy, distributed tracing, event replay capability, dead letter queue handling, retry logic, idempotency guarantees, observability and metrics collection.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Debugging and Troubleshooting",
    "technology": [
     "Logging",
@@ -953,8 +1024,77 @@
    "edited": false,
    "id": "q-e4aedac55a",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Use a structured methodology: (1) Gather requirements and understand the business domain, (2) Identify key entities and relationships, (3) Consider regulatory and compliance needs, (4) Evaluate normalization vs. denormalization based on use cases, (5) Design for scalability and performance, (6) Document the model with clear definitions. Then, explicitly contrast how Finance and Healthcare differ: Finance typically prioritizes audit trails, immutability, precise calculations, and regulatory reporting; Healthcare requires patient privacy, data lineage for clinical decisions, and often handles unstructured data.",
+    "common_mistakes": [
+     "Designing without understanding the business domain and regulatory requirements first",
+     "Assuming the same model can work across industries without significant adaptation",
+     "Over-normalizing and creating too many joins, killing query performance, or under-normalizing and creating maintenance nightmares without understanding the use case",
+     "Ignoring compliance requirements until late in the design",
+     "Failing to document assumptions, constraints, and trade-offs",
+     "Not considering data access patterns and query frequency when choosing denormalization"
+    ],
+    "estimated_minutes": 20,
+    "follow_ups": [
+     "Walk me through designing a data model for a specific scenario (e.g., a fintech lending platform or a telemedicine provider)",
+     "How would you handle slowly changing dimensions in a healthcare analytics model?",
+     "Describe how you would implement audit trails and ensure immutability in a financial system",
+     "How would you approach de-identifying and handling sensitive data in healthcare?",
+     "What indexing and partitioning strategy would you use for a financial transaction table with billions of rows?",
+     "How would you design for GDPR compliance (right to deletion) while maintaining audit trails?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by understanding the core business entities and relationships specific to each industry",
+     "Consider regulatory and compliance requirements early (PCI-DSS for finance, HIPAA for healthcare)",
+     "Think about query patterns and access patterns before finalizing the schema",
+     "Document assumptions and trade-offs you make at each step",
+     "Ask clarifying questions about data volume, latency requirements, and consistency needs"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Normalization and denormalization trade-offs",
+     "Star schema vs. snowflake schema for OLAP",
+     "Event sourcing and CQRS patterns",
+     "Slowly changing dimensions (SCD)",
+     "Data lineage and metadata management",
+     "Compliance frameworks (HIPAA, PCI-DSS, SOX, GDPR)",
+     "ACID vs. BASE consistency models",
+     "Temporal databases and bitemporal modeling"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "This is a conceptual/verbal question. A strong answer would structure a response as follows:\n\n1. UNIVERSAL DESIGN PROCESS:\n- Requirement gathering: Understand stakeholders, data sources, reporting needs, SLAs\n- Domain modeling: Identify entities (customers, transactions, patients, providers)\n- Logical design: Define tables/entities, attributes, relationships, cardinality\n- Physical design: Choose technology (SQL, NoSQL), partitioning strategy, indexing\n- Review & iterate: Validate against requirements, consider edge cases\n\n2. FINANCE-SPECIFIC CONSIDERATIONS:\n- Entities: Accounts, transactions, ledgers, counterparties, portfolios\n- Key requirements: Audit trails (every change logged with timestamp, user, reason), immutability (no deletion, only reversals), precision (exact decimal values, no rounding), reconciliation (must balance to the penny)\n- Compliance: PCI-DSS, SOX, GDPR, local regulations\n- Design choices: Append-only ledger tables, event sourcing patterns, normalized schemas to prevent anomalies, strong ACID guarantees\n- Example schema: Accounts (account_id, customer_id, balance), Transactions (transaction_id, from_account, to_account, amount, timestamp, status), Audit_Log (transaction_id, field_changed, old_value, new_value, changed_by, changed_at)\n\n3. HEALTHCARE-SPECIFIC CONSIDERATIONS:\n- Entities: Patients, providers, encounters, diagnoses, medications, test results\n- Key requirements: Privacy (HIPAA), data lineage (why was a decision made?), temporal data (medical history over time), unstructured data (notes, imaging reports)\n- Compliance: HIPAA, HIPAA BAA, consent management, data retention policies\n- Design choices: De-identification/pseudonymization, consent tables, temporal tables for patient history, handling semi-structured data, separate storage for PHI\n- Example schema: Patients (patient_id_encrypted, date_of_birth, consent_status), Encounters (encounter_id, patient_id_encrypted, provider_id, encounter_date, encounter_type), Clinical_Notes (note_id, encounter_id, note_type, content, created_by, created_at), Test_Results (result_id, encounter_id, test_code, result_value, reference_range, test_date)\n\n4. KEY DIFFERENCES:\n\n| Aspect | Finance | Healthcare |\n|--------|---------|----------|\n| Immutability | High (reversals only) | Medium (corrections allowed with audit trail) |\n| Precision | Exact decimals | Ranges, uncertainty, text notes |\n| Privacy | Data security | Data security + consent + de-identification |\n| Temporal | Event-based | Bot",
+     "language": ""
+    },
+    "similar_questions": [
+     {
+      "question": "Design a data model for an e-commerce platform. What tables would you create and why?",
+      "what_changes": "Shifts focus from compliance and regulatory nuance to performance at scale, inventory management, and customer behavior analytics. Requires understanding of temporal data (order history, pricing history) and de-normalization for analytics."
+     },
+     {
+      "question": "Design a data model for a real-time fraud detection system. How would your approach differ from a batch reporting system?",
+      "what_changes": "Introduces latency requirements, stream processing, and the need for low-latency lookups. Requires consideration of feature stores, state management, and different consistency models than traditional databases."
+     },
+     {
+      "question": "How would you design a data model for a multi-tenant SaaS application?",
+      "what_changes": "Focuses on isolation, security boundaries, and scalability across customers. Requires decisions about row-level security, shared vs. isolated schemas, and cost optimization per tenant."
+     }
+    ],
+    "skills_tested": [
+     "Requirements analysis",
+     "Domain understanding",
+     "Data modeling principles",
+     "Industry compliance knowledge",
+     "Schema design",
+     "Scalability considerations",
+     "Trade-off analysis"
+    ],
+    "topic": "Data Modeling for Different Industries",
+    "why_asked": "Interviewers ask this because data modeling is foundational in data engineering—it directly impacts query performance, data quality, compliance, and future maintainability. Understanding how to adapt modeling approaches across industries reveals whether a candidate can handle domain-specific constraints, regulatory requirements, and business complexity."
+   },
+   "prep_for": "2fadfc76f6be",
    "question": "Describe your process for designing a data model from scratch. How would your approach differ when designing models for two different industries, such as Finance versus Healthcare?",
    "status": "approved",
    "subcategory": "Data Modeling",
@@ -969,8 +1109,75 @@
    "edited": false,
    "id": "q-f9ddc2d24e",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Organize your answer into categories: (1) Hard-to-reverse decisions (data model, serialization format, API contracts, partitioning strategy), (2) Why they're hard to reverse (data migration complexity, backward compatibility, distributed state), (3) Consequences of getting them wrong (migration costs, service downtime, data loss risk, customer impact). Then discuss how to mitigate this risk (prototyping, versioning strategies, designing for evolution). Use concrete examples to anchor each point.",
+    "common_mistakes": [
+     "Treating all decisions as equally reversible—not distinguishing by cost",
+     "Waiting too long to design for evolution, thinking 'we'll fix it later'",
+     "Ignoring operational complexity of migrations (they're slower and riskier than new implementation)",
+     "Assuming 'we can change the API later'—external contracts become immutable fast",
+     "Not considering the cost of long-running migrations during high-traffic periods",
+     "Designing for theoretical scale without validating that you actually need it (over-engineering)"
+    ],
+    "estimated_minutes": 20,
+    "follow_ups": [
+     "How would you handle adding a new required field to a schema in a system with billions of rows of existing data?",
+     "Describe your approach to API versioning—when do you deprecate a version?",
+     "You realize your partitioning key was wrong after 6 months in production. Walk through the migration process.",
+     "How would you design a data model if you knew the access patterns might change significantly?",
+     "What's your strategy for changing from synchronous to asynchronous communication between services?",
+     "How do you balance 'design for evolution' with 'don't over-engineer'?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Think about decisions that affect data structures, contracts, and interfaces",
+     "Consider which decisions get baked into production data or customer-facing APIs",
+     "Distinguish between implementation details (reversible) and architectural foundations (hard to reverse)",
+     "Think about the cost of migration versus the cost of getting it wrong",
+     "Consider what decisions propagate through multiple layers of a system"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "API versioning strategies",
+     "Database schema evolution",
+     "Feature flags and gradual rollouts",
+     "Backward compatibility",
+     "Data migration patterns",
+     "Distributed system consistency models",
+     "Partitioning and sharding strategies",
+     "Service contracts and interface design"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "Here are the most critical hard-to-reverse decisions:\n\n**HARD TO REVERSE (Architectural):**\n\n1. **Data Model & Schema**\n   - Why: Once production data exists in a structure, changing it requires migration\n   - Consequence: Downtime, data loss risk, or long running migrations in large systems\n   - Example: Adding a required field without default; changing a 32-bit ID to 64-bit across billions of rows\n   - Mitigation: Design for evolution—use versioning, nullable fields, flexible serialization\n\n2. **Primary Key & Partitioning Strategy**\n   - Why: Resharding or repartitioning requires redistributing terabytes of data\n   - Consequence: Extended maintenance windows, operational complexity, potential consistency issues\n   - Example: Choosing user_id as partition key, then discovering you need to query heavily by organization_id\n   - Mitigation: Understand access patterns early; consider multi-dimensional partitioning\n\n3. **External API Contract**\n   - Why: Clients build integrations; breaking changes cause outages for customers\n   - Consequence: Support burden, backward compatibility layer debt, customer churn\n   - Example: Renaming a JSON field in a REST API that thousands of clients depend on\n   - Mitigation: API versioning from day one; deprecation policies; semantic versioning\n\n4. **Serialization Format (JSON vs. Protobuf vs. custom binary)**\n   - Why: Message format becomes embedded in logs, caches, queues, and databases\n   - Consequence: Complex dual-format support, debugging challenges, migration complexity\n   - Example: Switching from JSON to Protobuf requires coordinating across services\n   - Mitigation: Use extensible formats; version your message schemas\n\n5. **Synchronous vs. Asynchronous Communication Pattern**\n   - Why: Changing from sync RPC to async queue requires rearchitecting error handling, retries, idempotency\n   - Consequence: Cascading changes across multiple services, new failure modes\n   - Example: Moving from REST calls to event-driven loses request-response semantics\n   - Mitigation: Choose based on real requirements, not premature optimization\n\n6. **Single-Region vs. Multi-Region Architecture**\n   - Why: Adding regions requires handling eventual consistency, replication lag, data residency\n   - Consequence: State machine complexity, cross-region transaction costs, latency assumptions\n   - Example: Starting single-region, then needing disaster recovery across regions\n   - Mitigation: Understand this requirement early; design for eventua",
+     "language": ""
+    },
+    "similar_questions": [
+     {
+      "question": "Describe a system where you chose synchronous RPC over asynchronous messaging. Could you change that decision? What would the migration look like?",
+      "what_changes": "Focuses on a specific decision type and forces you to walk through the actual migration cost"
+     },
+     {
+      "question": "You're designing a new service from scratch. What architectural decisions would you make reversible, and which would you lock in? Why?",
+      "what_changes": "Shifts to proactive decision-making and forces prioritization of what matters most"
+     },
+     {
+      "question": "Walk me through adding a new data dimension to a heavily-sharded key-value store. What are the risks?",
+      "what_changes": "Focuses on a concrete partitioning scenario and operational risks"
+     }
+    ],
+    "skills_tested": [
+     "architectural decision-making",
+     "understanding system constraints",
+     "risk assessment",
+     "long-term impact analysis",
+     "trade-off evaluation"
+    ],
+    "topic": "Critical System Design Decisions and Reversibility",
+    "why_asked": "Interviewers ask this because it assesses whether candidates think beyond the immediate implementation. Strong engineers recognize that some architectural choices become embedded in data, contracts, and dependencies—making them expensive to change later. This question reveals maturity in prioritizing what to get right upfront versus what can evolve."
+   },
+   "prep_for": "5417ef51c19d",
    "question": "What modeling decisions in a system design are difficult to reverse after implementation? Which decisions are critical to get right early on, and what are the consequences of getting them wrong?",
    "status": "approved",
    "subcategory": "Design Philosophy",
@@ -1000,7 +1207,7 @@
     "+15 source says it was asked in an interview",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1064,7 +1271,7 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1127,7 +1334,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1184,8 +1391,8 @@
     "+15 source says it was asked in an interview",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:41:04Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "A customer reports \"We never received an alert although 40% of rows were NULL.\" How would you debug? Explain Logging Distributed tracing Replay Dead Letter Queue Retry Idempotency Observability Metric",
@@ -1223,7 +1430,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=c66da52eede027b3"
   },
   "r-5d7eb0898011": {
@@ -1250,7 +1457,7 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1312,7 +1519,7 @@
     "+4 source date known",
     "+3 interview year stated"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1374,7 +1581,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1432,7 +1639,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1554,7 +1761,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1612,7 +1819,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1673,7 +1880,7 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1790,7 +1997,7 @@
     "+15 source says it was asked in an interview",
     "+4 source date known"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
@@ -1856,7 +2063,7 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_at": "2026-10-07T22:41:04Z",
    "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
