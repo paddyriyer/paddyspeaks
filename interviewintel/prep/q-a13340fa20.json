@@ -1,0 +1,69 @@
+{
+ "question": "Debug a scenario in a data quality platform where a customer reports never receiving an alert despite 40% of rows being NULL. Walk through your debugging approach including logging strategy, distributed tracing, event replay capability, dead letter queue handling, retry logic, idempotency guarantees, observability and metrics collection.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Debugging a missed alert in a distributed pipeline",
+  "skills_tested": [
+   "Distributed tracing",
+   "Structured logging",
+   "Event replay",
+   "Dead letter queues",
+   "Idempotency",
+   "Root-cause analysis"
+  ],
+  "why_asked": "Interviewers often ask this because a missed alert is the worst failure a monitoring platform can have, and finding it means following one event across several services. It shows whether you debug from evidence (traces, logs, offsets) in a sensible order, and whether you fix the class of bug, not just the instance.",
+  "hints": [
+   "Write down every hop an observation takes, from 'the column is 40% NULL' to 'a message reached the customer', and check each hop in order.",
+   "Find out first whether the metric was ever computed and ingested; most missed alerts die before detection.",
+   "Use a correlation ID (run_id or trace_id) to pull every log line and span for that one pipeline run.",
+   "Check the boring causes: rule disabled, wrong column, threshold in percent versus fraction, notification route empty, alert deduplicated into an old incident.",
+   "Once found, replay the stored events through the fixed path in a sandbox, then add a test and a canary that would have caught it."
+  ],
+  "approach": "1. Reproduce the facts. Which pipeline, dataset, column and run? When did the 40% NULLs land? Which rule or built-in check should have fired, with what threshold and route? Confirm the expected behaviour before searching for the bug.\n\n2. Walk the path hop by hop, using the run's correlation ID.\n- Collection: did the profiler compute null_pct for that column for that run? A missing metric often means the column was renamed or the profiler sampled the wrong partition.\n- Ingestion: is the event in Kafka? Find it by key (pipeline_id) and timestamp. Check the producer's error logs and the dead letter queue for schema-validation rejects; a changed payload shape is a common silent drop.\n- Detection: did the stream job evaluate it? Check consumer lag and checkpoint failures at that time, the rule's state (enabled, scope, version) and the units: 40 compared with a threshold of 0.05 (fraction against percent) never fires.\n- Incident: was a check result produced but folded into an older open or acknowledged incident by deduplication? Was it suppressed by a maintenance window?\n- Notification: was a notification enqueued? Check the outbox, the retry log and the DLQ for the channel; a revoked Slack token or a 4xx from a webhook often ends in a DLQ nobody watches.\n\n3. Use the tools the question lists in that order: traces show which hop the event never left; structured logs explain why; replay (from Kafka retention or raw object storage) re-runs the exact events through a fixed build in a sandbox to prove the fix; DLQ inspection finds silent drops; retry and idempotency rules explain duplicates or losses at the sending end.\n\n4. Fix the class of failure, not just the instance: alert when a DLQ is non-empty; alert when an expected metric is missing (an absent metric is itself a finding); unit-check rule thresholds; make notification delivery idempotent with retries and visible failure; add a synthetic canary pipeline that fails on purpose every hour and must page.\n\n5. Close out: tell the customer what happened, backfill the missed incident, and write a blameless post-incident review with the guardrails added.",
+  "sample_solution": {
+   "language": "Python",
+   "code": "\"\"\"The notification step done defensibly: idempotent, retried, traced,\nand never silently dropped.\"\"\"\nimport hashlib\nimport json\nimport logging\nimport time\n\nlog = logging.getLogger(\"alerts\")\n\n\nclass DeliveryError(Exception):\n    def __init__(self, status, retryable):\n        super().__init__(status)\n        self.status, self.retryable = status, retryable\n\n\ndef dedup_key(incident_id: int, channel: str, transition: str) -> str:\n    \"\"\"Same incident + channel + transition -> same key, however often retried.\"\"\"\n    return hashlib.sha256(f\"{incident_id}:{channel}:{transition}\".encode()).hexdigest()\n\n\ndef deliver(store, sender, dlq, incident, channel, trace_id, max_attempts=5):\n    key = dedup_key(incident[\"id\"], channel, incident[\"status\"])\n    if store.already_sent(key):                       # idempotency: never page twice\n        log.info(json.dumps({\"event\": \"skip_duplicate\", \"key\": key, \"trace_id\": trace_id}))\n        return \"duplicate\"\n    for attempt in range(1, max_attempts + 1):\n        try:\n            sender.send(channel, incident, idempotency_key=key)\n            store.mark_sent(key)\n            log.info(json.dumps({\"event\": \"sent\", \"incident\": incident[\"id\"],\n                                 \"channel\": channel, \"attempt\": attempt, \"trace_id\": trace_id}))\n            return \"sent\"\n        except DeliveryError as e:\n            log.warning(json.dumps({\"event\": \"send_failed\", \"status\": e.status,\n                                    \"attempt\": attempt, \"retryable\": e.retryable,\n                                    \"trace_id\": trace_id}))\n            if not e.retryable:                       # 4xx: bad token, bad URL\n                break\n            time.sleep(min(2 ** attempt, 30))         # exponential backoff\n    # Never drop silently: park it, and the DLQ size is itself alerted on.\n    dlq.put({\"incident\": incident, \"channel\": channel, \"key\": key, \"trace_id\": trace_id})\n    return \"dead_lettered\"",
+   "explanation": "Every log line is structured JSON carrying the trace ID, so one query returns the whole story of one run across services. The dedup key makes retries safe: a crash after the send but before mark_sent can at worst resend once, and the receiving system dedupes on the same key where it supports one. A non-retryable failure, such as a revoked Slack token, goes to the DLQ straight away instead of retrying forever. A DLQ with anything in it pages the platform team, which closes the exact gap that typically lets an alert vanish.\n\nThe same pattern applies to the ingestion hop: schema-invalid metric events go to a DLQ with the validation error attached, and a missing expected metric produces its own 'no data' finding."
+  },
+  "common_mistakes": [
+   "Starting with the notification service when the metric was never computed or ingested.",
+   "Searching logs by time alone, without a correlation ID, and drowning in unrelated lines.",
+   "Missing configuration causes: rule disabled, wrong column, unit mismatch, suppression windows.",
+   "Treating a DLQ as a bin rather than a signal that is itself monitored.",
+   "Retrying non-retryable errors forever, or retrying without idempotency and paging twice.",
+   "Fixing the one bug without adding a canary or test that proves the path works end to end."
+  ],
+  "follow_ups": [
+   "How would you design a synthetic canary that proves alerting works every hour?",
+   "The customer received the alert 40 minutes late, not never. What changes in your investigation?",
+   "How do you make a replay of production events safe, so it does not page real customers?",
+   "What retention do you need on Kafka and raw storage to support replay?",
+   "How would you show a customer an audit trail of every check evaluated for their pipeline?"
+  ],
+  "related_concepts": [
+   "OpenTelemetry tracing",
+   "Structured logging",
+   "Dead letter queues",
+   "Idempotency keys",
+   "Exponential backoff",
+   "Outbox pattern",
+   "Canary checks",
+   "Blameless post-mortems"
+  ],
+  "estimated_minutes": 35,
+  "similar_questions": [
+   {
+    "question": "A nightly job reports success but the dashboard shows yesterday's numbers. Walk through how you find out why.",
+    "what_changes": "The failure is staleness rather than a missing alert, so you check orchestration state, partitions and caches."
+   },
+   {
+    "question": "Customers report receiving the same alert five times. Diagnose and fix it.",
+    "what_changes": "The bug is excess delivery, so idempotency, retries and deduplication windows are the centre of the answer."
+   },
+   {
+    "question": "Events from one Kafka partition stopped being processed but the consumer group looks healthy. How do you debug it?",
+    "what_changes": "You narrow to partition-level lag, poison messages and rebalancing behaviour."
+   }
+  ]
+ }
+}

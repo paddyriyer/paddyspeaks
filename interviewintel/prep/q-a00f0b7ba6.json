@@ -1,0 +1,69 @@
+{
+ "question": "Design a real-time data quality monitoring platform for thousands of ETL pipelines. The platform must continuously track metrics including row count, null percentage, duplicates, freshness, schema changes, latency, and SLA status across 100,000 pipelines with 15 million metric updates per hour. Support anomaly detection, alerting, dashboards, APIs, custom quality rules, multi-region deployment, and near real-time detection (under 30 seconds). Address design of APIs, data model, event flow, storage, metadata catalog, alerting system, authentication, authorization, high availability, and disaster recovery.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Real-time data quality platform design",
+  "skills_tested": [
+   "Stream processing",
+   "Time-series storage",
+   "Multi-tenant APIs",
+   "Alerting design",
+   "High availability",
+   "Capacity estimation"
+  ],
+  "why_asked": "Interviewers often ask this because it is a full platform problem with a clear load profile: you have to size the stream, separate the hot detection path from storage and dashboards, design an alerting pipeline that people trust, and cover the operational edges (multi-region, authorisation, recovery) without losing the thread.",
+  "hints": [
+   "Do the arithmetic first: 15 million updates an hour is about 4,200 a second on average; plan for 5-10x peaks.",
+   "Separate the detection path (stream, seconds) from the analytics path (time-series storage, dashboards) and the control plane (rules, metadata, users).",
+   "Partition the stream by pipeline_id so each pipeline's metrics are ordered and its state lives on one worker.",
+   "Treat an alert as a stateful incident with open, ongoing and resolved states, not as one message per bad data point.",
+   "For the 30-second budget, count every hop: producer batching, broker, the stream job's window, rule evaluation, notification."
+  ],
+  "approach": "Requirements and sizing. 100,000 pipelines, about 150 metric updates per pipeline per hour, 15 million an hour: roughly 4,200 events a second, around 1 KB each, so about 4 MB/s, or 360 GB a day raw. Detection within 30 seconds; dashboards can be seconds to a minute behind.\n\nEvent flow.\n1. Pipelines (or an agent on the orchestrator) emit metric events: pipeline_id, run_id, dataset, metric, value, observed_at, schema_hash. They go to a regional Kafka topic partitioned by pipeline_id.\n2. A stream job (Flink) keeps per-pipeline state: last values, EWMA baselines, freshness timers, the last schema hash. It evaluates built-in checks (freshness and SLA timers, schema change, volume and null anomalies) and customer rules, compiled from a rule DSL to predicates, and emits check results.\n3. Check results go to an incident service that opens, updates and resolves incidents (deduplicated per pipeline, check and severity) and fans out notifications (Slack, PagerDuty, email, webhooks) through an outbox with retries.\n4. All metrics and check results are also written to a time-series store (ClickHouse, Druid or TimescaleDB) with 1-minute rollups for dashboards and long retention, and raw data in object storage for replay.\n\nControl plane. A metadata catalog (Postgres) holds pipelines, datasets, owners, rules, SLA definitions and alert routes. The stream job loads rules through a broadcast stream, so a rule change applies in seconds without a restart.\n\nAPIs. REST/gRPC for ingestion (batch endpoint, idempotency key = pipeline_id + run_id + metric), rules CRUD, incidents (list, acknowledge, resolve), metric queries (time range plus rollup) and webhooks. Version them, rate-limit per tenant, paginate with cursors.\n\nSecurity. OIDC SSO for users and service tokens for producers; RBAC with tenant, team and pipeline-owner scopes enforced in the API layer; row-level tenant filters in the time-series store; audit log of rule and route changes.\n\nAvailability and recovery. Kafka with replication factor 3 per region; Flink checkpoints to object storage every 10-30 seconds; the incident service is stateless over Postgres with a synchronous replica. Multi-region is active-active by tenant home region, with the catalog replicated and cross-region failover from the latest checkpoint plus Kafka replay. Recovery targets are explicit: RPO in seconds (checkpoint interval), RTO in minutes. Freshness checks need a dead-man's switch: an alert when a pipeline stops sending, which only works if the timer lives in the stream job's state.",
+  "sample_solution": {
+   "language": "SQL (PostgreSQL catalog + ClickHouse metrics)",
+   "code": "-- Control plane (PostgreSQL): what exists and who owns it\nCREATE TABLE pipeline (\n  pipeline_id   TEXT PRIMARY KEY,\n  tenant_id     TEXT NOT NULL,\n  owner_team    TEXT NOT NULL,\n  sla_minutes   INT,                       -- freshness SLA\n  home_region   TEXT NOT NULL\n);\n\nCREATE TABLE quality_rule (\n  rule_id       BIGSERIAL PRIMARY KEY,\n  tenant_id     TEXT NOT NULL,\n  pipeline_id   TEXT REFERENCES pipeline,  -- NULL = applies to all of a tenant's pipelines\n  metric        TEXT NOT NULL,             -- e.g. 'null_pct:customer_id'\n  expression    TEXT NOT NULL,             -- DSL, e.g. 'value > 5 for 3 of 5'\n  severity      TEXT NOT NULL CHECK (severity IN ('info','warning','critical')),\n  enabled       BOOLEAN NOT NULL DEFAULT true,\n  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()\n);\n\nCREATE TABLE incident (\n  incident_id   BIGSERIAL PRIMARY KEY,\n  tenant_id     TEXT NOT NULL,\n  pipeline_id   TEXT NOT NULL,\n  check_key     TEXT NOT NULL,             -- rule id or built-in check name\n  severity      TEXT NOT NULL,\n  status        TEXT NOT NULL CHECK (status IN ('open','acknowledged','resolved')),\n  opened_at     TIMESTAMPTZ NOT NULL,\n  last_seen_at  TIMESTAMPTZ NOT NULL,\n  resolved_at   TIMESTAMPTZ\n);\n-- one open incident per pipeline and check: the dedup guarantee\nCREATE UNIQUE INDEX one_open_incident\n  ON incident (pipeline_id, check_key) WHERE status <> 'resolved';\n\n-- Metrics (ClickHouse): raw points plus a 1-minute rollup for dashboards\nCREATE TABLE metric_point (\n  tenant_id    LowCardinality(String),\n  pipeline_id  String,\n  metric       LowCardinality(String),\n  observed_at  DateTime64(3),\n  value        Float64,\n  run_id       String\n) ENGINE = ReplacingMergeTree\nPARTITION BY toYYYYMMDD(observed_at)\nORDER BY (tenant_id, pipeline_id, metric, observed_at, run_id)\nTTL toDateTime(observed_at) + INTERVAL 90 DAY;\n\nCREATE MATERIALIZED VIEW metric_1m\nENGINE = AggregatingMergeTree\nPARTITION BY toYYYYMM(minute)\nORDER BY (tenant_id, pipeline_id, metric, minute)\nAS SELECT tenant_id, pipeline_id, metric,\n          toStartOfMinute(observed_at) AS minute,\n          avgState(value) AS avg_v, maxState(value) AS max_v, countState() AS n\n   FROM metric_point\n   GROUP BY tenant_id, pipeline_id, metric, minute;",
+   "explanation": "The schema carries three of the design's guarantees. The partial unique index on incident makes 'one open incident per pipeline and check' a database rule, so a burst of failing points updates one incident instead of paging someone a hundred times. ReplacingMergeTree keyed on run_id makes metric ingestion idempotent, so retried batches do not double-count. The 1-minute rollup keeps dashboards fast across 100,000 pipelines without scanning raw points.\n\nThe latency budget for the 30-second target: producer flush up to 1 s, Kafka about 100 ms, stream evaluation with at most a 10-second window, incident write and notification enqueue under 1 s, delivery a few seconds. That leaves headroom for a slow consumer, provided consumer lag itself is monitored and alerted on.\n\nSay what is out of scope: the platform measures and alerts. It does not block or repair pipelines unless you add circuit-breaker hooks, a natural follow-up."
+  },
+  "common_mistakes": [
+   "Skipping the arithmetic, then over- or under-building the ingestion tier.",
+   "Writing every metric straight into a relational database and querying it for real-time detection.",
+   "One notification per failing data point instead of stateful, deduplicated incidents.",
+   "Freshness checks that only run when data arrives, so a pipeline that stops sending is never caught.",
+   "Mentioning multi-region without saying how state and incidents fail over.",
+   "Tenant isolation enforced only in the UI rather than in the API and storage layers."
+  ],
+  "follow_ups": [
+   "How do you guarantee an alert is sent exactly once when the incident service crashes mid-send?",
+   "A customer writes a rule that matches every pipeline and floods the system. How do you protect the platform?",
+   "How would you backfill quality metrics for a pipeline's last 90 days?",
+   "How would you let pipelines block downstream jobs on a failed check?",
+   "What do you monitor to know the monitoring platform itself is healthy?"
+  ],
+  "related_concepts": [
+   "Kafka partitioning",
+   "Flink keyed state",
+   "Checkpointing",
+   "Outbox pattern",
+   "ClickHouse MergeTree",
+   "RBAC",
+   "RPO and RTO",
+   "Dead-man's switch"
+  ],
+  "estimated_minutes": 50,
+  "similar_questions": [
+   {
+    "question": "Design the metrics and alerting backend for a SaaS observability product ingesting 2 million time series per minute.",
+    "what_changes": "Cardinality becomes the dominant problem, so rollups, sketches and retention tiers matter more than rule evaluation."
+   },
+   {
+    "question": "Design a data contract service that validates schemas and quality rules before a producer's data reaches the lake.",
+    "what_changes": "Checks move inline and can reject data, so latency and failure modes on the write path dominate."
+   },
+   {
+    "question": "Design SLA tracking for 5,000 scheduled batch pipelines with per-team escalation policies.",
+    "what_changes": "Timers and schedules replace streaming metrics; the hard part is expected-completion modelling and escalation."
+   }
+  ]
+ }
+}

@@ -20,7 +20,7 @@ from __future__ import annotations
 import datetime as _dt
 from collections import Counter, defaultdict
 
-from . import config, enrich, sources, store
+from . import authored, config, enrich, sources, store
 
 LABEL_TREND = "Questions appearing in recently discovered public interview reports."
 LABEL_INTEL = ("Based on publicly discovered interview reports. This is not official company interview "
@@ -92,6 +92,7 @@ def public_question(q: dict, reps: list[dict], today: _dt.date) -> dict:
 
 
 def approved(ledger: dict) -> list[tuple[dict, list[dict]]]:
+    docs = authored.load()
     by_q = defaultdict(list)
     for r in ledger["reports"].values():
         if r["status"] == "approved":
@@ -100,6 +101,9 @@ def approved(ledger: dict) -> list[tuple[dict, list[dict]]]:
     for qid, reps in by_q.items():
         q = ledger["questions"].get(qid)
         if q and q["status"] == "approved":
+            mine = authored.for_question(q, docs)
+            if mine:                       # authored material wins over generated
+                q = dict(q, prep=mine, prep_for=enrich.text_hash(q))
             out.append((q, reps))
     return out
 

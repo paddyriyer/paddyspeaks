@@ -1,0 +1,64 @@
+{
+ "question": "Explain your approach to deciding whether a data warehouse should use multiple fact tables or consolidate into a single fact table. What factors do you consider?",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Multiple fact tables or one",
+  "skills_tested": [
+   "Dimensional modelling",
+   "Conformed dimensions",
+   "Drill-across queries",
+   "Performance trade-offs"
+  ],
+  "why_asked": "Interviewers often ask this because merging unrelated processes into one 'big fact' is a common and costly anti-pattern, while splitting too finely creates fragmentation. The answer shows whether you reason from business processes and grain.",
+  "hints": [
+   "Start from business processes: one process with one grain usually means one fact table.",
+   "Different grains in one table force NULLs and double counting.",
+   "Conformed dimensions are what make several fact tables feel like one model.",
+   "Drill-across queries aggregate each fact separately, then join the results on shared dimensions.",
+   "A consolidated wide table can still be right as a derived, denormalised serving layer on top of the facts."
+  ],
+  "approach": "Default rule: one fact table per business process at one declared grain. Orders, shipments, returns and payments are different processes with different grains, timing and dimensions, so they get separate fact tables linked by conformed dimensions (date, customer, product).\n\nFactors that point to separate fact tables:\n- Different grains (order line against shipment line against daily inventory balance).\n- Different dimensionality: shipments have a carrier and a warehouse; orders do not.\n- Different timing and load cadence: one process arrives in real time, another monthly.\n- Different owners and data quality rules.\n- Combining would create sparse rows full of NULLs or force measures to repeat, which double counts when summed.\n\nFactors that allow consolidation:\n- Same process, same grain, same dimensions, with measures that differ only by type, such as a transaction type column for debit and credit; this is a single fact with a type dimension.\n- A serving or consumption need: a wide, denormalised table built from the facts for one dashboard or ML use, documented as derived and not a source of truth.\n\nHow to make multiple facts usable: conformed dimensions shared across them, consistent business keys, a semantic layer that defines metrics once, and drill-across queries that aggregate each fact to a common grain before joining.\n\nPerformance: modern columnar warehouses handle joins well; consolidate for performance only when measured, and do it as a materialised derived table.",
+  "sample_solution": {
+   "language": "SQL",
+   "code": "-- Separate facts at their own grains, sharing conformed dimensions:\n--   fact_order_line    (one row per order line)\n--   fact_shipment_line (one row per shipped line, with carrier and warehouse)\n\n-- Drill-across: aggregate each fact to the common grain FIRST, then join.\nWITH ordered AS (\n  SELECT d.month_key, p.category, SUM(f.quantity) AS units_ordered\n  FROM fact_order_line f\n  JOIN dim_date d    ON d.date_key = f.order_date_key\n  JOIN dim_product p ON p.product_key = f.product_key\n  GROUP BY d.month_key, p.category\n), shipped AS (\n  SELECT d.month_key, p.category, SUM(s.quantity) AS units_shipped\n  FROM fact_shipment_line s\n  JOIN dim_date d    ON d.date_key = s.ship_date_key\n  JOIN dim_product p ON p.product_key = s.product_key\n  GROUP BY d.month_key, p.category\n)\nSELECT COALESCE(o.month_key, s.month_key) AS month_key,\n       COALESCE(o.category, s.category)   AS category,\n       COALESCE(o.units_ordered, 0)       AS units_ordered,\n       COALESCE(s.units_shipped, 0)       AS units_shipped\nFROM ordered o\nFULL OUTER JOIN shipped s\n  ON s.month_key = o.month_key AND s.category = o.category;",
+   "explanation": "Each fact is aggregated to month and category before the join, so neither side is multiplied by the other: joining the two fact tables row to row on product would inflate both sums. The FULL OUTER JOIN keeps months where something was ordered but nothing shipped, and the reverse. This only works because dim_date and dim_product are conformed: the same keys and the same meaning in both facts. That is the price of keeping facts separate, and why conformed dimensions are the backbone of the model."
+  },
+  "common_mistakes": [
+   "Joining two fact tables directly on a shared dimension key, which multiplies rows and inflates sums.",
+   "A single 'everything' fact table with mixed grains and mostly NULL columns.",
+   "Repeating header-level measures on line-level rows.",
+   "Dimensions that are not conformed, so drill-across results do not line up.",
+   "Consolidating for imagined performance gains without measuring."
+  ],
+  "follow_ups": [
+   "How do you decide whether returns belong in the sales fact or their own fact?",
+   "What is a factless fact table, and when do you need one?",
+   "How would a semantic layer hide the drill-across complexity from analysts?",
+   "When is a one-big-table design genuinely the better choice?"
+  ],
+  "related_concepts": [
+   "Business process modelling",
+   "Conformed dimensions",
+   "Bus matrix",
+   "Drill-across",
+   "Factless facts",
+   "Semantic layer",
+   "One-big-table pattern"
+  ],
+  "estimated_minutes": 15,
+  "similar_questions": [
+   {
+    "question": "Build a bus matrix for a retailer's sales, inventory, returns and promotions.",
+    "what_changes": "You lay out processes against conformed dimensions explicitly."
+   },
+   {
+    "question": "Analysts complain they must join five fact tables for one dashboard. What do you do?",
+    "what_changes": "The answer moves to semantic layers and derived serving tables."
+   },
+   {
+    "question": "Model debit and credit transactions for a bank ledger.",
+    "what_changes": "A case where one fact with a transaction-type dimension is the right design."
+   }
+  ]
+ }
+}

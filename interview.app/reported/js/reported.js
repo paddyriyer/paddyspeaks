@@ -258,7 +258,7 @@
     } else {
       ai.appendChild(el('p', { cls: 'rq-muted', text: 'Written by PaddySpeaks AI on ' + prep.generated_at +
         '. Not from the original interview or candidate.' }));
-      if (prep.why_asked) ai.appendChild(el('details', null, [el('summary', { text: 'Why interviewers ask this' }), el('p', { text: prep.why_asked })]));
+      if (prep.why_asked) ai.appendChild(el('details', null, [el('summary', { text: 'Why interviewers ask this' }), prose(prep.why_asked)]));
       var hints = prep.hints || [];
       if (hints.length) {
         var hl = el('ol', { cls: 'rq-plain' });
@@ -273,9 +273,10 @@
       }
       var sol = prep.sample_solution || {};
       var solBox = el('div', { hidden: 'hidden' }, [
-        el('h3', { text: 'Recommended approach' }), el('p', { text: prep.approach || '' }),
-        sol.code ? el('pre', null, [el('code', { text: sol.code })]) : null,
-        sol.explanation ? el('p', { text: sol.explanation }) : null,
+        el('h3', { text: 'Recommended approach' }), prose(prep.approach),
+        sol.code ? el('pre', { tabindex: '0', 'aria-label': 'Sample solution code' + (sol.language ? ' (' + sol.language + ')' : '') }, [el('code', { text: sol.code })]) : null,
+        sol.explanation ? el('h3', { text: sol.code ? 'How it works' : 'Sample answer' }) : null,
+        sol.explanation ? prose(sol.explanation) : null,
         (prep.common_mistakes || []).length ? el('h3', { text: 'Common mistakes' }) : null,
         (prep.common_mistakes || []).length ? listOf(prep.common_mistakes) : null,
         prep.estimated_minutes ? el('p', { cls: 'rq-muted', text: 'Estimated solving time: about ' + prep.estimated_minutes + ' minutes.' }) : null
@@ -311,6 +312,62 @@
     if (!prep) ai.appendChild(el('div', { cls: 'rq-actions' }, [practiceSimilar(q)]));
     li.appendChild(ai);
     return li;
+  }
+
+  /* ---- light formatting for answer text, built with DOM nodes only ----
+   * Blank lines separate paragraphs; lines starting "- ", "* " or "• " are
+   * bullets; "1. " or "(1) " are numbered steps; a short line ending in ":"
+   * is a sub-heading; **bold** and `code` work inline. Text that arrives as
+   * one long line with " - " or " 1. " run together is split back into a list.
+   */
+  function inline(text) {
+    var frag = document.createDocumentFragment();
+    var re = /(\*\*([^*]+)\*\*|`([^`]+)`)/g, last = 0, m;
+    while ((m = re.exec(text))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      frag.appendChild(m[2] ? el('strong', { text: m[2] }) : el('code', { text: m[3] }));
+      last = re.lastIndex;
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
+
+  function unflatten(text) {
+    // "Intro: 1. **A** - x - y 2. **B** - z" -> one item per line
+    if (text.indexOf('\n') >= 0 || text.length < 200) return text;
+    return text
+      .replace(/\s+(\d{1,2}\.)\s+(?=\S)/g, '\n$1 ')
+      .replace(/\s+-\s+(?=[A-Z*])/g, '\n- ');
+  }
+
+  function prose(text) {
+    var box = el('div', { cls: 'rq-prose' });
+    var list = null, kind = null;
+    unflatten(String(text || '')).split(/\n/).forEach(function (raw) {
+      var line = raw.trim();
+      if (!line) { list = null; return; }
+      var bullet = /^([-*•])\s+(.*)$/.exec(line);
+      var number = /^(?:\d{1,2}[.)]|\(\d{1,2}\))\s+(.*)$/.exec(line);
+      if (bullet && list && kind === 'ol' && list.lastChild) {
+        // bullets under a numbered step belong to that step
+        var li = list.lastChild, sub = li.lastChild;
+        if (!sub || sub.nodeName !== 'UL') { sub = el('ul'); li.appendChild(sub); }
+        sub.appendChild(el('li', null, [inline(bullet[2])]));
+        return;
+      }
+      if (bullet || number) {
+        var want = bullet ? 'ul' : 'ol';
+        if (!list || kind !== want) { list = el(want); kind = want; box.appendChild(list); }
+        list.appendChild(el('li', null, [inline(bullet ? bullet[2] : number[1])]));
+        return;
+      }
+      list = null;
+      var heading = line.length <= 70 && /:$/.test(line) && !/[.!?]\s/.test(line);
+      if (/^#{1,4}\s+/.test(line)) { line = line.replace(/^#{1,4}\s+/, ''); heading = true; }
+      if (heading) box.appendChild(el('p', { cls: 'rq-sub' }, [inline(line.replace(/\*\*/g, ''))]));
+      else box.appendChild(el('p', null, [inline(line)]));
+    });
+    return box;
   }
 
   function listOf(items) {

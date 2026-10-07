@@ -1,0 +1,68 @@
+{
+ "question": "Implement a Python class to process a stream of web events from Kafka. Each event contains user, timestamp, page, and duration. The class must support: add(event) to ingest events, top_pages(10) to return the 10 most visited pages, active_users(last_minutes=30) to count users in the last 30 minutes, average_session_duration() to compute mean session duration, and unique_users() to count total unique users. Design for memory efficiency, thread safety, O(log n) or better performance where possible, automatic expiration of old events, and concurrent writers.",
+ "written": "2026-10-07",
+ "prep": {
+  "topic": "Streaming aggregation with sliding windows",
+  "skills_tested": [
+   "Data structures",
+   "Sliding windows",
+   "Thread safety",
+   "Complexity analysis",
+   "Memory management",
+   "Event time vs processing time"
+  ],
+  "why_asked": "Interviewers often ask this because it compresses a stream processor into one class: you have to pick a data structure per query, keep every aggregate incrementally correct as events expire, and say where locking and memory go wrong. It shows whether you reason about complexity per operation rather than writing one loop over everything.",
+  "hints": [
+   "Give each query its own structure: a deque for the window, a counter for pages, an ordered map of user to last-seen time, and running sums for the average.",
+   "Expire old events from the left of the deque and undo their contribution to every aggregate as they leave, so reads never scan the whole window.",
+   "An OrderedDict that moves a user to the end on each visit keeps users sorted by last activity, so active_users can stop at the first user older than the cutoff.",
+   "Decide whose clock 'now' is. Using the newest event timestamp (event time) makes results reproducible and lets you drop events that arrive too late.",
+   "Exact unique counts grow without bound; name HyperLogLog as the memory-bounded alternative and say what accuracy you give up."
+  ],
+  "approach": "Start by pinning down the contract: what 'last 30 minutes' is measured against, how long events must be retained, and whether unique_users means all time or within the window. Here the window is the retention period and unique_users is all time, as the question implies.\n\nThen choose one structure per query:\n- A deque of (timestamp, user, page, duration) holds the retained window in arrival order, so expiry is O(1) per event from the left.\n- A Counter of page views over the window; top_pages uses heapq.nlargest, which is O(P log n) over P distinct pages instead of sorting everything.\n- An OrderedDict of user to last-seen timestamp, moved to the end on every visit, so the oldest-active user is always first. Expiry pops from the front; active_users walks from the end and stops at the cutoff, O(k) for k active users.\n- A running sum of durations and the deque length give the average in O(1).\n- A set of every user for unique_users (or a HyperLogLog sketch at scale).\n\nEvery write appends, updates each aggregate, and expires; every read expires first, so a quiet stream still returns correct answers. One lock guards all of it; with a Kafka consumer per partition, contention is low, and for more throughput you run one aggregator per partition and merge (sum counters, union sets).",
+  "sample_solution": {
+   "language": "Python",
+   "code": "import heapq\nimport threading\nfrom collections import Counter, OrderedDict, deque\nfrom dataclasses import dataclass\n\n\n@dataclass(frozen=True)\nclass Event:\n    user: str\n    timestamp: float   # epoch seconds (event time)\n    page: str\n    duration: float    # seconds spent on the page\n\n\nclass StreamAggregator:\n    \"\"\"Sliding-window aggregates over a stream of web events.\n\n    Events older than `retention_s` (measured from the newest event seen)\n    are expired, and their contribution is removed from every aggregate.\n    One lock guards all state; run one instance per Kafka partition for more\n    throughput and merge the results.\n    \"\"\"\n\n    def __init__(self, retention_s: float = 3600.0):\n        self.retention_s = retention_s\n        self._lock = threading.Lock()\n        self._events = deque()           # (ts, user, page, duration), arrival order\n        self._page_views = Counter()     # page -> views inside the window\n        self._last_seen = OrderedDict()  # user -> last ts, least recent first\n        self._duration_sum = 0.0\n        self._all_users = set()          # all time; use HyperLogLog at large scale\n        self._now = float(\"-inf\")        # event-time clock: newest timestamp seen\n\n    # -- writes -------------------------------------------------------------\n    def add(self, e: Event) -> bool:\n        \"\"\"Ingest one event. Returns False if it arrived too late to count.\"\"\"\n        with self._lock:\n            if e.timestamp < self._now - self.retention_s:\n                return False                       # older than the window: drop\n            self._now = max(self._now, e.timestamp)\n            self._events.append((e.timestamp, e.user, e.page, e.duration))\n            self._page_views[e.page] += 1\n            self._duration_sum += e.duration\n            self._all_users.add(e.user)\n            if e.timestamp >= self._last_seen.get(e.user, float(\"-inf\")):\n                self._last_seen[e.user] = e.timestamp\n                self._last_seen.move_to_end(e.user)\n            self._expire()\n            return True\n\n    def _expire(self) -> None:\n        cutoff = self._now - self.retention_s\n        while self._events and self._events[0][0] < cutoff:\n            _, _, page, duration = self._events.popleft()\n            self._page_views[page] -= 1\n            if self._page_views[page] == 0:\n                del self._page_views[page]\n            self._duration_sum -= duration\n        while self._last_seen:\n            user, ts = next(iter(self._last_seen.items()))\n            if ts >= cutoff:\n                break\n            self._last_seen.popitem(last=False)\n\n    # -- reads --------------------------------------------------------------\n    def top_pages(self, n: int = 10) -> list[tuple[str, int]]:\n        with self._lock:\n            self._expire()\n            return heapq.nlargest(n, self._page_views.items(), key=lambda kv: kv[1])\n\n    def active_users(self, last_minutes: float = 30) -> int:\n        with self._lock:\n            self._expire()\n            cutoff = self._now - last_minutes * 60\n            count = 0\n            for ts in reversed(self._last_seen.values()):\n                if ts < cutoff:\n                    break\n                count += 1\n            return count\n\n    def average_session_duration(self) -> float:\n        with self._lock:\n            self._expire()\n            return self._duration_sum / len(self._events) if self._events else 0.0\n\n    def unique_users(self) -> int:\n        with self._lock:\n            return len(self._all_users)\n\n\nif __name__ == \"__main__\":\n    agg = StreamAggregator(retention_s=3600)\n    t0 = 1_700_000_000\n    agg.add(Event(\"u1\", t0, \"/home\", 12))\n    agg.add(Event(\"u2\", t0 + 60, \"/pricing\", 40))\n    agg.add(Event(\"u1\", t0 + 120, \"/pricing\", 8))\n    agg.add(Event(\"u3\", t0 + 4000, \"/home\", 5))   # the first three fall out of the 1-hour window\n    print(agg.top_pages(10))          # [('/home', 1)]\n    print(agg.active_users(30))       # 1  (u3)\n    print(agg.average_session_duration())  # 5.0\n    print(agg.unique_users())         # 3",
+   "explanation": "Complexity per call: add is O(1) amortised (each event is appended once and expired once); top_pages is O(P log n) over the P distinct pages still in the window; active_users is O(k) for the k users it counts; average_session_duration and unique_users are O(1).\n\nMemory is bounded by the window for everything except the all-time unique set. If 'unique users' only needs to be approximately right, a HyperLogLog sketch keeps it at a few kilobytes with about 1% error.\n\nThe clock is event time: the newest timestamp seen. That makes results reproducible when you replay a topic, and it lets add reject events that arrive later than the window. Slightly out-of-order events inside the window are counted; the OrderedDict only moves a user forward in time, so a late event never makes a user look less recent."
+  },
+  "common_mistakes": [
+   "Recomputing every query by scanning all retained events, which makes each read O(n).",
+   "Expiring events from the deque but forgetting to subtract them from the page counter or the duration sum, so the aggregates drift.",
+   "Using wall-clock time for 'now', which makes replays and tests non-deterministic.",
+   "Sorting the whole page counter on every top_pages call instead of a bounded heap.",
+   "Holding a lock only on writes, so readers see half-updated aggregates.",
+   "Keeping an exact set of all users at large scale without discussing memory."
+  ],
+  "follow_ups": [
+   "How would you shard this across Kafka partitions and merge top_pages correctly?",
+   "Events can arrive up to 10 minutes late. How do watermarks change the design?",
+   "How would you make top_pages exact over a 24-hour window with 50 million distinct pages?",
+   "What changes if each event can belong to a session that spans many page views?",
+   "How would you checkpoint this state so a restarted consumer resumes correctly?"
+  ],
+  "related_concepts": [
+   "Sliding windows",
+   "Watermarks",
+   "HyperLogLog",
+   "Count-Min Sketch",
+   "Heap top-k",
+   "Kafka partitions",
+   "Exactly-once processing"
+  ],
+  "estimated_minutes": 45,
+  "similar_questions": [
+   {
+    "question": "Implement a rate limiter that allows each user 100 requests in any rolling 60-second window and reports the users currently throttled.",
+    "what_changes": "The window is per key and the query is a membership test rather than a top-k."
+   },
+   {
+    "question": "Design a class that returns the median response time over the last 5 minutes of a request stream.",
+    "what_changes": "A running sum no longer works; you need two heaps or an order-statistics structure that supports deletion."
+   },
+   {
+    "question": "Count distinct visitors per hour for the last 24 hours using bounded memory.",
+    "what_changes": "Per-bucket HyperLogLog sketches replace the exact set, and buckets roll over instead of single events."
+   }
+  ]
+ }
+}
