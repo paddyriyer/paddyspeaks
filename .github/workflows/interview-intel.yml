@@ -30,6 +30,7 @@ on:
       # A change to the rules (e.g. the auto-approval threshold) is applied
       # to the existing queue straight away, in publish mode (no new reads).
       - 'interviewintel/pipeline/**'
+      - '.github/workflows/interview-intel.yml'
   workflow_dispatch:
     inputs:
       mode:
@@ -53,7 +54,14 @@ jobs:
       contents: write
 
     steps:
+      # Always work on the newest main, never the commit that triggered the
+      # run: a run queued behind another must see that run's commit and every
+      # decision file pushed since. Decision files are applied once each, so
+      # a run that GitHub cancels while it waits loses nothing — the next run
+      # applies whatever is unapplied.
       - uses: actions/checkout@v7
+        with:
+          ref: main
 
       - uses: actions/setup-python@v7
         with:
@@ -90,8 +98,16 @@ jobs:
           pend=$(python3 -c "import json;print(len(json.load(open('admin/interview-discovery/queue.json'))['pending']))")
           git commit -m "🤖 Interview Intelligence: ${pub} published, ${pend} awaiting review ($(date -u +%Y-%m-%d))"
           for attempt in 1 2 3 4; do
-            git push && break
+            git push && exit 0
             echo "push failed, retrying in $((2 ** attempt))s"
             sleep $((2 ** attempt))
-            git pull --rebase origin "${GITHUB_REF_NAME}"
+            # Another commit landed meanwhile. Take main and re-run the
+            # (idempotent) publish step on top of it rather than rebasing
+            # generated JSON.
+            git fetch origin main && git reset --hard origin/main
+            python3 -m interviewintel.pipeline.run publish || exit 1
+            git add interviewintel/data interview.app/reported/data admin/interview-discovery/queue.json
+            git diff --cached --quiet && echo "Nothing left to commit" && exit 0
+            git commit -m "🤖 Interview Intelligence: republish after a concurrent update ($(date -u +%Y-%m-%d))"
           done
+          exit 1

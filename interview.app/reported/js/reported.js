@@ -38,7 +38,9 @@
   }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
   function load(name) {
-    return fetch(DATA + name, { cache: 'no-cache' }).then(function (r) {
+    // A fresh URL each minute: the CDN in front of GitHub Pages can otherwise
+    // keep serving the data from before the last publish for up to ten minutes.
+    return fetch(DATA + name + '?t=' + Math.floor(Date.now() / 60000), { cache: 'no-cache' }).then(function (r) {
       if (!r.ok) throw new Error(name + ' ' + r.status);
       return r.json();
     });
