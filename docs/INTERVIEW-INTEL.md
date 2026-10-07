@@ -20,7 +20,7 @@ Read this before touching `interviewintel/`, `interview.app/reported/` or
 | `interview.app/reported/` | Public pages: questions, trending, companies, how it works |
 | `interview.app/reported/data/` | Public JSON — **approved material only** |
 | `admin/interview-discovery/` | The review page (`noindex`) and `queue.json` |
-| `.github/workflows/interview-intel.yml` | Weekly run; also runs when a decision file is pushed |
+| `.github/workflows/interview-intel.yml` | Weekly run; also runs (publish mode) when a decision file or the pipeline code is pushed |
 | `interviewintel/tests/test_pipeline.py` | The guardrails (also in Validate Content) |
 
 ## Cost: existing infrastructure only
@@ -126,11 +126,15 @@ filters (the JobSignal rule — one implementation of every judgement).
    are stripped from other titles. Provider author fields are dropped in the
    source parser (authors, usernames, the form's name column). A practice
    question containing personal data is rejected.
-6. **Nothing unreviewed is public.** Discovery writes `pending` reports. Only
-   approved reports of approved questions reach `interview.app/reported/data/`.
-   Auto-publishing exists but is off (`AUTO_PUBLISH_MIN_CONFIDENCE = None`) and,
-   when switched on, never applies below 50 or to a flagged or possibly-duplicate
-   report.
+6. **Auto-approval at 70+, everything else reviewed.** Discovery writes
+   `pending` reports. On every run, `review.auto_publish` approves pending
+   reports scoring ≥ `AUTO_PUBLISH_MIN_CONFIDENCE` (70: the strong and clear
+   bands — the owner's decision, 2026-10-07) that carry **no flag** and **no
+   possible duplicate**; it never goes below 50. Everything else waits for a
+   person. Auto-approved reports are listed on the review page
+   (*Auto-approved, live*) and can be unpublished there (a `reject` decision);
+   a rejection is final. Only approved reports of approved questions reach
+   `interview.app/reported/data/`.
 7. **Three kinds of text, always labelled.** *Reported in an interview* / *From
    a public question list* (source-derived) · *PaddySpeaks practice question*
    (our rewrite) · *AI-generated* preparation material and *AI-generated similar
@@ -209,7 +213,10 @@ original source, the classifier's reason, the confidence and its breakdown,
 flags, extraction notes, possible duplicates and bank matches.
 
 Actions: **Approve**, **Edit** (approve with edits), **Reject**, **Merge
-duplicate**. The page cannot change the site. Decisions are drafted in the
+duplicate** — one at a time, or in bulk: tick reports (or **Select all**,
+**Select none**, **Select 70+**) and **Approve / Reject selected**. The
+*Auto-approved, live* tab lists what was published automatically, with
+**Unpublish** (single or bulk). The page cannot change the site. Decisions are drafted in the
 browser (`ps-intel-review-draft`), then **Commit decisions on GitHub** opens
 GitHub's new-file page with the decision file filled in (or download it and
 commit it). The push runs the workflow in `publish` mode, which applies the

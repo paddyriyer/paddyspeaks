@@ -352,6 +352,49 @@ class TestConfidence(unittest.TestCase):
         self.assertEqual(review.auto_publish(led, threshold=None), 0)
 
 
+class TestAutoApproval(unittest.TestCase):
+    """Owner's decision (2026-10-07): strong (70–89) and clear (90–100) publish
+    automatically; flagged reports, possible duplicates and anything below 50
+    still wait for a person."""
+
+    def ledger(self):
+        led = store.empty_ledger()
+        cases = {"clear": (95, [], []), "strong": (72, [], []), "review": (60, [], []), "low": (40, [], []),
+                 "flagged": (88, ["too_close_to_source"], []), "dup": (91, [], [{"id": "q-x"}])}
+        for name, (conf, flags, dups) in cases.items():
+            led["questions"]["q-" + name] = {"id": "q-" + name, "status": "pending"}
+            led["reports"]["r-" + name] = {"id": "r-" + name, "question_id": "q-" + name, "status": "pending",
+                                           "confidence": conf, "flags": flags, "possible_duplicates": dups}
+        return led
+
+    def test_strong_and_clear_are_approved_by_default(self):
+        self.assertEqual(config.AUTO_PUBLISH_MIN_CONFIDENCE, config.BAND_STRONG)
+        led = self.ledger()
+        self.assertEqual(review.auto_publish(led, when="2026-10-07"), 2)
+        status = {k: r["status"] for k, r in led["reports"].items()}
+        self.assertEqual(status, {"r-clear": "approved", "r-strong": "approved", "r-review": "pending",
+                                  "r-low": "pending", "r-flagged": "pending", "r-dup": "pending"})
+        self.assertEqual(led["questions"]["q-clear"]["status"], "approved")
+        self.assertTrue(led["reports"]["r-clear"]["decided_by"].startswith("auto"))
+
+    def test_auto_approved_reports_are_listed_and_can_be_unpublished(self):
+        led = self.ledger()
+        for q in led["questions"].values():
+            q.update(title="t", question="q", category="SQL", subcategory=None, difficulty=None, technology=[])
+        for r in led["reports"].values():
+            r.update(url="https://news.ycombinator.com/item?id=1", discovered="2026-10-07", band="strong",
+                     company_name=None, role_name=None, source_type="forum", source_title="t")
+        review.auto_publish(led, when="2026-10-07")
+        q = publish.queue(led)
+        self.assertEqual({a["id"] for a in q["auto_approved"]}, {"r-clear", "r-strong"})
+        review.apply(led, {"decisions": [{"report": "r-clear", "action": "reject", "note": "not relevant"}]})
+        self.assertEqual(led["reports"]["r-clear"]["status"], "rejected")
+        self.assertEqual(led["questions"]["q-clear"]["status"], "rejected")
+        # A rejection is final: a later run does not re-approve it.
+        review.auto_publish(led, when="2026-10-08")
+        self.assertEqual(led["reports"]["r-clear"]["status"], "rejected")
+
+
 class TestClassifierRules(unittest.TestCase):
     def test_recruiting_ad_rejected_before_any_model_call(self):
         self.assertEqual(classify_rules.prefilter("Hiring", AD), "recruiting advertisement")
