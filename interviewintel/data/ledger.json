@@ -1,5 +1,7 @@
 {
- "applied_decisions": [],
+ "applied_decisions": [
+  "2026-10-07T223410.json"
+ ],
  "questions": {
   "q-111e950c62": {
    "category": "System Design",
@@ -9,10 +11,79 @@
    "edited": false,
    "id": "q-111e950c62",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "1) Clarify requirements: data characteristics (univariate/multivariate), latency SLAs, acceptable false positive rates, data volume, and whether historical patterns exist. 2) Map algorithms to use cases: simple statistical methods (Z-score, moving average) for fast, interpretable detection; EWMA for adaptive baselines; Prophet for seasonal/trend data; Isolation Forest for multivariate point anomalies; custom ML for complex patterns. 3) Design the system architecture: data ingestion, feature engineering pipeline, parallel detection modules, anomaly scoring/ranking, alert threshold tuning. 4) Present detailed trade-off analysis for each approach across four dimensions (latency, accuracy, false positives, compute). 5) Recommend a hybrid or ensemble approach that combines strengths. 6) Discuss operational considerations: monitoring the monitor, A/B testing thresholds, gradual rollout, retraining strategies.",
+    "common_mistakes": [
+     "Not clarifying latency and false positive rate requirements upfront—these drive algorithm selection",
+     "Choosing a single algorithm instead of hybrid/ensemble approach; real production systems need multiple signals",
+     "Ignoring concept drift and assuming static baselines; EWMA or retraining strategies are necessary",
+     "Not accounting for cold starts where insufficient historical data exists for statistical methods",
+     "Confusing accuracy with false positive rate; high accuracy doesn't guarantee low false positives in imbalanced datasets",
+     "Using simple Z-score on non-normal distributions without transformation or robustness modifications (e.g., MAD)"
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "How would you handle seasonal or cyclical patterns? (Introduces Prophet, seasonal decomposition, or time-series forecasting)",
+     "How do you prevent alert fatigue from false positives in a real system? (Threshold tuning, alert deduplication, severity levels, runbooks)",
+     "How would you design the system to handle multiple time series simultaneously? (Distributed architecture, horizontal scaling, metric grouping)",
+     "How do you detect when the anomaly detection system itself is broken? (Monitoring the monitor—track detector agreement, coverage)",
+     "How would you implement gradual rollout and A/B testing of a new detection algorithm? (Canary releases, shadow mode, SLO comparisons)",
+     "How do you handle the cold-start problem when no historical data exists for a new metric? (Default thresholds, manual tuning, expert input)"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by clarifying the problem: what type of anomalies (point anomalies, contextual, collective)?",
+     "Define metrics early: What's the acceptable false positive rate? Latency requirements? Data volume?",
+     "Consider the temporal nature of the data and whether patterns are seasonal or trending",
+     "Think about which algorithms work for univariate vs multivariate data",
+     "Discuss how to handle cold starts and concept drift over time"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Time Series Forecasting (Prophet, ARIMA for trend/seasonality)",
+     "Statistical Process Control (Control charts, Shewhart rules)",
+     "Concept Drift Detection and Handling",
+     "Real-time Streaming Architectures (Kafka, Flink)",
+     "Feature Engineering for Anomaly Detection",
+     "Ensemble Methods and Voting Mechanisms",
+     "Imbalanced Classification and Cost-Sensitive Learning",
+     "Observability and Monitoring Infrastructure"
+    ],
+    "sample_solution": {
+     "code": "import numpy as np\nimport pandas as pd\nfrom scipy import stats\nfrom sklearn.ensemble import IsolationForest\nfrom collections import deque\n\nclass AnomalyDetector:\n    \"\"\"Comparative anomaly detection system with multiple algorithms.\"\"\"\n    \n    def __init__(self, window_size=100):\n        self.window_size = window_size\n        self.data_history = deque(maxlen=window_size)\n        self.detection_results = {}\n    \n    def z_score_detect(self, value, threshold=3.0):\n        \"\"\"Statistical: Z-score detection.\n        Pros: Fast O(1), interpretable, no training needed.\n        Cons: Assumes normal distribution, sensitive to outliers in baseline.\n        Latency: <1ms | False Positives: High if data skewed | Accuracy: Medium\n        \"\"\"\n        if len(self.data_history) < 10:\n            return {'anomaly': False, 'score': 0, 'method': 'z_score'}\n        \n        mean = np.mean(self.data_history)\n        std = np.std(self.data_history)\n        z_score = abs((value - mean) / (std + 1e-10))\n        \n        return {\n            'anomaly': z_score > threshold,\n            'score': z_score,\n            'method': 'z_score'\n        }\n    \n    def moving_average_detect(self, value, threshold=2.0):\n        \"\"\"Statistical: Moving average with deviation bands.\n        Pros: Fast O(n), captures local trends, simple to implement.\n        Cons: Lag in detection, requires window tuning, can miss gradual changes.\n        Latency: <1ms | False Positives: Medium | Accuracy: Medium\n        \"\"\"\n        if len(self.data_history) < 5:\n            return {'anomaly': False, 'score': 0, 'method': 'moving_avg'}\n        \n        recent = list(self.data_history)[-5:]\n        ma = np.mean(recent)\n        std_dev = np.std(recent)\n        deviation = abs(value - ma) / (std_dev + 1e-10)\n        \n        return {\n            'anomaly': deviation > threshold,\n            'score': deviation,\n            'method': 'moving_avg'\n        }\n    \n    def ewma_detect(self, value, alpha=0.3, threshold=2.5):\n        \"\"\"Statistical: Exponential Weighted Moving Average.\n        Pros: Adaptive to recent changes, responsive to concept drift, efficient O(1).\n        Cons: Requires alpha tuning, memory of initialization affects early periods.\n        Latency: <1ms | False Positives: Low-Medium | Accuracy: Medium-High\n        \"\"\"\n        if not hasattr(self, 'ewma_baseline'):\n            self.ewma_baseline = value\n            self.ewma_std = 0\n            return {'anomaly': False, 'score': 0, 'method': 'ewma'}\n        \n        # Update exponential baseline\n        self.ewma_baseline = alpha * value + (1 - alpha) * self.ewma_baseline\n        \n        # Update variance estimate\n        residual = abs(value - self.ewma_baseline)\n        self.ewma_std = alpha * residual + (1 - alpha) * self.ewma_std\n        \n        score = (value - self.ewma_baseline) / (self.ewma_std + 1e-10)\n        \n        return {\n            'anomaly': abs(score) > threshold,\n            'score': abs(score),\n            'method': 'ewma'\n        }\n    \n    def isolation_forest_detect(self, values_matrix, contamination=0.05):\n        \"\"\"ML: Isolation Forest for multivariate detection.\n        Pros: Handles multivariate data, doesn't assume distributions, good for rare anomalies.\n        Cons: Slower (tree building), requires 2D data, memory overhead for forests.\n        Latency: 10-100ms | False Positives: Medium-Low | Accuracy: High\n        \"\"\"\n        if values_matrix.shape[0] < 50:\n            return {'anomaly': False, 'score': 0, 'method': 'isolation_forest'}\n        \n        iso_forest = IsolationForest(\n            contamination=contamination,\n            random_state=42,\n            n_estimators=100\n        )\n        predictions = iso_forest.fit_predict(values_matrix)\n        scores = -iso_forest.score_samples(values_matrix)\n        \n        # Return result for most recent point\n        return {\n            'anomaly': predictions[-1] == -1,\n            'score': scores[-1],\n            'method': 'isolation_forest'\n        }\n    \n    def ensemble_detect(self, value, values_matrix=None, voting_threshold=2):\n        \"\"\"Hybrid approach: Ensemble of multiple detectors.\n        Pros: Reduces false positives, combines strengths of multiple methods.\n        Cons: Higher latency (100-200ms), complex tuning, difficult to debug.\n        Latency: 50-200ms | False Positives: Very Low | Accuracy: Very High\n        \"\"\"\n        votes = 0\n        methods_triggered = []\n        scores = {}\n        \n        # Statistical methods (fast)\n        z_result = self.z_score_detect(value, threshold=3.0)\n        scores['z_score'] = z_result['score']\n        if z_result['anomaly']:\n            votes += 1\n            methods_triggered.append('z_score')\n        \n        ewma_result = self.ewma_detect(value, alpha=0.3, threshold=2.5)\n        scores['ewma'] = ewma_result['score']\n        if ewma_result['anomaly']:\n            votes += 1\n            methods_triggered.append('ewma')\n        \n        # ML method only if we have multivariate data\n        if values_matrix is not None and len(values_matrix) >= 50:\n            iso_result = self.isolation_forest_detect(values_matrix, contamination=0.05)\n            scores['isolation_forest'] = iso_result['score']\n            if iso_result['anomaly']:\n                votes += 1\n                methods_triggered.append('isolation_forest')\n        \n        anomaly_score = np.mean(list(scores.values()))\n        \n        return {\n            'anomaly': votes >= voting_threshold,\n            'score': anomaly_score,\n            'votes': votes,\n            'methods_triggered': methods_triggered,\n            'method': 'ensemble'\n        }\n    \n    def detect(self, value, values_matrix=None):\n        \"\"\"Main detection interface.\"\"\"\n        self.data_history.append(value)\n        \n        # Run ensemble by default\n        result = self.ensemble_detect(value, values_matrix)\n        \n        return result\n\n# Example usage and comparison\nif __name__ == '__main__':\n    # Simu",
+     "explanation": "This solution demonstrates a comparative framework for anomaly detection. The key insight is that no single algorithm suits all scenarios—each has distinct trade-offs:\n\n**Z-Score**: Fastest (sub-millisecond), but assumes normality and is sensitive to outliers in the baseline. Good for normally-distributed metrics but high false positive rates on skewed data.\n\n**Moving Average**: Still very fast, captures local trends, but introduces lag and requires careful window tuning. Misses gradual changes.\n\n**EWMA**: Excellent balance—highly responsive to concept drift (α controls adaptation), O(1) latency, low false positives. Recommended for most streaming scenarios.\n\n**Isolation Forest**: Shines with multivariate data and complex patterns. 10-100ms latency is acceptable for batch checks but prohibitive for real-time alerts. Doesn't assume distributions.\n\n**Ensemble**: Combines methods, dramatically reducing false positives by requiring agreement. Voting mechanism (threshold=2) means an alert only triggers when ≥2 detectors agree. This increases latency (100-200ms) but acceptable for most monitoring platforms.\n\nArchitectural decisions: Store raw values in a fixed-size deque for memory efficiency. Initialize baselines over cold-start periods. Use separate code paths for univariate (fast) vs multivariate (slower) detection. The ensemble approach is production-recommended because false positive cost (alert fatigue, on-call burden) typically outweighs missing some anomalies.",
+     "language": "python"
+    },
+    "similar_questions": [
+     {
+      "question": "Design a fraud detection system for payment transactions. Compare rule-based, statistical, and graph-based approaches. How do you minimize false positives while maintaining high recall?",
+      "what_changes": "Context shifts from data quality to fraud (different false positive cost structure and latency tolerance), introduces graph-based methods (user-merchant networks), and emphasizes recall over precision"
+     },
+     {
+      "question": "Design a real-time monitoring system for application performance metrics. How would you detect SLA violations, cascading failures, and performance regressions?",
+      "what_changes": "Focuses on performance metrics with strict latency SLAs (<100ms detection), introduces multi-metric correlation and causal inference, emphasizes detectability of known patterns (SLA thresholds)"
+     },
+     {
+      "question": "Design an anomaly detection system for IoT sensor data from thousands of devices. How do you handle the volume, heterogeneity, and concept drift across devices?",
+      "what_changes": "Emphasizes distributed/edge computing architecture, handling device heterogeneity (different sensor types and calibration), and privacy concerns; requires unsupervised approaches due to sparse labeling"
+     }
+    ],
+    "skills_tested": [
+     "System Design",
+     "Statistical Methods",
+     "Machine Learning",
+     "Trade-off Analysis",
+     "Scalability",
+     "Real-time Processing",
+     "Algorithm Selection"
+    ],
+    "topic": "Anomaly Detection System Design for Data Quality Monitoring",
+    "why_asked": "Interviewers often ask this because anomaly detection is critical in production systems across finance, cloud monitoring, and data platforms. It requires balancing statistical rigor with computational efficiency, handling concept drift, and managing false positives in alert-driven systems. It tests both algorithmic knowledge and practical system design thinking."
+   },
+   "prep_for": "19f27b201219",
    "question": "Design an anomaly detection system for a data quality monitoring platform. Compare and contrast different approaches: Z-score, moving average, EWMA (exponential weighted moving average), Prophet, Isolation Forest, and custom ML models. Explain the trade-offs of each approach in terms of latency, accuracy, false positive rate, and computational overhead.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Anomaly Detection",
    "technology": [
     "Machine Learning",
@@ -29,10 +100,78 @@
    "edited": false,
    "id": "q-25e1464058",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "The grain-determination process follows these steps: (1) Understand the business process by interviewing stakeholders and studying existing reports; (2) Identify candidate grains by examining atomic events—the lowest level of detail the business captures; (3) Evaluate each candidate grain against query requirements, cardinality, storage, and performance constraints; (4) Validate that all dimensions can join at that grain without creating many-to-many relationships; (5) Document the grain definition explicitly so that it's unambiguous (e.g., 'one row per order line item per warehouse per shipment date'); (6) Consider whether a conformed grain across fact tables will enable useful roll-ups and comparisons; (7) Review the decision with stakeholders to confirm it supports their most important use cases.",
+    "common_mistakes": [
+     "Confusing grain with dimensions: grain is the level of a single fact row, not which dimensions you include",
+     "Choosing grain based on data availability rather than business requirements, leading to inflexible models",
+     "Mixing grains in a single fact table (e.g., some rows per order, some per line item), which breaks aggregation logic",
+     "Choosing too coarse a grain (e.g., per month) to reduce row count, losing the ability to drill down and making the model incompatible with operational analytics",
+     "Ignoring many-to-many join risks: if a dimension can have multiple values per grain row, you've chosen the wrong grain or wrong dimension",
+     "Failing to validate that all measures make sense at the chosen grain (e.g., if you sum revenue at a finer grain than it was captured, you'll double-count)"
+    ],
+    "estimated_minutes": 15,
+    "follow_ups": [
+     "How would you decide between a single fact table at one grain versus multiple fact tables at different grains (conformed vs. separate)?",
+     "What happens if a business requirement arrives later that needs a finer grain than your current design?",
+     "How do you handle slowly-changing dimensions differently based on fact table grain?",
+     "If your grain analysis reveals that a natural grain creates 10 billion rows per month, how do you adapt?",
+     "How do you validate that your chosen grain supports the 80% of queries without forcing aggregation into views or cubes?",
+     "When would you intentionally pre-aggregate a fact table to a coarser grain, and what are the trade-offs?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by identifying the business process you're modeling, not the data you have",
+     "Ask: what is the most atomic event or transaction the business cares about measuring?",
+     "Consider who will query the table and at what level of detail they need answers",
+     "Think about whether you need to support drill-down analysis or summary views",
+     "Cardinality matters: how many rows will you have, and is that sustainable?"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Dimensional modeling and the Kimball method",
+     "Slowly changing dimensions and grain considerations",
+     "Conformed dimensions and fact table conformance",
+     "Factless fact tables and the grain paradox",
+     "Many-to-many relationships in dimensional models",
+     "Additive, semi-additive, and non-additive measures",
+     "Star schema vs. snowflake schema design",
+     "Fact table aggregation and roll-up logic"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "Walk through a concrete example: an e-commerce order fulfillment process. The business process involves customers placing orders, items being picked, packed, and shipped. Candidate grains might be: (A) one row per order, (B) one row per order line item, or (C) one row per order line item per shipment event. Analysis: Grain A loses detail about which items were in the order and their individual prices/quantities, making it hard to analyze product performance. Grain B works well if all items ship together, but fails if items from one order ship separately—you'd lose the ability to track partial shipments. Grain C (one row per order line item per shipment) is atomic: it captures the exact moment inventory leaves the warehouse, allows analysis by product, order, customer, date, and warehouse, supports drill-down from orders to line items to shipments, and avoids many-to-many relationships. The conformed grain is 'one row per combination of (order_id, line_item_id, shipment_id)', with dimensions for Order, Product, Customer, Warehouse, and Date. Trade-offs: Grain C uses more rows than Grain A (more storage), but enables richer analysis; partial shipments are now queryable, and aggregation logic is unambiguous. You'd document: 'Fact_Order_Fulfillment is grained at the order line item shipment level, meaning each row represents one line item from one order shipped in one shipment event. This allows analysis of product performance, fulfillment efficiency, and customer order patterns at multiple levels of detail.'",
+     "language": "verbal"
+    },
+    "similar_questions": [
+     {
+      "question": "Design a fact table for a multi-level sales organization where sales can be attributed to multiple salespeople per transaction. What grain would you choose and why?",
+      "what_changes": "Introduces many-to-many relationship as a constraint; tests whether the candidate would normalize the relationship or choose a finer grain"
+     },
+     {
+      "question": "A retailer wants to track both inventory transactions (goods received, sold, shrink) and end-of-day inventory balances. How would you model this and what grains would you use?",
+      "what_changes": "Multiple business processes with different atomic events; tests whether the candidate creates separate fact tables at different conformed grains or tries to force one table"
+     },
+     {
+      "question": "Design a fact table for website click-stream events where the volume is 5 billion events per day. What grain considerations would you account for?",
+      "what_changes": "Extreme scale and performance constraints; tests whether the candidate thinks about pre-aggregation, partitioning, and grain trade-offs under resource pressure"
+     }
+    ],
+    "skills_tested": [
+     "Data modeling",
+     "Dimensional modeling",
+     "Requirements gathering",
+     "Business process understanding",
+     "Cardinality analysis",
+     "Design trade-offs"
+    ],
+    "topic": "Determining Grain in Fact Tables",
+    "why_asked": "Interviewers often ask this because grain is a foundational decision in dimensional modeling that cascades into all downstream decisions: dimension joins, aggregation levels, storage requirements, and query performance. Understanding grain reveals whether a candidate thinks systematically about business requirements, cardinality constraints, and trade-offs—not just implementing a schema mechanically."
+   },
+   "prep_for": "1ce30b8c06cf",
    "question": "Explain your approach to determining grain in a fact table. Describe how you decide what the atomic level should be in data modeling and walk through your process for making this decision.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Modeling",
    "technology": [
     "Data Warehouse",
@@ -48,10 +187,79 @@
    "edited": false,
    "id": "q-2d4a3a07b9",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Start by categorizing metrics into operational pillars: (1) Performance—does it meet latency/throughput SLOs under baseline and peak load? (2) Reliability—what's the actual error rate, failure recovery time, and data quality drift? (3) Scalability—can it handle 10x, 100x growth in data volume or user concurrency without re-architecting? (4) Resilience—can it survive component failures, regional outages, or schema changes? (5) Cost—is it economically sustainable, and what's the cost per transaction or GB processed? Then define specific thresholds for each metric tied to business requirements, not arbitrary numbers. Finally, discuss how you'd instrument the system to collect these metrics with minimal overhead, and define alerting policies so the team responds to degradation before it impacts users.",
+    "common_mistakes": [
+     "Choosing only availability/uptime metrics and ignoring latency, throughput, or data quality—a system can be 'up' but too slow or wrong to be useful.",
+     "Setting arbitrary thresholds (e.g., 'CPU < 80%') without understanding business requirements or capacity limits; metrics without context are noise.",
+     "Collecting metrics but not acting on them: instrumenting everything and then ignoring alerts leads to alert fatigue and missed degradation.",
+     "Ignoring cost metrics early; an over-provisioned system may perform well initially but become unaffordable as scale grows.",
+     "Measuring only primary-path metrics and ignoring failure modes and recovery metrics; you don't know if the system is truly resilient until it fails.",
+     "Conflating leading and lagging indicators: reporting P99 latency after an SLA breach has already occurred, rather than alerting on trends that predict breaches."
+    ],
+    "estimated_minutes": 18,
+    "follow_ups": [
+     "How would you prioritize these metrics if you could only instrument five?",
+     "Walk me through a scenario: P99 latency is increasing 10% week-over-week, but no SLA has been breached yet. What do you do?",
+     "How would you distinguish between a one-off spike (e.g., a traffic anomaly) and a real degradation trend that warrants investigation?",
+     "If cost per GB processed is higher than your competitors', what would you investigate first?",
+     "How would you set Tier 3 targets (CPU, memory utilization) for a system you haven't built yet?",
+     "Design an alerting policy: which of these metrics would you page on-call for immediately, and which would you log for a weekly review?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Consider metrics across multiple dimensions: latency, throughput, reliability, resource utilization, and cost.",
+     "Think about what would make you confident enough to increase data volume by 10x or add a new critical use case.",
+     "Distinguish between leading indicators (predictive) and lagging indicators (reactive).",
+     "What failures would you want to know about in the first minute, not after customers complain?",
+     "Consider both technical metrics and business-aligned metrics (SLAs, data freshness guarantees)."
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Service Level Objectives (SLOs) and Error Budgets",
+     "Observability (metrics, logs, traces)",
+     "Capacity Planning and Headroom Analysis",
+     "Distributed Systems Reliability (MTBF, MTTR)",
+     "Cost Optimization and FinOps",
+     "Data Quality Frameworks",
+     "Incident Response and Blameless Post-Mortems",
+     "Load Testing and Chaos Engineering"
+    ],
+    "sample_solution": {
+     "code": "OPERATIONAL METRICS FRAMEWORK\n\nTIER 1: Non-Negotiable Performance Metrics (SLO-bound)\n- P99 end-to-end latency for critical data pipelines (e.g., ≤5s for real-time dashboards)\n- P95 query latency for OLAP workloads against the data warehouse (e.g., ≤2s for 95th percentile)\n- Throughput: records/events processed per second, sustained vs. burst capacity\n- Data freshness SLO: maximum acceptable staleness for each data product (e.g., ≤15min for customer segments)\n\nTIER 2: Reliability Metrics (error budgets and quality)\n- Pipeline success rate: % of scheduled jobs completing without failures (target: 99.95%)\n- Data quality score: % of records passing validation rules; track by source and by pipeline stage\n- Mean time to recovery (MTTR) for common failure modes (target: <5min autonomous recovery, <15min manual)\n- Backlog lag: if a job fails, how many hours of data are not yet processed? (Must prevent cascading delays)\n\nTIER 3: Scalability Metrics (headroom and growth capacity)\n- CPU and memory utilization at P95 load (target: 60-75% to allow 2-3x growth before re-provisioning)\n- Storage growth rate and projected runway (e.g., 6-12 months before hitting capacity limits)\n- Connections/concurrency per database node (track against documented limits)\n- Pipeline duration trend over time: is processing taking longer as data volume grows? (Should scale sub-linearly)\n\nTIER 4: Resilience Metrics (chaos and failure recovery)\n- Replication lag (for replicated data): max lag between primary and secondary (e.g., ≤1s)\n- Failover time: time to detect failure and switch to standby (target: <2min)\n- Data loss tolerance: RPO (Recovery Point Objective, e.g., ≤1 batch cycle) and RTO (Recovery Time Objective, e.g., ≤1 hour)\n- Graceful degradation score: if one component fails, what % of functionality remains available?\n\nTIER 5: Cost Efficiency Metrics (sustainability)\n- Cost per GB processed (or per 1M events) and cost trend month-over-month\n- Cost per SLO unit: cost to maintain P99 latency SLO (reveals if architecture is over-provisioned)\n- Resource utilization ROI: revenue per cloud dollar spent (business alignment)\n- Idle resource percentage: compute/storage resources not actively used (optimization opportunity)\n\nTIER 6: Business/Operational Metrics\n- Data coverage: % of business entities/domains represented in the architecture\n- Time-to-insight: hours from raw event to actionable insight for key use cases\n- Stakeholder satisfaction: uptime SLO compliance reported to data consumers monthly\n- On-call burden: incidents per week per engineer (indicator of stability)\n\nCRITICAL: Set alerting rules BEFORE they're needed\n- Alert on leading indicators: CPU trending toward 85%, P99 latency rising 20% week-over-week\n- Alert on lagging indicators: error rate >0.5%, SLA breach probability >50%\n- Separate severity: page on-call for SLA breach; warn in Slack for trend anomalies.",
+     "explanation": "This framework defines 'genuinely good' operationally: the system meets its Service Level Objectives (SLOs) under real production load, degrades gracefully under stress, and has observable headroom for growth without architectural rework. Tier 1 and 2 metrics are non-negotiable because they directly impact users and data trust. Tier 3 metrics determine if the system can handle business growth (the core definition of 'scalability'). Tier 4 metrics test resilience by measuring recovery from realistic failures. Tier 5 ensures the architecture is economically sustainable—a system that works but costs 5x more than alternatives will eventually be replaced. Tier 6 ties metrics to business outcomes. The key insight: pick threshold targets for each metric aligned to business requirements, then instrument the system to measure them continuously. An alerting policy that fires before users are impacted (Tier 3 leading indicators) prevents production fires and builds confidence that the system is resilient against future shifts.",
+     "language": "text"
+    },
+    "similar_questions": [
+     {
+      "question": "A team hands you a data system they claim 'scales horizontally.' How would you prove or disprove that claim with specific experiments and metrics?",
+      "what_changes": "Focus shifts from evaluating a deployed system to testing scalability claims; requires understanding of load testing, bottleneck identification, and evidence-based validation."
+     },
+     {
+      "question": "Your data warehouse is meeting all SLOs, but stakeholders complain that insights are 'stale.' What metrics would you introduce to measure freshness, and how would you redesign to improve it without breaking reliability SLOs?",
+      "what_changes": "Introduces a trade-off between conflicting requirements (speed vs. reliability); requires prioritizing business need and designing for balanced optimization rather than single-axis metrics."
+     },
+     {
+      "question": "Design a monitoring dashboard for a newly deployed streaming data platform that a non-technical executive and an on-call engineer both need to understand. What metrics go on it?",
+      "what_changes": "Audience-aware communication; requires translating technical metrics into business language and highlighting what matters for different stakeholders."
+     }
+    ],
+    "skills_tested": [
+     "Systems Design",
+     "Monitoring and Observability",
+     "Performance Analysis",
+     "Capacity Planning",
+     "Incident Response Design",
+     "Cost Optimization",
+     "Data Architecture"
+    ],
+    "topic": "Data Architecture Evaluation and Monitoring Post-Deployment",
+    "why_asked": "Interviewers often ask this because it separates engineers who deploy systems from those who truly understand operational responsibility. In data engineering, launching a system is only the beginning—the real value comes from measurable confidence that it meets business and technical requirements under real load. This question tests whether you think beyond 'it works on my laptop' to production realities: performance degradation under load, resource utilization patterns, failure modes, and whether the system can adapt as business needs change. It reveals maturity in thinking about observability, alerting, and continuous improvement."
+   },
+   "prep_for": "f717c9e459f5",
    "question": "After a newly designed data architecture begins handling production workloads, what specific, non-negotiable metrics would you use to evaluate whether the system is genuinely good, scalable, and resilient against future business shifts?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Architecture",
    "technology": [],
    "title": "Data Architecture — Production Evaluation Metrics"
@@ -64,10 +272,79 @@
    "edited": false,
    "id": "q-59064b7a6e",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "(1) Gather requirements: business SLAs (latency, consistency, retention), data volume and growth rate, query patterns, write patterns, team size and skills. (2) Identify reversibility: separate hard-to-reverse decisions (schema, partitioning strategy, consistency model) from flexible ones (visualization, caching layer). (3) Enumerate trade-offs: normalization vs. denormalization, strong vs. eventual consistency, transactional vs. analytical separation, build vs. buy. (4) Prototype or reference: validate assumptions with small experiments or reference architectures in your domain. (5) Document assumptions: capture why you chose X over Y so future decisions inherit that reasoning.",
+    "common_mistakes": [
+     "Choosing technology based on resume-building or hype rather than requirements (e.g., adopting Kafka when simple queuing suffices).",
+     "Ignoring team capability and assuming the 'best' tool is adoptable; then it becomes a liability.",
+     "Over-normalizing early to avoid denormalization, then suffering query performance; conversely, over-denormalizing without understanding consistency costs.",
+     "Conflating 'scalable' with 'ready for day one'; over-engineering for 10x growth that never happens.",
+     "Not documenting assumptions; later decisions contradict the original intent.",
+     "Assuming strong consistency is 'better' without understanding the latency and availability costs."
+    ],
+    "estimated_minutes": 25,
+    "follow_ups": [
+     "Walk me through how your choice would change if the data volume were 100x larger.",
+     "What would cause you to reconsider your stack in 12 months? What signal would trigger a re-evaluation?",
+     "How do you balance the desire for a unified platform (one database, one warehouse) with the reality that no single tool excels at everything?",
+     "If the team grew from 2 to 20 engineers, what architectural changes would you make proactively?",
+     "Describe a situation where you chose simplicity over 'best-in-class' and why. When did it pay off, and when did you regret it?",
+     "How do you version and evolve the data model without breaking downstream consumers?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by listing the unknowns and non-negotiables: what does the business need, what constraints exist?",
+     "Distinguish between decisions that are hard to reverse (data modeling, storage layer) and those that are easier to change (compute, orchestration)",
+     "Consider the team's operational capacity and existing expertise—a poorly-chosen perfect tool becomes a liability if nobody knows it.",
+     "Map data flows and latency requirements before picking databases or message brokers.",
+     "Think about the cost curve: how does cost scale with data volume, query complexity, or concurrency?"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "CAP theorem and consistency models",
+     "Scalability dimensions (data volume, throughput, latency)",
+     "OLTP vs. OLAP trade-offs",
+     "Data modeling (normalization, denormalization, star schema)",
+     "Reversible vs. irreversible architecture decisions",
+     "Cost-benefit analysis and ROI",
+     "Conway's Law (team structure reflects system architecture)",
+     "Data lineage and metadata management"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "A verbal framework: 'When I start, I ask: (1) What's the source-of-truth requirement? If users expect strong consistency on writes, I may need a transactional database upfront; if eventual consistency is acceptable, I have more flexibility. (2) What's the latency SLA? If queries must return in <100ms, I might denormalize or cache aggressively; if 10-second latency is fine, a normalized warehouse suffices. (3) What's the team? If we have 2 engineers and strong SQL skills but no Spark expertise, I start with PostgreSQL + dbt, not Kafka + Spark Streaming. (4) What will we regret? Hard reversals include: data model (schema migrations are expensive), consistency model (moving from strong to eventual is risky; eventual to strong is even harder), and storage partitioning. Easy changes: compute layer (swap Presto for Trino), tooling (dbt vs. custom Python), dashboards. (5) Cost curve: Does this scale linearly, or does latency or cost explode at 10x growth? I'd validate that before committing. Example: choose row-oriented transactional database for a write-heavy operational system; choose columnar warehouse for analytical read-heavy use case; separate them via CDC or batch ETL if both patterns exist, rather than forcing one tool to do both.'}",
+     "language": ""
+    },
+    "similar_questions": [
+     {
+      "question": "You're building a financial transactions system that requires ACID compliance and sub-second latency for millions of concurrent users. What trade-offs would drive your architecture decisions differently than a log analytics platform?",
+      "what_changes": "Same foundational framework, but consistency and latency become non-negotiable; you'd likely rule out eventually-consistent systems and prioritize strong ACID guarantees and high throughput. Cost becomes secondary."
+     },
+     {
+      "question": "A startup has limited budget and one engineer. What architectural principles would you prioritize to maximize their velocity and minimize their technical debt over 18 months?",
+      "what_changes": "Team size and skill dominates; you'd favor managed services (RDS, BigQuery), minimal custom code, and boring proven tools. Reversibility is critical because pivots are likely."
+     },
+     {
+      "question": "Design a data architecture for a company with mature OLTP and OLAP use cases running in parallel. What are the key decision points where you'd separate vs. unify storage, compute, or tooling?",
+      "what_changes": "You're now optimizing for workload isolation and avoiding anti-patterns (e.g., analytical queries harming transactional performance). Separation (transactional DB + warehouse + CDC) often wins; the trade-off is complexity of synchronization."
+     }
+    ],
+    "skills_tested": [
+     "systems thinking",
+     "trade-off analysis",
+     "data modeling",
+     "technical architecture",
+     "business requirements alignment",
+     "scalability reasoning",
+     "cost-benefit analysis"
+    ],
+    "topic": "Foundational Decision-Making in Data Architecture Design",
+    "why_asked": "Interviewers often ask this because data architecture decisions made early compound in cost and complexity over years. They want to see if you can reason about constraints (data volume, latency, consistency guarantees, team skills), weigh competing priorities (simplicity vs. performance, cost vs. speed), and make defensible choices rather than defaulting to trendy tools. This reveals your maturity in avoiding over-engineering and over-simplification alike."
+   },
+   "prep_for": "21c99becb05a",
    "question": "When designing a new data architecture from scratch, what foundational decision-making rules or trade-offs guide your early choices in selecting data modeling patterns and the technical stack?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Architecture",
    "technology": [],
    "title": "Data Architecture — Decision Matrix and Trade-offs"
@@ -80,10 +357,80 @@
    "edited": false,
    "id": "q-59962bcf36",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "**1. High-Level Architecture Overview**\n- Segregate ingestion (event capture) → validation (schema + tenant routing) → dual paths: streaming pipeline (5-min dashboards) and batch pipeline (deep history)\n- Streaming path: Kafka/Kinesis → micro-batch processor (Spark Structured Streaming or Flink) → real-time warehouse (e.g., Redshift, Synapse) + cache (Redis)\n- Batch path: S3/ADLS raw landing zone → daily/weekly aggregation jobs (Spark) → cold analytics store (Parquet partitions) + summary warehouse\n- Serving layer: BI tool (Power BI or Tableau) queries warehouse; web API for programmatic export; ensure query-time tenant filter injection\n\n**2. Ingestion & Schema Drift**\n- Use event streaming (AWS Kinesis or Azure Event Hubs) partitioned by tenant ID to ensure stream-level isolation\n- Implement lightweight schema registry (Confluent Schema Registry or custom): store versioned JSON schema per event type per tenant; reject events outside schema with observability\n- Ingest strategy: persist raw JSON as-is to S3/ADLS with tenant/date/record-type partitioning; log rejections for retry/replay\n- Treat schema evolution as backward-compatible additions only; deprecated fields handled in transformation layer, not at ingest\n\n**3. Transformation Engine Choice**\n- **Streaming**: Apache Spark Structured Streaming (AWS EMR or Databricks) or Flink (Kinesis Data Analytics)\n  - Rationale: Spark Structured Streaming handles micro-batching at sub-second latency, integrates with Delta Lake for exactly-once semantics, and scales to 40+ tenants without code changes\n  - Alternative (Flink): lower latency, more operational overhead; better if <1-min SLA required\n- **Batch**: Spark SQL jobs on EMR or Synapse Spark; runs nightly\n- Trade-off: Spark + Delta Lake sacrifices millisecond latency for operational simplicity and ACID guarantees; if you need true streaming drill-downs, add Kafka directly to BI tool (but cost complexity rises)\n\n**4. Storage & Serving Layers**\n- **Raw Landing Zone**: S3/ADLS, partitioned by `tenant_id/date/record_type/`, stored as JSON lines; retention 24 hours (cost); CloudTrail for access audit\n- **Streaming Warehouse** (real-time): Redshift (AWS) or Synapse DW (Azure), storing 7-day rolling aggregates (hourly, daily) + last 24 hours of raw call records by tenant\n  - Schema: `tenant_id`, `call_id`, `timestamp_utc`, aggregates (call_count, duration_sum, intent_distribution); clustered by `(tenant_id, timestamp_utc)` for query performance\n  - Refresh: micro-batc",
+    "common_mistakes": [
+     "**Storing timestamps in tenant time zone at ingest**: If you convert to tenant local time during ETL, you lose ability to correlate events across tenants or recompute with corrected time zone rules (daylight savings bugs). Always ingest UTC; apply tz at query/display time.",
+     "**Single Kinesis shard or Event Hub partition for all tenants**: If one tenant's malformed events cause backpressure, all tenants suffer. Partition by tenant_id at the streaming layer to guarantee blast radius isolation.",
+     "**Assuming schema validation at ingest catches all drift**: New optional fields or null values in nested arrays will silently break downstream transformations if not handled. Use soft schema enforcement (log warnings, don't reject) and defensive null-checks in Spark SQL.",
+     "**Batch and streaming pipelines writing to the same table without idempotency**: If a micro-batch re-runs (retry after failure), Redshift receives duplicate records unless you use INSERT INTO with UPSERT logic (MERGE). Separate tables or Delta Lake ACID guarantees prevent this.",
+     "**Not testing cross-tenant query isolation**: Assume nothing. If RLS policy accidentally references wrong column or BI tool doesn't inject tenant context, data leaks silently. Test: run query as user in Tenant A, verify row count and values are subset of known Tenant A data.",
+     "**Hot/cold transition without backfill validation**: Moving 8-day-old data out of Redshift to S3 Parquet is risky if Redshift and Parquet row counts don't match. Add reconciliation query: count(Redshift) == count(Parquet) before deletion."
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "If query latency to cold store (Parquet) is >30 sec, how would you optimize? (Consider: Redshift materialized views, Athena for SQL queries on Parquet, or move 6-month-old data to DuckDB-queryable Parquet with pre-aggregated summaries.)",
+     "How would you handle a tenant who discovers their data was leaked to another tenant in the past month? Describe forensics and rollback. (Answer: Audit CloudTrail for unauthorized S3 access, query Redshift query logs to find affected user sessions, prepare data lineage report, notify affected tenant, offer data re-export from audit log backups.)",
+     "Design the BI dashboard schema and drill-down interaction to support 'hourly trends with drill-down to individual calls' while maintaining 5-min freshness. (Answer: Summarized table for trends queried from Redshift in <5 sec; drill-down query on raw Redshift table by call_id; cache on BI layer for repeat requests.)",
+     "How do you handle a schema change from a tenant? E.g., they rename 'intent' to 'intent_type' and add 'sub_intent'. (Answer: Versioned schema registry; Spark transformation layer maps old schema versions to canonical schema; 90-day deprecation window; alert tenant if events don't match current schema.)",
+     "What's your monitoring and alerting strategy for a 1.5M-event-per-day pipeline? (Answer: track latency (micro-batch end-to-end), schema validation rejection rate, Redshift write errors by tenant, cold data query latency; alert if micro-batch >10 min old or if rejection rate >0.1%.)",
+     "If cost of keeping 16 months in Redshift is prohibitive, re-design the storage. (Answer: Keep only 30 days in Redshift hot; move older summaries (not raw) to Parquet, queried via Spectrum; offer 'snapshot exports' for year-over-year comparisons rather than live drill-down.)"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by identifying the 'dual pipeline' requirement: one path optimized for 5-minute freshness (streaming), another for batch summary aggregations. Design these as separate concerns.",
+     "For schema drift, consider a staged approach: validate at ingest against a flexible schema registry, persist raw events separately from transformed data, and implement soft schema enforcement in analytics layer.",
+     "Tenant isolation isn't just at the database level—trace through every component: ingestion routing, transformation logic, query access control, and caching. Single-key failure in any tier breaks the guarantee.",
+     "Hot/cold strategy: if 80% of queries hit the last 7 days, design tiering to move aggregates older than that to columnar cold storage. Keep raw event lookups warm for 30 days.",
+     "For timezone handling, store all timestamps in UTC at ingest; apply tenant time zone only at query time in the serving layer and BI tool. Never transform at ingestion."
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Schema Registry & Schema Evolution",
+     "Event Streaming Architecture (Kafka, Kinesis, Event Hubs)",
+     "Time-Series Databases vs Columnar Stores (Prometheus vs Parquet)",
+     "Multi-Tenancy Patterns (Isolated vs Shared Databases, Row-Level Security)",
+     "Data Lakehouse (Delta Lake, Apache Iceberg)",
+     "Micro-Batch vs True Streaming Trade-offs",
+     "Watermarking & Late Arrival Handling",
+     "Redshift Spectrum & Federated Queries"
+    ],
+    "sample_solution": {
+     "code": "# Streaming pipeline: Kinesis → Spark Structured Streaming → Redshift\n\nfrom pyspark.sql import SparkSession\nfrom pyspark.sql.functions import from_json, col, window, sum as spark_sum, count, get_json_object\nfrom pyspark.sql.types import StructType, StructField, StringType, IntegerType, DoubleType, TimestampType\nimport json\n\n# Initialize Spark\nspark = SparkSession.builder \\\n    .appName(\"IVR_Analytics_Streaming\") \\\n    .config(\"spark.sql.shuffle.partitions\", \"200\") \\\n    .getOrCreate()\n\n# Schema for incoming JSON events (flexible, versioned)\nevent_schema = StructType([\n    StructField(\"tenant_id\", StringType(), False),\n    StructField(\"event_id\", StringType(), False),\n    StructField(\"record_type\", StringType(), False),  # call, transfer, prompt, intent, etc.\n    StructField(\"timestamp\", TimestampType(), False),\n    StructField(\"call_id\", StringType(), True),\n    StructField(\"duration_sec\", IntegerType(), True),\n    StructField(\"intent\", StringType(), True),\n    StructField(\"status\", StringType(), True),\n    StructField(\"metadata\", StringType(), True),  # nested JSON as string for schema drift\n])\n\n# Read from Kinesis (partitioned by tenant_id)\ndf_stream = spark.readStream \\\n    .format(\"kinesis\") \\\n    .option(\"streamName\", \"ivr-events\") \\\n    .option(\"region\", \"us-east-1\") \\\n    .option(\"initialPosition\", \"TRIM_HORIZON\") \\\n    .load()\n\n# Parse JSON payload\ndf_parsed = df_stream.select(\n    from_json(col(\"data\").cast(\"string\"), event_schema).alias(\"event\")\n).select(\"event.*\")\n\n# Validate tenant isolation: reject if tenant_id is missing or suspicious\ndf_validated = df_parsed.filter(\n    (col(\"tenant_id\").isNotNull()) & \n    (col(\"tenant_id\").rlike(\"^[a-zA-Z0-9_-]+$\"))  # allowlist pattern\n)\n\n# Write raw events to S3 (landing zone) for replay & audit\ndf_validated.writeStream \\\n    .format(\"parquet\") \\\n    .mode(\"append\") \\\n    .partitionBy(\"tenant_id\", \"record_type\") \\\n    .option(\"path\", \"s3://ivr-analytics-prod/raw-landing/\") \\\n    .option(\"checkpointLocation\", \"s3://ivr-analytics-prod/checkpoints/raw-landing\") \\\n    .start()\n\n# Transform: aggregate by tenant, call, intent (micro-batch per 5 minutes)\ndf_agg = df_validated.filter(col(\"record_type\") == \"call\") \\\n    .withWatermark(\"timestamp\", \"1 hour\") \\\n    .groupBy(\n        col(\"tenant_id\"),\n        window(col(\"timestamp\"), \"5 minutes\", \"1 minute\"),  # sliding window for smooth refresh\n        col(\"intent\")\n    ).agg(\n        count(\"*\").alias(\"call_count\"),\n        spark_sum(\"duration_sec\").alias(\"total_duration_sec\"),\n        (spark_sum(\"duration_sec\") / count(\"*\")).alias(\"avg_duration_sec\")\n    ) \\\n    .select(\n        col(\"tenant_id\"),\n        col(\"window.start\").alias(\"timestamp_utc\"),\n        col(\"intent\"),\n        col(\"call_count\"),\n        col(\"total_duration_sec\"),\n        col(\"avg_duration_sec\")\n    )\n\n# Write to Redshift (streaming warehouse) via Redshift Direct API\nquery = df_agg.writeStream \\\n    .format(\"com.databricks.spark.redshift\") \\\n    .mode(\"append\") \\\n    .option(\"url\", \"jdbc:redshift://redshift-cluster.amazonaws.com:5439/analytics\") \\\n    .option(\"user\", \"etl_user\") \\\n    .option(\"password\", \"${REDSHIFT_PASSWORD}\") \\\n    .option(\"dbtable\", \"streaming.call_aggregates_5min\") \\\n    .option(\"tempdir\", \"s3://ivr-analytics-prod/redshift-temp/\") \\\n    .option(\"checkpointLocation\", \"s3://ivr-analytics-prod/checkpoints/redshift-upsert\") \\\n    .start()\n\nquery.awaitTermination()\n\n# --- Batch job (runs nightly) ---\n# Read raw landing zone (previous day), aggregate to daily summaries\n\ndf_batch = spark.read \\\n    .parquet(\"s3://ivr-analytics-prod/raw-landing/\") \\\n    .filter((col(\"date\") >= date_sub(current_date(), 1)) & (col(\"date\") < current_date()))\n\ndf_batch_agg = df_batch.filter(col(\"record_type\") == \"call\") \\\n    .groupBy(col(\"tenant_id\"), date_trunc(\"day\", col(\"timestamp\")).alias(\"date_utc\"), col(\"intent\")) \\\n    .agg(\n        count(\"*\").alias(\"call_count\"),\n        spark_sum(\"duration_sec\").alias(\"total_duration_sec\")\n    )\n\n# Write to S3 (Parquet, partitioned) for Redshift Spectrum cold queries\ndf_batch_agg.coalesce(1).write \\\n    .mode(\"overwrite\") \\\n    .partitionBy(\"tenant_id\") \\\n    .parquet(f\"s3://ivr-analytics-prod/cold-analytics/year={current_year()}/month={current_month()}/\")\n\nprint(\"Batch aggregation complete. Parquet written to S3.\")\n\n# --- Query-Time Tenant Isolation Example (SQL in Redshift) ---\n\"\"\"\nCREATE OR REPLACE FUNCTION get_tenant_context() RETURNS VARCHAR AS '\n  SELECT current_setting(''app.tenant_id'');\n' LANGUAGE SQL;\n\nCREATE TABLE streaming.call_aggregates_5min (\n    tenant_id VARCHAR(50) NOT NULL,\n    timestamp_utc TIMESTAMP NOT NULL,\n    intent VARCHAR(100),\n    call_count INT,\n    total_duration_sec INT,\n    avg_duration_sec FLOAT\n) DISTSTYLE KEY DISTKEY(tenant_id);\n\n-- RLS Policy: enforce tenant_id in every query\nCREATE POLICY call_aggregates_rls ON streaming.call_aggregates_5min\n    USING (tenant_id = get_tenant_context());\n\n-- BI tool query (injected with tenant context at session start)\nSET app.tenant_id = 'tenant_A';\nSELECT timestamp_utc, intent, call_count, avg_duration_sec\nFROM streaming.call_aggregates_5min\nWHERE timestamp_utc >= CURRENT_TIMESTAMP - INTERVAL '7 days'\nORDER BY timestamp_utc DESC;\n\"\"\"",
+     "explanation": "The sample demonstrates the dual-pipeline architecture:\n\n1. **Streaming (5-min latency)**: Kinesis ingests raw JSON per tenant → Spark Structured Streaming parses and validates → writes raw to S3 landing zone (immutable audit trail) → aggregates into 5-min windows → upserts to Redshift hot warehouse.\n\n2. **Tenant Isolation at Ingest**: Kinesis shard per tenant (or at least partitioned by tenant_id); Spark filter rejects invalid tenant_ids (regex allowlist). Raw landing zone partitioned by tenant_id; S3 IAM policy ensures cross-tenant access is denied at the object level.\n\n3. **Schema Drift Handling**: Event schema is strict at top level (tenant_id, timestamp required) but allows metadata as string; evolved fields are added as optional in StructType without breaking existing parsing. Invalid JSON records logged separately for remediation.\n\n4. **Batch Pipeline**: Nightly job re-reads raw landing, aggregates by day + intent, writes Parquet to cold S3. This ensures durability and allows replaying/recomputing if streaming had gaps.\n\n5. **Query-Time Tenant Isolation (Redshift RLS)**: Row-level security function `get_tenant_context()` injected by BI tool session parameter; policy ensures no query can return a row where tenant_id ≠ session tenant. Without setting session parameter, queries return no rows (fail-safe).\n\n6. **Timezone**: All timestamps stored in UTC. BI tool (Power BI/Tableau) applies tenant's configured time zone at display time via dashboard formula, not during ingest.\n\n7. **Cost Optimization**: Raw landing retained 24 hours (cheap S3), hot aggregates in Redshift (expensive) for 7 days, cold Parquet in S3 (cheap, <30-sec query latency via Spectrum) for 16 months.",
+     "language": "Python (PySpark + Pseudo"
+    },
+    "similar_questions": [
+     {
+      "question": "Design an analytics platform for a SaaS HR platform ingesting employee data from 500+ companies with 10M records/day, requiring compliance with data residency and GDPR right-to-delete. Same 16-month history requirement.",
+      "what_changes": "Emphasis shifts to GDPR compliance (right-to-delete, data residency per region), many more tenants with lower volume each, and deletion cascade across pipeline (Kafka tombstone records, S3 deletion, Redshift cleanup). Multi-region architecture needed for data residency; isolation strategy remains si"
+     },
+     {
+      "question": "Design a real-time fraud detection system for a payment processor with 1M transactions/sec from 10k merchants, <100ms decision latency, and merchant isolation. No historical drill-down required, only real-time alerts.",
+      "what_changes": "Streaming-only (no batch needed); latency SLA changes (100ms vs 5 min), so true streaming (Kinesis + Lambda or Flink) replaces micro-batch; storage is ephemeral (Redis or memory), not durable warehouse; alert routing per merchant instead of dashboards; scale increases (1M/sec vs 17/sec)."
+     },
+     {
+      "question": "Design a content analytics platform for a video platform with 50 million daily video views, user-generated nested event sequences, requiring cohort analysis and retention curves. Multi-day latency acceptable.",
+      "what_changes": "Focus shifts to user cohort analysis and behavioral sequences (joins on user_id across time) instead of call center metrics; schema is user-centric, not call-centric; batch-first (no real-time requirement); Parquet-to-Spark ML pipeline for cohort modeling instead of dashboard aggregates; lower isola"
+     }
+    ],
+    "skills_tested": [
+     "System Design",
+     "Data Architecture",
+     "Schema Evolution",
+     "Multi-Tenancy Patterns",
+     "Real-Time vs Batch Trade-offs",
+     "Cost Optimization",
+     "Cloud Platform Selection",
+     "Data Governance"
+    ],
+    "topic": "End-to-End Analytics Platform for Multi-Tenant Contact-Center IVR System",
+    "why_asked": "Interviewers ask this because it combines multiple hard problems: multi-tenancy at scale with zero-tolerance data isolation, schema drift handling for semi-structured streaming data, simultaneous real-time and batch pipelines with different SLA requirements, temporal queries across a 16-month window with hot/cold data tiers, and timezone-aware aggregations. It tests whether a candidate can balance engineering complexity, operational cost, and compliance requirements—common in real contact-center and telecom analytics platforms. The question surfaces architectural judgment on technology selection (event streaming vs message queues, columnar vs row stores, separation of concerns) and understanding of cloud platform capabilities."
+   },
+   "prep_for": "c829e3a6d934",
    "question": "Design an end-to-end analytics platform for a multi-tenant contact-center IVR system. You must ingest streaming JSON event logs from 40+ enterprise tenants with varying volumes (30,000–45,000 calls per day for mid-size tenants). The JSON contains multiple record types (call, transfer, prompt, intent, checkpoint, system, interaction) with nested arrays and unstable schemas that evolve over time. Requirements: (1) Dashboards covering a 16-month historical window with older data remaining retrievable but rarely queried; (2) Users need summary trends (hourly/daily) with drill-down capability to individual call records, and export functionality; (3) A subset of near-real-time dashboards must show data no more than 5 minutes old; (4) Strict tenant isolation with zero risk of cross-tenant data leaks; (5) Each tenant views dashboards in their own time zone. Design the architecture addressing: ingestion and schema drift handling, transformation engine choice and trade-offs, storage and serving layers for performance at scale, simultaneous batch and real-time pipelines, structural tenant isolation guarantees, hot vs. cold data strategy, multi-tenant deployment scaling, and infrastructure sizing and validation. Recommend AWS or Microsoft Fabric with justification.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Platform Design",
    "technology": [
     "AWS",
@@ -103,10 +450,79 @@
    "edited": false,
    "id": "q-5aee2e88a5",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Solve this by first establishing three parallel workstreams: (1) stakeholder alignment on data policy and risk tolerance, (2) a tiered data strategy differentiating by sensitivity and testing need, and (3) a technical implementation with clear data lineage and governance. Start with conversations to understand constraints: what compliance frameworks apply (GDPR, HIPAA, etc.), what volume triggers performance issues, what subset of production tables drives dashboard behavior. Then propose a hybrid strategy: use production-like structure and recent data for realistic testing, but anonymize/mask sensitive columns (PII, financial details). For highly sensitive datasets, consider synthetic data generation or statistically representative subsets. Implement via orchestrated pipelines (e.g., dbt + Airflow or Prefect) that refresh test environments on a defined schedule, with clear lineage tracking. Add governance: tag datasets by sensitivity, enforce access controls, audit pulls from production. This prevents security drift and ensures compliance. Validate the approach by running the same dashboards/queries in both environments and comparing results within acceptable deltas.",
+    "common_mistakes": [
+     "Assuming 'realistic data' means 'copy all production data.' This breaks compliance and wastes storage; anonymization + synthesis is cheaper and safer.",
+     "Forgetting to validate that dashboards produce equivalent *insights* (not exact row counts). QA data can differ if structure and distributions match.",
+     "Building a one-time sync script instead of an orchestrated, auditable pipeline. Test data gets stale; automation ensures consistency.",
+     "Not involving security/compliance in design. Discovering GDPR violations after deployment is expensive; start with policy conversations.",
+     "Choosing a single strategy for all tables. Sensitivity varies; treat each dataset by its actual risk profile.",
+     "Failing to mask derived/indirect PII. Email + signup_date might identify someone; require additional transformation layers."
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "How would you measure whether QA data is 'realistic enough' for dashboard testing? What metrics would you track?",
+     "If compliance says 'no production data in non-prod, ever,' how does your strategy change? Would you generate 100% synthetic data, and how would you validate it's representative?",
+     "A dashboard query runs in 2 seconds on QA but 30 seconds on production (1 billion rows). How do you detect and diagnose this gap during testing?",
+     "How would you handle real-time streaming data in development? (Kafka topics, event streams.) Can anonymization/synthesis apply there, or do you need a different approach?",
+     "What access controls would you implement? Should junior developers have read-access to anonymized customer data, or further restrict it?",
+     "How often should test data refresh? Daily is expensive for massive datasets; would you adjust frequency by dataset sensitivity or usage pattern?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by identifying stakeholders: engineering, security/compliance, analytics, and ops. What does each care about?",
+     "Consider three dimensions separately: data volume, data quality, and data sensitivity. They may need different approaches.",
+     "Think about anonymization and synthetic data generation. When is each appropriate?",
+     "What existing tools does a typical modern data stack provide? (data warehouse, transformation tools, orchestration)",
+     "Consider the delta: what's fundamentally different between production and non-production that matters for dashboards?"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Data anonymization and PII masking techniques",
+     "Synthetic data generation and statistical validity",
+     "dbt (data build tool) for ELT and data governance",
+     "Airflow/Prefect for orchestration and observability",
+     "Data lineage and metadata tracking",
+     "Schema validation and contract testing",
+     "Role-based access control (RBAC) in data warehouses",
+     "Compliance frameworks (GDPR, HIPAA, SOC2) and data residency"
+    ],
+    "sample_solution": {
+     "code": "# dbt models for test data environment strategy\n\n# 1. Selective anonymization for sensitive production data\n# models/staging/stg_customers_test.sql\n\nwith source_data as (\n  select\n    customer_id,\n    {{ dbt_utils.generate_hash_key([\"customer_id\"]) }} as anonymized_id,\n    fake_name() as customer_name,  -- Use dbt_expectations or faker UDF\n    fake_email() as email,\n    case when is_pii_column then null else signup_date end as signup_date,\n    account_tier,\n    ltrim(credit_card, 12) || 'XXXX' as masked_card,  -- Keep last 4 for testing\n    created_at\n  from {{ source('production', 'customers') }}\n  where created_at >= current_date - interval 90 days  -- Recent data only\n    and is_test_safe = true  -- Flagged non-sensitive records\n)\n\nselect * from source_data\n\n---\n\n# 2. Synthetic data generation for high-sensitivity tables\n# models/staging/stg_transactions_synthetic.sql\n\nwith real_schema as (\n  -- Use real distribution stats from production WITHOUT actual data\n  select\n    floor(random() * max_customer_id) as customer_id,\n    floor(random() * 10000) + 100 as transaction_amount,\n    current_timestamp - interval (floor(random() * 90)) day as transaction_date,\n    case floor(random() * 5)\n      when 0 then 'CREDIT_CARD'\n      when 1 then 'ACH'\n      when 2 then 'BANK_TRANSFER'\n      else 'CASH'\n    end as payment_method\n  from (select max(customer_id) as max_customer_id from {{ source('production', 'customers') }})\n  cross join generate_series(1, 100000)  -- Generate high volume for performance testing\n)\n\nselect * from real_schema\n\n---\n\n# 3. Airflow DAG for orchestrated data refresh\n# dags/test_environment_sync.py\n\nfrom airflow import DAG\nfrom airflow.operators.bash import BashOperator\nfrom airflow.operators.python import PythonOperator\nfrom airflow.utils.dates import days_ago\nimport logging\n\ndefault_args = {\n    'owner': 'data-eng',\n    'retries': 2,\n    'depends_on_past': False,\n}\n\nwith DAG(\n    dag_id='daily_test_env_refresh',\n    default_args=default_args,\n    schedule_interval='0 2 * * *',  # 2 AM daily\n    description='Refresh QA/dev with anonymized prod data',\n) as dag:\n\n    # Task 1: Audit who accesses test data\n    audit_access = PythonOperator(\n        task_id='log_data_access',\n        python_callable=lambda: logging.info('Starting test data pipeline refresh'),\n    )\n\n    # Task 2: Run dbt models with anonymization\n    dbt_run = BashOperator(\n        task_id='dbt_run_test_models',\n        bash_command=(\n            'dbt run '\n            '--select tag:test_environment '\n            '--vars \"{environment: qa, anonymize: true}\" '\n            '--target qa'\n        ),\n    )\n\n    # Task 3: Generate synthetic data for locked tables\n    synthetic_gen = BashOperator(\n        task_id='generate_synthetic_tables',\n        bash_command=(\n            'python /scripts/generate_synthetic_data.py '\n            '--tables transactions,payments '\n            '--volume 5M '\n            '--target qa_warehouse'\n        ),\n    )\n\n    # Task 4: Validate QA matches production schema (not data)\n    validate = BashOperator(\n        task_id='validate_schema_parity',\n        bash_command=(\n            'dbt test '\n            '--select tag:test_environment '\n            '--target qa '\n            '--fail-fast'\n        ),\n    )\n\n    # Task 5: Notify dashboard owners\n    notify = BashOperator(\n        task_id='notify_qa_ready',\n        bash_command='curl -X POST $SLACK_WEBHOOK -d \\\"QA environment refreshed\\\"',\n    )\n\n    audit_access >> [dbt_run, synthetic_gen] >> validate >> notify\n\n---\n\n# 4. Governance manifest (YAML config)\n# governance/data_policy.yml\n\ndatasets:\n  - name: customers\n    environment: production_only\n    sensitivity: high\n    pii_columns: [email, phone, ssn, address]\n    test_strategy: anonymize_subset  # Pull 30 days, mask PII\n    \n  - name: transactions\n    environment: production_only\n    sensitivity: critical\n    test_strategy: synthetic_only    # Never copy real transaction data\n    \n  - name: product_catalog\n    environment: replicate_full\n    sensitivity: low\n    test_strategy: daily_full_copy   # Non-sensitive, can replicate as-is\n\n  - name: dashboards_metadata\n    environment: all\n    sensitivity: low\n    test_strategy: replicate_full",
+     "explanation": "This solution uses a three-tier approach: (1) **Selective anonymization** via dbt models that pull recent production data but mask/null out sensitive columns and PII using deterministic hashing and faker UDFs. (2) **Synthetic data generation** for tables with critical compliance concerns (transactions, payments), generating statistically representative volume without real data. (3) **Orchestrated refresh via Airflow** that runs daily, applying transformations, validating schema parity with production, and auditing access. The governance manifest centralizes policy decisions per dataset, making it clear what can go where and why. The key insight: development needs *realistic structure and volume* but not *real sensitive data*—anonymization and synthesis satisfy both. dbt tags and target configurations keep logic DRY. Airflow's DAG ensures repeatable, auditable execution. Schema validation (dbt test) confirms QA stays in sync with production without replicating actual values. This approach scales: adding a new dataset just requires updating the manifest and dbt models.",
+     "language": "YAML + SQL (dbt + Airflo"
+    },
+    "similar_questions": [
+     {
+      "question": "You need to replicate a production Postgres database to a development environment for local testing. The production database has 500GB and contains sensitive customer data. Describe your strategy.",
+      "what_changes": "Scope narrows to a single source system (Postgres) rather than a data warehouse; focus shifts to database-level replication tools (pg_dump with anonymization, logical replication, CDC), point-in-time recovery, and smaller scale orchestration. Compliance concerns remain but the technical tooling diff"
+     },
+     {
+      "question": "Your analytics team wants to run complex ML models on customer behavior data in a sandbox environment. Security restricts copying customer IDs, email, and demographic data. How do you enable this without violating policy?",
+      "what_changes": "Focus shifts from dashboard realism to ML model training; emphasis on what features are safe to derive vs. what raw attributes are restricted. Requires synthetic feature engineering, differential privacy, or federated learning. Success metrics are model performance parity, not dashboard visual parit"
+     },
+     {
+      "question": "Design a data lake architecture that isolates production analytics from development analytics, with minimal latency between them.",
+      "what_changes": "Broader architectural question; focuses on storage tiering, data governance zones (raw/bronze, trusted/silver, analytics/gold), and separation of compute resources. Still includes non-prod replication but in the context of a full lake design with retention policies, data catalog, and lineage."
+     }
+    ],
+    "skills_tested": [
+     "Data pipeline architecture",
+     "Production data handling and compliance",
+     "Testing strategy design",
+     "Performance optimization awareness",
+     "Security and privacy considerations",
+     "Stakeholder communication",
+     "Tool selection and justification"
+    ],
+    "topic": "Data Environment Strategy for Dashboard Testing and Validation",
+    "why_asked": "Interviewers often ask this because it demonstrates whether candidates can balance competing concerns: data realism for testing, security and compliance constraints, cost efficiency, and team coordination. It requires systems thinking about how data flows through an organization and how to enable development velocity without compromising production integrity. The question tests whether candidates understand the full lifecycle of data-driven applications and can make trade-offs between ideal testing conditions and practical constraints. It's also a proxy for understanding real-world incident prevention—many production dashboard bugs could have been caught with realistic staging data."
+   },
+   "prep_for": "5bc4348a130b",
    "question": "You are responsible for ensuring that development and QA environments have realistic, high-volume data for dashboard testing and validation. Production environments have superior data quality, structural complexity, and volume, making it hard to catch issues like chart layout problems, date-range filter bugs, and query performance degradation before production deployment. Describe your approach to solving this problem. What conversations would you have, what strategies would you employ, what tools would you use, and what data pipelines would you build to enable non-production dashboard validation with realistic data while maintaining data security?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Pipeline Design",
    "technology": [
     "Dashboarding",
@@ -123,10 +539,80 @@
    "edited": false,
    "id": "q-61b92794db",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Use a structured sequential process: (1) Discovery & Business Alignment—clarify business goals, success metrics, and decision-making needs; (2) Current State Assessment—inventory existing systems, data flows, quality issues, and technical debt; (3) Gap Analysis—identify what's missing to achieve business goals; (4) Constraint Mapping—document legacy system limitations, organizational capacity, budget, compliance requirements; (5) Conceptual Design—sketch layers (ingestion, storage, processing, serving) and data flows; (6) Integration Strategy—plan how to gradually incorporate/retire legacy systems; (7) Governance Framework—define ownership, lineage, quality standards, access controls; (8) Documentation & Validation—create architecture diagrams and get stakeholder review. Emphasize iteration and incremental validation rather than a waterfall approach.",
+    "common_mistakes": [
+     "Diving into technology before understanding business needs—designing a data lake when a simple data warehouse would suffice",
+     "Ignoring legacy systems as 'technical debt to fix later' rather than integrating them pragmatically",
+     "Underestimating data quality issues in source systems; assuming clean data inputs",
+     "Designing for scale when current needs are modest; over-engineering upfront",
+     "Creating an architecture without explicit non-functional requirements; vague on latency/throughput/cost",
+     "Failing to involve stakeholders early; presenting a finished design that doesn't match expectations"
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "Walk me through how you would handle a situation where a critical legacy system cannot be replaced for 3+ years but also cannot support real-time ingestion. What's your integration strategy?",
+     "How would you assess data quality in source systems, and how does poor quality inform your architectural choices?",
+     "Describe how you would set up governance around a decentralized data ownership model across multiple business units.",
+     "What metrics would you use to measure whether your architecture is meeting business goals post-launch?",
+     "How would you approach this differently if the organization had zero data engineering experience?",
+     "Walk through a hypothetical conflict: the business wants real-time data access but the legacy system only supports daily batch exports. How do you resolve that?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by understanding what success looks like from the business perspective, not technology",
+     "Map all existing systems and data sources first before proposing solutions",
+     "Identify non-functional requirements early: latency, throughput, consistency, compliance",
+     "Legacy systems are constraints to work within, not problems to eliminate immediately",
+     "Data quality assessment of source systems should inform your architecture choices"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Data mesh and domain-driven data architecture",
+     "Change Data Capture (CDC) for legacy system integration",
+     "Modern data stack vs. traditional enterprise data warehouse",
+     "Data quality frameworks and observability",
+     "Master data management (MDM)",
+     "Cloud vs. on-premises deployment trade-offs",
+     "Incremental vs. big-bang migration strategies",
+     "Data governance models (centralized vs. decentralized)"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "This is a behavioral/strategic question without code. The answer should demonstrate a structured, iterative process: Start with 1-2 hours of stakeholder interviews to extract business goals (e.g., 'enable real-time personalization' or 'reduce reporting latency from 24h to 2h'). Translate goals into non-functional requirements (latency, throughput, retention, compliance). Conduct a current-state assessment by interviewing data engineers and creating an inventory of all systems: legacy databases, APIs, logs, third-party services, including data volumes, update frequency, and known quality issues. Identify gaps: missing data sources, processing capabilities, insufficient scalability. Map hard constraints: outdated systems that can't be replaced soon, compliance rules limiting data movement, budget caps, team expertise gaps. Then design in layers—a modern conceptual architecture includes: (1) Ingestion Layer handling diverse source types with error handling; (2) Raw/Bronze storage preserving source data as-is; (3) Transformation/Silver layer applying business logic and quality rules; (4) Semantic/Gold layer serving analytical use cases; (5) Serving Layer for different consumers (dashboards, ML, operational systems). For legacy systems, plan a coexistence strategy—don't assume replacement, design APIs or CDC mechanisms to gradually migrate. Define data governance: who owns each domain, lineage tracking, quality SLAs, PII handling. Create visual architecture diagrams showing dependencies, data flows, and system boundaries. Validate with stakeholders iteratively—review with business, engineering, and compliance teams separately. Document all assumptions: 'We assume Kafka can handle 10k events/sec', 'We assume legacy ERP can provide daily snapshots'. This documentation becomes your roadmap for phased implementation.",
+     "language": ""
+    },
+    "similar_questions": [
+     {
+      "question": "You've inherited a 15-year-old data warehouse that's unmaintainable but powers critical daily reports. How do you modernize it without disrupting the business?",
+      "what_changes": "Focuses on remediation of existing architecture rather than greenfield design; requires change management and cutover strategy"
+     },
+     {
+      "question": "Design a data architecture that can ingest from 50+ SaaS platforms, each with different APIs and update patterns, and serve a real-time analytics dashboard.",
+      "what_changes": "More tactical focus on connector patterns and real-time processing; less emphasis on legacy constraints and governance strategy"
+     },
+     {
+      "question": "A startup is growing from batch processing to needing real-time analytics. How would you architect the system so it can scale 10x without a complete rewrite?",
+      "what_changes": "Emphasis on scalability and future-proofing; fewer legacy constraints; shorter implementation timeline"
+     }
+    ],
+    "skills_tested": [
+     "Strategic thinking and business acumen",
+     "Systems analysis and design",
+     "Stakeholder management and communication",
+     "Data governance and quality assessment",
+     "Legacy system integration",
+     "Constraints handling and trade-off analysis",
+     "Technical architecture documentation",
+     "Risk identification and mitigation"
+    ],
+    "topic": "Data Architecture Design: From Business Goals to Conceptual Blueprint",
+    "why_asked": "Interviewers often ask this because data architecture decisions have massive organizational impact—they affect scalability, costs, compliance, and analytical capability for years. This question tests whether a candidate can bridge the gap between business strategy and technical implementation, handle messy real-world complexity, and demonstrate structured thinking under ambiguity. It reveals maturity in balancing idealism with pragmatism."
+   },
+   "prep_for": "effd74b068a0",
    "question": "As a data architect tasked with designing a new data architecture from scratch, describe your sequential process for translating high-level business goals into a conceptual blueprint while accounting for existing data constraints, legacy systems, and messy source ecosystems.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Architecture",
    "technology": [],
    "title": "Data Architecture — Design Process for Business Goals"
@@ -139,10 +625,78 @@
    "edited": false,
    "id": "q-7532df87c0",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Start by clarifying the business context and identifying all measurable events. Analyze the grain (level of detail) for each potential fact table - do they differ? Consider whether dimensions are shared (conformed dimensions suggest multiple fact tables). Evaluate query patterns: if users need to combine metrics across different event types, a single denormalized table might be better; if they analyze events separately, multiple fact tables are cleaner. Assess data volume, update frequency, and sparsity - if one set of facts is much larger or updates differently, separation makes sense. Review ETL complexity and dimensional conformance. Finally, consider performance implications for your reporting tools and common queries. Avoid over-normalization that creates excessive joins, but also avoid unnecessary denormalization that creates sparse matrices or maintenance nightmares.",
+    "common_mistakes": [
+     "Forcing all events into a single table, creating sparse matrices with many NULLs and slow queries",
+     "Over-fragmenting into too many fact tables, making consolidation queries expensive and ETL unmaintainable",
+     "Not considering grain early - mixing order-level and line-item facts in one table creates ambiguity",
+     "Ignoring conformed dimensions - consolidation only works if dimensions genuinely align",
+     "Focusing purely on normalization without considering query patterns and business needs",
+     "Underestimating ETL complexity of keeping multiple fact tables consistent"
+    ],
+    "estimated_minutes": 20,
+    "follow_ups": [
+     "Walk me through designing a warehouse for a SaaS product with user events, subscriptions, and usage metrics.",
+     "How would you handle slowly-changing dimensions if you split fact tables?",
+     "What if a new business requirement asks for metrics across two previously separate fact tables?",
+     "How do you prevent conformed dimensions from drifting out of sync across multiple fact tables?",
+     "Would you recommend a data vault architecture for this decision? Why or why not?",
+     "How does your choice change with a real-time streaming ingestion requirement?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Consider what constitutes a 'fact' - is it a measurable business event?",
+     "Think about grain - the level of detail at which facts are recorded",
+     "Evaluate query patterns - what questions do business users ask most?",
+     "Consider data volume and update frequency differences",
+     "Think about conformed dimensions and reusability"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Dimensional modeling and Kimball methodology",
+     "Grain and atomic grain in data warehouses",
+     "Conformed dimensions and dimension conformance",
+     "Slowly changing dimensions",
+     "Sparse matrices and sparsity issues",
+     "Star schema vs. snowflake schema",
+     "Data vault architecture",
+     "Normalized vs. denormalized design trade-offs"
+    ],
+    "sample_solution": {
+     "code": "",
+     "explanation": "Decision Framework: (1) Define your facts: A fact is a measurable event captured at a specific point in time. List all measurable business events. (2) Determine grain: If events have different granularity levels (orders vs. order line items vs. shipments), separate fact tables are appropriate. Same grain can share a table. (3) Analyze dimensional context: If all events use the same dimensions (date, customer, product, region), consolidation is simpler. Mismatched dimensions suggest separation. (4) Evaluate query patterns: If 80% of queries need 'total orders AND total shipments together,' a single fact table or conformed bridge table works. If queries split clearly by event type, multiple tables reduce complexity and joins. (5) Assess data characteristics: Large volume differences, different update frequencies (daily vs. real-time), or sparse matrices (most dimension combinations have no facts) favor separation. (6) Consider maintenance: Multiple tables add ETL complexity and require enforcing consistency. A single table is simpler to manage but may become denormalized. (7) Performance testing: Estimate query complexity for both approaches on your data volume. Multiple smaller tables often scan faster; a large consolidated table may need aggressive indexing. Example: An e-commerce warehouse has orders, returns, and shipments. All share date/customer/product/region dimensions, but shipments include warehouse dimension, returns exclude product details (entire order returned). Query 1 asks for 'revenue by product.' Query 2 asks for 'revenue vs. shipments by day.' Query 3 analyzes 'return rates.' Approach: Create separate fact tables for orders and returns (different attributes), but consider a conformed 'shipments' dimension or separate fact table linked by order key. Use a view or bridge logic to answer Query 2 efficiently. This balances simplicity (shared dimensions), maintainability (separated events), and query efficiency (focused fact tables).",
+     "language": "verbal"
+    },
+    "similar_questions": [
+     {
+      "question": "Design a fact table schema for an online retail business that tracks orders, returns, and exchanges. Explain your grain choices.",
+      "what_changes": "Shifts focus from architecture choice to concrete schema design; requires DDL-like thinking and explicit grain definition"
+     },
+     {
+      "question": "Your fact table has grown to 10 billion rows with heavy NULL columns. Walk me through how you'd redesign it.",
+      "what_changes": "Moves from proactive design to reactive refactoring; tests problem-solving under performance constraints"
+     },
+     {
+      "question": "Given three separate fact tables (sales, inventory, returns), propose a solution for a dashboard that needs metrics from all three. What are the trade-offs?",
+      "what_changes": "Focuses on the join and integration layer rather than the initial split decision; tests practical query design"
+     }
+    ],
+    "skills_tested": [
+     "Data modeling",
+     "Dimensional modeling",
+     "Schema design",
+     "Query performance analysis",
+     "Business requirements analysis",
+     "Trade-off evaluation"
+    ],
+    "topic": "Data Warehouse Design: Single vs. Multiple Fact Tables",
+    "why_asked": "Interviewers often ask this because the choice between multiple and single fact tables is a fundamental architectural decision that affects query performance, maintainability, data integrity, and reporting flexibility. It demonstrates whether a candidate understands dimensional modeling principles, can evaluate competing design goals, and thinks about practical implementation trade-offs."
+   },
+   "prep_for": "828ce443e3f1",
    "question": "Explain your approach to deciding whether a data warehouse should use multiple fact tables or consolidate into a single fact table. What factors do you consider?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Warehouse Design",
    "technology": [
     "Data Warehouse",
@@ -158,10 +712,80 @@
    "edited": false,
    "id": "q-a00f0b7ba6",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "Break the problem into layers: (1) Ingestion: Use a distributed message broker (Kafka) to buffer 15M metric updates/hour with per-region clusters. (2) Stream Processing: Deploy Flink or Spark Streaming to compute windowed aggregations (1-min, 5-min, 1-hour windows) and detect anomalies via statistical rules or simple ML models. (3) Storage: Use a columnar time-series database (ClickHouse, TimescaleDB) for metrics; a distributed metadata store (PostgreSQL with replication) for pipeline configs and rules; a fast cache (Redis) for recent anomalies. (4) Anomaly Detection: Implement rule-based detection (thresholds, rate-of-change, z-scores) in stream processors; optionally layer on lightweight statistical models (EWMA, seasonal decomposition). (5) Alerting: Event-driven alerting service that deduplicates, prioritizes, and routes to multiple channels; maintains state of alert lifecycle. (6) API Layer: Serve metrics queries from cache/time-series DB; metadata and config queries from PostgreSQL; real-time alerts from Kafka topics or WebSocket streams. (7) Dashboard: Consume from APIs; support drill-down into anomalies and historical analysis. (8) Multi-Region: Regional metric ingestion clusters feed to global aggregation; metadata replicated with eventual consistency or primary-replica. (9) HA/DR: Replicate Kafka clusters, use multi-region time-series DB clusters, backup metadata regularly, implement circuit breakers and graceful degradation.",
+    "common_mistakes": [
+     "Trying to detect anomalies on raw metrics instead of aggregating first—this causes false positives and is computationally expensive",
+     "Storing every metric update without summarization—15M/hour × many metrics types = storage explosion; aggregate to 5-min or 1-hour windows early",
+     "Implementing anomaly detection as a complex ML model before validating that simple rules (thresholds, z-scores) solve 90% of use cases",
+     "Neglecting alert deduplication—without it, a single anomaly triggers hundreds of duplicate alerts, eroding trust",
+     "Not separating metadata (pipeline configs, rules, team assignments) from metrics data—mixing them makes queries slow and operations painful",
+     "Assuming single-region suffices; regional network partitions are real and multi-region design is essential for global platforms"
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "How would you handle schema drift detection? (Schema registry, diff columns, alert on breaking changes)",
+     "What's your strategy for tuning anomaly detection sensitivity per pipeline? (A/B testing alert rules, feedback loop from engineers, historical precision/recall analysis)",
+     "How do you prevent noisy alerts from spamming teams? (Severity levels, quiet hours, aggregation strategies, alert correlation)",
+     "How would you support custom ML models (e.g., Prophet, LSTM) for forecasting SLA violations? (Model versioning, serve predictions via API, A/B test new models)",
+     "What happens if the stream processor crashes mid-window? (Kafka exactly-once semantics, idempotent aggregation, checkpoint state)",
+     "How do you ensure metadata consistency across regions? (Eventual consistency with conflict resolution, or primary-replica setup?)"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Start by clarifying scope: decide which metrics are most critical to detect first (e.g., row count anomalies vs. schema drift)",
+     "Consider the event ingestion pattern: should each pipeline push metrics or should you pull via agents?",
+     "Think about the tradeoff between storing all raw metrics vs. storing only aggregated/anomalous ones",
+     "Anomaly detection on 15M updates/hour is expensive—explore windowing, sampling, or statistical thresholds over ML models initially",
+     "Multi-region means eventual consistency in metadata but low latency in local metric ingestion"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Time-series databases (ClickHouse, TimescaleDB, Prometheus)",
+     "Stream processing frameworks (Kafka Streams, Flink, Spark Streaming)",
+     "Anomaly detection algorithms (z-score, isolation forest, seasonal decomposition,",
+     "Message brokers and event streaming (Kafka, Pulsar, RabbitMQ)",
+     "Multi-region replication and consistency models (eventual consistency, causal co",
+     "Metadata management and data catalogs (Apache Atlas, Collibra, custom solutions)",
+     "Alert routing and on-call management (PagerDuty, Opsgenie)",
+     "Time-series compression and downsampling techniques"
+    ],
+    "sample_solution": {
+     "code": "# Ingestion Layer (per region)\nmetric_topic = kafka_topic('metrics', partitions=500, replication_factor=3)\nmetadata_store = postgresql_cluster('metadata', multi_region_replication=True)\n\n# Stream Processing\nclass AnomalyDetectionJob:\n  def process_metrics_stream(self, kafka_stream):\n    windowed = kafka_stream.window(TumblingWindow(60_seconds))\n    aggregated = windowed.map(aggregate_metrics_by_pipeline_id)\n    \n    for metric in aggregated:\n      # Rule-based detection\n      if metric.row_count < pipeline.expected_min_rows:\n        emit_anomaly(severity='high', type='low_row_count', metric=metric)\n      \n      if metric.null_percentage > pipeline.null_threshold:\n        emit_anomaly(severity='medium', type='high_nulls', metric=metric)\n      \n      # Statistical detection (z-score on 7-day window)\n      z_score = (metric.value - historical_mean) / historical_std_dev\n      if abs(z_score) > 3.0:\n        emit_anomaly(severity='medium', type='statistical_outlier', metric=metric)\n    \n    store_aggregated_metrics(timeseries_db, metric)\n\n# Alerting Layer\nclass AlertManager:\n  def process_anomalies(self, anomaly_stream):\n    for anomaly in anomaly_stream:\n      # Deduplication: only alert if not alerted in last 5 minutes\n      if not self.recently_alerted(anomaly.pipeline_id, anomaly.type):\n        # Query rules to determine channels and recipients\n        rule = metadata_store.get_alert_rule(anomaly.pipeline_id, anomaly.type)\n        recipients = metadata_store.get_recipients(rule.team_id)\n        \n        alert = create_alert(anomaly, recipients, rule.severity)\n        self.route_alert(alert)  # Slack, PagerDuty, email, webhook\n        \n        # Record alert for dashboard and ACK tracking\n        alert_event_log.append(alert)\n\n# API Layer\nclass QualityMonitoringAPI:\n  @endpoint('/api/v1/pipelines/{pipeline_id}/metrics')\n  def get_recent_metrics(self, pipeline_id, last_n_minutes=60):\n    # Query from time-series cache or DB\n    metrics = timeseries_db.query(\n      f\"SELECT * FROM metrics WHERE pipeline_id={pipeline_id} AND time > now() - {last_n_minutes}m\"\n    )\n    return metrics_to_json(metrics)\n  \n  @endpoint('/api/v1/pipelines/{pipeline_id}/anomalies')\n  def get_anomalies(self, pipeline_id, unresolved_only=True):\n    # Query recent anomalies from cache\n    anomalies = redis.get(f'anomalies:{pipeline_id}')\n    if unresolved_only:\n      anomalies = [a for a in anomalies if not a.resolved]\n    return anomalies\n  \n  @endpoint('/api/v1/rules', method='POST')\n  def create_quality_rule(self, pipeline_id, rule_config):\n    # Validate rule syntax, store in metadata\n    rule = QualityRule.from_config(rule_config)\n    metadata_store.insert_rule(pipeline_id, rule)\n    return {\"rule_id\": rule.id, \"status\": \"created\"}\n  \n  @endpoint('/api/v1/sla-report')\n  def get_sla_report(self, team_id, start_date, end_date):\n    # Aggregate SLA status over date range\n    report = metadata_store.compute_sla_report(team_id, start_date, end_date)\n    return report\n\n# Multi-Region Deployment\nregions = ['us-east', 'eu-west', 'ap-south']\nfor region in regions:\n  kafka_cluster[region] = KafkaCluster(brokers=3, replication_factor=3)\n  stream_processor[region] = StreamingJobRunner(job_class=AnomalyDetectionJob, region=region)\n  timeseries_db[region] = TimescaleDB(replicas=2)\n\nglobal_aggregator = GlobalAnomalyAggregator(\n  inputs=[kafka_cluster[r].anomaly_topic() for r in regions],\n  deduplication_window=30_seconds\n)\n\n# High Availability\nmetadata_store.configure_replication(mode='multi_master', sync_replicas=2)\nalert_manager.configure_circuit_breaker(failure_threshold=100, timeout=30_seconds)\napi_gateway.configure_rate_limiting(rpm=100000, per_pipeline=1000)",
+     "explanation": "This architecture separates concerns across ingestion, processing, storage, and alerting layers. Kafka clusters in each region buffer metric updates, preventing loss and allowing replay for debugging. Stream processors compute rolling windows of aggregations and detect anomalies using rules (thresholds configured per pipeline) plus statistical methods (z-score). Anomalies are deduplicated at ingestion to avoid alert storms. The time-series database stores aggregated metrics efficiently for fast range queries (e.g., last 24 hours). Metadata PostgreSQL holds pipeline configs, alert rules, team assignments, and permissions—replicated for eventual consistency across regions. The alert manager is stateful, tracking recent alerts to suppress duplicates within a window. APIs expose three main read patterns: recent metrics (from time-series cache), anomalies (from alert log), and SLA reports (pre-computed from historical data). The platform supports custom rules via API: teams define thresholds and detection logic per pipeline, stored in metadata. Multi-region deployment uses regional ingestion to minimize latency but aggregates anomalies globally for consistent alerting. HA is achieved through Kafka replication, database clustering, and stateless stream processors that can be horizontally scaled. DR involves regular snapshots of metadata, backup of time-series data to object storage, and the ability to replay Kafka topics to recover lost state.",
+     "language": "pseudo-code / architectu"
+    },
+    "similar_questions": [
+     {
+      "question": "Design a real-time monitoring platform for application logs, with 50M log events per hour, supporting full-text search, alerting on patterns, and SLA tracking.",
+      "what_changes": "Ingestion is unstructured text (not structured metrics), so you need a different storage backend (Elasticsearch, Splunk-like architecture). Anomaly detection shifts to pattern matching and frequency analysis instead of statistical thresholds. The query model favors full-text search and aggregation f"
+     },
+     {
+      "question": "Design a feature monitoring platform for ML models, tracking prediction quality metrics (accuracy, latency, drift, distribution changes) across 1000+ models deployed in production.",
+      "what_changes": "Metrics are model-specific (predictions, labels, embeddings), not pipeline-agnostic. You must handle delayed label arrival (labels come minutes/days after prediction). Drift detection is specialized (KS test, JS divergence for distributions). Requires A/B testing support to correlate model metrics w"
+     },
+     {
+      "question": "Design a real-time compliance and data governance platform that detects unauthorized data access, schema changes, and PII exposure across a data lake serving 100,000 queries per hour.",
+      "what_changes": "Focus shifts to security and audit; metrics include access logs, PII scan results, and schema lineage. Alerting is compliance-driven (data exfiltration, policy violations). Multi-region deployment must handle data residency requirements. Requires immutable audit logs and tamper-proof alerting."
+     }
+    ],
+    "skills_tested": [
+     "large-scale system architecture",
+     "real-time streaming and ingestion",
+     "time-series data storage",
+     "distributed systems design",
+     "anomaly detection algorithms",
+     "API design",
+     "metadata management",
+     "alerting architecture"
+    ],
+    "topic": "Design a Real-Time Data Quality Monitoring Platform for Thousands of ETL Pipelin",
+    "why_asked": "Interviewers ask this because data quality is critical in modern data-driven organizations, and designing a monitoring platform that scales to hundreds of thousands of pipelines tests deep understanding of event streaming, storage optimization, real-time computation, and operational excellence. This question reveals whether candidates can balance consistency, availability, performance, and operational complexity when building infrastructure that thousands of teams depend on."
+   },
+   "prep_for": "f60fa1d6a419",
    "question": "Design a real-time data quality monitoring platform for thousands of ETL pipelines. The platform must continuously track metrics including row count, null percentage, duplicates, freshness, schema changes, latency, and SLA status across 100,000 pipelines with 15 million metric updates per hour. Support anomaly detection, alerting, dashboards, APIs, custom quality rules, multi-region deployment, and near real-time detection (under 30 seconds). Address design of APIs, data model, event flow, storage, metadata catalog, alerting system, authentication, authorization, high availability, and disaster recovery.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Platform",
    "technology": [
     "ETL",
@@ -201,10 +825,79 @@
    "edited": false,
    "id": "q-b36415f49c",
    "merged_into": null,
-   "prep": null,
-   "prep_for": null,
+   "prep": {
+    "approach": "1. Define an Event namedtuple or dataclass to hold user, timestamp, page, duration.\n2. Use a collections.deque (thread-safe append/pop) to store all events in insertion order.\n3. For top_pages: maintain a Counter of page visit counts; rebuild or update it on each add() or cache it and invalidate on add().\n4. For active_users and time windows: filter deque by timestamp on query (O(n) worst case, but data is ordered so you can break early).\n5. Use threading.Lock to protect mutations to shared state (counters, deque).\n6. On add(), optionally evict events older than a retention window (e.g., all events older than max historical window you'll query).\n7. For average_session_duration(), sum all durations and divide by count; compute on-demand or cache.\n8. Unique users: maintain a set of user IDs; add on each event, evict when user's last event expires.\n9. Consider a separate thread for periodic cleanup of expired events, or rely on lazy deletion in queries.\n10. Test thread safety with concurrent writers; measure memory usage with large event streams.",
+    "common_mistakes": [
+     "Not using a lock at all, relying on 'Python's GIL is enough' — the GIL doesn't protect dict/Counter mutations from race conditions across threads",
+     "Using a single lock but holding it during expensive operations like sorting top_pages; consider caching results or releasing the lock for queries",
+     "Forgetting to clean up old events, leading to unbounded memory growth; lazy deletion on add() is simpler than a background thread",
+     "Not maintaining unique_users_set alongside eviction; if you only query set(e.user for e in self.events), you'll double-count or miss users as events expire",
+     "Computing active_users by iterating all events from the start; reversing the deque iteration lets you break early",
+     "Rebuilding entire top_pages on every query without caching; consider invalidating cache on add() instead"
+    ],
+    "estimated_minutes": 45,
+    "follow_ups": [
+     "How would you adapt this for multiple Kafka partitions or sharded processing?",
+     "What if events arrive out-of-order or with significant latency? How does that change the time-window logic?",
+     "How would you emit results to a downstream system (e.g., Prometheus, ClickHouse) at fixed intervals without blocking writes?",
+     "Can you reduce lock contention by using per-page or per-user locks instead of a global lock?",
+     "How would you implement automatic horizontal scaling: when should you re-partition the stream?",
+     "What metrics would you expose (QPS, latency, queue depth) and how would you integrate with a monitoring system?"
+    ],
+    "generated_at": "2026-10-07",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Consider using a deque or defaultdict with lazy deletion for time-windowed queries rather than actively pruning on every add()",
+     "Use threading.Lock or collections.defaultdict with atomic operations; consider whether you need fine-grained locking or coarse-grained locks",
+     "For top_pages, a heap-based approach gives O(log n) per add; consider whether you need to rebuild on every query or cache results",
+     "Think about what 'memory efficient' means: do you evict on add(), on query, or lazily? Evicting on query saves CPU but costs memory",
+     "Thread safety for counters: use threading.Lock or consider that dict operations in Python have some atomic guarantees at the bytecode level, but don't rely on this"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Thread-safe data structures and the GIL",
+     "Deque and ordered collections for time-series data",
+     "Heap/Priority Queue for top-k queries",
+     "Event time vs. processing time in stream processing",
+     "Watermarking for handling late events",
+     "State backends in stream processors (Kafka Streams, Flink)",
+     "Bloom filters for approximate unique-user counting at scale",
+     "Consistent hashing for stream partitioning"
+    ],
+    "sample_solution": {
+     "code": "import threading\nfrom collections import deque, Counter, defaultdict\nfrom dataclasses import dataclass\nfrom typing import List, Tuple\nimport time\n\n@dataclass\nclass Event:\n    user: str\n    timestamp: float\n    page: str\n    duration: float\n\nclass KafkaEventProcessor:\n    def __init__(self, retention_seconds: int = 3600):\n        \"\"\"Initialize processor with optional retention window (default 1 hour).\"\"\"\n        self.events = deque()  # Stores all events in order\n        self.page_counts = Counter()  # page -> visit count\n        self.user_durations = defaultdict(list)  # user -> [durations]\n        self.unique_users_set = set()  # Set of all unique users ever seen\n        self.retention_seconds = retention_seconds\n        self.lock = threading.Lock()\n    \n    def add(self, event: Event) -> None:\n        \"\"\"Thread-safe event ingestion with automatic cleanup of expired events.\"\"\"\n        with self.lock:\n            # Add new event\n            self.events.append(event)\n            self.page_counts[event.page] += 1\n            self.user_durations[event.user].append(event.duration)\n            self.unique_users_set.add(event.user)\n            \n            # Lazy cleanup: remove events older than retention window\n            cutoff_time = event.timestamp - self.retention_seconds\n            while self.events and self.events[0].timestamp < cutoff_time:\n                old_event = self.events.popleft()\n                self.page_counts[old_event.page] -= 1\n                if self.page_counts[old_event.page] == 0:\n                    del self.page_counts[old_event.page]\n                self.user_durations[old_event.user].remove(old_event.duration)\n                if not self.user_durations[old_event.user]:\n                    del self.user_durations[old_event.user]\n    \n    def top_pages(self, k: int = 10) -> List[Tuple[str, int]]:\n        \"\"\"Return top k pages by visit count. O(k log n) using heap.\"\"\"\n        with self.lock:\n            # most_common is O(n log k) internally, acceptable for analytics\n            return self.page_counts.most_common(k)\n    \n    def active_users(self, last_minutes: int = 30) -> int:\n        \"\"\"Count unique users in last N minutes. O(n) but data is sorted by time.\"\"\"\n        with self.lock:\n            cutoff_time = time.time() - (last_minutes * 60)\n            # Since deque is ordered, we can iterate and stop early\n            active = set()\n            for event in reversed(self.events):  # Start from most recent\n                if event.timestamp >= cutoff_time:\n                    active.add(event.user)\n                else:\n                    break  # All earlier events are also outside window\n            return len(active)\n    \n    def average_session_duration(self) -> float:\n        \"\"\"Compute mean session duration across all events. O(n) but cached-friendly.\"\"\"\n        with self.lock:\n            if not self.events:\n                return 0.0\n            total_duration = sum(e.duration for e in self.events)\n            return total_duration / len(self.events)\n    \n    def unique_users(self) -> int:\n        \"\"\"Return count of unique users in retention window. O(1).\"\"\"\n        with self.lock:\n            return len(self.unique_users_set)\n\n# Example usage and thread-safety test\nif __name__ == \"__main__\":\n    import threading\n    import random\n    import string\n    \n    processor = KafkaEventProcessor(retention_seconds=60)\n    \n    def producer(thread_id, count):\n        \"\"\"Simulate concurrent Kafka producers.\"\"\"\n        for i in range(count):\n            event = Event(\n                user=f\"user_{random.randint(1, 100)}\",\n                timestamp=time.time(),\n                page=f\"page_{random.choice(['home', 'profile', 'settings', 'dashboard'])}\",\n                duration=random.uniform(0.1, 5.0)\n            )\n            processor.add(event)\n            time.sleep(random.uniform(0.001, 0.01))\n    \n    # Start multiple producer threads\n    threads = []\n    for tid in range(4):\n        t = threading.Thread(target=producer, args=(tid, 25))\n        threads.append(t)\n        t.start()\n    \n    # Let producers run concurrently\n    for t in threads:\n        t.join()\n    \n    # Query results (thread-safe)\n    print(f\"Top 5 pages: {processor.top_pages(5)}\")\n    print(f\"Active users (last 30s): {processor.active_users(0.5)}\")\n    print(f\"Average session duration: {processor.average_session_duration():.2f}s\")\n    print(f\"Unique users: {processor.unique_users()}\")\n    print(f\"Total events in buffer: {len(processor.events)}\")",
+     "explanation": "The design uses a deque for ordered insertion (efficient O(1) append), a Counter for page visit counts, and a set for unique users. Each method is protected by a single threading.Lock to ensure thread-safe concurrent writes. The key insight is lazy deletion: old events are evicted during add() when they fall outside the retention window, not during every query. This balances memory usage and CPU cost. For top_pages, Counter.most_common() is O(n log k) which is acceptable for typical k=10. The active_users() method iterates the deque in reverse, stopping early when it leaves the time window (O(n) worst case but efficient in practice). All counters and sets are maintained incrementally, avoiding full recomputation. Thread safety is straightforward: a single coarse-grained lock protects all shared state. For very high throughput, you could explore lock-free data structures or sharding by key, but this design is correct and practical for most use cases.",
+     "language": "Python"
+    },
+    "similar_questions": [
+     {
+      "question": "Implement a URL shortener with expiring links: shorten(long_url, ttl_seconds) creates a short code, expand(code) retrieves the long URL, and expired links return None. Support concurrent access and efficient cleanup.",
+      "what_changes": "Instead of streaming events, you're managing mutable key-value pairs with expiration; instead of aggregations (top pages, active users), you perform point lookups; cleanup strategy is similar (lazy or background) but triggered by queries rather than by time-windowed aggregation."
+     },
+     {
+      "question": "Design a real-time leaderboard system: players send scores, top_k() returns the top K scores, and a player's score is updated (not appended). Support concurrent updates and efficient rank queries.",
+      "what_changes": "Instead of counting/summing immutable events, you're updating mutable player state; top-k still uses a heap/Counter but you must handle updates (delete old score, insert new); time windows are less relevant, but you might add seasonal/weekly leaderboards (different retention)."
+     },
+     {
+      "question": "Implement a rate limiter using a sliding-window counter: allow(user_id, limit, window_seconds) returns True if the user is under quota, False otherwise. Support concurrent requests efficiently.",
+      "what_changes": "Instead of aggregating events across all users, you're checking a per-user counter in a time window; instead of storing all events, you can use a circular array or timestamp-based bucketing; lock granularity can be per-user rather than global."
+     }
+    ],
+    "skills_tested": [
+     "data structure design",
+     "time-window operations",
+     "memory management",
+     "thread safety",
+     "heap/priority queue usage",
+     "concurrent programming",
+     "real-time analytics"
+    ],
+    "topic": "Stream Processing and Event Aggregation with Kafka",
+    "why_asked": "Interviewers often ask this because stream processing is a core pattern in real-world systems. This question tests whether you can design data structures for concurrent, time-windowed analytics at scale, handle memory constraints, and reason about thread safety without naive locking. It's common in backend, platform, and infrastructure roles."
+   },
+   "prep_for": "b5e20e324113",
    "question": "Implement a Python class to process a stream of web events from Kafka. Each event contains user, timestamp, page, and duration. The class must support: add(event) to ingest events, top_pages(10) to return the 10 most visited pages, active_users(last_minutes=30) to count users in the last 30 minutes, average_session_duration() to compute mean session duration, and unique_users() to count total unique users. Design for memory efficiency, thread safety, O(log n) or better performance where possible, automatic expiration of old events, and concurrent writers.",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Streaming and Data Processing",
    "technology": [
     "Kafka",
@@ -263,7 +956,7 @@
    "prep": null,
    "prep_for": null,
    "question": "Describe your process for designing a data model from scratch. How would your approach differ when designing models for two different industries, such as Finance versus Healthcare?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Data Modeling",
    "technology": [],
    "title": "Data Engineering — Data Model Design Across Industries"
@@ -279,7 +972,7 @@
    "prep": null,
    "prep_for": null,
    "question": "What modeling decisions in a system design are difficult to reverse after implementation? Which decisions are critical to get right early on, and what are the consequences of getting them wrong?",
-   "status": "pending",
+   "status": "approved",
    "subcategory": "Design Philosophy",
    "technology": [],
    "title": "System Design — Modeling Decisions Impact"
@@ -307,8 +1000,8 @@
     "+15 source says it was asked in an interview",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "How would you design anomaly detection? Would you use Z-score Moving average EWMA Prophet Isolation Forest ML models Explain trade-offs.",
@@ -345,7 +1038,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=c66da52eede027b3"
   },
   "r-46a4617f5fb2": {
@@ -371,8 +1064,8 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "How do you think about grain in a fact table? How do you decide what the atomic level should be in data modeling? what is your process.",
@@ -409,7 +1102,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=35a2cac2b01e2205"
   },
   "r-4da24aa4965a": {
@@ -434,8 +1127,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "What modeling decisions are hard to undo later? Which ones do you get right early or pay for it the rest of the project?",
@@ -467,7 +1160,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=a5e978afb34959c1"
   },
   "r-57a5fc0b08dc": {
@@ -557,8 +1250,8 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "Walk me through your process for designing a data model from scratch. How would your approach differ between two different industries, like Finance and healthcare?",
@@ -594,7 +1287,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=859bc1088fe691ab"
   },
   "r-8505f4b4b0d2": {
@@ -619,8 +1312,8 @@
     "+4 source date known",
     "+3 interview year stated"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "Implement a Python class that supports tracker.add(event) tracker.top_pages(10) tracker.active_users(last_minutes=30) tracker.average_session_duration() tracker.unique_users() Constraints Cannot store",
@@ -656,7 +1349,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=ee765f2b2a63ac8f"
   },
   "r-9d1209bed20a": {
@@ -681,8 +1374,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "Once the architecture begins handling production workloads, what specific, non-negotiable metrics do you use to evaluate whether the system is genuinely 'good,' scalable, and resilient against future ",
@@ -714,7 +1407,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=556a04e8991f8849"
   },
   "r-aefbc4db64b4": {
@@ -739,8 +1432,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "When building and testing data dashboards, a common problem is that Dev and QA environments lack the data quality, structural complexity, and sheer volume of Production. This makes it difficult to val",
@@ -777,7 +1470,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=29d472b0bc558918"
   },
   "r-baa27809dcc4": {
@@ -861,8 +1554,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "What are the sequential steps you take to translate high-level business goals into a conceptual blueprint while navigating existing data constraints?",
@@ -894,7 +1587,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=556a04e8991f8849"
   },
   "r-c898ef344371": {
@@ -919,8 +1612,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "How do you identify when you need multiple fact tables versus one? Walk me through your approach.",
@@ -955,7 +1648,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=478708de7f6e633a"
   },
   "r-d54f6085cbe6": {
@@ -980,8 +1673,8 @@
     "+8 company attributed with evidence",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "What foundational rules or trade-offs guide your early choices when deciding on data modeling patterns and the technical stack?",
@@ -1013,7 +1706,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=556a04e8991f8849"
   },
   "r-d63a1a90faaf": {
@@ -1097,8 +1790,8 @@
     "+15 source says it was asked in an interview",
     "+4 source date known"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "Design a Real-Time Data Quality Platform magine you are building an internal platform similar to Monte Carlo, Great Expectations Cloud, or Databricks Lakehouse Monitoring.",
@@ -1137,7 +1830,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=c66da52eede027b3"
   },
   "r-ece58431b034": {
@@ -1163,8 +1856,8 @@
     "+4 source date known",
     "-10 too close to the source wording"
    ],
-   "decided_at": null,
-   "decided_by": null,
+   "decided_at": "2026-10-07T22:34:10Z",
+   "decided_by": "Paddy",
    "decision_note": null,
    "discovered": "2026-10-07",
    "evidence": "You are designing an analytics platform for a contact-center serving 40+ enterprise tenants, with more onboarding over time.",
@@ -1206,7 +1899,7 @@
    "source_title": "Submitted to PaddySpeaks by a candidate",
    "source_type": "community",
    "stage_evidence": null,
-   "status": "pending",
+   "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=b8afb368e8f5c558"
   }
  },
