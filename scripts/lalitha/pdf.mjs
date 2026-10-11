@@ -13,6 +13,7 @@
  * and the renderer serves those files in place of the Google ones.
  */
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { serve, launch } from '../every_arrow/pdf.mjs';
 
@@ -67,6 +68,13 @@ export async function renderPdf(root, out, url) {
     await browser.close();
     server.close();
   }
+  /* Chromium writes every object uncompressed-in-place; packing them into object
+     streams halves the file. Optional: needs `pip install pikepdf`. */
+  const py = 'import pikepdf,sys\np=pikepdf.open(sys.argv[1],allow_overwriting_input=True)\n'
+    + 'p.save(sys.argv[1],object_stream_mode=pikepdf.ObjectStreamMode.generate,compress_streams=True,recompress_flate=True)';
+  const r = spawnSync('python3', ['-c', py, out], { encoding: 'utf8' });
+  if (r.status !== 0) console.warn('  (pikepdf not available — PDF left uncompacted)');
   const buf = fs.readFileSync(out).toString('latin1');
-  return (buf.match(/\/Type\s*\/Page[^s]/g) || []).length;
+  const pages = (buf.match(/\/Type\s*\/Page[^s]/g) || []).length;
+  return pages || Number((spawnSync('pdfinfo', [out], { encoding: 'utf8' }).stdout.match(/Pages:\s+(\d+)/) || [])[1] || 0);
 }
