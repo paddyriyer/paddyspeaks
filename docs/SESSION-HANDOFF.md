@@ -1,10 +1,27 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-07 (Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-11 (Lalitā Sahasranāma corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-10-11): Lalitā Sahasranāma — corrected text and study edition.**
+  At Paddy's request (a master prompt: correct the "Complete Text" PDF's Sanskrit,
+  word splits and meanings; deliver a print-ready PDF, an editable document, a
+  correction log and the unresolved variants). The site's PDF is generated from
+  `lalitha-sahasranama/data.js`, so that was the source corrected. One source now
+  (`lalitha-sahasranama/edition/text.json` + 19 analysis batches) generates
+  `data.js`, `words.js`, `/lalitha-sahasranama/edition/` (every name with sandhi
+  viccheda, samāsa vigraha, word table, meaning, significance), a 761-page PDF, a
+  DOCX and `edition/CORRECTIONS.md`. 36 name corrections (e.g. 454 is the single
+  name lolākṣīkāmarūpiṇī), name cards that sat under the wrong śloka in 17 ślokas (and no śloka 183),
+  64 drifted half-line translations, 45 meanings rewritten. `scripts/lalitha/check.py`
+  (in Validate Content) proves sequence, metre, transliteration and alignment.
+  **Open for Paddy:** five variant readings and 129 uncertain interpretations
+  await a check against a printed Saubhāgyabhāskara (not reachable from the build
+  environment). The four old root generators (`generate_words.py` etc.) were
+  removed — they would restore the errors. See `docs/LALITHA-SAHASRANAMA-EDITION.md`.
 
 - **NEWEST (2026-10-07): Interview Intelligence.** At Paddy's request, a discovery
   engine that finds public interview reports and turns them into reviewed

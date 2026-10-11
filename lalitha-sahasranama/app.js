@@ -7,192 +7,8 @@
   var searchTimer = null;
 
   // --- Name-to-Verse Mapping ---
-  // Traditional mapping of which divine names appear in each shloka
-  // Based on the standard Brahmanda Purana text
-    const VERSE_NAMES = {
-      1: [1,2,3,4,5],
-      2: [6,7,8,9],
-      3: [10,11,12],
-      4: [13,14],
-      5: [15,16],
-      6: [17,18],
-      7: [19,20],
-      8: [21,22],
-      9: [23,24],
-      10: [25,26],
-      11: [27,28],
-      12: [29,30],
-      13: [31,32],
-      14: [33,34],
-      15: [35,36],
-      16: [37,38],
-      17: [39,40],
-      18: [41,42,43],
-      19: [44,45],
-      20: [46,47,48],
-      21: [49,50,51,52,53,54],
-      22: [55,56,57,58],
-      23: [59,60,61,62,63],
-      24: [64,65],
-      25: [66,67],
-      26: [68,69],
-      27: [70,71],
-      28: [72,73],
-      29: [74,75],
-      30: [76,77],
-      31: [78,79],
-      32: [80,81],
-      33: [82,83],
-      34: [84,85],
-      35: [86,87],
-      36: [88,89,90,91],
-      37: [92,93,94,95,96,97,98],
-      38: [99,100,101,102],
-      39: [103,104,105,106],
-      40: [107,108,109,110,111],
-      41: [112,113,114,115,116],
-      42: [117,118,119,120,121,122,123,124,125],
-      43: [126,127,128,129,130,131,132,133],
-      44: [134,135,136,137,138,139,140,141,142,143],
-      45: [144,145,146,147,148,149,150,151],
-      46: [152,153,154,155,156,157,158,159],
-      47: [160,161,162,163,164,165,166,167],
-      48: [168,169,170,171,172,173,174,175],
-      49: [176,177,178,179,180,181,182,183],
-      50: [184,185,186,187,188,189,190,191,192],
-      51: [193,194,195,196,197,198],
-      52: [199,200,201,202,203,204],
-      53: [205,206,207,208,209,210],
-      54: [211,212,213,214,215,216,217],
-      55: [218,219,220,221,222,223],
-      56: [224,225,226,227,228,229,230,231],
-      57: [232,233,234],
-      58: [235,236,237],
-      59: [238,239,240,241,242,243],
-      60: [244,245,246,247,248],
-      61: [249,250,251,252,253],
-      62: [254,255,256,257,258,259],
-      63: [260,261,262,263,264,265,266,267],
-      64: [268,269,270,271,272,273,274],
-      65: [275,276,277,278,279,280],
-      66: [281,282,283,284],
-      67: [285,286,287,288],
-      68: [289,290],
-      69: [291,292,293,294,295,296,297],
-      70: [298,299,300,301,302,303,304],
-      71: [305,306,307,308,309,310,311,312],
-      72: [313,314,315,316,317,318,319,320],
-      73: [321,322,323,324,325,326],
-      74: [327,328,329,330,331,332,333],
-      75: [334,335,336,337,338,339,340],
-      76: [341,342,343,344,345],
-      77: [346,347,348,349,350,351,352],
-      78: [353,354,355,356],
-      79: [357,358,359,360,361],
-      80: [362,363,364,365],
-      81: [366,367,368,369,370,371,372],
-      82: [373,374,375,376,377,378],
-      83: [379,380,381,382],
-      84: [383,384,385,386,387],
-      85: [388,389,390,391,392],
-      86: [393,394,395,396,397,398,399],
-      87: [400,401,402,403],
-      88: [404,405,406,407,408],
-      89: [409,410,411,412,413,414,415],
-      90: [416,417,418,419,420,421,422,423],
-      91: [424,425,426,427,428,429,430,431],
-      92: [432,433,434,435],
-      93: [436,437,438,439,440,441],
-      94: [442,443,444,445,446,447,448,449,450,451],
-      95: [452,453,454,455,456,457,458],
-      96: [459,460,461,462,463,464,465,466,467],
-      97: [468,469,470,471,472,473,474],
-      98: [475,476,477,478,479],
-      99: [480,481,482,483,484],
-      100: [485,486,487,488,489,490],
-      101: [491,492,493,494],
-      102: [495,496,497,498],
-      103: [499,500,501,502,503],
-      104: [504,505,506,507],
-      105: [508,509,510,511,512,513],
-      106: [514,515,516,517,518],
-      107: [519,520,521,522,523],
-      108: [524,525,526,527],
-      109: [528,529,530,531,532],
-      110: [533,534,535,536,537,538,539,540,541],
-      111: [542,543,544,545,546,547],
-      112: [548,549,550,551,552],
-      113: [553,554,555,556,557,558],
-      114: [559,560,561,562,563,564,565],
-      115: [566,567,568,569,570,571],
-      116: [572,573,574,575,576,577],
-      117: [578,579,580,581],
-      118: [582,583,584,585,586,587,588,589],
-      119: [590,591,592,593],
-      120: [594,595,596,597,598,599,600],
-      121: [601,602,603,604,605,606],
-      122: [607,608,609,610],
-      123: [611,612,613,614],
-      124: [615,616,617,618,619,620,621],
-      125: [622,623,624,625,626,627,628],
-      126: [629,630,631,632,633,634,635,636],
-      127: [637,638,639,640,641,642,643,644],
-      128: [645,646,647,648],
-      129: [649,650,651,652,653,654,655,656,657],
-      130: [658,659,660,661],
-      131: [662,663,664,665,666,667,668],
-      132: [669,670,671,672,673,674,675,676,677],
-      133: [678,679,680,681,682,683],
-      134: [684,685,686,687,688],
-      135: [689,690,691,692,693,694],
-      136: [695,696,697,698,699,700],
-      137: [701,702,703,704,705,706,707],
-      138: [708,709,710,711,712,713],
-      139: [714,715,716,717,718,719,720,721,722],
-      140: [723,724,725,726,727],
-      141: [728,729,730,731,732,733,734],
-      142: [735,736,737,738,739,740,741],
-      143: [742,743,744,745],
-      144: [746,747,748],
-      145: [749,750,751,752,753,754,755,756],
-      146: [757,758,759,760,761,762,763],
-      147: [764,765,766,767,768,769,770],
-      148: [771,772,773,774,775,776],
-      149: [777,778,779,780,781,782,783,784],
-      150: [785,786,787,788,789,790],
-      151: [791,792,793,794,795,796],
-      152: [797,798,799,800,801,802,803,804,805],
-      153: [806,807,808,809,810,811,812],
-      154: [813,814,815,816,817,818,819,820],
-      155: [821,822,823,824,825,826,827,828,829,830],
-      156: [831,832,833,834,835,836,837],
-      157: [838,839,840,841,842,843],
-      158: [844,845,846,847,848,849,850],
-      159: [851,852,853],
-      160: [854,855,856,857,858,859,860,861],
-      161: [862,863,864,865],
-      162: [866,867,868,869,870,871],
-      163: [872,873,874,875,876,877,878,879],
-      164: [880,881,882,883],
-      165: [884,885,886,887,888,889],
-      166: [890,891,892,893,894,895,896,897],
-      167: [898,899,900,901,902,903,904,905],
-      168: [906,907,908,909,910,911],
-      169: [912,913,914,915,916,917],
-      170: [918,919,920,921,922],
-      171: [923,924,925,926],
-      172: [927,928,929,930,931,932,933],
-      173: [934,935,936,937,938,939,940,941],
-      174: [942,943,944,945,946,947],
-      175: [948,949,950,951,952,953,954],
-      176: [955,956,957,958,959,960,961,962,963],
-      177: [964,965,966,967,968,969,970],
-      178: [971,972,973,974,975,976],
-      179: [977,978,979,980,981],
-      180: [982,983,984,985,986,987,988,989],
-      181: [990,991,992,993],
-      182: [994,995,996,997,998,999,1000],
-    };
+  // Generated from the śloka text by scripts/lalitha/build.mjs (edition/text.json).
+  const VERSE_NAMES = LALITHA_DATA.verse_names;
 
   // Build a reverse map: name number -> verse number
   const NAME_TO_VERSE = {};
@@ -216,6 +32,13 @@
       .replace('|| nyAsaH ||', '')
       .trim();
     container.textContent = text;
+    if (LALITHA_DATA.nyasa_dev) {
+      var dev = document.createElement('div');
+      dev.className = 'nyasa-devanagari';
+      dev.lang = 'sa';
+      dev.textContent = LALITHA_DATA.nyasa_dev.join(' ।\n') + ' ॥';
+      container.parentNode.insertBefore(dev, container);
+    }
   }
 
   // --- Render Dhyana Shlokas ---
@@ -224,6 +47,7 @@
     var html = '';
     LALITHA_DATA.dhyana.forEach(function (dv) {
       html += '<div class="dhyana-verse">';
+      if (dv.devanagari) html += '<div class="devanagari" lang="sa">' + escapeHtml(dv.devanagari) + '</div>';
       html += '<div class="transliteration">' + escapeHtml(dv.sanskrit) + '</div>';
       if (dv.translation) {
         html += '<div class="translation">' + escapeHtml(dv.translation) + '</div>';
@@ -253,6 +77,14 @@
       // Build shloka text display with translations after full verse
       var translations = verse.translations || [];
       var shlokaHtml = '<div class="shloka-text">';
+      var halvesDev = verse.halves_dev || [];
+      if (halvesDev.length) {
+        shlokaHtml += '<div class="shloka-devanagari" lang="sa">';
+        halvesDev.forEach(function (half, idx) {
+          shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + (idx < halvesDev.length - 1 ? ' ।' : ' ॥ ' + devDigits(verseNum) + ' ॥') + '</span>';
+        });
+        shlokaHtml += '</div>';
+      }
       halves.forEach(function (half, idx) {
         shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
         if (idx < halves.length - 1) {
@@ -280,23 +112,16 @@
         if (name) {
           namesHtml += '<div class="word-card">';
           namesHtml += '<div class="word-num">' + nNum + '</div>';
-          if (name.morphemes && name.morphemes.length > 1) {
-            namesHtml += '<div class="word-devanagari">';
-            name.morphemes.forEach(function (m, idx) {
-              if (idx > 0) namesHtml += ' ';
-              namesHtml += escapeHtml(m.devanagari || '');
-            });
-            namesHtml += '</div>';
-          } else {
-            namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
-          }
+          // the name stays whole; its parts are shown beneath it
+          namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
           namesHtml += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
           namesHtml += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
+          namesHtml += '<a class="word-study" href="edition/#n-' + nNum + '">Sandhi, samāsa &amp; full analysis &rarr;</a>';
           if (name.morphemes && name.morphemes.length > 1) {
             namesHtml += '<div class="morpheme-split">';
             name.morphemes.forEach(function (m, idx) {
               if (idx > 0) namesHtml += '<span class="morpheme-sep">+</span>';
-              namesHtml += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
+              namesHtml += '<span class="morpheme" title="' + escapeHtml(m.transliteration + ' — ' + m.meaning) + '">';
               if (m.devanagari) namesHtml += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
               namesHtml += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
               namesHtml += '</span>';
@@ -479,6 +304,7 @@
       .replace(/^\.\.\s*nyāsaḥ\s*\.\.\s*/i, '')
       .replace('|| nyAsaH ||', '')
       .trim();
+    if (LALITHA_DATA.nyasa_dev) html += '<div class="nyasa-text devanagari">' + escapeHtml(LALITHA_DATA.nyasa_dev.join(' ।\n') + ' ॥') + '</div>';
     html += '<div class="nyasa-text">' + escapeHtml(nyasaText) + '</div>';
     html += '</div>';
 
@@ -489,6 +315,7 @@
     LALITHA_DATA.dhyana.forEach(function (dv, idx) {
       html += '<div class="dhyana-verse">';
       html += '<div class="verse-num-label">Dhyana Shloka ' + (idx + 1) + '</div>';
+      if (dv.devanagari) html += '<div class="verse-text devanagari">' + escapeHtml(dv.devanagari) + '</div>';
       html += '<div class="verse-text">' + escapeHtml(dv.sanskrit) + '</div>';
       if (dv.translation) {
         html += '<div class="translation">' + escapeHtml(dv.translation) + '</div>';
@@ -511,6 +338,11 @@
       html += '<div class="verse-header-bar"><span class="verse-number">Shloka ' + verseNum + '</span></div>';
 
       // Shloka text
+      if (verse.halves_dev) {
+        html += '<div class="shloka-devanagari">' + verse.halves_dev.map(function (h, idx) {
+          return escapeHtml(h) + (idx === 0 ? ' ।' : ' ॥ ' + devDigits(verseNum) + ' ॥');
+        }).join('<br>') + '</div>';
+      }
       html += '<div class="shloka-text">';
       halves.forEach(function (half, idx) {
         html += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
@@ -538,16 +370,7 @@
           if (name) {
             html += '<div class="word-card">';
             html += '<div class="word-num">' + nNum + '</div>';
-            if (name.morphemes && name.morphemes.length > 1) {
-              html += '<div class="word-devanagari">';
-              name.morphemes.forEach(function (m, idx) {
-                if (idx > 0) html += ' ';
-                html += escapeHtml(m.devanagari || '');
-              });
-              html += '</div>';
-            } else {
-              html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
-            }
+            html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
             html += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
             html += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
             if (name.morphemes && name.morphemes.length > 1) {
@@ -573,10 +396,6 @@
 
     // Closing
     html += '<div class="section closing">';
-    html += '<div class="closing-verse">';
-    html += '<div class="verse-text">evaṃ śrī-lalitā-devyā nāmnāṃ sāhasrakaṃ jaguḥ</div>';
-    html += '<div class="translation">Thus the thousand names of Sri Lalita Devi have been sung.</div>';
-    html += '</div>';
     html += '<div class="closing-verse">';
     html += '<div class="verse-text">iti śrī-brahmāṇḍa-purāṇe uttara-khaṇḍe śrī-hayagrīva-agastya-saṃvāde<br>śrī-lalitā-sahasranāma-stotra-kathanaṃ sampūrṇam</div>';
     html += '<div class="translation">Thus ends the narration of Sri Lalita Sahasranama Stotra from the Uttara Khanda of the Brahmanda Purana, in the dialogue between Sri Hayagriva and Agastya.</div>';
@@ -625,6 +444,8 @@
       '.verse-header-bar { background: linear-gradient(135deg, #8b1a1a, #a52a2a); padding: 0.3rem 0.75rem; }',
       '.verse-number { color: #fff; font-size: 0.8rem; font-weight: 600; }',
       '.shloka-text { background: #fdf8f0; padding: 0.6rem 0.75rem; font-size: 0.9rem; line-height: 1.8; }',
+      '.shloka-devanagari, .devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 1.02rem; line-height: 1.9; color: #3a2518; }',
+      '.shloka-devanagari { background: #fdf8f0; padding: 0.6rem 0.75rem 0; }',
       '.shloka-line { display: inline; }',
       '.separator { color: #b8860b; font-weight: 600; }',
       '.shloka-translation { padding: 0.3rem 0.75rem; font-size: 0.78rem; color: #6b5744; font-style: italic; background: #f7efe3; }',
@@ -705,6 +526,11 @@
     if (topBtn) topBtn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     var bottomBtn = document.getElementById('scroll-down');
     if (bottomBtn) bottomBtn.addEventListener('click', function () { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); });
+  }
+
+  // --- Utility: Devanagari digits for verse numbers inside Devanagari lines ---
+  function devDigits(n) {
+    return String(n).replace(/\d/g, function (d) { return '०१२३४५६७८९'.charAt(+d); });
   }
 
   // --- Utility: Escape HTML ---
