@@ -33,6 +33,9 @@ const PDF = `${ED}/Sri-Lalitha-Sahasranama-Study-Edition.pdf`;
 const DOCX = `${ED}/Sri-Lalitha-Sahasranama-Study-Edition.docx`;
 const args = new Set(process.argv.slice(2));
 const CHECK = args.has('--check');
+/* LALITHA_PREVIEW=/some/dir: tolerate missing batches and write everything there
+   instead of the repo (for looking at work in progress; never for committing). */
+const PREVIEW = process.env.LALITHA_PREVIEW || '';
 
 const readJSON = (p) => JSON.parse(fs.readFileSync(A(p), 'utf8'));
 const T = readJSON(`${ED}/text.json`);
@@ -40,7 +43,7 @@ const LOG = readJSON(`${ED}/corrections.json`);
 const batchFiles = fs.readdirSync(A(`${ED}/analysis`)).filter((f) => /^\d\d\.json$/.test(f)).sort();
 const BATCHES = batchFiles.map((f) => readJSON(`${ED}/analysis/${f}`));
 const problems = [];
-if (BATCHES.length !== 19) problems.push(`expected 19 analysis batches, found ${BATCHES.length}`);
+if (BATCHES.length !== 19 && !PREVIEW) problems.push(`expected 19 analysis batches, found ${BATCHES.length}`);
 
 const AN = new Map();          // name num -> analysis entry
 const VNOTE = new Map();       // śloka num -> verse note
@@ -48,7 +51,7 @@ for (const b of BATCHES) {
   for (const e of b.names) AN.set(e.num, e);
   for (const v of b.verse_notes || []) VNOTE.set(v.verse, v);
 }
-for (const n of T.names) if (!AN.has(n.num)) problems.push(`name ${n.num} has no analysis`);
+if (!PREVIEW) for (const n of T.names) if (!AN.has(n.num)) problems.push(`name ${n.num} has no analysis`);
 const NAMES = T.names.map((n) => ({ ...n, a: AN.get(n.num) || null }));
 const byNum = new Map(NAMES.map((n) => [n.num, n]));
 
@@ -125,7 +128,7 @@ function nameEntry(n) {
   const sm = a.samasa;
   let h = `<article class="name" id="n-${n.num}">`;
   h += `<header class="name-head"><span class="nnum">${n.num}</span>`
-    + `<span class="ndev" lang="sa">${esc(n.dev)}</span>`
+    + `<span class="ndev nw" lang="sa">${esc(n.dev)}</span>`
     + `<span class="niast" lang="sa-Latn">${esc(a.iast || n.iast)}</span></header>`;
   h += '<dl class="facts">';
   h += '<dt>Sandhi viccheda</dt><dd>';
@@ -174,7 +177,7 @@ function slokaBlock(v) {
   h += '<p class="dlabel">Names in this śloka</p><ol class="snames">';
   for (const k of v.names) {
     const n = byNum.get(k);
-    h += `<li value="${k}"><a href="#n-${k}"><span lang="sa">${esc(n.dev)}</span> <span class="iast" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span></a></li>`;
+    h += `<li value="${k}"><a href="#n-${k}"><span class="nw" lang="sa">${esc(n.dev)}</span> <span class="iast" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span></a></li>`;
   }
   h += '</ol>';
   if (v.num === 183) h += '<p class="note">The second half of this śloka, <span lang="sa">एवं श्रीललितादेव्या नाम्नां साहस्रकं जगुः</span>, closes the hymn and contains no name. The names therefore fill 182½ ślokas.</p>';
@@ -191,8 +194,8 @@ function slokaBlock(v) {
 }
 
 function correctionTables() {
-  let h = '<h3>A.1 The Sanskrit of the names</h3><table class="log"><thead><tr><th>Name</th><th>Original</th><th>Corrected</th><th>Kind</th><th>Reason</th></tr></thead><tbody>';
-  for (const c of LOG.names) h += `<tr><td><a href="#n-${c.name}">${c.name}</a></td><td lang="sa">${esc(c.original_dev)}<br><span class="iast">${esc(c.original_iast)}</span></td><td lang="sa">${esc(c.corrected_dev)}<br><span class="iast">${esc(c.corrected_iast)}</span></td><td>${esc(LABEL[c.kind] || c.kind)}</td><td>${esc(c.reason)}</td></tr>`;
+  let h = '<h3>A.1 The Sanskrit of the names</h3><table class="log log-names"><thead><tr><th>Name</th><th>Original → corrected</th><th>Kind and reason</th></tr></thead><tbody>';
+  for (const c of LOG.names) h += `<tr><td><a href="#n-${c.name}">${c.name}</a></td><td><span class="nw" lang="sa">${esc(c.original_dev)}</span><br><span class="iast">${esc(c.original_iast)}</span><br>→ <span class="nw" lang="sa">${esc(c.corrected_dev)}</span><br><span class="iast">${esc(c.corrected_iast)}</span></td><td><strong>${esc(LABEL[c.kind] || c.kind)}.</strong> ${esc(c.reason)}</td></tr>`;
   h += '</tbody></table>';
   h += '<h3>A.2 Structure, numbering and śloka text</h3><table class="log"><thead><tr><th>Where</th><th>Original</th><th>Corrected</th><th>Kind</th><th>Reason</th></tr></thead><tbody>';
   for (const c of LOG.structure) h += `<tr><td>${esc(c.where)}</td><td>${esc(c.original)}</td><td>${esc(c.corrected)}</td><td>${esc(LABEL[c.kind] || c.kind)}</td><td>${esc(c.reason)}</td></tr>`;
@@ -207,11 +210,11 @@ function correctionTables() {
 
 function variantsSection() {
   let h = '<table class="log"><thead><tr><th>Name</th><th>Reading adopted</th><th>Variant</th><th>Note</th></tr></thead><tbody>';
-  for (const v of LOG.variants) h += `<tr><td>${v.name ? `<a href="#n-${v.name}">${v.name}</a>` : esc(v.where)}</td><td lang="sa">${esc(v.adopted)}</td><td lang="sa">${esc(v.variant)}</td><td>${esc(v.note)}</td></tr>`;
+  for (const v of LOG.variants) h += `<tr><td>${v.name ? `<a href="#n-${v.name}">${v.name}</a>` : esc(v.where)}</td><td>${esc(v.adopted)}</td><td>${esc(v.variant)}</td><td>${esc(v.note)}</td></tr>`;
   h += '</tbody></table>';
   const unc = NAMES.filter((n) => n.a && n.a.uncertain);
   h += `<h3>B.2 Interpretations marked uncertain (${unc.length})</h3><p>Each is flagged at the name itself. Listed here for scholarly review.</p><ul class="unc">`;
-  for (const n of unc) h += `<li><a href="#n-${n.num}">${n.num} <span lang="sa">${esc(n.dev)}</span></a> — ${esc(n.a.uncertain)}</li>`;
+  for (const n of unc) h += `<li><a href="#n-${n.num}">${n.num} <span class="nw" lang="sa">${esc(n.dev)}</span></a> — ${esc(n.a.uncertain)}</li>`;
   h += '</ul>';
   const tc = NAMES.filter((n) => n.a && n.a.text_concern);
   if (tc.length) {
@@ -277,7 +280,7 @@ function buildEdition() {
   b += '</div></section>';
 
   b += '<section id="analysis" class="part"><h2>Śloka-by-śloka analysis</h2>';
-  for (const v of T.verses) b += slokaBlock(v);
+  for (const v of (PREVIEW ? T.verses.filter((x) => x.names.every((k) => AN.has(k))) : T.verses)) b += slokaBlock(v);
   b += '</section>';
 
   b += `<section id="closing" class="prose part"><h2>Colophon</h2><p class="sdev" lang="sa">${esc(T.closing[0].dev)}</p><p class="siast" lang="sa-Latn">${esc(T.closing[0].iast)}</p><p class="tr">${esc(T.closing[0].translation)}</p></section>`;
@@ -286,7 +289,7 @@ function buildEdition() {
   b += `<section id="variants" class="appendix"><h2>Appendix B — Variants and open questions</h2><h3>B.1 Textual variants</h3>${variantsSection()}</section>`;
   b += `<section id="reports" class="appendix"><h2>Appendix C — Batch consistency reports</h2><p>The analysis was done in batches of ten ślokas. After each, a check proved that the batch lists exactly the names of its ślokas in order, that every IAST string is the exact transliteration of its Devanagari, and that every name has its sandhi, samāsa, word table, meaning and significance.</p>${batchReports()}</section>`;
   b += '<section id="namavali" class="appendix"><h2>Appendix D — The 1,000 names</h2><ol class="nav-list">';
-  for (const n of NAMES) b += `<li value="${n.num}"><a href="#n-${n.num}"><span lang="sa">${esc(n.dev)}</span></a> <span class="iast" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span></li>`;
+  for (const n of NAMES) b += `<li value="${n.num}"><a href="#n-${n.num}"><span class="nw" lang="sa">${esc(n.dev)}</span></a> <span class="iast" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span></li>`;
   b += '</ol></section>';
 
   const css = fs.readFileSync(A(`${ED}/edition.css`), 'utf8');
@@ -311,8 +314,9 @@ function buildEdition() {
 ${css}</style>
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to the text</a>
 <div class="topbar"><a href="/lalitha-sahasranama/">← Chanting guide</a><span lang="sa">श्रीललितासहस्रनाम</span><a href="${path.basename(PDF)}">PDF</a></div>
-<main class="edition">
+<main class="edition" id="main">
 ${b}
 </main>
 <footer class="foot"><p>Śrī Lalitā Sahasranāma — Study Edition ${esc(E.version)} · ${esc(E.date)} · <a href="https://paddyspeaks.com/">PaddySpeaks</a> · <a href="CORRECTIONS.md">Correction log (text)</a></p></footer>
@@ -376,6 +380,19 @@ if (CHECK) {
   }
   if (!pdfMeta || pdfMeta.source !== editionHash) problems.push(`${PDF} is older than the edition — run the build with --pdf (see header)`);
   if (!pdfMeta || pdfMeta.docx_source !== editionHash) problems.push(`${DOCX} is older than the edition — run the build with --docx (see header)`);
+} else if (PREVIEW) {
+  /* mirror the repo layout under PREVIEW so the page still finds /lib and its PDF link */
+  for (const [f, content] of outputs) { fs.mkdirSync(path.dirname(path.join(PREVIEW, f)), { recursive: true }); fs.writeFileSync(path.join(PREVIEW, f), content); }
+  if (args.has('--pdf')) {
+    const { renderPdf } = await import('./pdf.mjs');
+    const pages = await renderPdf(PREVIEW, path.join(PREVIEW, PDF), `/${ED}/index.html`);
+    console.log(`  preview PDF: ${pages} pages`);
+  }
+  if (args.has('--docx')) {
+    const { renderDocx } = await import('./docx.mjs');
+    await renderDocx({ T: { ...T, verses: T.verses.filter((x) => x.names.every((k) => AN.has(k))) }, NAMES: NAMES.filter((n) => n.a), LOG, BATCHES, out: path.join(PREVIEW, DOCX) });
+  }
+  console.log('  preview written to', PREVIEW);
 } else {
   if (problems.length) { console.error(problems.map((p) => '✗ ' + p).join('\n')); process.exit(1); }
   for (const [f, content] of outputs) {

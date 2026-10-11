@@ -57,6 +57,10 @@ the text or analysis changes.
 - **No invented attributions.** A reading is attributed to Bhāskararāya or a
   text only when the attribution is secure; otherwise it says "traditionally".
   Doubt is marked `uncertain` and listed for review, never hidden.
+- **The old generators are retired and were removed** (`generate_words.py`,
+  `split_compounds.py`, `fix_meanings.py`, `update_verses.py` at the repo root).
+  They rebuilt `data.js` / `words.js` from a dictionary and would bring the
+  errors back. Git history keeps them; do not restore them.
 - The Abhirami page cites Lalitha names by number and IAST;
   `node .github/scripts/validate_abhirami.js` fails if a citation no longer
   matches `data.js`. Run it after changing a name.

@@ -81,7 +81,7 @@
       if (halvesDev.length) {
         shlokaHtml += '<div class="shloka-devanagari" lang="sa">';
         halvesDev.forEach(function (half, idx) {
-          shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + (idx < halvesDev.length - 1 ? ' ।' : ' ॥ ' + verseNum + ' ॥') + '</span>';
+          shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + (idx < halvesDev.length - 1 ? ' ।' : ' ॥ ' + devDigits(verseNum) + ' ॥') + '</span>';
         });
         shlokaHtml += '</div>';
       }
@@ -340,7 +340,7 @@
       // Shloka text
       if (verse.halves_dev) {
         html += '<div class="shloka-devanagari">' + verse.halves_dev.map(function (h, idx) {
-          return escapeHtml(h) + (idx === 0 ? ' ।' : ' ॥ ' + verseNum + ' ॥');
+          return escapeHtml(h) + (idx === 0 ? ' ।' : ' ॥ ' + devDigits(verseNum) + ' ॥');
         }).join('<br>') + '</div>';
       }
       html += '<div class="shloka-text">';
@@ -526,6 +526,11 @@
     if (topBtn) topBtn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     var bottomBtn = document.getElementById('scroll-down');
     if (bottomBtn) bottomBtn.addEventListener('click', function () { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); });
+  }
+
+  // --- Utility: Devanagari digits for verse numbers inside Devanagari lines ---
+  function devDigits(n) {
+    return String(n).replace(/\d/g, function (d) { return '०१२३४५६७८९'.charAt(+d); });
   }
 
   // --- Utility: Escape HTML ---
