@@ -66,6 +66,8 @@ def check_text(t):
     listed = []
     for v in verses:
         for h, half in enumerate(v['halves']):
+            if re.search(r'[^\u0900-\u097F ]', half['dev']):
+                err(f"śloka {v['num']}.{h + 1}: stray character in Devanagari {half['dev']!r}")
             if dev2iast(half['dev']) != half['iast']:
                 err(f"śloka {v['num']}.{h + 1}: IAST is not the transliteration of the Devanagari")
             n = syllables(half['iast'])
