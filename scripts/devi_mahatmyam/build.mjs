@@ -187,7 +187,7 @@ function mantraHTML(ch, m, e) {
   h += `<div class="sec"><p class="lbl"><span class="n">3</span>IAST</p>
 <p class="iast" lang="sa-Latn"><span class="k">As recited</span>${recIast}</p>
 <p class="iast" lang="sa-Latn"><span class="k">Separated</span>${e.pada.map((l) => padaLineI(l)).join('<br>')}</p></div>`;
-  h += `<div class="sec"><p class="lbl"><span class="n">4</span>Word by word</p><div class="tw"><table class="wt">
+  h += `<div class="sec"><p class="lbl"><span class="n">4</span>Word by word</p><div class="tw" tabindex="0" role="region" aria-label="Table (scrolls sideways)"><table class="wt">
 <thead><tr><th scope="col">Sanskrit</th><th scope="col">IAST</th><th scope="col">Meaning</th><th scope="col">Grammar</th></tr></thead><tbody>
 ${e.words.map((w) => `<tr><td class="sa" lang="sa">${esc(w.w)}</td><td class="il" lang="sa-Latn">${esc(iast(w.w))}</td><td class="en">${esc(w.en)}</td><td class="g">${esc(w.g)}</td></tr>`).join('\n')}
 </tbody></table></div></div>`;
@@ -256,7 +256,7 @@ ${pfl.map(([k, ls]) => `<p class="sub">${k}</p><p class="dev" lang="sa">${ls.map
   if (cc?.narrative) {
     b += `<section class="concl" aria-labelledby="concl-h"><h2 id="concl-h">Chapter conclusion</h2>
 <p class="sub">Narrative summary</p><p>${esc(cc.narrative)}</p>
-<p class="sub">Principal vocabulary</p><div class="tw"><table><thead><tr><th scope="col">Sanskrit</th><th scope="col">IAST</th><th scope="col">Meaning</th></tr></thead><tbody>${cc.vocabulary.map((v) => `<tr><td class="sa" lang="sa">${esc(v.w)}</td><td class="il" lang="sa-Latn">${esc(iast(v.w))}</td><td>${esc(v.en)}</td></tr>`).join('')}</tbody></table></div>
+<p class="sub">Principal vocabulary</p><div class="tw" tabindex="0" role="region" aria-label="Table (scrolls sideways)"><table><thead><tr><th scope="col">Sanskrit</th><th scope="col">IAST</th><th scope="col">Meaning</th></tr></thead><tbody>${cc.vocabulary.map((v) => `<tr><td class="sa" lang="sa">${esc(v.w)}</td><td class="il" lang="sa-Latn">${esc(iast(v.w))}</td><td>${esc(v.en)}</td></tr>`).join('')}</tbody></table></div>
 <p class="sub">Important grammatical constructions</p><ul>${cc.constructions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
 <p class="sub">Śākta insights</p><ul>${cc.insights.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
 ${cc.srividya ? `<p class="sub">Śrīvidyā connections</p><p>${esc(cc.srividya)}</p>` : ''}
@@ -293,7 +293,7 @@ function reportHTML(c, a) {
   const list = (k, label) => (r[k]?.length ? [[label, `<ul>${r[k].map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`]] : []);
   rows.push(...list('sandhi_patterns', 'Sandhi patterns'), ...list('samasa', 'Samāsa constructions'), ...list('grammar_notes', 'Grammatical observations'), ...list('themes', 'Philosophical themes'), ...list('uncertain', 'Open questions'));
   rows.push(['Status', `<span class="status ${chapterStatus(ch).cls}">${esc(chapterStatus(ch).text)}</span>`]);
-  return `<section class="report" aria-labelledby="rep-h"><h2 id="rep-h">Chapter completion report</h2><div class="tw"><table><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table></div></section>`;
+  return `<section class="report" aria-labelledby="rep-h"><h2 id="rep-h">Chapter completion report</h2><div class="tw" tabindex="0" role="region" aria-label="Table (scrolls sideways)"><table><tbody>${rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 
 /* ---------- contents page ---------- */
@@ -343,11 +343,11 @@ function notesPage() {
 <p><strong>Edition.</strong> ${esc(T.source.edition)}. Digital text: ${esc(T.source.digital)}.</p>
 <p><strong>Numbering.</strong> ${esc(T.source.numbering)}</p>
 <p><strong>Witnesses compared.</strong> Every chapter was aligned letter by letter against two independent texts:</p><ul>${T.source.witnesses.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
-<p>Where the Gita Press text differed from <em>both</em> witnesses, the difference was examined. Four were errors of the digital file and were corrected (below); the rest are genuine readings and are kept as printed, with the other reading recorded. Nothing was added from the other recensions and nothing was silently changed.</p>
-<h2>Corrections to the digital text</h2><div class="tw"><table><thead><tr><th scope="col">Where</th><th scope="col">Kind</th><th scope="col">From → to</th><th scope="col">Why</th></tr></thead><tbody>
+<p>Where the Gita Press text differed from <em>both</em> witnesses, the difference was examined. The errors of the digital file were corrected (below); the rest are genuine readings and are kept as printed, with the other reading recorded. Nothing was added from the other recensions and nothing was silently changed.</p>
+<h2>Corrections to the digital text</h2><div class="tw" tabindex="0" role="region" aria-label="Table (scrolls sideways)"><table><thead><tr><th scope="col">Where</th><th scope="col">Kind</th><th scope="col">From → to</th><th scope="col">Why</th></tr></thead><tbody>
 ${LOG.corrections.map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.kind)}</td><td><span lang="sa">${esc(x.from)}</span> → <span lang="sa">${esc(x.to)}</span></td><td>${esc(x.reason)}</td></tr>`).join('\n')}
 </tbody></table></div>
-<h2>Variant readings</h2><p>The Gita Press reading is kept in every case. “Textual Verification Required” marks readings to check against the printed book.</p><div class="tw"><table><thead><tr><th scope="col">Mantra</th><th scope="col">Kept</th><th scope="col">Other reading</th><th scope="col">Status</th></tr></thead><tbody>
+<h2>Variant readings</h2><p>The Gita Press reading is kept in every case. “Textual Verification Required” marks readings to check against the printed book.</p><div class="tw" tabindex="0" role="region" aria-label="Table (scrolls sideways)"><table><thead><tr><th scope="col">Mantra</th><th scope="col">Kept</th><th scope="col">Other reading</th><th scope="col">Status</th></tr></thead><tbody>
 ${LOG.variants.map((x) => `<tr><td><a href="/${ED}/${chFile(+x.id.split('.')[0])}#m-${x.id.replace('.', '-')}">${esc(x.id)}</a></td><td lang="sa">${esc(x.kept)}</td><td><span lang="sa">${esc(x.other)}</span> <span class="note">(${esc(x.witnesses)})</span>${x.note ? `<br><span class="note">${esc(x.note)}</span>` : ''}</td><td>${esc(x.status)}</td></tr>`).join('\n')}
 </tbody></table></div>
 <h2>Recension and metre</h2><ul>${LOG.recension_notes.map((n) => `<li>${esc(n)}</li>`).join('')}${LOG.metre_notes.map((n) => `<li>${esc(n.id)}: ${esc(n.note)}</li>`).join('')}</ul>

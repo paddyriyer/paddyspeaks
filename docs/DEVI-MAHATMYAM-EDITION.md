@@ -81,8 +81,10 @@ python3 scripts/platform_build/build.py all             # search index (verses s
 3. **Witnesses.** The whole text was aligned letter by letter with GRETIL's
    Mārkaṇḍeyapurāṇa (adhyāyas 81–93, not proof-read) and Peter Freund's
    Saptaśatī. 29 places where the Gita Press text differed from *both* were
-   examined: four were errors of the digital file (1.77 twice, two footnote
-   asterisks, and a duplicated block at the end of chapter 13) and were corrected;
+   examined: the errors of the digital file were corrected and logged (1.77
+   twice, two footnote asterisks, a space inside महासिंहं in 7.20, a
+   duplicated block at the end of chapter 13; and 4.42's closing bījas, which
+   had stayed inside the verse, were moved out);
    the rest are genuine readings, kept and recorded as variants.
 4. **Metre.** 1,084 half-lines scan as anuṣṭubh; the hymns are vasantatilakā
    (chapter 4), indravajrā / upajāti (chapter 11, the Nārāyaṇī stuti) and
