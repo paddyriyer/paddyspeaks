@@ -6680,6 +6680,54 @@
       ],
       "answer": 2,
       "explanation": "Option C implements a time-based tiering strategy that separates hot data (high-query frequency) from cold data (historical analytics), reducing per-query costs significantly. The analytics team queries historical data infrequently, so serving from cheaper GCS Parquet with federated queries saves ~70% on compute and storage. Options A and B don't address the volume issue; Option D improves compression but doesn't fundamentally reduce the data scanned for analytics queries on old data."
+    },
+    {
+      "id": "ds-new-126",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You're designing a Data Vault 2.0 architecture for a financial services platform that ingests customer transactions, account updates, and regulatory events from 15 source systems with different update frequencies (real-time to daily). Your hubs represent customers, accounts, and transactions. You notice that a satellite tracking 'account_status' is updated 10x per day on average, while 'account_risk_classification' changes monthly. How should you structure these satellites to optimize query performance and storage costs?",
+      "options": [
+        "Combine both attributes in a single satellite since they belong to the same entity; partition by update frequency using a 'valid_from' timestamp",
+        "Create separate satellites for each attribute; apply aggressive compression and clustering on the high-velocity satellite while using daily snapshots for the low-velocity one",
+        "Store account_status in a fast satellite with microsecond-grain timestamps and account_risk_classification in a type-2 dimension outside the vault to avoid row inflation",
+        "Merge both into one wide satellite and add a change-data-capture (CDC) trigger to only update modified columns, reducing redundant writes"
+      ],
+      "answer": 1,
+      "explanation": "Separating satellites by update frequency is a core Data Vault best practice that prevents bloat and optimizes compression. High-velocity satellites benefit from clustering and aggressive compression strategies, while low-velocity data can use snapshot techniques. Combining them would create unnecessary row versioning overhead, and storing outside the vault violates the single source of truth principle."
+    },
+    {
+      "id": "ds-new-127",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "Your Snowflake data warehouse processes 50TB of raw data daily. A cost analysis reveals that 60% of compute spend goes to a single ETL pipeline that materializes intermediate tables (staging \u2192 curated \u2192 analytics layers). These tables are scanned repeatedly by 30+ downstream queries. Your cloud budget is growing 15% monthly. Which cost optimization strategy would have the highest impact?",
+      "options": [
+        "Consolidate all intermediate tables into a single denormalized view and use Snowflake dynamic data masking to reduce storage footprint",
+        "Replace materialized intermediate tables with dynamic views and leverage Snowflake query result caching and clustering on join keys to optimize repeated scans",
+        "Switch to Iceberg tables with snapshot isolation and enable Snowflake's automatic scaling to distribute compute evenly across the 30 downstream queries",
+        "Archive intermediate tables to Iceberg on S3 daily and hydrate them only when downstream queries run using on-demand compute"
+      ],
+      "answer": 1,
+      "explanation": "Using dynamic views with query result caching and clustering addresses both compute and storage costs without losing flexibility. Views eliminate materialization overhead, result caching prevents re-scanning identical query results, and clustering optimizes join performance. Denormalization increases storage, Iceberg snapshot isolation doesn't directly reduce ETL costs, and archival adds complexity without addressing the root issue of repeated materialization."
+    },
+    {
+      "id": "ds-new-128",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "Your company operates a reverse ETL pipeline that syncs customer propensity scores (computed daily in Snowflake) to Salesforce CRM for 2M customers. Recently, you've encountered: (1) 15-minute sync delays causing stale scores in active sales calls, (2) failed updates for 5K customers due to Salesforce API rate limits, (3) inability to rollback if an upstream model bug propagates bad scores. You're tasked with redesigning for reliability and auditability. What approach best addresses all three issues?",
+      "options": [
+        "Implement a message queue (Kafka) between Snowflake and Salesforce with idempotent writes, add pre-sync data quality checks with reversible transactions, and use change data capture (CDC) to detect upstream model failures",
+        "Use Salesforce Bulk API v2 for batch upserts, add exponential backoff with dead-letter queues for failed records, implement row-level versioning in Snowflake with automated rollback triggers on data quality failures",
+        "Replace daily batch syncs with real-time streaming via Fivetran with high-watermark tracking, add Salesforce field-level validation rules, and implement a shadow sync to a test Salesforce sandbox for validation",
+        "Create a staging table in Salesforce as a buffer, schedule syncs every 5 minutes with rate-limit monitoring, and maintain a changelog table in Snowflake with point-in-time recovery (PITR) for rollbacks"
+      ],
+      "answer": 1,
+      "explanation": "Bulk API v2 handles rate limits efficiently, exponential backoff with dead-letter queues ensures reliability without losing failed records, and row-level versioning in Snowflake with automated rollback triggers directly addresses auditability and the ability to revert bad data. This approach is purpose-built for handling Salesforce API constraints while maintaining data integrity. Message queues add latency, real-time streaming via third-party tools doesn't solve versioning, and sandbox validation doesn't prevent production issues."
     }
   ]
 }

@@ -8884,6 +8884,54 @@
       ],
       "answer": 1,
       "explanation": "A semaphore is the idiomatic asyncio pattern for limiting concurrency. It allows exactly 10 tasks to acquire the semaphore simultaneously, ensuring concurrent requests never exceed 10 while still running them asynchronously. Option 0 has no limits, option 2 is error-prone with manual tracking, and option 3 is less efficient for I/O-bound async code as it uses thread pools instead of async."
+    },
+    {
+      "id": "py-new-163",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "You're building a data pipeline and need a dataclass that automatically converts nested dict data into typed objects. You have:\n\n```python\nfrom dataclasses import dataclass\nfrom typing import List\n\n@dataclass\nclass Metric:\n    name: str\n    value: float\n\n@dataclass\nclass Pipeline:\n    metrics: List[Metric]\n```\n\nYou receive JSON data: `{\"metrics\": [{\"name\": \"latency\", \"value\": 45.2}]}`. Which approach correctly instantiates Pipeline with type conversion?",
+      "options": [
+        "Pipeline(**json.loads(data)) - Python automatically converts nested dicts to Metric objects",
+        "Use dataclasses.asdict() to convert the Pipeline back to dicts after instantiation",
+        "Implement __post_init__ with manual type checking and conversion of each Metric dict to a Metric instance",
+        "Use @dataclass(auto_convert=True) decorator flag to enable automatic nested dataclass conversion"
+      ],
+      "answer": 2,
+      "explanation": "Dataclasses do not automatically convert nested dicts to typed objects. You must implement __post_init__ to manually iterate through the metrics list and convert each dict to a Metric instance. Options 1 and 4 are non-existent features, and option 2 uses asdict() incorrectly (it converts objects to dicts, not the reverse)."
+    },
+    {
+      "id": "py-new-164",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You're profiling a data aggregation service that processes events in parallel. The code uses threading with the GIL:\n\n```python\nimport threading\nimport time\n\ndef process_batch(events):\n    results = []\n    for event in events:\n        results.append(expensive_cpu_operation(event))\n    return results\n\nthreads = [threading.Thread(target=process_batch, args=(batch,)) \n           for batch in batches]\n```\n\nYour colleague suggests adding a lock to protect shared state. You measure: single-threaded takes 10s, multi-threaded with lock takes 25s. What's the primary issue?",
+      "options": [
+        "The lock is too granular; use a coarser-grained lock at the batch level instead",
+        "Threading cannot improve CPU-bound work due to the GIL; use multiprocessing or asyncio instead",
+        "The expensive_cpu_operation function is not releasing the GIL; rewrite it in Cython",
+        "You need to increase the number of threads to at least the number of CPU cores"
+      ],
+      "answer": 1,
+      "explanation": "CPU-bound operations like expensive_cpu_operation are serialized by the GIL in CPython threading. Multiple threads cannot execute Python bytecode in parallel, and the lock adds contention overhead. Multiprocessing bypasses the GIL by using separate processes, each with its own interpreter. Asyncio only helps with I/O-bound work, not CPU-bound operations."
+    },
+    {
+      "id": "py-new-165",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "You're building a data transformation library and want to enforce type safety. You write:\n\n```python\nfrom typing import TypeVar, Generic, Union\nfrom typing_extensions import Protocol\n\nT = TypeVar('T')\n\nclass Transformer(Generic[T]):\n    def transform(self, data: list[T]) -> list[T]:\n        ...\n\nclass StringMetrics:\n    @staticmethod\n    def process(values: list[str | int]) -> Union[str, int]:\n        ...\n```\n\nYou run this with mypy. Which statement is true about type checking this code?",
+      "options": [
+        "mypy will enforce that Transformer.transform always receives and returns the same concrete type T",
+        "The Union[str, int] return type is redundant because list[str | int] already covers both types",
+        "mypy cannot verify that process() actually returns a value matching the Union type without a Protocol definition",
+        "list[str | int] and list[Union[str, int]] are semantically different for mypy type checking"
+      ],
+      "answer": 0,
+      "explanation": "Generic[T] with TypeVar constrains that the input and output lists use the same type parameter T. Once Transformer is instantiated with a concrete type (e.g., Transformer[str]), mypy enforces that transform receives list[str] and returns list[str]. Option 2 is wrong because the return type is a single value, not a list. Option 3 is incorrect; mypy checks return types without requiring Protocol. Option 4 is false; these notations are equivalent in type checking."
     }
   ]
 }

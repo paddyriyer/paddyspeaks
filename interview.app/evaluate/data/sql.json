@@ -15484,6 +15484,70 @@
       ],
       "answer": 2,
       "explanation": "Option 2 is correct: BigQuery supports the FILTER clause with aggregate functions, and NULLIF(revenue, discount) returns NULL when they're equal, allowing us to exclude those rows from the average calculation. Option 0 would average NULL values (which are ignored), but the WHERE clause is evaluated before grouping. Option 1 has logic reversed. Option 3 works but is less idiomatic for BigQuery's FILTER syntax."
+    },
+    {
+      "id": "sql-new-165",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You have a `categories(id INT, parent_id INT, name TEXT)` table representing a product hierarchy with cycles (e.g., category 1 \u2192 2 \u2192 3 \u2192 1). You write a recursive CTE to fetch all descendants of category_id = 5. What will happen?",
+      "options": [
+        "The query will execute successfully and return only valid descendants up to the cycle point",
+        "The query will hit the default recursion depth limit (100 in most databases) and error or truncate results",
+        "The query will detect the cycle and automatically skip cyclic paths",
+        "The query will return an infinite result set until memory exhaustion"
+      ],
+      "answer": 1,
+      "explanation": "Most databases (PostgreSQL, SQL Server, Snowflake) enforce a default recursion depth limit (typically 100) to prevent infinite loops in recursive CTEs with cycles. Without explicit cycle detection logic, the query will fail or truncate when this limit is exceeded. Cycles are not automatically skipped\u2014you must implement CYCLE detection clauses if available."
+    },
+    {
+      "id": "sql-new-166",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "In PostgreSQL, you have `user_logins(user_id INT, login_time TIMESTAMP, ip_address TEXT)` with multiple logins per user. You run: `SELECT DISTINCT ON (user_id) user_id, login_time, ip_address FROM user_logins ORDER BY user_id, login_time DESC;` What result do you get?",
+      "options": [
+        "One row per user_id with the most recent login_time, but ip_address is non-deterministic",
+        "One row per user_id with the most recent login_time and its corresponding ip_address",
+        "All unique combinations of (user_id, ip_address) with the latest login_time for each combo",
+        "A syntax error because DISTINCT ON requires all ORDER BY columns in the SELECT list"
+      ],
+      "answer": 1,
+      "explanation": "DISTINCT ON in PostgreSQL returns one row per distinct value of the specified column(s), with the remaining columns coming from the first row encountered in the ORDER BY sequence. Since we ORDER BY user_id, login_time DESC, the most recent login_time for each user_id is selected, along with its corresponding ip_address, making it deterministic."
+    },
+    {
+      "id": "sql-new-167",
+      "type": "single",
+      "topic": "materialized views",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "In Snowflake, you create a materialized view `mv_user_summary` that aggregates `user_events` table with a SUM(amount). The source table is updated hourly. After an hour of new data arriving, analysts query `mv_user_summary`. What do they see?",
+      "options": [
+        "Data from the last manual refresh of the materialized view, regardless of updates to the source table",
+        "Real-time data by automatic querying of the source table instead of the materialized view",
+        "An error because Snowflake materialized views do not support aggregates",
+        "Stale data that is gradually refreshed in background without blocking queries"
+      ],
+      "answer": 0,
+      "explanation": "Materialized views in Snowflake store pre-computed results and are not automatically refreshed. Unless you explicitly trigger a refresh (manual or scheduled via tasks), the view returns stale data from the last refresh. Unlike regular views, they do not query source tables in real-time, providing performance benefits but requiring explicit refresh management."
+    },
+    {
+      "id": "sql-new-168",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You have a `file_system(id INT, parent_id INT, name TEXT, size_mb INT)` representing a directory tree. You write a recursive CTE to calculate total size for each directory including all nested files. Your CTE joins the recursive term with an aggregate. After testing on 10K directories, queries now timeout. What is the most likely cause?",
+      "options": [
+        "Recursive CTEs cannot perform aggregations and should use a separate materialized table",
+        "The recursive CTE is calculating size multiple times for nested levels due to inefficient joining, causing exponential row generation",
+        "Snowflake does not support recursive CTEs on hierarchical data with more than 1K rows",
+        "The parent_id foreign key constraint is missing, causing a cross join in the recursive term"
+      ],
+      "answer": 1,
+      "explanation": "Recursive CTEs with aggregations in the recursive term can cause massive row explosion if not carefully designed. Each level's rows are joined with aggregates of all previous levels, multiplying row count exponentially. A better approach uses bottom-up aggregation (leaf nodes to root) or separates recursion from aggregation using window functions."
     }
   ]
 }

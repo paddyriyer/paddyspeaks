@@ -1629,6 +1629,38 @@
       ],
       "answer": 0,
       "explanation": "Pre-aggregation to 1-minute granularity dramatically reduces query latency (200ms vs 8s) while maintaining 5-minute freshness suitable for intraday trading. Scheduled cache warming at market open and regular intervals ensures predictable performance for the sporadic access pattern, avoiding the cost of continuous caching (option C) or over-engineering live queries (option B). This is the approach Databricks and Stripe use for high-frequency financial dashboards."
+    },
+    {
+      "id": "dash-new-047",
+      "type": "single",
+      "topic": "metric definitions and governance",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "Your company defines 'Monthly Active User' (MAU) as any user who logged in at least once in a calendar month. A dashboard shows MAU by product line, but the CFO's monthly business review report shows a different MAU total for the same month. Investigation reveals the dashboard uses `DATE_TRUNC(login_date, 'MONTH')` in the warehouse, while the CFO's report uses a custom fiscal calendar where months run Tuesday\u2013Monday. Both queries count distinct users correctly within their respective date ranges. How should you resolve this metric governance issue?",
+      "options": [
+        "Update the dashboard to use the fiscal calendar definition and document that MAU now means 'fiscal month' instead of calendar month, notifying all stakeholders of the change.",
+        "Keep both definitions separate; rename the dashboard metric to 'Calendar MAU' and ask Finance to publish their 'Fiscal MAU' metric in a shared metric catalog, establishing clear ownership and lineage.",
+        "Assume the CFO's report is authoritative; convert all dashboard queries to match the fiscal calendar definition without notification, since the CFO is the data owner.",
+        "Revert to counting MAU weekly instead of monthly to avoid calendar ambiguity entirely."
+      ],
+      "answer": 1,
+      "explanation": "The correct approach follows metric governance best practices: establish a centralized metric catalog with clear ownership, document both definitions and their sources, and communicate changes transparently. Renaming prevents silent discrepancies; keeping Finance as the authoritative owner prevents dashboard teams from overriding business logic. Option 0 risks ongoing confusion; option 2 violates governance (no communication, unilateral change); option 3 solves the wrong problem."
+    },
+    {
+      "id": "dash-new-048",
+      "type": "single",
+      "topic": "Tableau order of operations and LOD expressions",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "In Tableau, you create a sheet with `[Region]` on rows and a calculated field `{FIXED [Region] : SUM([Revenue])}` on values. You then add a filter on `[Product Category]` set to exclude 'Electronics'. The filter is marked as a dimension filter (not a data source filter). What does the visualization show for each region's revenue?",
+      "options": [
+        "Revenue for each region across all products, including Electronics, because FIXED LOD expressions are computed before dimension filters.",
+        "Revenue for each region excluding Electronics, because dimension filters execute before any calculated fields are evaluated.",
+        "Revenue for each region excluding Electronics, because the filter is applied at query time, affecting the rows available to the FIXED LOD expression.",
+        "A blend of results: the FIXED expression computes total revenue per region (all products), but the filter hides rows where all products are Electronics."
+      ],
+      "answer": 0,
+      "explanation": "FIXED LOD expressions ignore dimension filters applied on the sheet. Tableau's order of operations computes FIXED expressions at the data source level before any view-level dimension filters are applied. Only data source filters and extract filters affect the rows available to FIXED LOD. The dimension filter here affects visualization display but not the calculated value."
     }
   ]
 }
