@@ -297,6 +297,18 @@ function reportHTML(c, a) {
 }
 
 /* ---------- contents page ---------- */
+const firstVerse = (c) => c.mantras.find((m) => m.kind !== 'uvaca') || c.mantras[0];
+function beginHTML() {
+  const c = T.chapters[0];
+  const m = firstVerse(c);
+  const e = (AN.get(1)?.mantras || []).find((x) => x.id === mid(1, m));
+  return `<section class="begin" aria-labelledby="begin-h"><h2 id="begin-h">Begin reading</h2>
+<a class="begin-card" href="/${ED}/${chFile(1)}#${anchor(1, m)}"><span class="bk">Chapter 1 · ${mid(1, m)}</span>
+<span class="bs" lang="sa">${m.lines.map(esc).join('<br>')}</span>
+<span class="bi" lang="sa-Latn">${m.lines.map(iastLine).join('<br>')}</span>
+${e ? `<span class="bt">${esc(e.tr)}</span>` : ''}<span class="bgo">Read chapter 1, verse by verse →</span></a></section>`;
+}
+
 function indexPage() {
   const analysed = [...AN.values()].reduce((n, a) => n + a.mantras.length, 0);
   const entries = T.chapters.reduce((n, c) => n + c.mantras.length, 0);
@@ -306,6 +318,7 @@ function indexPage() {
 <p class="sub">Durgā Saptaśatī · Caṇḍī Pāṭha — the seven hundred mantras of the Mārkaṇḍeya Purāṇa, every verse in Sanskrit with its words separated, transliterated, translated word by word, analysed and explained.</p>
 <p class="src">Sanskrit: ${esc(T.source.edition)}</p></header>
 <ul class="facts"><li><b>13</b>chapters</li><li><b>700</b>mantras</li><li><b>${fmtNum(entries)}</b>verse entries</li><li><b>${fmtNum(analysed)}</b>entries analysed</li></ul>
+${beginHTML()}
 <section class="prose" aria-labelledby="how-h"><h2 id="how-h">How to read this edition</h2>
 <p>Every verse is set out in the same seven parts:</p>
 <ol>
@@ -325,7 +338,8 @@ function indexPage() {
     const chs = T.chapters.filter((c) => c.carita === k);
     b += `<div class="carita"><h3>${car.name} <span class="hdev" lang="sa">${car.dev}</span></h3><p class="cnote">Chapter${chs.length > 1 ? 's' : ''} ${car.chapters}. In the recitation tradition its presiding form is ${car.form} (the viniyoga of the Gita Press pāṭha).</p><ol class="chlist">${chs.map((c) => {
       const st = chapterStatus(c.num);
-      return `<li><span class="num">${c.num}</span><span class="t"><a href="/${ED}/${chFile(c.num)}">${esc(c.title.en)}</a><span class="d" lang="sa">${esc(c.title.dev)}</span></span><span class="meta">${c.counts.total} mantras · <span class="status ${st.cls}">${esc(st.text)}</span></span></li>`;
+      const fv = firstVerse(c);
+      return `<li><span class="num">${c.num}</span><span class="t"><a href="/${ED}/${chFile(c.num)}">${esc(c.title.en)}</a><span class="d" lang="sa">${esc(c.title.dev)}</span></span><span class="meta">${c.counts.total} mantras · <span class="status ${st.cls}">${esc(st.text)}</span></span><a class="opening" href="/${ED}/${chFile(c.num)}#${anchor(c.num, fv)}" aria-label="Chapter ${c.num}, opening śloka ${mid(c.num, fv)}"><span class="ol" lang="sa">${fv.lines.map(esc).join('<br>')}</span><span class="on">${mid(c.num, fv)}</span></a></li>`;
     }).join('')}</ol></div>`;
   }
   b += `</section></article>`;
