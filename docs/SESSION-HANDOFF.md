@@ -1,12 +1,25 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-12 (Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-12 (Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-12): the Lalitā edition is now a chanting and learning book.**
+- **NEWEST (2026-10-12): Śrī Devī Māhātmyam study edition, `/devi-mahatmyam/`.**
+  At Paddy's request (a master prompt: all 13 chapters, every verse in seven
+  sections — Sanskrit, padaccheda, IAST, word table, vyākaraṇa, translations,
+  labelled Śākta/Śrīvidyā commentary — with chapter introductions, conclusions
+  and completion reports). Text: the Gita Press Durgāsaptaśatī (700 mantras,
+  every chapter's counts proven against its own colophon), aligned with GRETIL
+  MkP 81–93 and Freund; digital-file errors corrected and logged, variants
+  recorded (`edition/corrections.json`). `scripts/devi_mahatmyam/check.py`
+  (Validate Content, `--complete`) proves every padaccheda by rejoining it with
+  the rules of sandhi. Chapter 1 shipped first in #930; chapters 2–13 followed.
+  **Open for Paddy:** the variants marked "Textual Verification Required" need a
+  printed Gita Press book. See `docs/DEVI-MAHATMYAM-EDITION.md`.
+
+- **2026-10-12: the Lalitā edition is now a chanting and learning book.**
   At Paddy's request ("a reader should immediately recognize where each Sanskrit
   word begins and ends"): every unit is Sanskrit (large, words spaced where no
   letter changes) → IAST → names separated and numbered (° = form restored from
