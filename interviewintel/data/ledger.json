@@ -4,6 +4,24 @@
   "2026-10-07T224104.json"
  ],
  "questions": {
+  "q-09bbbc4cd2": {
+   "category": "Python",
+   "concept_key": "is vs equality",
+   "created": "2026-10-12",
+   "difficulty": "Easy",
+   "edited": false,
+   "id": "q-09bbbc4cd2",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "What is the difference between `is` and `==` in Python? When should you use each?",
+   "status": "pending",
+   "subcategory": "Data Model",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — is vs =="
+  },
   "q-111e950c62": {
    "category": "System Design",
    "concept_key": "anomaly detection data quality",
@@ -92,6 +110,111 @@
     "Anomaly Detection"
    ],
    "title": "System Design — Anomaly Detection for Data Quality"
+  },
+  "q-1a39f6fe7b": {
+   "category": "Python",
+   "concept_key": "list tuple when to use",
+   "created": "2026-10-12",
+   "difficulty": "Easy",
+   "edited": false,
+   "id": "q-1a39f6fe7b",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "When would you use a list versus a tuple in Python? Provide an example use case for each.",
+   "status": "pending",
+   "subcategory": "Data Structures",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — List vs Tuple"
+  },
+  "q-1b70208624": {
+   "category": "System Design",
+   "concept_key": "disruptor aeron kafka kernel bypass",
+   "created": "2026-10-12",
+   "difficulty": "Hard",
+   "edited": false,
+   "id": "q-1b70208624",
+   "merged_into": null,
+   "prep": {
+    "approach": "Start by clarifying the scope of each tool. Disruptor is a single-process, lock-free event processing library built around a ring buffer. Aeron extends these principles to network messaging with minimal GC and kernel bypass capabilities. Kafka is a distributed persistent broker optimized for throughput and durability, not latency.\n\nExplain the Disruptor pattern: a circular buffer with multiple producers and consumers, waitfree algorithms, cache-line padding to avoid false sharing, and pre-allocated memory to eliminate GC pauses. This keeps data in CPU cache and avoids kernel involvement entirely.\n\nDescribe Aeron: it adds network transport on top of ring-buffer principles. Aeron uses UDP, memory-mapped files, and minimal-GC design. It operates largely in user space with kernel bypass where possible.\n\nIdentify why Kafka is slow for hot paths: Kafka requires broker coordination, disk persistence (even with caching), serialization overhead, network round-trips for acks, and garbage collection in the JVM. Each message typically touches the kernel multiple times and involves thread scheduling.\n\nExplain kernel bypass: system calls and context switches are expensive. Direct memory access, busy-spin loops, and user-space networking reduce these overheads. Tradeoffs: higher CPU usage, power consumption, and reduced OS visibility.\n\nWhen to use kernel bypass: sub-microsecond latency requirements, small number of connections or flows, tolerance for high CPU utilization, and predictable workloads. Avoid when: latency budget is relaxed, many concurrent connections, or when power efficiency matters.",
+    "common_mistakes": [
+     "Confusing Disruptor with Aeron: Disruptor is in-process only; Aeron handles network messaging",
+     "Assuming Kafka can be tuned to microsecond latency: it can't; architecture is incompatible",
+     "Not considering false sharing: ring buffer padding is critical for performance",
+     "Overusing busy-spin: wastes power and blocks other work; justified only for guaranteed low-latency requirements",
+     "Ignoring GC: even Aeron applications can stall on full GC; must tune heap carefully or disable GC",
+     "Thinking kernel bypass is always better: adds complexity, debugging difficulty, and CPU cost; only use when latency is the primary constraint"
+    ],
+    "estimated_minutes": 25,
+    "follow_ups": [
+     "How would you monitor and measure tail latency in a Disruptor system?",
+     "What happens to Disruptor performance if you have multiple producer threads?",
+     "Explain the role of WaitStrategy in Aeron and trade-offs between BusySpinWaitStrategy and BlockingWaitStrategy.",
+     "How does NUMA affect Disruptor layout, and how would you optimize for multi-socket systems?",
+     "Design a hybrid system: use Disruptor for local order matching, Aeron for cross-system quotes, and Kafka for post-trade audit logs.",
+     "How would you handle backpressure in Disruptor when the consumer falls behind?"
+    ],
+    "generated_at": "2026-10-12",
+    "generated_by": "PaddySpeaks AI",
+    "hints": [
+     "Think about the distinction between in-process communication vs. network communication",
+     "Consider what 'kernel bypass' means: avoiding system calls and context switches",
+     "Disruptor uses a ring buffer; understand why circular buffers reduce allocation overhead",
+     "Aeron adds UDP multicast and unicast on top of ring buffer principles",
+     "Kafka persists to disk and handles broker coordination; identify why this adds latency"
+    ],
+    "model": "claude-haiku-4-5",
+    "related_concepts": [
+     "Lock-free programming and compare-and-swap (CAS) operations",
+     "CPU cache lines, false sharing, and cache coherency protocols",
+     "Ring buffers and circular data structures",
+     "Wait strategies: busy-spin, yield, block, busy-spin with yield fallback",
+     "Memory-mapped files and page cache management",
+     "UDP multicast and unicast networking",
+     "Garbage collection tuning and GC-free programming patterns",
+     "CPU affinity and NUMA awareness"
+    ],
+    "sample_solution": {
+     "code": "// Simplified Disruptor pattern vs Aeron sketch\n\n// DISRUPTOR: In-process, lock-free ring buffer\nimport com.lmax.disruptor.*;\n\nclass DisruptorEvent {\n    public long timestamp;\n    public double price;\n}\n\nclass DisruptorExample {\n    public static void main(String[] args) {\n        int bufferSize = 1024;\n        EventFactory<DisruptorEvent> factory = DisruptorEvent::new;\n        \n        Disruptor<DisruptorEvent> disruptor = new Disruptor<>(\n            factory,\n            bufferSize,\n            DaemonThreadFactory.INSTANCE,\n            ProducerType.SINGLE,  // or MULTI for multiple producers\n            new BusySpinWaitStrategy()  // Busy-spin: low latency, high CPU\n        );\n        \n        disruptor.handleEventsWith((event, sequence, endOfBatch) -> {\n            // Handler runs on dedicated thread, no locks\n            // Data already in CPU cache from ring buffer\n            processOrder(event);\n        });\n        \n        disruptor.start();\n        \n        // Publishing: no allocation, no kernel calls\n        disruptor.getRingBuffer().publishEvent((event, sequence) -> {\n            event.timestamp = System.nanoTime();\n            event.price = 123.45;\n        });\n    }\n    \n    static void processOrder(DisruptorEvent e) {\n        // Microsecond-scale latency typical\n    }\n}\n\n// AERON: Network-capable, still low-latency\nimport io.aeron.Aeron;\nimport io.aeron.Publication;\nimport io.aeron.Subscription;\n\nclass AeronExample {\n    public static void main(String[] args) {\n        Aeron aeron = Aeron.connect();\n        \n        // Unicast or multicast: UDP-based, kernel bypass when possible\n        Publication pub = aeron.addPublication(\n            \"aeron:udp\",\n            40123  // channel: IP:port encoded\n        );\n        \n        Subscription sub = aeron.addSubscription(\n            \"aeron:udp\",\n            40123\n        );\n        \n        // Publish: direct to buffer, minimal syscalls\n        byte[] buffer = \"price:123.45\".getBytes();\n        pub.offer(buffer, 0, buffer.length, null);\n        \n        // Poll: busy-spin friendly, low GC\n        sub.poll(fragment, fragmentLimit);\n    }\n}\n\n// KAFKA: Broker-based, persistence-oriented\nimport org.apache.kafka.clients.producer.KafkaProducer;\nimport org.apache.kafka.clients.producer.ProducerRecord;\n\nclass KafkaExample {\n    public static void main(String[] args) {\n        KafkaProducer<String, String> producer = new KafkaProducer<>(props);\n        \n        // Send: serialization, network call, broker coordination, disk write, ack\n        // Multiple syscalls, thread scheduling, GC pauses possible\n        producer.send(new ProducerRecord<>(\"orders\", \"price:123.45\"), (meta, exc) -> {\n            // Callback after broker processes it\n        });\n    }\n}\n\n// Kernel bypass techniques\nclass KernelBypassTechniques {\n    // 1. Busy-spin polling instead of blocking\n    void busySpinSubscriber() {\n        while (running) {\n            int messagesRead = sub.poll(handler, fragmentLimit);\n            // Zero blocking; CPU always hot\n        }\n    }\n    \n    // 2. Memory-mapped files: direct memory access\n    // 3. UDP instead of TCP: fewer syscalls, no connection setup\n    // 4. Pre-allocated buffers: no allocation in hot path\n    // 5. Disable GC in critical threads or use ZGC/Shenandoah\n    // 6. CPU affinity: pin thread to core for cache locality\n    // 7. DPDK or similar: bypass kernel entirely for NICs\n}",
+     "explanation": "Disruptor is a single-JVM framework optimizing memory layout and lock-free algorithms. It uses a ring buffer where each slot is pre-allocated and padded to avoid false sharing between CPU cores. A producer writes to an index, a consumer reads sequentially. No locks, no allocation, no syscalls. Latency is sub-microsecond but only for in-process communication.\n\nAeron extends Disruptor's principles to network messaging. It wraps UDP sockets with minimal overhead, uses memory-mapped files for the ring buffer, and employs busy-spin polling. Kernel bypass is achieved by using UDP (avoiding TCP connection overhead) and polling user-space buffers instead of blocking on socket reads. Latency is still microseconds, even over the network, and garbage collection pauses are minimized through careful design.\n\nKafka is fundamentally different: it's a distributed persistent broker. Every message is serialized, sent over the network to a broker, persisted to disk (with fsync coordination), replicated, and acked back. Even with page-cache optimizations, this involves multiple kernel system calls per message, thread scheduling delays, and potential full GC pauses in the broker and clients. For high-frequency trading, this adds tens of microseconds to milliseconds of latency—unacceptable.\n\nKernel bypass means avoiding system calls and letting user-space code directly access network hardware. The benefit is latency; the cost is CPU cores spinning in tight loops and reduced OS visibility and power efficiency. Use it only when latency budget is sub-microsecond and you can afford dedicated threads.\n\nWhy Kafka is excluded from hot paths: durability and distribution add non-negotiable latency. Kafka shines for durable event logs and multi-consumer scenarios where 10ms latency is fine. For trading decisions made in microseconds, use Disruptor for in-process order matching and Aeron for rapid inter-system communication. Kafka can log the decisions after the fact.",
+     "language": "java"
+    },
+    "similar_questions": [
+     {
+      "question": "Design a low-latency notification system for 1 million users where some users require sub-100ms delivery and others can tolerate 5-second delivery. Which messaging framework would you choose and why?",
+      "what_changes": "Shifts from comparing frameworks to designing a real system with heterogeneous latency requirements; requires trade-offs and architectural decisions"
+     },
+     {
+      "question": "Explain how you would measure and reduce tail latency (p99) in a Disruptor-based trading system. What are the key sources of tail latency?",
+      "what_changes": "Focuses on tail latency observability and specific optimization techniques rather than comparing frameworks"
+     },
+     {
+      "question": "If Aeron's UDP-based transport can lose packets, how would you build a reliable low-latency messaging layer on top of it? What are the latency trade-offs?",
+      "what_changes": "Introduces reliability requirements and explores whether low-latency and durability can coexist"
+     }
+    ],
+    "skills_tested": [
+     "Understanding lock-free data structures and ring buffers",
+     "Knowledge of kernel bypass and user-space I/O",
+     "Latency optimization techniques in distributed systems",
+     "Comparing messaging frameworks for ultra-low-latency scenarios",
+     "System design trade-offs between throughput, latency, and complexity"
+    ],
+    "topic": "Disruptor vs Aeron vs Kafka for Low-Latency Messaging",
+    "why_asked": "Interviewers often ask this because ultra-low-latency messaging is critical in high-frequency trading, real-time analytics, and financial systems. The question tests whether you understand the fundamental differences between in-process frameworks (Disruptor), network-optimized frameworks (Aeron), and persistent brokers (Kafka). It reveals deep knowledge of performance tuning, CPU cache optimization, and when to choose each tool. This separates candidates who know messaging APIs from those who understand hardware-software interaction."
+   },
+   "prep_for": "fa5a827e2110",
+   "question": "Explain the differences between the Disruptor pattern and Aeron for low-latency messaging. When would you use kernel bypass techniques, and how do Disruptor and Aeron compare in this context? Why might Kafka be excluded from the hot path in high-frequency trading systems?",
+   "status": "approved",
+   "subcategory": "Low-latency systems",
+   "technology": [
+    "Disruptor",
+    "Aeron",
+    "Kafka"
+   ],
+   "title": "System Design — Low-latency transport and kernel bypass"
   },
   "q-25e1464058": {
    "category": "Data Engineering",
@@ -264,6 +387,24 @@
    "subcategory": "Architecture",
    "technology": [],
    "title": "Data Architecture — Production Evaluation Metrics"
+  },
+  "q-42641653f6": {
+   "category": "Python",
+   "concept_key": "shallow copy deep copy",
+   "created": "2026-10-12",
+   "difficulty": "Medium",
+   "edited": false,
+   "id": "q-42641653f6",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "Explain the difference between shallow copy and deep copy in Python. What happens when you shallow-copy a list of lists and modify an inner list?",
+   "status": "pending",
+   "subcategory": "Data Structures",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — Shallow vs Deep Copy"
   },
   "q-59064b7a6e": {
    "category": "Data Engineering",
@@ -705,6 +846,24 @@
    ],
    "title": "Data Engineering — Multiple vs Single Fact Tables"
   },
+  "q-8801862313": {
+   "category": "Python",
+   "concept_key": "mutable immutable types",
+   "created": "2026-10-12",
+   "difficulty": "Easy",
+   "edited": false,
+   "id": "q-8801862313",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "Explain the key difference between mutable and immutable types in Python. Name at least three practical consequences of this distinction.",
+   "status": "pending",
+   "subcategory": "Data Model",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — Mutable vs Immutable Types"
+  },
   "q-a00f0b7ba6": {
    "category": "System Design",
    "concept_key": "real time data quality monitoring platform",
@@ -977,6 +1136,24 @@
    ],
    "title": "Python — Streaming Log Aggregation"
   },
+  "q-c8cf91d1cd": {
+   "category": "Python",
+   "concept_key": "args kwargs",
+   "created": "2026-10-12",
+   "difficulty": "Easy",
+   "edited": false,
+   "id": "q-c8cf91d1cd",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "What do `*args` and `**kwargs` do in Python? Provide an example of when you would use them together.",
+   "status": "pending",
+   "subcategory": "Functions",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — *args and **kwargs"
+  },
   "q-d0215b1d52": {
    "category": "Coding",
    "concept_key": "async result deadlock context",
@@ -1101,6 +1278,24 @@
    "technology": [],
    "title": "Data Engineering — Data Model Design Across Industries"
   },
+  "q-f12b0385c8": {
+   "category": "Python",
+   "concept_key": "decorator function wrapper",
+   "created": "2026-10-12",
+   "difficulty": "Medium",
+   "edited": false,
+   "id": "q-f12b0385c8",
+   "merged_into": null,
+   "prep": null,
+   "prep_for": null,
+   "question": "What is a decorator in Python? Describe how to write a simple decorator that wraps another function.",
+   "status": "pending",
+   "subcategory": "Functions",
+   "technology": [
+    "Python"
+   ],
+   "title": "Python — Decorators"
+  },
   "q-f9ddc2d24e": {
    "category": "System Design",
    "concept_key": "modeling decisions hard to undo",
@@ -1216,7 +1411,7 @@
    "id": "r-318b86f39c1f",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "interview year 2026 dropped: not stated in the source",
     "extractor: Follow-up question requiring comparison of multiple anomaly detection techniques and their trade-offs."
@@ -1247,6 +1442,65 @@
    "stage_evidence": null,
    "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=c66da52eede027b3"
+  },
+  "r-45fb7aaeb526": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "`==` checks *equality* (do these have the same value?); `is` checks *identity* (are these the exact same object in memory?)",
+   "flags": [],
+   "id": "r-45fb7aaeb526",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Always use `is` when comparing to None. Be aware that small integers and short strings are cached, making `is` appear to work for values when it shouldn't be relied upon."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "is vs equality",
+    "difficulty": "Easy",
+    "question": "What is the difference between `is` and `==` in Python? When should you use each?",
+    "subcategory": "Data Model",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — is vs =="
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-09bbbc4cd2",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
   },
   "r-46a4617f5fb2": {
    "asked_in_interview": true,
@@ -1282,7 +1536,7 @@
    "id": "r-46a4617f5fb2",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "practice question shares 11 consecutive words with the source; rewrite before approving"
    ],
@@ -1311,6 +1565,65 @@
    "stage_evidence": null,
    "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=35a2cac2b01e2205"
+  },
+  "r-49a7377bfed5": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "A decorator is a function that takes another function and returns a new one that wraps it — a clean way to add behaviour (logging, timing, caching, access checks) around a function",
+   "flags": [],
+   "id": "r-49a7377bfed5",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Decorator syntax `[handle removed]` is sugar for `func = decorator(func)`. Functions are ordinary objects in Python, so they can be passed around and wrapped."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "decorator function wrapper",
+    "difficulty": "Medium",
+    "question": "What is a decorator in Python? Describe how to write a simple decorator that wraps another function.",
+    "subcategory": "Functions",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — Decorators"
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-f12b0385c8",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
   },
   "r-4da24aa4965a": {
    "asked_in_interview": true,
@@ -1343,7 +1656,7 @@
    "id": "r-4da24aa4965a",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Question focuses on understanding architectural trade-offs and the importance of early design decisions in long-term system maintainability."
    ],
@@ -1369,6 +1682,68 @@
    "stage_evidence": null,
    "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=a5e978afb34959c1"
+  },
+  "r-55f03a25dc70": {
+   "asked_in_interview": true,
+   "band": "strong",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions/topics (kernel bypass, Disruptor vs Aeron, Kafka) presented as interview preparation material, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": false,
+    "states_specific_questions": true
+   },
+   "company": "investment-bank",
+   "company_evidence": "Investment Bank Interview",
+   "company_name": "Investment Bank",
+   "confidence": 77,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+15 source says it was asked in an interview",
+    "+8 company attributed with evidence",
+    "+4 source date known"
+   ],
+   "decided_at": "2026-10-12",
+   "decided_by": "auto (confidence ≥ 70)",
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "kernel bypass, Disruptor vs Aeron, and why Kafka stays off the hot path",
+   "flags": [],
+   "id": "r-55f03a25dc70",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Question focuses on feed handlers and low-latency transport optimization techniques used in financial systems."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "System Design",
+    "concept_key": "disruptor aeron kafka kernel bypass",
+    "difficulty": "Hard",
+    "question": "Explain the differences between the Disruptor pattern and Aeron for low-latency messaging. When would you use kernel bypass techniques, and how do Disruptor and Aeron compare in this context? Why might Kafka be excluded from the hot path in high-frequency trading systems?",
+    "subcategory": "Low-latency systems",
+    "technology": [
+     "Disruptor",
+     "Aeron",
+     "Kafka"
+    ],
+    "title": "System Design — Low-latency transport and kernel bypass"
+   },
+   "provider": "medium",
+   "query": "tag:system-design-interview",
+   "question_id": "q-1b70208624",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-12",
+   "source_title": "Feed Handlers & Low-Latency Transport, Explained",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "approved",
+   "url": "https://medium.com/@lakshman798/feed-handlers-low-latency-transport-explained-fe373e5449ed"
   },
   "r-57a5fc0b08dc": {
    "asked_in_interview": true,
@@ -1400,7 +1775,7 @@
    "id": "r-57a5fc0b08dc",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "interview year 2026 dropped: not stated in the source",
     "extractor: Deep-dive debugging question exploring system observability and reliability patterns."
@@ -1468,7 +1843,7 @@
    "id": "r-5d7eb0898011",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "interview year 2026 dropped: not stated in the source",
     "practice question shares 14 consecutive words with the source; rewrite before approving",
@@ -1496,6 +1871,65 @@
    "stage_evidence": null,
    "status": "approved",
    "url": "https://paddyspeaks.com/interview.app/submit?submission=859bc1088fe691ab"
+  },
+  "r-686a5bdaa1ac": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "`*args` collects extra positional arguments into a tuple; `**kwargs` collects extra keyword arguments into a dict.",
+   "flags": [],
+   "id": "r-686a5bdaa1ac",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Common use case: writing wrappers and decorators that pass arguments through without knowing them in advance."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "args kwargs",
+    "difficulty": "Easy",
+    "question": "What do `*args` and `**kwargs` do in Python? Provide an example of when you would use them together.",
+    "subcategory": "Functions",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — *args and **kwargs"
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-c8cf91d1cd",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
   },
   "r-8505f4b4b0d2": {
    "asked_in_interview": true,
@@ -1528,7 +1962,7 @@
    "id": "r-8505f4b4b0d2",
    "interview_stage": null,
    "interview_year": 2026,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Follow-up topics included: deque vs list, heapq, defaultdict, OrderedDict, Counter, bisect, threading vs multiprocessing, asyncio, Redis, Bloom Filter, HyperLogLog. An even harder variant asked about processing 10 billion events/day using K"
    ],
@@ -1590,7 +2024,7 @@
    "id": "r-9d1209bed20a",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Candidate reported they could not answer convincingly when probed. Question focused on testing ability to think clearly under constraints and ambiguity."
    ],
@@ -1648,7 +2082,7 @@
    "id": "r-aefbc4db64b4",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "interview year 2026 dropped: not stated in the source",
     "extractor: Question focused on practical strategies for replicating production data complexity and volume in non-production environments for dashboard testing and validation."
@@ -1770,7 +2204,7 @@
    "id": "r-bcb70c2ccf01",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Candidate reported they could not answer convincingly when probed. Question focused on testing ability to think clearly under constraints and ambiguity."
    ],
@@ -1828,7 +2262,7 @@
    "id": "r-c898ef344371",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Question tests understanding of dimensional modeling and fact table schema design decisions."
    ],
@@ -1889,7 +2323,7 @@
    "id": "r-d54f6085cbe6",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "extractor: Candidate reported they could not answer convincingly when probed. Question focused on testing ability to think clearly under constraints and ambiguity."
    ],
@@ -1976,6 +2410,191 @@
    "status": "pending",
    "url": "https://dev.to/kirandeepjassalcrypto/c-interview-questions-for-senior-developers-in-2026-asyncawait-gc-memory-the-type-system-5ddi"
   },
+  "r-d9dcb1dd9f78": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "A shallow copy duplicates the outer object but shares the nested objects inside it; a deep copy recursively duplicates everything.",
+   "flags": [],
+   "id": "r-d9dcb1dd9f78",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: A shallow copy of a list of lists will share references to the inner lists, so mutations appear in both copies. Use `copy.deepcopy()` for true independence."
+   ],
+   "possible_duplicates": [
+    {
+     "how": "model said different",
+     "id": "q-09bbbc4cd2",
+     "question": "What is the difference between `is` and `==` in Python? When should you use each?",
+     "similarity": 0.682,
+     "title": "Python — is vs =="
+    }
+   ],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "shallow copy deep copy",
+    "difficulty": "Medium",
+    "question": "Explain the difference between shallow copy and deep copy in Python. What happens when you shallow-copy a list of lists and modify an inner list?",
+    "subcategory": "Data Structures",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — Shallow vs Deep Copy"
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-42641653f6",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
+  },
+  "r-daacd3033a0d": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "A list is a mutable, ordered collection you grow and change; a tuple is an immutable, ordered collection you fix once.",
+   "flags": [],
+   "id": "r-daacd3033a0d",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Key differences: tuples can be dictionary keys, signal immutability, and are slightly lighter weight."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "list tuple when to use",
+    "difficulty": "Easy",
+    "question": "When would you use a list versus a tuple in Python? Provide an example use case for each.",
+    "subcategory": "Data Structures",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — List vs Tuple"
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-1a39f6fe7b",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
+  },
+  "r-e4ca1b02645c": {
+   "asked_in_interview": false,
+   "band": "low",
+   "bank_matches": [],
+   "classification": {
+    "class": "B",
+    "reason": "This is a list of interview questions with model answers grouped by topic (data model, functions). While it includes explanatory text about what interviewers are testing, the primary content is a collection of specific interview questions with answers, not a first-person account of the author's own interview experience.",
+    "recruiting_ad": false,
+    "selling_course": false,
+    "seo_list": true,
+    "states_specific_questions": true
+   },
+   "company": null,
+   "company_evidence": null,
+   "company_name": null,
+   "confidence": 44,
+   "confidence_parts": [
+    "+50 class B (question_list)",
+    "+4 source date known",
+    "-10 mass-produced list"
+   ],
+   "decided_at": null,
+   "decided_by": null,
+   "decision_note": null,
+   "discovered": "2026-10-12",
+   "evidence": "A mutable object can be changed in place after creation; an immutable one can't. Lists, dicts and sets are mutable; ints, floats, strings, tuples and frozensets are immutable.",
+   "flags": [],
+   "id": "r-e4ca1b02645c",
+   "interview_stage": null,
+   "interview_year": null,
+   "last_seen": "2026-10-12",
+   "notes": [
+    "extractor: Understanding why mutability matters: dictionary keys require stable hashes, immutable objects are safe to share, and string modifications create new objects."
+   ],
+   "possible_duplicates": [],
+   "proposed": {
+    "category": "Python",
+    "concept_key": "mutable immutable types",
+    "difficulty": "Easy",
+    "question": "Explain the key difference between mutable and immutable types in Python. Name at least three practical consequences of this distinction.",
+    "subcategory": "Data Model",
+    "technology": [
+     "Python"
+    ],
+    "title": "Python — Mutable vs Immutable Types"
+   },
+   "provider": "devto",
+   "query": "tag:interview",
+   "question_id": "q-8801862313",
+   "role": null,
+   "role_evidence": null,
+   "role_name": null,
+   "source_date": "2026-10-10",
+   "source_title": "Python Interview Questions (With Model Answers)",
+   "source_type": "blog",
+   "stage_evidence": null,
+   "status": "pending",
+   "url": "https://dev.to/peakblick/python-interview-questions-with-model-answers-486f"
+  },
   "r-eb70466e6266": {
    "asked_in_interview": true,
    "band": "strong",
@@ -2006,7 +2625,7 @@
    "id": "r-eb70466e6266",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "interview year 2026 dropped: not stated in the source",
     "extractor: Follow-up questions include anomaly detection techniques (Z-score, Moving average, EWMA, Prophet, Isolation Forest, ML models) and deep-dive debugging scenario involving missing alerts. Bonus question asks for architecture adaptation to Dat"
@@ -2074,7 +2693,7 @@
    "id": "r-ece58431b034",
    "interview_stage": null,
    "interview_year": null,
-   "last_seen": "2026-10-07",
+   "last_seen": "2026-10-12",
    "notes": [
     "practice question shares 11 consecutive words with the source; rewrite before approving",
     "extractor: Multi-tenant IVR analytics platform for contact-center solutions provider. Involves complex requirements: schema drift handling, real-time and batch processing, tenant isolation, time zone handling, and performance optimization across widel"
