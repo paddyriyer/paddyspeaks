@@ -8,6 +8,7 @@ Read this before touching `lalitha-sahasranama/` or `scripts/lalitha/`.
 |---|---|
 | `lalitha-sahasranama/edition/text.json` | **The Sanskrit.** Nyāsa, four dhyāna ślokas, 183 ślokas (Devanagari + IAST per half-line), 1,000 names each with its śloka and half-line, the colophon. Hand-maintained; every change is logged in `corrections.json`. |
 | `lalitha-sahasranama/edition/analysis/NN.json` | **The analysis**, 19 batches of 10 ślokas: for every name, sandhi viccheda, samāsa (type, vigraha-vākya, explanation), the word-by-word table, the complete meaning, its significance, and flags (uncertain, variants, text concerns). Also the external sandhi between names in each śloka and a per-batch report. |
+| `lalitha-sahasranama/edition/preliminaries.json` | Hand-written reading aids for the nyāsa and the four dhyāna ślokas: the words spaced (`read`), the compounds hyphenated (`learn`), a word-by-word table and a translation. Both lines must spell the text exactly (`check.py`). |
 | `lalitha-sahasranama/edition/corrections.json` | The hand-written correction log (names, structure), textual variants, and the previous English of any meaning that was rewritten. |
 | `lalitha-sahasranama/edition/edition.css` | Styles for the study edition (screen, print, PDF). |
 | `lalitha-sahasranama/edition/index.html` | GENERATED — the study edition at `/lalitha-sahasranama/edition/`. |
@@ -31,6 +32,29 @@ EA_DEPS=/opt/node22/lib LALITHA_FONTS=/path/to/fontsource-packages \
 `@fontsource/source-serif-4` packages (see `scripts/lalitha/pdf.mjs`). `--check`
 fails when the PDF or DOCX is older than the edition, so rebuild them whenever
 the text or analysis changes.
+
+## The book layout (2026-10-12)
+
+The edition is a chanting and learning book. Every unit — the nyāsa, each dhyāna
+śloka, each of the 183 ślokas — is set out the same way, top to bottom: the
+Sanskrit, large; its IAST; the names (or words) separated; the translation; a
+word-by-word table; and, for the names, their details. `scripts/lalitha/book.mjs`
+renders it; `scripts/lalitha/reading.mjs` works out the reader's lines.
+
+- **The canonical line** is the text exactly as recited, with a space wherever one
+  name ends and the next begins *without a letter changing* (`भद्रमूर्तिर्
+  भक्तसौभाग्यदायिनी`; an elided initial vowel keeps its avagraha, `सर्वारुणा
+  ऽनवद्याङ्गी`). Four junctions fuse two names into one sound and stay joined:
+  270/271, 593/594, 711/712 (साध्वी), 984/985. The split is done in IAST and the
+  build proves that the spaced line spells the text.
+- **The learning line** shows every name on its own, numbered, in its own form,
+  with hyphens at the joints of a compound. A name whose recited form differs is
+  marked `°`. It is never presented as the text.
+- Print sizes: Sanskrit 19 pt (learning 17 pt), IAST 12.5 pt, English 11.5 pt,
+  in Noto Serif Devanagari and Source Serif 4. Every śloka starts a page; the
+  book is about 1,000 pages, by design.
+- The chanting page's **Download PDF** button opens this book; the old
+  client-side print (the card layout) was removed.
 
 ## Rules
 

@@ -5,10 +5,10 @@
  * Needs `playwright` resolvable from $EA_DEPS (the same convention as
  * scripts/every_arrow/pdf.mjs; nothing is added to the repo).
  *
- * Fonts: the page names Google Fonts (Tiro Devanagari Sanskrit, Source Serif 4).
+ * Fonts: the page names Google Fonts (Noto Serif Devanagari, Source Serif 4).
  * Where Google Fonts cannot be reached, set LALITHA_FONTS to a directory holding
  * the Fontsource packages, unpacked:
- *   npm pack @fontsource/tiro-devanagari-sanskrit @fontsource/source-serif-4
+ *   npm pack @fontsource/noto-serif-devanagari @fontsource/source-serif-4
  *   (untar each; LALITHA_FONTS is the directory that contains them)
  * and the renderer serves those files in place of the Google ones.
  */
@@ -54,7 +54,7 @@ export async function renderPdf(root, out, url) {
     await page.emulateMedia({ media: 'print' });
     await page.goto(base + url, { waitUntil: 'networkidle', timeout: 180000 });
     await page.evaluate(() => document.fonts && document.fonts.ready);
-    const ok = await page.evaluate(() => document.fonts.check('16px "Tiro Devanagari Sanskrit"', 'श्री') && document.fonts.check('16px "Source Serif 4"', 'ṛṣṭ'));
+    const ok = await page.evaluate(() => document.fonts.check('16px "Noto Serif Devanagari"', 'श्री') && document.fonts.check('16px "Source Serif 4"', 'ṛṣṭ'));
     if (!ok) throw new Error('fonts did not load — set LALITHA_FONTS (see scripts/lalitha/pdf.mjs)');
     await page.pdf({
       path: out, format: 'Letter', printBackground: true, preferCSSPageSize: true, tagged: true, outline: true,

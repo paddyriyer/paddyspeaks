@@ -72,12 +72,13 @@
     LALITHA_DATA.verses.forEach(function (verse) {
       var verseNum = verse.num;
       var nameNums = VERSE_NAMES[verseNum] || [];
-      var halves = verse.halves || [];
+      // the reader's lines: words spaced wherever no letter changes (scripts/lalitha/reading.mjs)
+      var halves = verse.read_iast || verse.halves || [];
 
       // Build shloka text display with translations after full verse
       var translations = verse.translations || [];
       var shlokaHtml = '<div class="shloka-text">';
-      var halvesDev = verse.halves_dev || [];
+      var halvesDev = verse.read_dev || verse.halves_dev || [];
       if (halvesDev.length) {
         shlokaHtml += '<div class="shloka-devanagari" lang="sa">';
         halvesDev.forEach(function (half, idx) {
@@ -92,6 +93,19 @@
         }
       });
       shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
+      // The names separated (learning view); ° marks a name whose recited form differs
+      if (verse.learn) {
+        shlokaHtml += '<div class="shloka-learn" aria-label="The names, separated">';
+        verse.learn.forEach(function (row) {
+          if (!row.length) return;
+          shlokaHtml += '<span class="learn-line">';
+          row.forEach(function (n) {
+            shlokaHtml += '<span class="learn-name"><sup>' + n[0] + '</sup><span lang="sa">' + escapeHtml(n[1]) + (n[3] ? '°' : '') + '</span></span>';
+          });
+          shlokaHtml += '</span>';
+        });
+        shlokaHtml += '</div>';
+      }
       // Show translations after the full verse text
       if (translations.length > 0) {
         shlokaHtml += '<div class="shloka-translations">';
@@ -263,224 +277,14 @@
     });
   }
 
-  // --- PDF Download ---
+  // --- PDF Download: the chanting and learning book, built by scripts/lalitha/build.mjs ---
+  var BOOK_PDF = 'edition/Sri-Lalitha-Sahasranama-Study-Edition.pdf';
   function setupPdfDownload() {
     var btn = document.getElementById('download-pdf');
     if (!btn) return;
     btn.addEventListener('click', function () {
-      generatePrintablePage();
+      window.location.href = BOOK_PDF;
     });
-  }
-
-  function generatePrintablePage() {
-    var w = window.open('', '_blank');
-    if (!w) {
-      alert('Please allow pop-ups to download the PDF.');
-      return;
-    }
-
-    var html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">';
-    html += '<title>Sri Lalitha Sahasranama - Complete Text</title>';
-    html += '<link rel="preconnect" href="https://fonts.googleapis.com">';
-    html += '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
-    html += '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;600&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap" rel="stylesheet">';
-    html += '<style>' + getPdfStyles() + '</style>';
-    html += '</head><body>';
-
-    // Title page
-    html += '<div class="title-page">';
-    html += '<div class="ornament">&#x2733;</div>';
-    html += '<h1>Sri Lalitha Sahasranama</h1>';
-    html += '<p class="subtitle">The Thousand Divine Names of the Supreme Goddess</p>';
-    html += '<p class="source">From the Brahmanda Purana</p>';
-    html += '<p class="source">Dialogue between Hayagriva and Agastya</p>';
-    html += '<div class="ornament">&#x2733;</div>';
-    html += '</div>';
-
-    // Nyasa
-    html += '<div class="section">';
-    html += '<h2 class="section-title"><span class="sanskrit-title">न्यासः</span> Nyasa</h2>';
-    var nyasaText = LALITHA_DATA.nyasa
-      .replace(/^\.\.\s*nyāsaḥ\s*\.\.\s*/i, '')
-      .replace('|| nyAsaH ||', '')
-      .trim();
-    if (LALITHA_DATA.nyasa_dev) html += '<div class="nyasa-text devanagari">' + escapeHtml(LALITHA_DATA.nyasa_dev.join(' ।\n') + ' ॥') + '</div>';
-    html += '<div class="nyasa-text">' + escapeHtml(nyasaText) + '</div>';
-    html += '</div>';
-
-    // Dhyana Shlokas
-    html += '<div class="section">';
-    html += '<h2 class="section-title"><span class="sanskrit-title">ध्यानम्</span> Dhyana Shlokas</h2>';
-    html += '<p class="section-intro">Meditation verses to invoke the Divine Mother before chanting</p>';
-    LALITHA_DATA.dhyana.forEach(function (dv, idx) {
-      html += '<div class="dhyana-verse">';
-      html += '<div class="verse-num-label">Dhyana Shloka ' + (idx + 1) + '</div>';
-      if (dv.devanagari) html += '<div class="verse-text devanagari">' + escapeHtml(dv.devanagari) + '</div>';
-      html += '<div class="verse-text">' + escapeHtml(dv.sanskrit) + '</div>';
-      if (dv.translation) {
-        html += '<div class="translation">' + escapeHtml(dv.translation) + '</div>';
-      }
-      html += '</div>';
-    });
-    html += '</div>';
-
-    // Main Stotram
-    html += '<div class="section">';
-    html += '<h2 class="section-title"><span class="sanskrit-title">अथ श्रीललितासहस्रनामस्तोत्रम्</span> Atha Sri Lalitha Sahasranama Stotram</h2>';
-
-    LALITHA_DATA.verses.forEach(function (verse) {
-      var verseNum = verse.num;
-      var nameNums = VERSE_NAMES[verseNum] || [];
-      var halves = verse.halves || [];
-      var translations = verse.translations || [];
-
-      html += '<div class="verse-block">';
-      html += '<div class="verse-header-bar"><span class="verse-number">Shloka ' + verseNum + '</span></div>';
-
-      // Shloka text
-      if (verse.halves_dev) {
-        html += '<div class="shloka-devanagari">' + verse.halves_dev.map(function (h, idx) {
-          return escapeHtml(h) + (idx === 0 ? ' ।' : ' ॥ ' + devDigits(verseNum) + ' ॥');
-        }).join('<br>') + '</div>';
-      }
-      html += '<div class="shloka-text">';
-      halves.forEach(function (half, idx) {
-        html += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
-        if (idx < halves.length - 1) {
-          html += ' <span class="separator">|</span> ';
-        }
-      });
-      html += ' <span class="separator">|| ' + verseNum + ' ||</span>';
-      html += '</div>';
-
-      // Translations
-      if (translations.length > 0) {
-        html += '<div class="shloka-translation">';
-        translations.forEach(function (t) {
-          if (t) html += '<div>' + escapeHtml(t) + '</div>';
-        });
-        html += '</div>';
-      }
-
-      // Names as word-split cards
-      if (nameNums.length > 0) {
-        html += '<div class="word-grid">';
-        nameNums.forEach(function (nNum) {
-          var name = namesMap[nNum];
-          if (name) {
-            html += '<div class="word-card">';
-            html += '<div class="word-num">' + nNum + '</div>';
-            html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
-            html += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
-            html += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
-            if (name.morphemes && name.morphemes.length > 1) {
-              html += '<div class="morpheme-split">';
-              name.morphemes.forEach(function (m, idx) {
-                if (idx > 0) html += '<span class="morpheme-sep">+</span>';
-                html += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
-                if (m.devanagari) html += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
-                html += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
-                html += '</span>';
-              });
-              html += '</div>';
-            }
-            html += '</div>';
-          }
-        });
-        html += '</div>';
-      }
-
-      html += '</div>';
-    });
-    html += '</div>';
-
-    // Closing
-    html += '<div class="section closing">';
-    html += '<div class="closing-verse">';
-    html += '<div class="verse-text">iti śrī-brahmāṇḍa-purāṇe uttara-khaṇḍe śrī-hayagrīva-agastya-saṃvāde<br>śrī-lalitā-sahasranāma-stotra-kathanaṃ sampūrṇam</div>';
-    html += '<div class="translation">Thus ends the narration of Sri Lalita Sahasranama Stotra from the Uttara Khanda of the Brahmanda Purana, in the dialogue between Sri Hayagriva and Agastya.</div>';
-    html += '</div>';
-    html += '<div class="ornament" style="margin-top:2rem;">&#x2733;</div>';
-    html += '<p class="footer-text">Om Aim Hreem Shreem Sri Lalitha Tripurasundari Paraatparike Namaha</p>';
-    html += '<p class="footer-note">A <a href="https://paddyspeaks.com">PaddySpeaks</a> creation</p>';
-    html += '</div>';
-
-    html += '<script>window.onload=function(){setTimeout(function(){window.print();},800);}<\/script>';
-    html += '</body></html>';
-
-    w.document.write(html);
-    w.document.close();
-  }
-
-  function getPdfStyles() {
-    return [
-      '*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }',
-      'body { font-family: "Source Serif 4", Georgia, serif; color: #2c1810; background: #fff; line-height: 1.7; font-size: 11pt; }',
-
-      // Title page
-      '.title-page { text-align: center; padding: 3rem 1rem 2rem; border-bottom: 2px solid #b8860b; margin-bottom: 1.5rem; }',
-      '.title-page h1 { font-family: "Playfair Display", Georgia, serif; font-size: 2.2rem; color: #8b1a1a; margin: 0.5rem 0; }',
-      '.title-page .subtitle { font-size: 1.1rem; color: #6b5744; font-style: italic; margin: 0.3rem 0; }',
-      '.title-page .source { font-size: 0.9rem; color: #8b7355; margin: 0.15rem 0; }',
-      '.ornament { font-size: 1.5rem; color: #b8860b; margin: 0.5rem 0; }',
-
-      // Sections
-      '.section { margin: 0 auto 1.5rem; max-width: 800px; padding: 0 1.5rem; }',
-      '.section-title { font-family: "Playfair Display", Georgia, serif; font-size: 1.3rem; color: #8b1a1a; border-bottom: 1px solid #b8860b; padding-bottom: 0.4rem; margin-bottom: 0.8rem; }',
-      '.sanskrit-title { font-family: "Noto Sans Devanagari", sans-serif; font-size: 1rem; color: #b8860b; margin-right: 0.5rem; }',
-      '.section-intro { font-size: 0.85rem; color: #6b5744; font-style: italic; margin-bottom: 1rem; }',
-
-      // Nyasa
-      '.nyasa-text { font-size: 0.9rem; line-height: 1.8; white-space: pre-line; color: #3a2518; padding: 0.75rem; background: #fdf8f0; border-left: 3px solid #b8860b; }',
-
-      // Dhyana verses
-      '.dhyana-verse { margin-bottom: 1.2rem; padding: 0.75rem; background: #fdf8f0; border-left: 3px solid #c41e3a; page-break-inside: avoid; }',
-      '.verse-num-label { font-size: 0.75rem; color: #b8860b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem; }',
-      '.verse-text { font-size: 0.95rem; line-height: 1.9; white-space: pre-line; color: #3a2518; }',
-      '.translation { font-size: 0.8rem; color: #6b5744; font-style: italic; margin-top: 0.4rem; line-height: 1.5; }',
-
-      // Verse blocks
-      '.verse-block { margin-bottom: 0.8rem; border: 1px solid #e8ddd0; border-radius: 4px; page-break-inside: avoid; overflow: hidden; }',
-      '.verse-header-bar { background: linear-gradient(135deg, #8b1a1a, #a52a2a); padding: 0.3rem 0.75rem; }',
-      '.verse-number { color: #fff; font-size: 0.8rem; font-weight: 600; }',
-      '.shloka-text { background: #fdf8f0; padding: 0.6rem 0.75rem; font-size: 0.9rem; line-height: 1.8; }',
-      '.shloka-devanagari, .devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 1.02rem; line-height: 1.9; color: #3a2518; }',
-      '.shloka-devanagari { background: #fdf8f0; padding: 0.6rem 0.75rem 0; }',
-      '.shloka-line { display: inline; }',
-      '.separator { color: #b8860b; font-weight: 600; }',
-      '.shloka-translation { padding: 0.3rem 0.75rem; font-size: 0.78rem; color: #6b5744; font-style: italic; background: #f7efe3; }',
-
-      // Word cards
-      '.word-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; padding: 0.3rem 0.75rem 0.5rem; }',
-      '.word-card { border: 1px solid #e8ddd0; border-radius: 4px; padding: 0.4rem 0.3rem; text-align: center; background: #fdf8f0; }',
-      '.word-num { font-size: 0.6rem; color: #b8860b; font-weight: 600; margin-bottom: 0.15rem; }',
-      '.word-devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 0.9rem; font-weight: 600; color: #8b1a1a; margin-bottom: 0.15rem; }',
-      '.word-transliteration { font-size: 0.7rem; font-style: italic; color: #b8860b; margin-bottom: 0.1rem; }',
-      '.word-meaning { font-size: 0.65rem; color: #6b5744; line-height: 1.3; }',
-
-      // Morpheme splits
-      '.morpheme-split { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.1rem; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed #e8ddd0; }',
-      '.morpheme { display: flex; flex-direction: column; align-items: center; }',
-      '.morpheme-devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 0.65rem; font-weight: 600; color: #8b1a1a; }',
-      '.morpheme-text { font-size: 0.55rem; font-style: italic; color: #c41e3a; font-weight: 500; }',
-      '.morpheme-meaning { font-size: 0.5rem; color: #6b5744; }',
-      '.morpheme-sep { font-size: 0.5rem; color: #b8860b; font-weight: 600; margin: 0 0.03rem; }',
-
-      // Closing
-      '.closing { text-align: center; border-top: 2px solid #b8860b; padding-top: 1.5rem; margin-top: 2rem; }',
-      '.closing-verse { margin-bottom: 1rem; }',
-      '.footer-text { font-size: 0.9rem; color: #8b1a1a; margin-top: 1rem; }',
-      '.footer-note { font-size: 0.75rem; color: #8b7355; margin-top: 0.3rem; }',
-      '.footer-note a { color: #b8860b; }',
-
-      // Print
-      '@media print {',
-      '  body { font-size: 10pt; }',
-      '  .verse-block { page-break-inside: avoid; }',
-      '  .dhyana-verse { page-break-inside: avoid; }',
-      '  .title-page { page-break-after: always; }',
-      '}'
-    ].join('\n');
   }
 
   // --- Floating Scroll Buttons ---
