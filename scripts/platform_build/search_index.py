@@ -10,7 +10,7 @@ One document schema for every kind of content:
 Shards, so a search never downloads more than it needs:
 
     core.json       everything except the three large sets below (~ loaded on open)
-    verses.json     Bhagavad Gita verses, translation and transliteration
+    verses.json     Bhagavad Gita verses and the analysed Devī Māhātmyam mantras
     names.json      Vishnu and Lalitha Sahasranama names and meanings
     questions.json  Interview Studio question titles
     manifest.json   counts, shard sizes, generation inputs
@@ -203,6 +203,36 @@ def sacred_docs() -> tuple[list[dict], list[dict], list[dict]]:
     return chapters, verses, names
 
 
+def devi_docs() -> tuple[list[dict], list[dict]]:
+    """Devī Māhātmyam study edition: one doc per chapter (core) and one per
+    analysed mantra (verses shard), from devi-mahatmyam/edition/."""
+    ed = ROOT / "devi-mahatmyam" / "edition"
+    if not (ed / "text.json").exists():
+        return [], []
+    text = json.loads((ed / "text.json").read_text(encoding="utf-8"))
+    chapters, verses = [], []
+    for c in text["chapters"]:
+        n = c["num"]
+        url = f"/devi-mahatmyam/edition/chapter-{n:02d}.html"
+        ap = ed / "analysis" / f"{n:02d}.json"
+        a = json.loads(ap.read_text(encoding="utf-8")) if ap.exists() else {}
+        chapters.append(doc(f"devi:ch{n}", "sacred", f"Devī Māhātmyam, Chapter {n}: {c['title']['en']}", url,
+                            subtitle=f"Sacred text · {c['title']['dev']}",
+                            text=_clip((a.get("intro") or {}).get("summary", ""), 400),
+                            tags=["Durga Saptashati", "Chandi Path"], category="learn",
+                            source="devi-mahatmyam/edition/text.json"))
+        by = {f"{n}.{m['n']}" + (f"-{m['to']}" if "to" in m else ""): m for m in c["mantras"]}
+        for e in a.get("mantras", []):
+            m = by.get(e["id"])
+            if not m or m["kind"] == "uvaca" or not e.get("tr"):
+                continue
+            verses.append(doc(f"devi:{e['id']}", "verse", f"Devī Māhātmyam {e['id'].replace('-', '–')}",
+                              f"{url}#m-{n}-{m['n']}", subtitle="Sacred text · Devī Māhātmyam",
+                              text=e["tr"], tags=[" ".join(m["lines"])], category="learn",
+                              source=f"devi-mahatmyam/edition/analysis/{n:02d}.json"))
+    return chapters, verses
+
+
 def _q(s: str) -> str:
     from urllib.parse import quote
     return quote(s, safe="")
@@ -225,6 +255,8 @@ def concept_docs() -> list[dict]:
 def build() -> dict[str, list[dict]]:
     cat = read_json(registry.CATALOG)
     chapters, verses, names = sacred_docs()
+    dchapters, dverses = devi_docs()
+    chapters, verses = chapters + dchapters, verses + dverses
     icore, questions = interview_docs()
     core = articles() + catalog_docs(cat) + design_docs() + icore + chapters + concept_docs()
     core.sort(key=lambda d: d["id"])
