@@ -1597,6 +1597,38 @@
       ],
       "answer": 1,
       "explanation": "When applying a local time-zone offset to a 'Last 7 Days' filter, a UTC-11 user's local 'today' begins 11 hours *before* UTC today. The filter \"Last 7 days in local time\" truncates at the user's local midnight, which removes ~13 hours of yesterday's UTC data that a UTC user would include. Option A misses the real issue (UTC storage is standard); option C confuses refresh timing; option D is a technical distraction."
+    },
+    {
+      "id": "dash-new-045",
+      "type": "single",
+      "topic": "metric definitions and governance",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "Your company maintains a central metric warehouse where 'Monthly Recurring Revenue (MRR)' is defined as the sum of active subscription fees as of the last day of the month. The Sales dashboard uses this metric directly, but the Finance dashboard applies a manual adjustment for refunds processed in the first 3 days of the following month\u2014creating a systematic 2\u20135% divergence. The CFO now mandates a single source of truth. Which approach best resolves this without breaking existing reports?",
+      "options": [
+        "Update the metric definition in the warehouse to include refund adjustments, versioning the old metric as 'MRR_legacy', then migrate Sales to the new definition over 4 weeks with an AB-test period.",
+        "Create two separate metrics: 'MRR_cash_basis' (Finance version) and 'MRR_accrual_basis' (Sales version), document both in the governance system, and let each team choose.",
+        "Ask Sales and Finance to manually reconcile their spreadsheets daily and update dashboards accordingly to ensure consistency.",
+        "Deploy a real-time transformation layer that detects which dashboard is querying and applies the appropriate adjustment dynamically based on the user's department."
+      ],
+      "answer": 0,
+      "explanation": "Establishing a single metric definition in the metric warehouse with clear versioning ensures governed consistency while allowing a transition period. This approach avoids technical hacks (dynamic transformation), respects the historical context (legacy versioning), and aligns with metric governance best practices used at companies like Stripe and Meta. Option 1 creates auditability and prevents future divergence."
+    },
+    {
+      "id": "dash-new-046",
+      "type": "single",
+      "topic": "dashboard caching and cache warming",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "A financial dashboard serving 200+ traders must display intraday P&L updated every 5 minutes. The underlying fact table receives 50,000 events per second from market feeds. Queries on the full dataset take 8 seconds; pre-aggregated hourly summaries take 200ms. Traders open the dashboard sporadically between 8am\u20135pm, and cache always goes cold overnight. Which strategy best balances freshness, latency, and infrastructure cost?",
+      "options": [
+        "Pre-aggregate market data into 1-minute buckets during market hours; schedule cache warming at 8am and every 30 minutes; serve traders from the aggregated layer with a 5-minute staleness SLA.",
+        "Implement a live direct query against the fact table with aggressive query optimization (indexing, partitioning) to achieve <2 second latency; accept the infrastructure cost for real-time accuracy.",
+        "Cache the full 50,000 events per second into an in-memory store (Redis) and warm it continuously; serve all queries from cache with a 5-minute refresh interval.",
+        "Use a two-tier approach: hourly summaries for overnight/off-hours viewers, and live queries only for traders who log in during market hours, switching automatically based on session time."
+      ],
+      "answer": 0,
+      "explanation": "Pre-aggregation to 1-minute granularity dramatically reduces query latency (200ms vs 8s) while maintaining 5-minute freshness suitable for intraday trading. Scheduled cache warming at market open and regular intervals ensures predictable performance for the sporadic access pattern, avoiding the cost of continuous caching (option C) or over-engineering live queries (option B). This is the approach Databricks and Stripe use for high-frequency financial dashboards."
     }
   ]
 }

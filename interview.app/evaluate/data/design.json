@@ -6632,6 +6632,54 @@
       ],
       "answer": 1,
       "explanation": "Iceberg's hidden partitioning (bucket transforms) can be added incrementally without rewriting history\u2014new data is bucketed, and the query engine uses metadata pruning to skip irrelevant partitions for both new and old data. This avoids the cost of full rewrites. Option 0 requires rewriting all data (expensive). Option 2 conflates Iceberg with Z-ordering (which is not a native Iceberg feature). Option 3 adds operational overhead with a separate table and ETL job."
+    },
+    {
+      "id": "ds-new-123",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "Your Snowflake data warehouse has a `dim_products` table with 500M rows, actively used by 30+ downstream dashboards and ML pipelines. You need to add a new column `carbon_footprint_kg` (nullable decimal) and backfill historical values from a newly acquired supplier API. The backfill will take 6 hours and block writes. What's the safest approach to minimize impact on downstream consumers?",
+      "options": [
+        "Add the column with ALTER TABLE ADD COLUMN, then backfill in a separate transaction while allowing concurrent reads",
+        "Create a view that joins the original table with a temporary staging table containing backfilled values, then swap the view name after backfill completes",
+        "Use Snowflake's COPY INTO with column reordering to rebuild the entire table offline, then perform a SWAP operation during a maintenance window",
+        "Add the column as a computed column using a UDF that queries the supplier API on-demand, then cache results async in a shadow table"
+      ],
+      "answer": 1,
+      "explanation": "Option B uses a view abstraction to decouple the schema change from the data backfill, allowing downstream consumers to continue querying the original table uninterrupted. Once backfill completes and is validated, the view is swapped with the actual table name atomically, minimizing disruption. Options A and C cause blocking operations; Option D adds latency to read queries."
+    },
+    {
+      "id": "ds-new-124",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You're implementing a Data Vault 2.0 architecture for a multi-tenant SaaS platform. The `HUB_CUSTOMER` table has a natural key consisting of `tenant_id` + `customer_source_system` + `source_customer_id`. A customer migrates from source system A to source system B within the same tenant, but their identity must remain continuous for historical tracing. How should you handle this in the hub design?",
+      "options": [
+        "Insert a new row in HUB_CUSTOMER for the new source key and create a linking satellite that references both source keys",
+        "Create a `HUB_CUSTOMER_BRIDGE` that maps old and new source keys to a single immutable business key, stored as a hash of tenant_id alone",
+        "Add a `source_migration_date` column to HUB_CUSTOMER and use soft deletes with an `is_active` flag to mark the old source key as inactive",
+        "Implement a `customer_equivalence_satellite` that tracks which hub keys represent the same customer, allowing downstream tools to perform the join logic"
+      ],
+      "answer": 3,
+      "explanation": "In Data Vault 2.0, the hub represents only unique business entities identified by their natural key. When source systems change for the same logical entity, the best practice is to create a satellite (the equivalence satellite) that documents the relationship between different hub keys. This preserves audit trails, respects the immutability principle, and allows analytics to trace identity changes. Option B violates the natural key principle; Options A and C compromise hub integrity."
+    },
+    {
+      "id": "ds-new-125",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "Your BigQuery warehouse ingests 500GB of raw event data daily across 10 tables. You notice that the `events_raw` table (400GB/day) is queried by a cost-sensitive analytics team only for specific date ranges and columns, while a real-time dashboard queries the full table hourly. You need to reduce storage and query costs for the analytics team by 60%. Which approach is most effective?",
+      "options": [
+        "Partition the events_raw table by ingestion_date and cluster by event_type, then use table expiration policies to delete data older than 90 days",
+        "Create a columnar materialized view of frequently-accessed columns filtered to the last 12 months, and use BigQuery's clustering on date ranges to optimize scans",
+        "Implement a tiered storage strategy: keep hot data (30 days) in events_raw, archive older data to a second Parquet table in GCS, and use a federation query that unions both sources",
+        "Enable BigQuery compression, switch from streaming inserts to batch loads with row-level deduplication, and implement dynamic partition pruning on query execution"
+      ],
+      "answer": 2,
+      "explanation": "Option C implements a time-based tiering strategy that separates hot data (high-query frequency) from cold data (historical analytics), reducing per-query costs significantly. The analytics team queries historical data infrequently, so serving from cheaper GCS Parquet with federated queries saves ~70% on compute and storage. Options A and B don't address the volume issue; Option D improves compression but doesn't fundamentally reduce the data scanned for analytics queries on old data."
     }
   ]
 }

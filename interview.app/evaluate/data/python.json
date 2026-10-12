@@ -8836,6 +8836,54 @@
       ],
       "answer": 1,
       "explanation": "Generators are lazy iterators that compute values on-demand and only keep the current yielded value in memory, while list comprehensions eagerly evaluate all expressions and store every element in the list object simultaneously. This fundamental difference makes generators ideal for streaming large datasets where you process each record sequentially without needing all records accessible at once."
+    },
+    {
+      "id": "py-new-160",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "You're building a data pipeline that needs to acquire a database connection, execute queries, and ensure the connection is closed even if an exception occurs. You implement a custom context manager class. Which of the following is the correct way to define it?",
+      "options": [
+        "class DBConnection:\n    def __enter__(self):\n        self.conn = connect()\n        return self.conn\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        self.conn.close()\n        return False",
+        "class DBConnection:\n    def __init__(self):\n        self.conn = connect()\n    def __enter__(self):\n        return self.conn\n    def close(self):\n        self.conn.close()",
+        "class DBConnection:\n    def __enter__(self):\n        return connect()\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        pass",
+        "class DBConnection:\n    def __enter__(self):\n        self.conn = connect()\n        return self\n    def __exit__(self):\n        self.conn.close()"
+      ],
+      "answer": 0,
+      "explanation": "A context manager requires both `__enter__` and `__exit__` methods. The `__exit__` method must accept three parameters (exc_type, exc_val, exc_tb) and return False to propagate exceptions. Option 0 correctly implements this pattern, acquiring the resource in `__enter__` and releasing it in `__exit__`, ensuring cleanup even on exceptions."
+    },
+    {
+      "id": "py-new-161",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-12",
+      "prompt": "You have a pandas DataFrame with 50 million rows containing user transaction data. You need to compute the sum of 'amount' column grouped by 'user_id', then filter groups where the sum exceeds $10,000. A colleague proposes using `groupby().transform()` followed by filtering. What is the performance issue with this approach compared to using `groupby().filter()`?",
+      "options": [
+        "`transform()` creates a full-sized output DataFrame matching the input shape, causing excessive memory allocation and slower operations compared to `filter()` which only returns matching groups",
+        "`transform()` requires sorting the DataFrame first, which is a O(n log n) operation, while `filter()` uses hash-based grouping",
+        "`groupby().filter()` requires loading the entire group into memory at once, while `transform()` processes groups iteratively",
+        "`transform()` uses categorical dtypes internally, which is incompatible with numerical aggregations, causing implicit type conversions"
+      ],
+      "answer": 0,
+      "explanation": "The `transform()` method broadcasts results back to the original DataFrame shape (50M rows), creating an intermediate 50M-row DataFrame just for filtering. In contrast, `groupby().filter()` is optimized to only construct and return the filtered subset, avoiding unnecessary memory overhead and unnecessary iterations over filtered-out rows."
+    },
+    {
+      "id": "py-new-162",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "medium",
+      "added_date": "2026-10-12",
+      "prompt": "You're writing an async data ingestion service that calls `async def fetch_batch(offset)` which takes 1 second per call. You need to fetch 100 batches but can only run 10 concurrent requests at a time to avoid overloading the server. Which approach is most efficient and correct?",
+      "options": [
+        "Use `asyncio.gather(*[fetch_batch(i) for i in range(100)])` to fetch all batches concurrently without limits",
+        "Use a semaphore: `sem = asyncio.Semaphore(10)` and wrap each call with `async with sem: await fetch_batch(i)`",
+        "Use `asyncio.create_task()` in a loop and manually track a counter to limit concurrent tasks",
+        "Use `concurrent.futures.ThreadPoolExecutor(max_workers=10)` with `loop.run_in_executor()`"
+      ],
+      "answer": 1,
+      "explanation": "A semaphore is the idiomatic asyncio pattern for limiting concurrency. It allows exactly 10 tasks to acquire the semaphore simultaneously, ensuring concurrent requests never exceed 10 while still running them asynchronously. Option 0 has no limits, option 2 is error-prone with manual tracking, and option 3 is less efficient for I/O-bound async code as it uses thread pools instead of async."
     }
   ]
 }
