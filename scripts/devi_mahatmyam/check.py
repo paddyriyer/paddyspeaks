@@ -86,6 +86,8 @@ def check_text(T, LOG):
                 fail(f'{mid(ch, m)}: a three-part mantra spans three numbers in two lines')
             kinds[k] = kinds.get(k, 0) + (3 if k == 'tripada' else 1)
             for line in m['lines']:
+                if re.search(r'(^|\s)(ॐ|ऐं|ह्रीं|क्लीं)(\s|॥|।|$)', line):
+                    fail(f'{mid(ch, m)}: a bīja of the recitation inside the verse: move it to bija_open / bija_close')
                 if re.search(r'[A-Za-z*‘’"]', line) or '  ' in line:
                     fail(f'{mid(ch, m)}: stray character in {line!r}')
             if '·' in dev2iast(recited(m)):
