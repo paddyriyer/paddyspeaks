@@ -23,7 +23,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { iast2dev } from './translit.mjs';
 import { readerData, prelimProofs, slokaUnit, prelimUnit, lineDev, lineIast } from './book.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -93,6 +95,7 @@ function buildDataJs() {
       read_dev: R[v.num].map((r) => r.canonical.map((g) => g.dev).join(' ')),
       read_iast: R[v.num].map((r) => r.canonical.map((g) => g.iast).join(' ')),
       learn: R[v.num].map((r) => r.learning.map((l) => [l.num, l.dev, l.iast, l.restored ? 1 : 0])),
+      ...(PRELIM.closing && v.num === PRELIM.closing.sloka ? { closing_words: PRELIM.closing.words.map((w) => ({ dev: iast2dev(w.surface), iast: w.surface, form_dev: w.pausa.split('-').map(iast2dev).join(''), form_iast: w.pausa, meaning: w.meaning, parts: w.parts.map((x) => [iast2dev(x.iast.replace(/-/g, '')), x.iast, x.meaning]) })) } : {}),
       translations: v.halves.map((h) => (h.closing ? CLOSING_HALF : h.names.map((k) => clause(byNum.get(k).a?.meaning)).join('; '))),
     })),
     names: NAMES.map((n) => ({
@@ -226,7 +229,7 @@ function buildEdition() {
   b += '</div></section>';
 
   b += '<section id="analysis" class="part"><h2>The 1,000 names, śloka by śloka</h2>';
-  for (const v of (PREVIEW ? T.verses.filter((x) => x.names.every((k) => AN.has(k))) : T.verses)) b += slokaUnit(v, R, byNum, LOG, VNOTE);
+  for (const v of (PREVIEW ? T.verses.filter((x) => x.names.every((k) => AN.has(k))) : T.verses)) b += slokaUnit(v, R, byNum, LOG, VNOTE, PRELIM.closing);
   b += '</section>';
 
   b += `<section id="closing" class="prose part"><h2>Colophon</h2><p class="cdev" lang="sa">${esc(T.closing[0].dev)}</p><p class="ciast" lang="sa-Latn">${esc(T.closing[0].iast)}</p><p>${esc(T.closing[0].translation)}</p></section>`;
@@ -348,7 +351,20 @@ if (CHECK) {
   const meta = pdfMeta || {};
   if (args.has('--pdf')) {
     const { renderPdf } = await import('./pdf.mjs');
-    meta.pages = await renderPdf(ROOT, A(PDF), `/${ED}/index.html`);
+    /* Chromium occasionally ends a long print job early (2026-10-12: 978 of 1,010
+       pages, mid-appendix, with a footer that counted the short file). The book's
+       last page must hold the last nāmāvalī entry; re-render, then refuse to ship. */
+    const lastPageOk = () => {
+      const r = spawnSync('pdftotext', ['-f', String(meta.pages), '-l', String(meta.pages), A(PDF), '-'], { encoding: 'utf8' });
+      if (r.error) { console.warn('  (pdftotext not available — cannot prove the PDF is complete)'); return true; }
+      return r.stdout.includes(NAMES.at(-1).dev);
+    };
+    for (let attempt = 1; ; attempt++) {
+      meta.pages = await renderPdf(ROOT, A(PDF), `/${ED}/index.html`);
+      if (lastPageOk()) break;
+      if (attempt === 3) { console.error(`✗ ${PDF} ends early (${meta.pages} pages) three times — not written to pdf.json`); process.exit(1); }
+      console.warn(`  PDF ended early at ${meta.pages} pages — rendering again`);
+    }
     meta.source = editionHash;
     console.log(`  rendered ${PDF}: ${meta.pages} pages`);
   }
