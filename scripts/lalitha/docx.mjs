@@ -108,7 +108,13 @@ export async function renderDocx({ T, NAMES, LOG, BATCHES, PRELIM, R, out }) {
     body.push(...canonBox(rr.map((r, i) => r.canonical.map((g) => g.dev).join(' ') + (i === 0 ? ' ।' : ` ॥ ${devNum(v.num)} ॥`)), rr.map((r, i) => r.canonical.map((g) => g.iast).join(' ') + (i === 0 ? ' |' : ` || ${v.num} ||`))));
     body.push(label('The names, separated' + (rr.some((r) => r.learning.some((l) => l.restored)) ? '   (° form as a name on its own)' : '')));
     for (const r of rr) {
-      if (r.closing) { body.push(P([dev(r.canonical.map((g) => g.dev).join(' '), 30, { color: SOFT }), run('   — the closing line; no name', { size: 19, color: SOFT })])); continue; }
+      if (r.closing) {
+        const C = PRELIM.closing;
+        body.push(P([run('The closing line — no name; its words, separated:', { italics: true, size: 19, color: SOFT })], { keepNext: true }));
+        body.push(P(C.words.flatMap((w, i) => [...(i ? [run('     ')] : []), run('· ', { bold: true, color: GOLD, size: 18 }), dev(w.pausa.split('-').map(iast2dev).join('-') + (w.pausa.replace(/-/g, '') !== w.surface ? '°' : ''), 34)]), { spacing: { after: 20, line: 340 }, keepNext: true }));
+        body.push(P(C.words.flatMap((w, i) => [...(i ? [run('     ')] : []), iast(w.pausa)]), { spacing: { after: 120 } }));
+        continue;
+      }
       body.push(P(r.learning.flatMap((l, i) => [...(i ? [run('     ')] : []), run(`${l.num} `, { bold: true, color: MAROON, size: 18 }), dev(l.iast.split('-').map(iast2dev).join('-') + (l.restored ? '°' : ''), 34)]), { spacing: { after: 20, line: 340 }, keepNext: true }));
       body.push(P(r.learning.flatMap((l, i) => [...(i ? [run('     ')] : []), run(`${l.num} `, { size: 16, color: SOFT }), iast(l.iast)]), { spacing: { after: 120 } }));
     }
@@ -118,7 +124,15 @@ export async function renderDocx({ T, NAMES, LOG, BATCHES, PRELIM, R, out }) {
       body.push(P(half.names.flatMap((k, j) => [...(j ? [run('; ', { size: 23 })] : []), run(String(k), { superScript: true, bold: true, color: MAROON, size: 23 }), run(byNum.get(k).a?.meaning || '', { size: 23 })]).concat([run(i === v.halves.length - 1 ? '.' : ';', { size: 23 })])));
     });
     body.push(label('Word by word'));
-    body.push(wordTable(v.names.map((k) => { const n = byNum.get(k); return { head: [run(`${k}  `, { bold: true, color: MAROON, size: 20 }), dev(n.dev, 30, { color: MAROON }), run('  '), iast(n.a?.iast || n.iast, { size: 21 })], rows: (n.a?.components || []).map((c) => ({ dev: c.dev, iast: c.iast, meaning: c.meaning, note: c.note })) }; })));
+    const closingGroups = PRELIM.closing && v.num === PRELIM.closing.sloka
+      ? PRELIM.closing.words.map((w, i) => ({ head: [...(i === 0 ? [run('CLOSING LINE  ', { bold: true, color: GOLD, size: 16 })] : []), dev(iast2dev(w.surface), 30, { color: MAROON }), run('  '), iast(w.surface, { size: 21 }), run(` — ${w.meaning}`, { size: 21 })], rows: w.parts }))
+      : [];
+    body.push(wordTable(v.names.map((k) => { const n = byNum.get(k); return { head: [run(`${k}  `, { bold: true, color: MAROON, size: 20 }), dev(n.dev, 30, { color: MAROON }), run('  '), iast(n.a?.iast || n.iast, { size: 21 })], rows: (n.a?.components || []).map((c) => ({ dev: c.dev, iast: c.iast, meaning: c.meaning, note: c.note })) }; }).concat(closingGroups)));
+    if (closingGroups.length) {
+      body.push(label('Where the words meet'));
+      for (const w of PRELIM.closing.words.filter((x) => x.sandhi)) body.push(P([dev(iast2dev(w.surface), 26), run(' = ', { size: 22 }), dev(iast2dev(w.pausa.replace(/-/g, '')), 26), run(`  (${w.surface} = ${w.pausa.replace(/-/g, '')}) — ${w.sandhi}`, { size: 21 })]));
+      body.push(P([run(PRELIM.closing.note, { size: 21, color: SOFT })]));
+    }
     body.push(label('The names'));
     for (const k of v.names) {
       const n = byNum.get(k); const a = n.a || {};

@@ -115,6 +115,16 @@ def check_preliminaries(t):
         for k in ('read', 'learn'):
             if sq(b[k]) != sq(text):
                 err(f'{where}: the {k} line does not spell the text')
+    c = p.get('closing')
+    if not c:
+        err('preliminaries.json lacks the closing line of śloka 183')
+    else:
+        half = t['verses'][c['sloka'] - 1]['halves'][c['half'] - 1]
+        if c['read'] != half['iast'] or ' '.join(w['surface'] for w in c['words']) != half['iast']:
+            err('the closing line\'s words do not spell the second half of śloka 183')
+        for w in c['words']:
+            if not w.get('pausa') or not w.get('meaning') or not w.get('parts'):
+                err(f"closing word {w.get('surface')} lacks its form, meaning or parts")
     for unit in p['nyasa'] + p['dhyana']:
         if not unit.get('translation') or not unit.get('words'):
             err('a nyāsa/dhyāna unit lacks its translation or word table')

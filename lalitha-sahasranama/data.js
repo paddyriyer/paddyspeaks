@@ -11528,6 +11528,88 @@ const LALITHA_DATA = {
     ],
     []
    ],
+   "closing_words": [
+    {
+     "dev": "एवं",
+     "iast": "evaṃ",
+     "form_dev": "एवम्",
+     "form_iast": "evam",
+     "meaning": "thus, in this way",
+     "parts": [
+      [
+       "एवम्",
+       "evam",
+       "thus, in this way"
+      ]
+     ]
+    },
+    {
+     "dev": "श्रीललितादेव्या",
+     "iast": "śrīlalitādevyā",
+     "form_dev": "श्रीललितादेव्याः",
+     "form_iast": "śrī-lalitā-devyāḥ",
+     "meaning": "of the Goddess Śrī Lalitā",
+     "parts": [
+      [
+       "श्री",
+       "śrī",
+       "auspicious (honorific)"
+      ],
+      [
+       "ललिता",
+       "lalitā",
+       "Lalitā, \"She who plays\""
+      ],
+      [
+       "देव्याः",
+       "devyāḥ",
+       "of the Goddess"
+      ]
+     ]
+    },
+    {
+     "dev": "नाम्नां",
+     "iast": "nāmnāṃ",
+     "form_dev": "नाम्नाम्",
+     "form_iast": "nāmnām",
+     "meaning": "of the names",
+     "parts": [
+      [
+       "नाम्नाम्",
+       "nāmnām",
+       "of the names"
+      ]
+     ]
+    },
+    {
+     "dev": "साहस्रकं",
+     "iast": "sāhasrakaṃ",
+     "form_dev": "साहस्रकम्",
+     "form_iast": "sāhasrakam",
+     "meaning": "the thousand, the set of a thousand",
+     "parts": [
+      [
+       "साहस्रकम्",
+       "sāhasrakam",
+       "a set of a thousand"
+      ]
+     ]
+    },
+    {
+     "dev": "जगुः",
+     "iast": "jaguḥ",
+     "form_dev": "जगुः",
+     "form_iast": "jaguḥ",
+     "meaning": "they sang",
+     "parts": [
+      [
+       "जगुः",
+       "jaguḥ",
+       "they sang"
+      ]
+     ]
+    }
+   ],
    "translations": [
     "The auspicious and divine Śivā; The union of Śiva and Śakti in one form; The divine Mother Lalitā",
     "Thus the Vāgdevatās sang the thousand names of Śrī Lalitā Devī."
