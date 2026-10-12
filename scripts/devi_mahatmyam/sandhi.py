@@ -117,7 +117,7 @@ def join_pair(w1, w2):
         return [R(w1 + ' ', w2)]
     if x == 'ḥ':
         if w1 in ('saḥ', 'eṣaḥ') and not is_vowel(y):
-            return [R(s + ' ', w2)]
+            return [R(s + ' ', w2)] + ([R(s + ' ', 'c' + w2)] if y == 'ch' else [])
         if w1 in R_FINAL and (is_vowel(y) or y in VOICED):
             return [R(s + 'r' + ('' if is_vowel(y) else ' '), w2)]
         if w1 == 'bhoḥ' and (is_vowel(y) or y in VOICED):
