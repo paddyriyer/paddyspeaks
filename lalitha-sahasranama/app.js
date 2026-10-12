@@ -145,6 +145,24 @@
           namesHtml += '</div>';
         }
       });
+      // The closing line of śloka 183 has no name, but its words get cards too
+      (verse.closing_words || []).forEach(function (w) {
+        namesHtml += '<div class="word-card closing-card">';
+        namesHtml += '<div class="word-num">closing line</div>';
+        namesHtml += '<div class="word-devanagari">' + escapeHtml(w.dev) + '</div>';
+        namesHtml += '<div class="word-transliteration">' + escapeHtml(w.iast) + (w.form_iast.replace(/-/g, '') !== w.iast ? ' <span class="word-form">(' + escapeHtml(w.form_iast) + ')</span>' : '') + '</div>';
+        namesHtml += '<div class="word-meaning">' + escapeHtml(w.meaning) + '</div>';
+        if (w.parts.length > 1 || w.parts[0][1] !== w.form_iast.replace(/-/g, '')) {
+          namesHtml += '<div class="morpheme-split">';
+          w.parts.forEach(function (p, idx) {
+            if (idx > 0) namesHtml += '<span class="morpheme-sep">+</span>';
+            namesHtml += '<span class="morpheme" title="' + escapeHtml(p[1] + ' — ' + p[2]) + '"><span class="morpheme-devanagari">' + escapeHtml(p[0]) + '</span><span class="morpheme-meaning">' + escapeHtml(p[2]) + '</span></span>';
+          });
+          namesHtml += '</div>';
+        }
+        namesHtml += '<a class="word-study" href="edition/#s-' + verseNum + '">Sandhi &amp; word by word &rarr;</a>';
+        namesHtml += '</div>';
+      });
       namesHtml += '</div>';
 
       // Preview text (first half of verse)

@@ -92,8 +92,19 @@ function nameDetail(n, LOG) {
   return h + '</article>';
 }
 
+const isClosing = (v, C) => !!C && v.num === C.sloka;
+
+/* word-table groups for the closing line of śloka 183: one group per word */
+function closingGroups(v, C) {
+  if (!isClosing(v, C)) return [];
+  return C.words.map((w, i) => ({
+    head: `${i === 0 ? '<span class="cl-tag">Closing line</span> ' : ''}<span class="gn">·</span> <span class="nw" lang="sa">${esc(iast2dev(w.surface))}</span> <span class="i" lang="sa-Latn">${esc(w.surface)}</span> — ${esc(w.meaning)}${w.compound ? ` <span class="i">(${esc(w.compound)})</span>` : ''}`,
+    rows: w.parts,
+  }));
+}
+
 /** One śloka of the Sahasranāma. */
-export function slokaUnit(v, R, byNum, LOG, VNOTE) {
+export function slokaUnit(v, R, byNum, LOG, VNOTE, CLOSING) {
   const halves = R[v.num];
   const first = v.names[0], last = v.names.at(-1);
   let h = `<section class="unit sloka" id="s-${v.num}">`;
@@ -108,10 +119,12 @@ export function slokaUnit(v, R, byNum, LOG, VNOTE) {
   h += `<div class="learn"><p class="lbl">The names, separated${anyRestored ? ' <span class="hint">° form as a name on its own; in the recitation above it joins its neighbour</span>' : ''}</p>`;
   for (const r of halves) {
     if (r.closing) {
-      h += `<p class="ln closing"><span class="dev" lang="sa">${r.canonical.map((g) => esc(g.dev)).join(' ')}</span><span class="iast" lang="sa-Latn">${r.canonical.map((g) => esc(g.iast)).join(' ')}</span><span class="cl">— the closing line of the hymn; it contains no name</span></p>`;
+      // the closing line: no names, but every word shown on its own (° = its form on its own)
+      h += '<p class="cl-cap">The closing line — no name; its words, separated:</p>';
+      h += '<p class="ln closing-words">' + (CLOSING ? CLOSING.words : []).map((w) => { const rs = w.pausa.replace(/-/g, '') !== w.surface; return `<span class="nm cw${rs ? ' rs' : ''}"><sup>·</sup><span class="dev nw" lang="sa">${hyDev(w.pausa)}${rs ? '<span class="deg">°</span>' : ''}</span><span class="iast nw" lang="sa-Latn">${hyIast(w.pausa)}</span></span>`; }).join('') + '</p>';
       continue;
     }
-    h += '<p class="ln">' + r.learning.map((l) => `<span class="nm${l.restored ? ' rs' : ''}"><sup>${l.num}</sup><span class="dev nw" lang="sa">${hyDev(l.iast)}${l.restored ? '<span class="deg">°</span>' : ''}</span><span class="iast nw" lang="sa-Latn">${hyIast(l.iast)}</span></span>`).join('') + '</p>';
+    h += '<p class="ln">' + r.learning.map((l) => `<span class="nm w${String(l.num).length}${l.restored ? ' rs' : ''}"><sup>${l.num}</sup><span class="dev nw" lang="sa">${hyDev(l.iast)}${l.restored ? '<span class="deg">°</span>' : ''}</span><span class="iast nw" lang="sa-Latn">${hyIast(l.iast)}</span></span>`).join('') + '</p>';
   }
   h += '</div>';
   // translation
@@ -126,13 +139,15 @@ export function slokaUnit(v, R, byNum, LOG, VNOTE) {
   h += wordTable(v.names.map((k) => {
     const n = byNum.get(k);
     return { head: `<span class="gn">${k}</span> <span class="nw" lang="sa">${esc(n.dev)}</span> <span class="i" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span>`, rows: (n.a?.components || []).map((c) => ({ dev: c.dev, iast: c.iast, meaning: c.meaning, note: c.note })) };
-  }));
+  }).concat(closingGroups(v, CLOSING)));
   h += '</div>';
   const vn = VNOTE.get(v.num);
-  if (vn && ((vn.external_sandhi || []).length || vn.note)) {
-    h += '<div class="vnote"><p class="lbl">Where the names meet</p>';
-    for (const s of vn.external_sandhi || []) h += `<p><span class="nw" lang="sa">${esc(s.surface)}</span> = <span class="nw" lang="sa">${esc(s.split)}</span>${s.split_iast ? ` <span class="i">(${esc(s.split_iast)})</span>` : ''} — ${esc(s.rule)}</p>`;
-    if (vn.note) h += `<p>${esc(vn.note)}</p>`;
+  const closingSandhi = isClosing(v, CLOSING) ? CLOSING.words.filter((w) => w.sandhi) : [];
+  if (vn && ((vn.external_sandhi || []).length || vn.note) || closingSandhi.length) {
+    h += `<div class="vnote"><p class="lbl">Where the ${closingSandhi.length ? 'words' : 'names'} meet</p>`;
+    for (const s of (vn && vn.external_sandhi) || []) h += `<p><span class="nw" lang="sa">${esc(s.surface)}</span> = <span class="nw" lang="sa">${esc(s.split)}</span>${s.split_iast ? ` <span class="i">(${esc(s.split_iast)})</span>` : ''} — ${esc(s.rule)}</p>`;
+    for (const w of closingSandhi) h += `<p><span class="nw" lang="sa">${esc(iast2dev(w.surface))}</span> = <span class="nw" lang="sa">${esc(iast2dev(w.pausa.replace(/-/g, '')))}</span> <span class="i">(${esc(w.surface)} = ${esc(w.pausa.replace(/-/g, ''))})</span> — ${esc(w.sandhi)}</p>`;
+    if (vn && vn.note) h += `<p>${esc(vn.note)}</p>`;
     h += '</div>';
   }
   // the names
