@@ -203,7 +203,7 @@ ${e.words.map((w) => `<tr><td class="sa" lang="sa">${esc(w.w)}</td><td class="il
   if (e.morph?.length) {
     h += `<p class="sub">C. Morphology</p><ul class="cards">${e.morph.map((f) => `<li><span class="sa" lang="sa">${esc(f.form)}</span> <span class="il" lang="sa-Latn">${esc(iast(f.form))}</span> — ${esc(f.note)}</li>`).join('')}</ul>`;
   }
-  h += `<p class="sub">D. Anvaya — prose order</p><div class="anvaya"><p class="dev" lang="sa">${esc(e.anvaya)}</p><p class="iast" lang="sa-Latn">${esc(iast(e.anvaya))}</p>${e.anvaya_en ? `<p>${esc(e.anvaya_en)}</p>` : ''}</div>`;
+  h += `<p class="sub">D. Anvaya — prose order</p><div class="anvaya"><p class="dev" lang="sa">${esc(e.anvaya)}</p><p class="iast" lang="sa-Latn">${iastLine(e.anvaya)}</p>${e.anvaya_en ? `<p>${esc(e.anvaya_en)}</p>` : ''}</div>`;
   if (e.sandhi_exceptions?.length) {
     h += `<p class="note">Left unjoined: ${e.sandhi_exceptions.map((x) => `<span lang="sa">${esc(x.at)}</span> — ${esc(x.reason)}`).join('; ')}</p>`;
   }
