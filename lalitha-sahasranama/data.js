@@ -55,6 +55,50 @@ const LALITHA_DATA = {
     "श्रीमाता श्रीमहाराज्ञी श्रीमत्सिंहासनेश्वरी",
     "चिदग्निकुण्डसम्भूता देवकार्यसमुद्यता"
    ],
+   "read_dev": [
+    "श्रीमाता श्रीमहाराज्ञी श्रीमत्सिंहासनेश्वरी",
+    "चिदग्निकुण्डसम्भूता देवकार्यसमुद्यता"
+   ],
+   "read_iast": [
+    "śrīmātā śrīmahārājñī śrīmatsiṃhāsaneśvarī",
+    "cidagnikuṇḍasambhūtā devakāryasamudyatā"
+   ],
+   "learn": [
+    [
+     [
+      1,
+      "श्री-माता",
+      "śrī-mātā",
+      0
+     ],
+     [
+      2,
+      "श्री-महा-राज्ञी",
+      "śrī-mahā-rājñī",
+      0
+     ],
+     [
+      3,
+      "श्रीमत्-सिंहासनेश्वरी",
+      "śrīmat-siṃhāsaneśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      4,
+      "चिद्-अग्नि-कुण्ड-सम्भूता",
+      "cid-agni-kuṇḍa-sambhūtā",
+      0
+     ],
+     [
+      5,
+      "देव-कार्य-समुद्यता",
+      "deva-kārya-samudyatā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The auspicious Mother; The auspicious great Empress; The queen of the most glorious throne",
     "Arose from the fire-altar of pure consciousness; Intent on accomplishing the task of the gods"
@@ -70,6 +114,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "उद्यद्भानुसहस्राभा चतुर्बाहुसमन्विता",
     "रागस्वरूपपाशाढ्या क्रोधाकाराङ्कुशोज्ज्वला"
+   ],
+   "read_dev": [
+    "उद्यद्भानुसहस्राभा चतुर्बाहुसमन्विता",
+    "रागस्वरूपपाशाढ्या क्रोधाकाराङ्कुशोज्ज्वला"
+   ],
+   "read_iast": [
+    "udyadbhānusahasrābhā caturbāhusamanvitā",
+    "rāgasvarūpapāśāḍhyā krodhākārāṅkuśojjvalā"
+   ],
+   "learn": [
+    [
+     [
+      6,
+      "उद्यद्-भानु-सहस्राभा",
+      "udyad-bhānu-sahasrābhā",
+      0
+     ],
+     [
+      7,
+      "चतुर्-बाहु-समन्विता",
+      "catur-bāhu-samanvitā",
+      0
+     ]
+    ],
+    [
+     [
+      8,
+      "राग-स्वरूप-पाशाढ्या",
+      "rāga-svarūpa-pāśāḍhyā",
+      0
+     ],
+     [
+      9,
+      "क्रोधाकाराङ्कुशोज्ज्वला",
+      "krodhākārāṅkuśojjvalā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has the radiance of a thousand rising suns; Four-armed",
@@ -87,6 +169,38 @@ const LALITHA_DATA = {
     "मनोरूपेक्षुकोदण्डा पञ्चतन्मात्रसायका",
     "निजारुणप्रभापूरमज्जद्ब्रह्माण्डमण्डला"
    ],
+   "read_dev": [
+    "मनोरूपेक्षुकोदण्डा पञ्चतन्मात्रसायका",
+    "निजारुणप्रभापूरमज्जद्ब्रह्माण्डमण्डला"
+   ],
+   "read_iast": [
+    "manorūpekṣukodaṇḍā pañcatanmātrasāyakā",
+    "nijāruṇaprabhāpūramajjadbrahmāṇḍamaṇḍalā"
+   ],
+   "learn": [
+    [
+     [
+      10,
+      "मनो-रूपेक्षु-कोदण्डा",
+      "mano-rūpekṣu-kodaṇḍā",
+      0
+     ],
+     [
+      11,
+      "पञ्च-तन्मात्र-सायका",
+      "pañca-tanmātra-sāyakā",
+      0
+     ]
+    ],
+    [
+     [
+      12,
+      "निजारुण-प्रभा-पूर-मज्जद्-ब्रह्माण्ड-मण्डला",
+      "nijāruṇa-prabhā-pūra-majjad-brahmāṇḍa-maṇḍalā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Holds in Her hand a sugarcane bow that represents the mind; Holds the five subtle elements as arrows",
     "She in the flood of whose own crimson radiance the whole sphere of the universe is immersed"
@@ -102,6 +216,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चम्पकाशोकपुन्नागसौगन्धिकलसत्कचा",
     "कुरुविन्दमणिश्रेणीकनत्कोटीरमण्डिता"
+   ],
+   "read_dev": [
+    "चम्पकाशोकपुन्नागसौगन्धिकलसत्कचा",
+    "कुरुविन्दमणिश्रेणीकनत्कोटीरमण्डिता"
+   ],
+   "read_iast": [
+    "campakāśokapunnāgasaugandhikalasatkacā",
+    "kuruvindamaṇiśreṇīkanatkoṭīramaṇḍitā"
+   ],
+   "learn": [
+    [
+     [
+      13,
+      "चम्पकाशोक-पुन्नाग-सौगन्धिक-लसत्-कचा",
+      "campakāśoka-punnāga-saugandhika-lasat-kacā",
+      0
+     ]
+    ],
+    [
+     [
+      14,
+      "कुरुविन्द-मणि-श्रेणी-कनत्-कोटीर-मण्डिता",
+      "kuruvinda-maṇi-śreṇī-kanat-koṭīra-maṇḍitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose tresses shine with campaka, aśoka, punnāga and saugandhika flowers",
@@ -119,6 +259,32 @@ const LALITHA_DATA = {
     "अष्टमीचन्द्रविभ्राजदलिकस्थलशोभिता",
     "मुखचन्द्रकलङ्काभमृगनाभिविशेषका"
    ],
+   "read_dev": [
+    "अष्टमीचन्द्रविभ्राजदलिकस्थलशोभिता",
+    "मुखचन्द्रकलङ्काभमृगनाभिविशेषका"
+   ],
+   "read_iast": [
+    "aṣṭamīcandravibhrājadalikasthalaśobhitā",
+    "mukhacandrakalaṅkābhamṛganābhiviśeṣakā"
+   ],
+   "learn": [
+    [
+     [
+      15,
+      "अष्टमी-चन्द्र-विभ्राजद्-अलिक-स्थल-शोभिता",
+      "aṣṭamī-candra-vibhrājad-alika-sthala-śobhitā",
+      0
+     ]
+    ],
+    [
+     [
+      16,
+      "मुख-चन्द्र-कलङ्काभ-मृग-नाभि-विशेषका",
+      "mukha-candra-kalaṅkābha-mṛga-nābhi-viśeṣakā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose forehead shines like the half-moon of the eighth lunar day",
     "Whose musk tilaka looks like the dark mark on the moon of Her face"
@@ -134,6 +300,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "वदनस्मरमाङ्गल्यगृहतोरणचिल्लिका",
     "वक्त्रलक्ष्मीपरीवाहचलन्मीनाभलोचना"
+   ],
+   "read_dev": [
+    "वदनस्मरमाङ्गल्यगृहतोरणचिल्लिका",
+    "वक्त्रलक्ष्मीपरीवाहचलन्मीनाभलोचना"
+   ],
+   "read_iast": [
+    "vadanasmaramāṅgalyagṛhatoraṇacillikā",
+    "vaktralakṣmīparīvāhacalanmīnābhalocanā"
+   ],
+   "learn": [
+    [
+     [
+      17,
+      "वदन-स्मर-माङ्गल्य-गृह-तोरण-चिल्लिका",
+      "vadana-smara-māṅgalya-gṛha-toraṇa-cillikā",
+      0
+     ]
+    ],
+    [
+     [
+      18,
+      "वक्त्र-लक्ष्मी-परीवाह-चलन्-मीनाभ-लोचना",
+      "vaktra-lakṣmī-parīvāha-calan-mīnābha-locanā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose eyebrows are like the arched gateway of Her face, the festive mansion of Kāma",
@@ -151,6 +343,32 @@ const LALITHA_DATA = {
     "नवचम्पकपुष्पाभनासादण्डविराजिता",
     "ताराकान्तितिरस्कारिनासाभरणभासुरा"
    ],
+   "read_dev": [
+    "नवचम्पकपुष्पाभनासादण्डविराजिता",
+    "ताराकान्तितिरस्कारिनासाभरणभासुरा"
+   ],
+   "read_iast": [
+    "navacampakapuṣpābhanāsādaṇḍavirājitā",
+    "tārākāntitiraskārināsābharaṇabhāsurā"
+   ],
+   "learn": [
+    [
+     [
+      19,
+      "नव-चम्पक-पुष्पाभ-नासा-दण्ड-विराजिता",
+      "nava-campaka-puṣpābha-nāsā-daṇḍa-virājitā",
+      0
+     ]
+    ],
+    [
+     [
+      20,
+      "तारा-कान्ति-तिरस्कारि-नासाभरण-भासुरा",
+      "tārā-kānti-tiraskāri-nāsābharaṇa-bhāsurā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Resplendent with a nose that has the beauty of a newly blossoming campaka flower",
     "Shines with a nose-ornament that excels the luster of a star"
@@ -166,6 +384,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कदम्बमञ्जरीकॢप्तकर्णपूरमनोहरा",
     "ताटङ्कयुगलीभूततपनोडुपमण्डला"
+   ],
+   "read_dev": [
+    "कदम्बमञ्जरीकॢप्तकर्णपूरमनोहरा",
+    "ताटङ्कयुगलीभूततपनोडुपमण्डला"
+   ],
+   "read_iast": [
+    "kadambamañjarīkḷptakarṇapūramanoharā",
+    "tāṭaṅkayugalībhūtatapanoḍupamaṇḍalā"
+   ],
+   "learn": [
+    [
+     [
+      21,
+      "कदम्ब-मञ्जरी-कॢप्त-कर्णपूर-मनोहरा",
+      "kadamba-mañjarī-kḷpta-karṇapūra-manoharā",
+      0
+     ]
+    ],
+    [
+     [
+      22,
+      "ताटङ्क-युगली-भूत-तपनोडुप-मण्डला",
+      "tāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Captivating with ear-ornaments fashioned from clusters of kadamba blossoms",
@@ -183,6 +427,32 @@ const LALITHA_DATA = {
     "पद्मरागशिलादर्शपरिभाविकपोलभूः",
     "नवविद्रुमबिम्बश्रीन्यक्कारिरदनच्छदा"
    ],
+   "read_dev": [
+    "पद्मरागशिलादर्शपरिभाविकपोलभूः",
+    "नवविद्रुमबिम्बश्रीन्यक्कारिरदनच्छदा"
+   ],
+   "read_iast": [
+    "padmarāgaśilādarśaparibhāvikapolabhūḥ",
+    "navavidrumabimbaśrīnyakkāriradanacchadā"
+   ],
+   "learn": [
+    [
+     [
+      23,
+      "पद्मराग-शिलादर्श-परिभावि-कपोल-भूः",
+      "padmarāga-śilādarśa-paribhāvi-kapola-bhūḥ",
+      0
+     ]
+    ],
+    [
+     [
+      24,
+      "नव-विद्रुम-बिम्ब-श्री-न्यक्कारि-रदनच्छदा",
+      "nava-vidruma-bimba-śrī-nyakkāri-radanacchadā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose cheeks outshine mirrors made of ruby (padmarāga)",
     "Whose lips put to shame the beauty of fresh coral and of the bimba fruit"
@@ -198,6 +468,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "शुद्धविद्याङ्कुराकारद्विजपङ्क्तिद्वयोज्ज्वला",
     "कर्पूरवीटिकामोदसमाकर्षिदिगन्तरा"
+   ],
+   "read_dev": [
+    "शुद्धविद्याङ्कुराकारद्विजपङ्क्तिद्वयोज्ज्वला",
+    "कर्पूरवीटिकामोदसमाकर्षिदिगन्तरा"
+   ],
+   "read_iast": [
+    "śuddhavidyāṅkurākāradvijapaṅktidvayojjvalā",
+    "karpūravīṭikāmodasamākarṣidigantarā"
+   ],
+   "learn": [
+    [
+     [
+      25,
+      "शुद्ध-विद्याङ्कुराकार-द्विज-पङ्क्ति-द्वयोज्ज्वला",
+      "śuddha-vidyāṅkurākāra-dvija-paṅkti-dvayojjvalā",
+      0
+     ]
+    ],
+    [
+     [
+      26,
+      "कर्पूर-वीटिकामोद-समाकर्षि-दिग्-अन्तरा",
+      "karpūra-vīṭikāmoda-samākarṣi-dig-antarā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Resplendent with two rows of teeth shaped like the sprouts of pure knowledge (śuddhavidyā)",
@@ -215,6 +511,32 @@ const LALITHA_DATA = {
     "निजसल्लापमाधुर्यविनिर्भर्त्सितकच्छपी",
     "मन्दस्मितप्रभापूरमज्जत्कामेशमानसा"
    ],
+   "read_dev": [
+    "निजसल्लापमाधुर्यविनिर्भर्त्सितकच्छपी",
+    "मन्दस्मितप्रभापूरमज्जत्कामेशमानसा"
+   ],
+   "read_iast": [
+    "nijasallāpamādhuryavinirbhartsitakacchapī",
+    "mandasmitaprabhāpūramajjatkāmeśamānasā"
+   ],
+   "learn": [
+    [
+     [
+      27,
+      "निज-सल्लाप-माधुर्य-विनिर्भर्त्सित-कच्छपी",
+      "nija-sallāpa-mādhurya-vinirbhartsita-kacchapī",
+      0
+     ]
+    ],
+    [
+     [
+      28,
+      "मन्द-स्मित-प्रभा-पूर-मज्जत्-कामेश-मानसा",
+      "manda-smita-prabhā-pūra-majjat-kāmeśa-mānasā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Puts to shame even Sarasvatī's vīṇā, the Kacchapī, by the sweetness of Her own speech",
     "She in the flood of whose gentle smile's radiance the mind of Kāmeśa is immersed"
@@ -230,6 +552,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "अनाकलितसादृश्यचिबुकश्रीविराजिता",
     "कामेशबद्धमाङ्गल्यसूत्रशोभितकन्धरा"
+   ],
+   "read_dev": [
+    "अनाकलितसादृश्यचिबुकश्रीविराजिता",
+    "कामेशबद्धमाङ्गल्यसूत्रशोभितकन्धरा"
+   ],
+   "read_iast": [
+    "anākalitasādṛśyacibukaśrīvirājitā",
+    "kāmeśabaddhamāṅgalyasūtraśobhitakandharā"
+   ],
+   "learn": [
+    [
+     [
+      29,
+      "अन्-आकलित-सादृश्य-चिबुक-श्री-विराजिता",
+      "an-ākalita-sādṛśya-cibuka-śrī-virājitā",
+      0
+     ]
+    ],
+    [
+     [
+      30,
+      "कामेश-बद्ध-माङ्गल्य-सूत्र-शोभित-कन्धरा",
+      "kāmeśa-baddha-māṅgalya-sūtra-śobhita-kandharā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Shines with the beauty of a chin for which no likeness can be conceived",
@@ -247,6 +595,32 @@ const LALITHA_DATA = {
     "कनकाङ्गदकेयूरकमनीयभुजान्विता",
     "रत्नग्रैवेयचिन्ताकलोलमुक्ताफलान्विता"
    ],
+   "read_dev": [
+    "कनकाङ्गदकेयूरकमनीयभुजान्विता",
+    "रत्नग्रैवेयचिन्ताकलोलमुक्ताफलान्विता"
+   ],
+   "read_iast": [
+    "kanakāṅgadakeyūrakamanīyabhujānvitā",
+    "ratnagraiveyacintākalolamuktāphalānvitā"
+   ],
+   "learn": [
+    [
+     [
+      31,
+      "कनकाङ्गद-केयूर-कमनीय-भुजान्विता",
+      "kanakāṅgada-keyūra-kamanīya-bhujānvitā",
+      0
+     ]
+    ],
+    [
+     [
+      32,
+      "रत्न-ग्रैवेय-चिन्ताक-लोल-मुक्ताफलान्विता",
+      "ratna-graiveya-cintāka-lola-muktāphalānvitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Endowed with arms made lovely by golden armlets (aṅgada and keyūra)",
     "Adorned with a jewelled necklace, a cintāka and swaying pearls"
@@ -262,6 +636,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कामेश्वरप्रेमरत्नमणिप्रतिपणस्तनी",
     "नाभ्यालवालरोमालिलताफलकुचद्वयी"
+   ],
+   "read_dev": [
+    "कामेश्वरप्रेमरत्नमणिप्रतिपणस्तनी",
+    "नाभ्यालवालरोमालिलताफलकुचद्वयी"
+   ],
+   "read_iast": [
+    "kāmeśvarapremaratnamaṇipratipaṇastanī",
+    "nābhyālavālaromālilatāphalakucadvayī"
+   ],
+   "learn": [
+    [
+     [
+      33,
+      "कामेश्वर-प्रेम-रत्न-मणि-प्रतिपण-स्तनी",
+      "kāmeśvara-prema-ratna-maṇi-pratipaṇa-stanī",
+      0
+     ]
+    ],
+    [
+     [
+      34,
+      "नाभ्यालवाल-रोमालि-लता-फल-कुच-द्वयी",
+      "nābhyālavāla-romāli-latā-phala-kuca-dvayī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose breasts are what She gives in return for the precious gem of Kāmeśvara's love",
@@ -279,6 +679,32 @@ const LALITHA_DATA = {
     "लक्ष्यरोमलताधारतासमुन्नेयमध्यमा",
     "स्तनभारदलन्मध्यपट्टबन्धवलित्रया"
    ],
+   "read_dev": [
+    "लक्ष्यरोमलताधारतासमुन्नेयमध्यमा",
+    "स्तनभारदलन्मध्यपट्टबन्धवलित्रया"
+   ],
+   "read_iast": [
+    "lakṣyaromalatādhāratāsamunneyamadhyamā",
+    "stanabhāradalanmadhyapaṭṭabandhavalitrayā"
+   ],
+   "learn": [
+    [
+     [
+      35,
+      "लक्ष्य-रोम-लताधारता-समुन्नेय-मध्यमा",
+      "lakṣya-roma-latādhāratā-samunneya-madhyamā",
+      0
+     ]
+    ],
+    [
+     [
+      36,
+      "स्तन-भार-दलन्-मध्य-पट्ट-बन्ध-वलि-त्रया",
+      "stana-bhāra-dalan-madhya-paṭṭa-bandha-vali-trayā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose waist can be known only by inference, from its being the support of the visible creeper of fine hair",
     "Whose three folds of skin form a band that binds Her waist, as though it would break under the weight of Her breasts"
@@ -294,6 +720,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "अरुणारुणकौसुम्भवस्त्रभास्वत्कटीतटी",
     "रत्नकिङ्किणिकारम्यरशनादामभूषिता"
+   ],
+   "read_dev": [
+    "अरुणारुणकौसुम्भवस्त्रभास्वत्कटीतटी",
+    "रत्नकिङ्किणिकारम्यरशनादामभूषिता"
+   ],
+   "read_iast": [
+    "aruṇāruṇakausumbhavastrabhāsvatkaṭītaṭī",
+    "ratnakiṅkiṇikāramyaraśanādāmabhūṣitā"
+   ],
+   "learn": [
+    [
+     [
+      37,
+      "अरुणारुण-कौसुम्भ-वस्त्र-भास्वत्-कटी-तटी",
+      "aruṇāruṇa-kausumbha-vastra-bhāsvat-kaṭī-taṭī",
+      0
+     ]
+    ],
+    [
+     [
+      38,
+      "रत्न-किङ्किणिका-रम्य-रशना-दाम-भूषिता",
+      "ratna-kiṅkiṇikā-ramya-raśanā-dāma-bhūṣitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose hips shine with a safflower-dyed garment as red as the dawn",
@@ -311,6 +763,32 @@ const LALITHA_DATA = {
     "कामेशज्ञातसौभाग्यमार्दवोरुद्वयान्विता",
     "माणिक्यमुकुटाकारजानुद्वयविराजिता"
    ],
+   "read_dev": [
+    "कामेशज्ञातसौभाग्यमार्दवोरुद्वयान्विता",
+    "माणिक्यमुकुटाकारजानुद्वयविराजिता"
+   ],
+   "read_iast": [
+    "kāmeśajñātasaubhāgyamārdavorudvayānvitā",
+    "māṇikyamukuṭākārajānudvayavirājitā"
+   ],
+   "learn": [
+    [
+     [
+      39,
+      "कामेश-ज्ञात-सौभाग्य-मार्दवोरु-द्वयान्विता",
+      "kāmeśa-jñāta-saubhāgya-mārdavoru-dvayānvitā",
+      0
+     ]
+    ],
+    [
+     [
+      40,
+      "माणिक्य-मुकुटाकार-जानु-द्वय-विराजिता",
+      "māṇikya-mukuṭākāra-jānu-dvaya-virājitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose two thighs, in their beauty and softness, are known to Kāmeśa alone",
     "Shines with two knees shaped like crowns of ruby"
@@ -326,6 +804,38 @@ const LALITHA_DATA = {
    "halves_dev": [
     "इन्द्रगोपपरिक्षिप्तस्मरतूणाभजङ्घिका",
     "गूढगुल्फा कूर्मपृष्ठजयिष्णुप्रपदान्विता"
+   ],
+   "read_dev": [
+    "इन्द्रगोपपरिक्षिप्तस्मरतूणाभजङ्घिका",
+    "गूढगुल्फा कूर्मपृष्ठजयिष्णुप्रपदान्विता"
+   ],
+   "read_iast": [
+    "indragopaparikṣiptasmaratūṇābhajaṅghikā",
+    "gūḍhagulphā kūrmapṛṣṭhajayiṣṇuprapadānvitā"
+   ],
+   "learn": [
+    [
+     [
+      41,
+      "इन्द्रगोप-परिक्षिप्त-स्मर-तूणाभ-जङ्घिका",
+      "indragopa-parikṣipta-smara-tūṇābha-jaṅghikā",
+      0
+     ]
+    ],
+    [
+     [
+      42,
+      "गूढ-गुल्फा",
+      "gūḍha-gulphā",
+      0
+     ],
+     [
+      43,
+      "कूर्म-पृष्ठ-जयिष्णु-प्रपदान्विता",
+      "kūrma-pṛṣṭha-jayiṣṇu-prapadānvitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose calves resemble the quiver of Kāma, studded all around with scarlet indragopas",
@@ -343,6 +853,32 @@ const LALITHA_DATA = {
     "नखदीधितिसञ्छन्ननमज्जनतमोगुणा",
     "पदद्वयप्रभाजालपराकृतसरोरुहा"
    ],
+   "read_dev": [
+    "नखदीधितिसञ्छन्ननमज्जनतमोगुणा",
+    "पदद्वयप्रभाजालपराकृतसरोरुहा"
+   ],
+   "read_iast": [
+    "nakhadīdhitisañchannanamajjanatamoguṇā",
+    "padadvayaprabhājālaparākṛtasaroruhā"
+   ],
+   "learn": [
+    [
+     [
+      44,
+      "नख-दीधिति-सञ्छन्न-नमज्-जन-तमो-गुणा",
+      "nakha-dīdhiti-sañchanna-namaj-jana-tamo-guṇā",
+      0
+     ]
+    ],
+    [
+     [
+      45,
+      "पद-द्वय-प्रभा-जाल-पराकृत-सरोरुहा",
+      "pada-dvaya-prabhā-jāla-parākṛta-saroruhā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "She the radiance of whose toenails overwhelms the darkness (tamoguṇa) of those who bow to Her",
     "Whose two feet, by their mass of radiance, put the lotuses to shame"
@@ -358,6 +894,38 @@ const LALITHA_DATA = {
    "halves_dev": [
     "शिञ्जानमणिमञ्जीरमण्डितश्रीपदाम्बुजा",
     "मरालीमन्दगमना महालावण्यशेवधिः"
+   ],
+   "read_dev": [
+    "शिञ्जानमणिमञ्जीरमण्डितश्रीपदाम्बुजा",
+    "मरालीमन्दगमना महालावण्यशेवधिः"
+   ],
+   "read_iast": [
+    "śiñjānamaṇimañjīramaṇḍitaśrīpadāmbujā",
+    "marālīmandagamanā mahālāvaṇyaśevadhiḥ"
+   ],
+   "learn": [
+    [
+     [
+      46,
+      "शिञ्जान-मणि-मञ्जीर-मण्डित-श्री-पदाम्बुजा",
+      "śiñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā",
+      0
+     ]
+    ],
+    [
+     [
+      47,
+      "मराली-मन्द-गमना",
+      "marālī-manda-gamanā",
+      0
+     ],
+     [
+      48,
+      "महा-लावण्य-शेवधिः",
+      "mahā-lāvaṇya-śevadhiḥ",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose auspicious lotus feet are adorned with tinkling jewelled anklets",
@@ -375,6 +943,56 @@ const LALITHA_DATA = {
     "सर्वारुणाऽनवद्याङ्गी सर्वाभरणभूषिता",
     "शिवकामेश्वराङ्कस्था शिवा स्वाधीनवल्लभा"
    ],
+   "read_dev": [
+    "सर्वारुणा ऽनवद्याङ्गी सर्वाभरणभूषिता",
+    "शिवकामेश्वराङ्कस्था शिवा स्वाधीनवल्लभा"
+   ],
+   "read_iast": [
+    "sarvāruṇā 'navadyāṅgī sarvābharaṇabhūṣitā",
+    "śivakāmeśvarāṅkasthā śivā svādhīnavallabhā"
+   ],
+   "learn": [
+    [
+     [
+      49,
+      "सर्वारुणा",
+      "sarvāruṇā",
+      0
+     ],
+     [
+      50,
+      "अन्-अवद्याङ्गी",
+      "an-avadyāṅgī",
+      1
+     ],
+     [
+      51,
+      "सर्वाभरण-भूषिता",
+      "sarvābharaṇa-bhūṣitā",
+      0
+     ]
+    ],
+    [
+     [
+      52,
+      "शिव-कामेश्वराङ्क-स्था",
+      "śiva-kāmeśvarāṅka-sthā",
+      0
+     ],
+     [
+      53,
+      "शिवा",
+      "śivā",
+      0
+     ],
+     [
+      54,
+      "स्वाधीन-वल्लभा",
+      "svādhīna-vallabhā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Red in every part; Whose every limb is faultless; Adorned with all ornaments",
     "Sits on the lap of Śiva, who is Kāmeśvara; Śivā, auspiciousness itself, the power of Śiva; Keeps Her husband always under Her control"
@@ -390,6 +1008,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सुमेरुमध्यशृङ्गस्था श्रीमन्नगरनायिका",
     "चिन्तामणिगृहान्तस्था पञ्चब्रह्मासनस्थिता"
+   ],
+   "read_dev": [
+    "सुमेरुमध्यशृङ्गस्था श्रीमन्नगरनायिका",
+    "चिन्तामणिगृहान्तस्था पञ्चब्रह्मासनस्थिता"
+   ],
+   "read_iast": [
+    "sumerumadhyaśṛṅgasthā śrīmannagaranāyikā",
+    "cintāmaṇigṛhāntasthā pañcabrahmāsanasthitā"
+   ],
+   "learn": [
+    [
+     [
+      55,
+      "सुमेरु-मध्य-शृङ्ग-स्था",
+      "sumeru-madhya-śṛṅga-sthā",
+      0
+     ],
+     [
+      56,
+      "श्रीमन्-नगर-नायिका",
+      "śrīman-nagara-nāyikā",
+      0
+     ]
+    ],
+    [
+     [
+      57,
+      "चिन्तामणि-गृहान्त-स्था",
+      "cintāmaṇi-gṛhānta-sthā",
+      0
+     ],
+     [
+      58,
+      "पञ्च-ब्रह्मासन-स्थिता",
+      "pañca-brahmāsana-sthitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Sits on the middle peak of Mount Sumeru; The sovereign of the glorious city (Śrīpura)",
@@ -407,6 +1063,50 @@ const LALITHA_DATA = {
     "महापद्माटवीसंस्था कदम्बवनवासिनी",
     "सुधासागरमध्यस्था कामाक्षी कामदायिनी"
    ],
+   "read_dev": [
+    "महापद्माटवीसंस्था कदम्बवनवासिनी",
+    "सुधासागरमध्यस्था कामाक्षी कामदायिनी"
+   ],
+   "read_iast": [
+    "mahāpadmāṭavīsaṃsthā kadambavanavāsinī",
+    "sudhāsāgaramadhyasthā kāmākṣī kāmadāyinī"
+   ],
+   "learn": [
+    [
+     [
+      59,
+      "महा-पद्माटवी-संस्था",
+      "mahā-padmāṭavī-saṃsthā",
+      0
+     ],
+     [
+      60,
+      "कदम्ब-वन-वासिनी",
+      "kadamba-vana-vāsinī",
+      0
+     ]
+    ],
+    [
+     [
+      61,
+      "सुधा-सागर-मध्य-स्था",
+      "sudhā-sāgara-madhya-sthā",
+      0
+     ],
+     [
+      62,
+      "कामाक्षी",
+      "kāmākṣī",
+      0
+     ],
+     [
+      63,
+      "काम-दायिनी",
+      "kāma-dāyinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Resides in the great lotus forest; Resides in the kadamba forest",
     "Resides in the center of the ocean of nectar; Whose eyes are lovely, eyes in which love dwells; Grants all wishes"
@@ -422,6 +1122,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "देवर्षिगणसङ्घातस्तूयमानात्मवैभवा",
     "भण्डासुरवधोद्युक्तशक्तिसेनासमन्विता"
+   ],
+   "read_dev": [
+    "देवर्षिगणसङ्घातस्तूयमानात्मवैभवा",
+    "भण्डासुरवधोद्युक्तशक्तिसेनासमन्विता"
+   ],
+   "read_iast": [
+    "devarṣigaṇasaṅghātastūyamānātmavaibhavā",
+    "bhaṇḍāsuravadhodyuktaśaktisenāsamanvitā"
+   ],
+   "learn": [
+    [
+     [
+      64,
+      "देवर्षि-गण-सङ्घात-स्तूयमानात्म-वैभवा",
+      "devarṣi-gaṇa-saṅghāta-stūyamānātma-vaibhavā",
+      0
+     ]
+    ],
+    [
+     [
+      65,
+      "भण्डासुर-वधोद्युक्त-शक्ति-सेना-समन्विता",
+      "bhaṇḍāsura-vadhodyukta-śakti-senā-samanvitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose own glory is being praised by the assembled hosts of gods and sages",
@@ -439,6 +1165,32 @@ const LALITHA_DATA = {
     "सम्पत्करीसमारूढसिन्धुरव्रजसेविता",
     "अश्वारूढाधिष्ठिताश्वकोटिकोटिभिरावृता"
    ],
+   "read_dev": [
+    "सम्पत्करीसमारूढसिन्धुरव्रजसेविता",
+    "अश्वारूढाधिष्ठिताश्वकोटिकोटिभिरावृता"
+   ],
+   "read_iast": [
+    "sampatkarīsamārūḍhasindhuravrajasevitā",
+    "aśvārūḍhādhiṣṭhitāśvakoṭikoṭibhirāvṛtā"
+   ],
+   "learn": [
+    [
+     [
+      66,
+      "सम्पत्करी-समारूढ-सिन्धुर-व्रज-सेविता",
+      "sampatkarī-samārūḍha-sindhura-vraja-sevitā",
+      0
+     ]
+    ],
+    [
+     [
+      67,
+      "अश्वारूढाधिष्ठिताश्व-कोटि-कोटिभिर्-आवृता",
+      "aśvārūḍhādhiṣṭhitāśva-koṭi-koṭibhir-āvṛtā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Attended by a herd of elephants ridden by Sampatkarī",
     "Surrounded by countless millions of horses commanded by Aśvārūḍhā"
@@ -454,6 +1206,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चक्रराजरथारूढसर्वायुधपरिष्कृता",
     "गेयचक्ररथारूढमन्त्रिणीपरिसेविता"
+   ],
+   "read_dev": [
+    "चक्रराजरथारूढसर्वायुधपरिष्कृता",
+    "गेयचक्ररथारूढमन्त्रिणीपरिसेविता"
+   ],
+   "read_iast": [
+    "cakrarājarathārūḍhasarvāyudhapariṣkṛtā",
+    "geyacakrarathārūḍhamantriṇīparisevitā"
+   ],
+   "learn": [
+    [
+     [
+      68,
+      "चक्र-राज-रथारूढ-सर्वायुध-परिष्कृता",
+      "cakra-rāja-rathārūḍha-sarvāyudha-pariṣkṛtā",
+      0
+     ]
+    ],
+    [
+     [
+      69,
+      "गेय-चक्र-रथारूढ-मन्त्रिणी-परिसेविता",
+      "geya-cakra-rathārūḍha-mantriṇī-parisevitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "She who, mounted on the chariot Cakrarāja, is equipped with all weapons",
@@ -471,6 +1249,32 @@ const LALITHA_DATA = {
     "किरिचक्ररथारूढदण्डनाथापुरस्कृता",
     "ज्वालामालिनिकाक्षिप्तवह्निप्राकारमध्यगा"
    ],
+   "read_dev": [
+    "किरिचक्ररथारूढदण्डनाथापुरस्कृता",
+    "ज्वालामालिनिकाक्षिप्तवह्निप्राकारमध्यगा"
+   ],
+   "read_iast": [
+    "kiricakrarathārūḍhadaṇḍanāthāpuraskṛtā",
+    "jvālāmālinikākṣiptavahniprākāramadhyagā"
+   ],
+   "learn": [
+    [
+     [
+      70,
+      "किरि-चक्र-रथारूढ-दण्ड-नाथा-पुरस्कृता",
+      "kiri-cakra-rathārūḍha-daṇḍa-nāthā-puraskṛtā",
+      0
+     ]
+    ],
+    [
+     [
+      71,
+      "ज्वालामालिनिकाक्षिप्त-वह्नि-प्राकार-मध्य-गा",
+      "jvālāmālinikākṣipta-vahni-prākāra-madhya-gā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Escorted by Daṇḍanāthā, mounted on the chariot Kiricakra",
     "Stands in the midst of the wall of fire raised by Jvālāmālinī"
@@ -486,6 +1290,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "भण्डसैन्यवधोद्युक्तशक्तिविक्रमहर्षिता",
     "नित्यापराक्रमाटोपनिरीक्षणसमुत्सुका"
+   ],
+   "read_dev": [
+    "भण्डसैन्यवधोद्युक्तशक्तिविक्रमहर्षिता",
+    "नित्यापराक्रमाटोपनिरीक्षणसमुत्सुका"
+   ],
+   "read_iast": [
+    "bhaṇḍasainyavadhodyuktaśaktivikramaharṣitā",
+    "nityāparākramāṭopanirīkṣaṇasamutsukā"
+   ],
+   "learn": [
+    [
+     [
+      72,
+      "भण्ड-सैन्य-वधोद्युक्त-शक्ति-विक्रम-हर्षिता",
+      "bhaṇḍa-sainya-vadhodyukta-śakti-vikrama-harṣitā",
+      0
+     ]
+    ],
+    [
+     [
+      73,
+      "नित्या-पराक्रमाटोप-निरीक्षण-समुत्सुका",
+      "nityā-parākramāṭopa-nirīkṣaṇa-samutsukā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Rejoices at the valor of the śaktis intent on destroying the forces of Bhaṇḍa",
@@ -503,6 +1333,32 @@ const LALITHA_DATA = {
     "भण्डपुत्रवधोद्युक्तबालाविक्रमनन्दिता",
     "मन्त्रिण्यम्बाविरचितविषङ्गवधतोषिता"
    ],
+   "read_dev": [
+    "भण्डपुत्रवधोद्युक्तबालाविक्रमनन्दिता",
+    "मन्त्रिण्यम्बाविरचितविषङ्गवधतोषिता"
+   ],
+   "read_iast": [
+    "bhaṇḍaputravadhodyuktabālāvikramananditā",
+    "mantriṇyambāviracitaviṣaṅgavadhatoṣitā"
+   ],
+   "learn": [
+    [
+     [
+      74,
+      "भण्ड-पुत्र-वधोद्युक्त-बाला-विक्रम-नन्दिता",
+      "bhaṇḍa-putra-vadhodyukta-bālā-vikrama-nanditā",
+      0
+     ]
+    ],
+    [
+     [
+      75,
+      "मन्त्रिण्यम्बा-विरचित-विषङ्ग-वध-तोषिता",
+      "mantriṇyambā-viracita-viṣaṅga-vadha-toṣitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Delighted by the valor of Bālā, intent on slaying the sons of Bhaṇḍa",
     "Pleased by the slaying of Viṣaṅga accomplished by Mother Mantriṇī"
@@ -518,6 +1374,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "विशुक्रप्राणहरणवाराहीवीर्यनन्दिता",
     "कामेश्वरमुखालोककल्पितश्रीगणेश्वरा"
+   ],
+   "read_dev": [
+    "विशुक्रप्राणहरणवाराहीवीर्यनन्दिता",
+    "कामेश्वरमुखालोककल्पितश्रीगणेश्वरा"
+   ],
+   "read_iast": [
+    "viśukraprāṇaharaṇavārāhīvīryananditā",
+    "kāmeśvaramukhālokakalpitaśrīgaṇeśvarā"
+   ],
+   "learn": [
+    [
+     [
+      76,
+      "विशुक्र-प्राण-हरण-वाराही-वीर्य-नन्दिता",
+      "viśukra-prāṇa-haraṇa-vārāhī-vīrya-nanditā",
+      0
+     ]
+    ],
+    [
+     [
+      77,
+      "कामेश्वर-मुखालोक-कल्पित-श्री-गणेश्वरा",
+      "kāmeśvara-mukhāloka-kalpita-śrī-gaṇeśvarā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Delighted by the valor of Vārāhī, who took the life of Viśukra",
@@ -535,6 +1417,32 @@ const LALITHA_DATA = {
     "महागणेशनिर्भिन्नविघ्नयन्त्रप्रहर्षिता",
     "भण्डासुरेन्द्रनिर्मुक्तशस्त्रप्रत्यस्त्रवर्षिणी"
    ],
+   "read_dev": [
+    "महागणेशनिर्भिन्नविघ्नयन्त्रप्रहर्षिता",
+    "भण्डासुरेन्द्रनिर्मुक्तशस्त्रप्रत्यस्त्रवर्षिणी"
+   ],
+   "read_iast": [
+    "mahāgaṇeśanirbhinnavighnayantrapraharṣitā",
+    "bhaṇḍāsurendranirmuktaśastrapratyastravarṣiṇī"
+   ],
+   "learn": [
+    [
+     [
+      78,
+      "महा-गणेश-निर्भिन्न-विघ्न-यन्त्र-प्रहर्षिता",
+      "mahā-gaṇeśa-nirbhinna-vighna-yantra-praharṣitā",
+      0
+     ]
+    ],
+    [
+     [
+      79,
+      "भण्डासुरेन्द्र-निर्मुक्त-शस्त्र-प्रत्यस्त्र-वर्षिणी",
+      "bhaṇḍāsurendra-nirmukta-śastra-pratyastra-varṣiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Was delighted when Mahāgaṇeśa shattered the yantra of obstacles",
     "Rained counter-missiles on the weapons released by Bhaṇḍāsura, lord of the demons"
@@ -550,6 +1458,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कराङ्गुलिनखोत्पन्ननारायणदशाकृतिः",
     "महापाशुपतास्त्राग्निनिर्दग्धासुरसैनिका"
+   ],
+   "read_dev": [
+    "कराङ्गुलिनखोत्पन्ननारायणदशाकृतिः",
+    "महापाशुपतास्त्राग्निनिर्दग्धासुरसैनिका"
+   ],
+   "read_iast": [
+    "karāṅgulinakhotpannanārāyaṇadaśākṛtiḥ",
+    "mahāpāśupatāstrāgninirdagdhāsurasainikā"
+   ],
+   "learn": [
+    [
+     [
+      80,
+      "कराङ्गुलि-नखोत्पन्न-नारायण-दशाकृतिः",
+      "karāṅguli-nakhotpanna-nārāyaṇa-daśākṛtiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      81,
+      "महा-पाशुपतास्त्राग्नि-निर्दग्धासुर-सैनिका",
+      "mahā-pāśupatāstrāgni-nirdagdhāsura-sainikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "She from whose fingernails the ten forms of Nārāyaṇa arose",
@@ -567,6 +1501,32 @@ const LALITHA_DATA = {
     "कामेश्वरास्त्रनिर्दग्धसभण्डासुरशून्यका",
     "ब्रह्मोपेन्द्रमहेन्द्रादिदेवसंस्तुतवैभवा"
    ],
+   "read_dev": [
+    "कामेश्वरास्त्रनिर्दग्धसभण्डासुरशून्यका",
+    "ब्रह्मोपेन्द्रमहेन्द्रादिदेवसंस्तुतवैभवा"
+   ],
+   "read_iast": [
+    "kāmeśvarāstranirdagdhasabhaṇḍāsuraśūnyakā",
+    "brahmopendramahendrādidevasaṃstutavaibhavā"
+   ],
+   "learn": [
+    [
+     [
+      82,
+      "कामेश्वरास्त्र-निर्दग्ध-सभण्डासुर-शून्यका",
+      "kāmeśvarāstra-nirdagdha-sabhaṇḍāsura-śūnyakā",
+      0
+     ]
+    ],
+    [
+     [
+      83,
+      "ब्रह्मोपेन्द्र-महेन्द्रादि-देव-संस्तुत-वैभवा",
+      "brahmopendra-mahendrādi-deva-saṃstuta-vaibhavā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "With the Kāmeśvara missile burned up Bhaṇḍāsura together with his city Śūnyaka",
     "Whose glory is extolled by Brahmā, Upendra (Viṣṇu), Mahendra (Indra) and the other gods"
@@ -582,6 +1542,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "हरनेत्राग्निसन्दग्धकामसञ्जीवनौषधिः",
     "श्रीमद्वाग्भवकूटैकस्वरूपमुखपङ्कजा"
+   ],
+   "read_dev": [
+    "हरनेत्राग्निसन्दग्धकामसञ्जीवनौषधिः",
+    "श्रीमद्वाग्भवकूटैकस्वरूपमुखपङ्कजा"
+   ],
+   "read_iast": [
+    "haranetrāgnisandagdhakāmasañjīvanauṣadhiḥ",
+    "śrīmadvāgbhavakūṭaikasvarūpamukhapaṅkajā"
+   ],
+   "learn": [
+    [
+     [
+      84,
+      "हर-नेत्राग्नि-सन्दग्ध-काम-सञ्जीवनौषधिः",
+      "hara-netrāgni-sandagdha-kāma-sañjīvanauṣadhiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      85,
+      "श्रीमद्-वाग्भव-कूटैक-स्वरूप-मुख-पङ्कजा",
+      "śrīmad-vāgbhava-kūṭaika-svarūpa-mukha-paṅkajā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The life-restoring herb for Kāma, who had been burned by the fire of Hara's (Śiva's) eye",
@@ -599,6 +1585,32 @@ const LALITHA_DATA = {
     "कण्ठाधःकटिपर्यन्तमध्यकूटस्वरूपिणी",
     "शक्तिकूटैकतापन्नकट्यधोभागधारिणी"
    ],
+   "read_dev": [
+    "कण्ठाधःकटिपर्यन्तमध्यकूटस्वरूपिणी",
+    "शक्तिकूटैकतापन्नकट्यधोभागधारिणी"
+   ],
+   "read_iast": [
+    "kaṇṭhādhaḥkaṭiparyantamadhyakūṭasvarūpiṇī",
+    "śaktikūṭaikatāpannakaṭyadhobhāgadhāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      86,
+      "कण्ठाधः-कटि-पर्यन्त-मध्य-कूट-स्वरूपिणी",
+      "kaṇṭhādhaḥ-kaṭi-paryanta-madhya-kūṭa-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      87,
+      "शक्ति-कूटैकतापन्न-कट्यधो-भाग-धारिणी",
+      "śakti-kūṭaikatāpanna-kaṭyadho-bhāga-dhāriṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose form from below the throat down to the waist is the middle kūṭa (the kāmarāja-kūṭa) of the Pañcadaśī",
     "Whose form below the waist has become one with the śakti-kūṭa (the last four syllables of the Pañcadaśī mantra)"
@@ -614,6 +1626,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मूलमन्त्रात्मिका मूलकूटत्रयकलेवरा",
     "कुलामृतैकरसिका कुलसङ्केतपालिनी"
+   ],
+   "read_dev": [
+    "मूलमन्त्रात्मिका मूलकूटत्रयकलेवरा",
+    "कुलामृतैकरसिका कुलसङ्केतपालिनी"
+   ],
+   "read_iast": [
+    "mūlamantrātmikā mūlakūṭatrayakalevarā",
+    "kulāmṛtaikarasikā kulasaṅketapālinī"
+   ],
+   "learn": [
+    [
+     [
+      88,
+      "मूल-मन्त्रात्मिका",
+      "mūla-mantrātmikā",
+      0
+     ],
+     [
+      89,
+      "मूल-कूट-त्रय-कलेवरा",
+      "mūla-kūṭa-traya-kalevarā",
+      0
+     ]
+    ],
+    [
+     [
+      90,
+      "कुलामृतैक-रसिका",
+      "kulāmṛtaika-rasikā",
+      0
+     ],
+     [
+      91,
+      "कुल-सङ्केत-पालिनी",
+      "kula-saṅketa-pālinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose very self is the root mantra (the fifteen-syllabled Pañcadaśī); Whose (subtle) body is the three kūṭas of the root mantra",
@@ -631,6 +1681,62 @@ const LALITHA_DATA = {
     "कुलाङ्गना कुलान्तस्था कौलिनी कुलयोगिनी",
     "अकुला समयान्तस्था समयाचारतत्परा"
    ],
+   "read_dev": [
+    "कुलाङ्गना कुलान्तस्था कौलिनी कुलयोगिनी",
+    "अकुला समयान्तस्था समयाचारतत्परा"
+   ],
+   "read_iast": [
+    "kulāṅganā kulāntasthā kaulinī kulayoginī",
+    "akulā samayāntasthā samayācāratatparā"
+   ],
+   "learn": [
+    [
+     [
+      92,
+      "कुलाङ्गना",
+      "kulāṅganā",
+      0
+     ],
+     [
+      93,
+      "कुलान्त-स्था",
+      "kulānta-sthā",
+      0
+     ],
+     [
+      94,
+      "कौलिनी",
+      "kaulinī",
+      0
+     ],
+     [
+      95,
+      "कुल-योगिनी",
+      "kula-yoginī",
+      0
+     ]
+    ],
+    [
+     [
+      96,
+      "अकुला",
+      "akulā",
+      0
+     ],
+     [
+      97,
+      "समयान्त-स्था",
+      "samayānta-sthā",
+      0
+     ],
+     [
+      98,
+      "समयाचार-तत्परा",
+      "samayācāra-tatparā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Well-born (a lady of noble family); Abides within the kula; Belongs to the Kaula tradition; The yoginī (presiding deity) of the kula",
     "Has no family (She who is beyond kula); Abides within samaya; Devoted to the Samaya mode of worship"
@@ -646,6 +1752,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मूलाधारैकनिलया ब्रह्मग्रन्थिविभेदिनी",
     "मणिपूरान्तरुदिता विष्णुग्रन्थिविभेदिनी"
+   ],
+   "read_dev": [
+    "मूलाधारैकनिलया ब्रह्मग्रन्थिविभेदिनी",
+    "मणिपूरान्तरुदिता विष्णुग्रन्थिविभेदिनी"
+   ],
+   "read_iast": [
+    "mūlādhāraikanilayā brahmagranthivibhedinī",
+    "maṇipūrāntaruditā viṣṇugranthivibhedinī"
+   ],
+   "learn": [
+    [
+     [
+      99,
+      "मूलाधारैक-निलया",
+      "mūlādhāraika-nilayā",
+      0
+     ],
+     [
+      100,
+      "ब्रह्म-ग्रन्थि-विभेदिनी",
+      "brahma-granthi-vibhedinī",
+      0
+     ]
+    ],
+    [
+     [
+      101,
+      "मणिपूरान्तर्-उदिता",
+      "maṇipūrāntar-uditā",
+      0
+     ],
+     [
+      102,
+      "विष्णु-ग्रन्थि-विभेदिनी",
+      "viṣṇu-granthi-vibhedinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose principal abode is the mūlādhāra; Pierces the knot of Brahmā",
@@ -663,6 +1807,44 @@ const LALITHA_DATA = {
     "आज्ञाचक्रान्तरालस्था रुद्रग्रन्थिविभेदिनी",
     "सहस्राराम्बुजारूढा सुधासाराभिवर्षिणी"
    ],
+   "read_dev": [
+    "आज्ञाचक्रान्तरालस्था रुद्रग्रन्थिविभेदिनी",
+    "सहस्राराम्बुजारूढा सुधासाराभिवर्षिणी"
+   ],
+   "read_iast": [
+    "ājñācakrāntarālasthā rudragranthivibhedinī",
+    "sahasrārāmbujārūḍhā sudhāsārābhivarṣiṇī"
+   ],
+   "learn": [
+    [
+     [
+      103,
+      "आज्ञा-चक्रान्तराल-स्था",
+      "ājñā-cakrāntarāla-sthā",
+      0
+     ],
+     [
+      104,
+      "रुद्र-ग्रन्थि-विभेदिनी",
+      "rudra-granthi-vibhedinī",
+      0
+     ]
+    ],
+    [
+     [
+      105,
+      "सहस्राराम्बुजारूढा",
+      "sahasrārāmbujārūḍhā",
+      0
+     ],
+     [
+      106,
+      "सुधासाराभिवर्षिणी",
+      "sudhāsārābhivarṣiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Abides within the ājñā cakra; Pierces the knot of Rudra",
     "Ascends to the thousand-petaled lotus; Pours down streams of nectar"
@@ -678,6 +1860,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "तडिल्लतासमरुचिः षट्चक्रोपरिसंस्थिता",
     "महासक्तिः कुण्डलिनी बिसतन्तुतनीयसी"
+   ],
+   "read_dev": [
+    "तडिल्लतासमरुचिः षट्चक्रोपरिसंस्थिता",
+    "महासक्तिः कुण्डलिनी बिसतन्तुतनीयसी"
+   ],
+   "read_iast": [
+    "taḍillatāsamaruciḥ ṣaṭcakroparisaṃsthitā",
+    "mahāsaktiḥ kuṇḍalinī bisatantutanīyasī"
+   ],
+   "learn": [
+    [
+     [
+      107,
+      "तडिल्लता-सम-रुचिः",
+      "taḍillatā-sama-ruciḥ",
+      0
+     ],
+     [
+      108,
+      "षट्-चक्रोपरि-संस्थिता",
+      "ṣaṭ-cakropari-saṃsthitā",
+      0
+     ]
+    ],
+    [
+     [
+      109,
+      "महासक्तिः",
+      "mahāsaktiḥ",
+      0
+     ],
+     [
+      110,
+      "कुण्डलिनी",
+      "kuṇḍalinī",
+      0
+     ],
+     [
+      111,
+      "बिस-तन्तु-तनीयसी",
+      "bisa-tantu-tanīyasī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose radiance equals a streak of lightning; Abides above the six cakras",
@@ -695,6 +1921,56 @@ const LALITHA_DATA = {
     "भवानी भावनागम्या भवारण्यकुठारिका",
     "भद्रप्रिया भद्रमूर्तिर्भक्तसौभाग्यदायिनी"
    ],
+   "read_dev": [
+    "भवानी भावनागम्या भवारण्यकुठारिका",
+    "भद्रप्रिया भद्रमूर्तिर् भक्तसौभाग्यदायिनी"
+   ],
+   "read_iast": [
+    "bhavānī bhāvanāgamyā bhavāraṇyakuṭhārikā",
+    "bhadrapriyā bhadramūrtir bhaktasaubhāgyadāyinī"
+   ],
+   "learn": [
+    [
+     [
+      112,
+      "भवानी",
+      "bhavānī",
+      0
+     ],
+     [
+      113,
+      "भावना-गम्या",
+      "bhāvanā-gamyā",
+      0
+     ],
+     [
+      114,
+      "भवारण्य-कुठारिका",
+      "bhavāraṇya-kuṭhārikā",
+      0
+     ]
+    ],
+    [
+     [
+      115,
+      "भद्र-प्रिया",
+      "bhadra-priyā",
+      0
+     ],
+     [
+      116,
+      "भद्र-मूर्तिः",
+      "bhadra-mūrtiḥ",
+      1
+     ],
+     [
+      117,
+      "भक्त-सौभाग्य-दायिनी",
+      "bhakta-saubhāgya-dāyinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The consort of Bhava (Śiva); Attained through contemplation (bhāvanā); The axe that clears the forest of worldly existence (saṃsāra)",
     "Fond of all that is auspicious; The embodiment of auspiciousness or benevolence; Bestows good fortune (saubhāgya) on Her devotees"
@@ -710,6 +1986,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "भक्तिप्रिया भक्तिगम्या भक्तिवश्या भयापहा",
     "शाम्भवी शारदाराध्या शर्वाणी शर्मदायिनी"
+   ],
+   "read_dev": [
+    "भक्तिप्रिया भक्तिगम्या भक्तिवश्या भयापहा",
+    "शाम्भवी शारदाराध्या शर्वाणी शर्मदायिनी"
+   ],
+   "read_iast": [
+    "bhaktipriyā bhaktigamyā bhaktivaśyā bhayāpahā",
+    "śāmbhavī śāradārādhyā śarvāṇī śarmadāyinī"
+   ],
+   "learn": [
+    [
+     [
+      118,
+      "भक्ति-प्रिया",
+      "bhakti-priyā",
+      0
+     ],
+     [
+      119,
+      "भक्ति-गम्या",
+      "bhakti-gamyā",
+      0
+     ],
+     [
+      120,
+      "भक्ति-वश्या",
+      "bhakti-vaśyā",
+      0
+     ],
+     [
+      121,
+      "भयापहा",
+      "bhayāpahā",
+      0
+     ]
+    ],
+    [
+     [
+      122,
+      "शाम्भवी",
+      "śāmbhavī",
+      0
+     ],
+     [
+      123,
+      "शारदाराध्या",
+      "śāradārādhyā",
+      0
+     ],
+     [
+      124,
+      "शर्वाणी",
+      "śarvāṇī",
+      0
+     ],
+     [
+      125,
+      "शर्म-दायिनी",
+      "śarma-dāyinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Fond of (and pleased by) devotion; Attained through devotion; Won over by devotion; Dispels fear",
@@ -727,6 +2065,68 @@ const LALITHA_DATA = {
     "शाङ्करी श्रीकरी साध्वी शरच्चन्द्रनिभानना",
     "शातोदरी शान्तिमती निराधारा निरञ्जना"
    ],
+   "read_dev": [
+    "शाङ्करी श्रीकरी साध्वी शरच्चन्द्रनिभानना",
+    "शातोदरी शान्तिमती निराधारा निरञ्जना"
+   ],
+   "read_iast": [
+    "śāṅkarī śrīkarī sādhvī śaraccandranibhānanā",
+    "śātodarī śāntimatī nirādhārā nirañjanā"
+   ],
+   "learn": [
+    [
+     [
+      126,
+      "शाङ्करी",
+      "śāṅkarī",
+      0
+     ],
+     [
+      127,
+      "श्री-करी",
+      "śrī-karī",
+      0
+     ],
+     [
+      128,
+      "साध्वी",
+      "sādhvī",
+      0
+     ],
+     [
+      129,
+      "शरच्चन्द्र-निभानना",
+      "śaraccandra-nibhānanā",
+      0
+     ]
+    ],
+    [
+     [
+      130,
+      "शातोदरी",
+      "śātodarī",
+      0
+     ],
+     [
+      131,
+      "शान्ति-मती",
+      "śānti-matī",
+      0
+     ],
+     [
+      132,
+      "निर्-आधारा",
+      "nir-ādhārā",
+      0
+     ],
+     [
+      133,
+      "निर्-अञ्जना",
+      "nir-añjanā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The consort of Śaṅkara (Śiva); Brings about prosperity (śrī); Chaste; Whose face is like the autumn moon",
     "Slender-waisted; Peaceful; Without support (resting on nothing); Without stain"
@@ -742,6 +2142,80 @@ const LALITHA_DATA = {
    "halves_dev": [
     "निर्लेपा निर्मला नित्या निराकारा निराकुला",
     "निर्गुणा निष्कला शान्ता निष्कामा निरुपप्लवा"
+   ],
+   "read_dev": [
+    "निर्लेपा निर्मला नित्या निराकारा निराकुला",
+    "निर्गुणा निष्कला शान्ता निष्कामा निरुपप्लवा"
+   ],
+   "read_iast": [
+    "nirlepā nirmalā nityā nirākārā nirākulā",
+    "nirguṇā niṣkalā śāntā niṣkāmā nirupaplavā"
+   ],
+   "learn": [
+    [
+     [
+      134,
+      "निर्-लेपा",
+      "nir-lepā",
+      0
+     ],
+     [
+      135,
+      "निर्-मला",
+      "nir-malā",
+      0
+     ],
+     [
+      136,
+      "नित्या",
+      "nityā",
+      0
+     ],
+     [
+      137,
+      "निर्-आकारा",
+      "nir-ākārā",
+      0
+     ],
+     [
+      138,
+      "निर्-आकुला",
+      "nir-ākulā",
+      0
+     ]
+    ],
+    [
+     [
+      139,
+      "निर्-गुणा",
+      "nir-guṇā",
+      0
+     ],
+     [
+      140,
+      "निष्-कला",
+      "niṣ-kalā",
+      0
+     ],
+     [
+      141,
+      "शान्ता",
+      "śāntā",
+      0
+     ],
+     [
+      142,
+      "निष्-कामा",
+      "niṣ-kāmā",
+      0
+     ],
+     [
+      143,
+      "निर्-उपप्लवा",
+      "nir-upaplavā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Untainted (by the effects of action); Free from all impurities; Eternal; Without form; Without agitation",
@@ -759,6 +2233,68 @@ const LALITHA_DATA = {
     "नित्यमुक्ता निर्विकारा निष्प्रपञ्चा निराश्रया",
     "नित्यशुद्धा नित्यबुद्धा निरवद्या निरन्तरा"
    ],
+   "read_dev": [
+    "नित्यमुक्ता निर्विकारा निष्प्रपञ्चा निराश्रया",
+    "नित्यशुद्धा नित्यबुद्धा निरवद्या निरन्तरा"
+   ],
+   "read_iast": [
+    "nityamuktā nirvikārā niṣprapañcā nirāśrayā",
+    "nityaśuddhā nityabuddhā niravadyā nirantarā"
+   ],
+   "learn": [
+    [
+     [
+      144,
+      "नित्य-मुक्ता",
+      "nitya-muktā",
+      0
+     ],
+     [
+      145,
+      "निर्-विकारा",
+      "nir-vikārā",
+      0
+     ],
+     [
+      146,
+      "निष्-प्रपञ्चा",
+      "niṣ-prapañcā",
+      0
+     ],
+     [
+      147,
+      "निर्-आश्रया",
+      "nir-āśrayā",
+      0
+     ]
+    ],
+    [
+     [
+      148,
+      "नित्य-शुद्धा",
+      "nitya-śuddhā",
+      0
+     ],
+     [
+      149,
+      "नित्य-बुद्धा",
+      "nitya-buddhā",
+      0
+     ],
+     [
+      150,
+      "निर्-अवद्या",
+      "nir-avadyā",
+      0
+     ],
+     [
+      151,
+      "निर्-अन्तरा",
+      "nir-antarā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Ever free from worldly bonds; Unchanging; Beyond the phenomenal world; Does not depend on anything",
     "Eternally pure; Ever awake (eternally enlightened); Blameless (and so praiseworthy); Without any gap or interval (all-pervading)"
@@ -774,6 +2310,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "निष्कारणा निष्कलङ्का निरुपाधिर्निरीश्वरा",
     "नीरागा रागमथनी निर्मदा मदनाशिनी"
+   ],
+   "read_dev": [
+    "निष्कारणा निष्कलङ्का निरुपाधिर् निरीश्वरा",
+    "नीरागा रागमथनी निर्मदा मदनाशिनी"
+   ],
+   "read_iast": [
+    "niṣkāraṇā niṣkalaṅkā nirupādhir nirīśvarā",
+    "nīrāgā rāgamathanī nirmadā madanāśinī"
+   ],
+   "learn": [
+    [
+     [
+      152,
+      "निष्-कारणा",
+      "niṣ-kāraṇā",
+      0
+     ],
+     [
+      153,
+      "निष्-कलङ्का",
+      "niṣ-kalaṅkā",
+      0
+     ],
+     [
+      154,
+      "निर्-उपाधिः",
+      "nir-upādhiḥ",
+      1
+     ],
+     [
+      155,
+      "निर्-ईश्वरा",
+      "nir-īśvarā",
+      0
+     ]
+    ],
+    [
+     [
+      156,
+      "नी-रागा",
+      "nī-rāgā",
+      0
+     ],
+     [
+      157,
+      "राग-मथनी",
+      "rāga-mathanī",
+      0
+     ],
+     [
+      158,
+      "निर्-मदा",
+      "nir-madā",
+      0
+     ],
+     [
+      159,
+      "मद-नाशिनी",
+      "mada-nāśinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Without cause; Faultless; Free from all limiting adjuncts (upādhi); Has no superior or protector",
@@ -791,6 +2389,68 @@ const LALITHA_DATA = {
     "निश्चिन्ता निरहङ्कारा निर्मोहा मोहनाशिनी",
     "निर्ममा ममताहन्त्री निष्पापा पापनाशिनी"
    ],
+   "read_dev": [
+    "निश्चिन्ता निरहङ्कारा निर्मोहा मोहनाशिनी",
+    "निर्ममा ममताहन्त्री निष्पापा पापनाशिनी"
+   ],
+   "read_iast": [
+    "niścintā nirahaṅkārā nirmohā mohanāśinī",
+    "nirmamā mamatāhantrī niṣpāpā pāpanāśinī"
+   ],
+   "learn": [
+    [
+     [
+      160,
+      "निश्-चिन्ता",
+      "niś-cintā",
+      0
+     ],
+     [
+      161,
+      "निर्-अहङ्कारा",
+      "nir-ahaṅkārā",
+      0
+     ],
+     [
+      162,
+      "निर्-मोहा",
+      "nir-mohā",
+      0
+     ],
+     [
+      163,
+      "मोह-नाशिनी",
+      "moha-nāśinī",
+      0
+     ]
+    ],
+    [
+     [
+      164,
+      "निर्-ममा",
+      "nir-mamā",
+      0
+     ],
+     [
+      165,
+      "ममता-हन्त्री",
+      "mamatā-hantrī",
+      0
+     ],
+     [
+      166,
+      "निष्-पापा",
+      "niṣ-pāpā",
+      0
+     ],
+     [
+      167,
+      "पाप-नाशिनी",
+      "pāpa-nāśinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Free from anxiety; Without ego (ahaṅkāra, the sense of 'I'); Free from delusion; Destroys delusion",
     "Free from the sense of 'mine'; Destroys the sense of ownership; Without sin; Destroys sin"
@@ -806,6 +2466,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "निष्क्रोधा क्रोधशमनी निर्लोभा लोभनाशिनी",
     "निःसंशया संशयघ्नी निर्भवा भवनाशिनी"
+   ],
+   "read_dev": [
+    "निष्क्रोधा क्रोधशमनी निर्लोभा लोभनाशिनी",
+    "निःसंशया संशयघ्नी निर्भवा भवनाशिनी"
+   ],
+   "read_iast": [
+    "niṣkrodhā krodhaśamanī nirlobhā lobhanāśinī",
+    "niḥsaṃśayā saṃśayaghnī nirbhavā bhavanāśinī"
+   ],
+   "learn": [
+    [
+     [
+      168,
+      "निष्-क्रोधा",
+      "niṣ-krodhā",
+      0
+     ],
+     [
+      169,
+      "क्रोध-शमनी",
+      "krodha-śamanī",
+      0
+     ],
+     [
+      170,
+      "निर्-लोभा",
+      "nir-lobhā",
+      0
+     ],
+     [
+      171,
+      "लोभ-नाशिनी",
+      "lobha-nāśinī",
+      0
+     ]
+    ],
+    [
+     [
+      172,
+      "निः-संशया",
+      "niḥ-saṃśayā",
+      0
+     ],
+     [
+      173,
+      "संशय-घ्नी",
+      "saṃśaya-ghnī",
+      0
+     ],
+     [
+      174,
+      "निर्-भवा",
+      "nir-bhavā",
+      0
+     ],
+     [
+      175,
+      "भव-नाशिनी",
+      "bhava-nāśinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Without anger; Calms anger; Without greed; Destroys greed",
@@ -823,6 +2545,68 @@ const LALITHA_DATA = {
     "निर्विकल्पा निराबाधा निर्भेदा भेदनाशिनी",
     "निर्नाशा मृत्युमथनी निष्क्रिया निष्परिग्रहा"
    ],
+   "read_dev": [
+    "निर्विकल्पा निराबाधा निर्भेदा भेदनाशिनी",
+    "निर्नाशा मृत्युमथनी निष्क्रिया निष्परिग्रहा"
+   ],
+   "read_iast": [
+    "nirvikalpā nirābādhā nirbhedā bhedanāśinī",
+    "nirnāśā mṛtyumathanī niṣkriyā niṣparigrahā"
+   ],
+   "learn": [
+    [
+     [
+      176,
+      "निर्-विकल्पा",
+      "nir-vikalpā",
+      0
+     ],
+     [
+      177,
+      "निर्-आबाधा",
+      "nir-ābādhā",
+      0
+     ],
+     [
+      178,
+      "निर्-भेदा",
+      "nir-bhedā",
+      0
+     ],
+     [
+      179,
+      "भेद-नाशिनी",
+      "bheda-nāśinī",
+      0
+     ]
+    ],
+    [
+     [
+      180,
+      "निर्-नाशा",
+      "nir-nāśā",
+      0
+     ],
+     [
+      181,
+      "मृत्यु-मथनी",
+      "mṛtyu-mathanī",
+      0
+     ],
+     [
+      182,
+      "निष्-क्रिया",
+      "niṣ-kriyā",
+      0
+     ],
+     [
+      183,
+      "निष्-परिग्रहा",
+      "niṣ-parigrahā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Free from mental constructs (vikalpa); Not disturbed by anything; Beyond all sense of difference; Destroys the sense of difference",
     "Imperishable; Destroys death; Remains without action; Does not acquire or accept anything"
@@ -838,6 +2622,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "निस्तुला नीलचिकुरा निरपाया निरत्यया",
     "दुर्लभा दुर्गमा दुर्गा दुःखहन्त्री सुखप्रदा"
+   ],
+   "read_dev": [
+    "निस्तुला नीलचिकुरा निरपाया निरत्यया",
+    "दुर्लभा दुर्गमा दुर्गा दुःखहन्त्री सुखप्रदा"
+   ],
+   "read_iast": [
+    "nistulā nīlacikurā nirapāyā niratyayā",
+    "durlabhā durgamā durgā duḥkhahantrī sukhapradā"
+   ],
+   "learn": [
+    [
+     [
+      184,
+      "निस्-तुला",
+      "nis-tulā",
+      0
+     ],
+     [
+      185,
+      "नील-चिकुरा",
+      "nīla-cikurā",
+      0
+     ],
+     [
+      186,
+      "निर्-अपाया",
+      "nir-apāyā",
+      0
+     ],
+     [
+      187,
+      "निर्-अत्यया",
+      "nir-atyayā",
+      0
+     ]
+    ],
+    [
+     [
+      188,
+      "दुर्-लभा",
+      "dur-labhā",
+      0
+     ],
+     [
+      189,
+      "दुर्-गमा",
+      "dur-gamā",
+      0
+     ],
+     [
+      190,
+      "दुर्गा",
+      "durgā",
+      0
+     ],
+     [
+      191,
+      "दुःख-हन्त्री",
+      "duḥkha-hantrī",
+      0
+     ],
+     [
+      192,
+      "सुख-प्रदा",
+      "sukha-pradā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Incomparable, unequalled; Whose hair is dark (blue-black); Beyond loss or decay; Cannot be transgressed",
@@ -855,6 +2707,56 @@ const LALITHA_DATA = {
     "दुष्टदूरा दुराचारशमनी दोषवर्जिता",
     "सर्वज्ञा सान्द्रकरुणा समानाधिकवर्जिता"
    ],
+   "read_dev": [
+    "दुष्टदूरा दुराचारशमनी दोषवर्जिता",
+    "सर्वज्ञा सान्द्रकरुणा समानाधिकवर्जिता"
+   ],
+   "read_iast": [
+    "duṣṭadūrā durācāraśamanī doṣavarjitā",
+    "sarvajñā sāndrakaruṇā samānādhikavarjitā"
+   ],
+   "learn": [
+    [
+     [
+      193,
+      "दुष्ट-दूरा",
+      "duṣṭa-dūrā",
+      0
+     ],
+     [
+      194,
+      "दुराचार-शमनी",
+      "durācāra-śamanī",
+      0
+     ],
+     [
+      195,
+      "दोष-वर्जिता",
+      "doṣa-varjitā",
+      0
+     ]
+    ],
+    [
+     [
+      196,
+      "सर्व-ज्ञा",
+      "sarva-jñā",
+      0
+     ],
+     [
+      197,
+      "सान्द्र-करुणा",
+      "sāndra-karuṇā",
+      0
+     ],
+     [
+      198,
+      "समानाधिक-वर्जिता",
+      "samānādhika-varjitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Far from the wicked; Quells evil conduct; Free from all faults",
     "Omniscient; Shows intense compassion; Has neither equal nor superior"
@@ -870,6 +2772,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सर्वशक्तिमयी सर्वमङ्गला सद्गतिप्रदा",
     "सर्वेश्वरी सर्वमयी सर्वमन्त्रस्वरूपिणी"
+   ],
+   "read_dev": [
+    "सर्वशक्तिमयी सर्वमङ्गला सद्गतिप्रदा",
+    "सर्वेश्वरी सर्वमयी सर्वमन्त्रस्वरूपिणी"
+   ],
+   "read_iast": [
+    "sarvaśaktimayī sarvamaṅgalā sadgatipradā",
+    "sarveśvarī sarvamayī sarvamantrasvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      199,
+      "सर्व-शक्ति-मयी",
+      "sarva-śakti-mayī",
+      0
+     ],
+     [
+      200,
+      "सर्व-मङ्गला",
+      "sarva-maṅgalā",
+      0
+     ],
+     [
+      201,
+      "सद्-गति-प्रदा",
+      "sad-gati-pradā",
+      0
+     ]
+    ],
+    [
+     [
+      202,
+      "सर्वेश्वरी",
+      "sarveśvarī",
+      0
+     ],
+     [
+      203,
+      "सर्व-मयी",
+      "sarva-mayī",
+      0
+     ],
+     [
+      204,
+      "सर्व-मन्त्र-स्वरूपिणी",
+      "sarva-mantra-svarūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Consists of all powers; The source of all that is auspicious; Bestows the true goal",
@@ -887,6 +2839,62 @@ const LALITHA_DATA = {
     "सर्वयन्त्रात्मिका सर्वतन्त्ररूपा मनोन्मनी",
     "माहेश्वरी महादेवी महालक्ष्मीर्मृडप्रिया"
    ],
+   "read_dev": [
+    "सर्वयन्त्रात्मिका सर्वतन्त्ररूपा मनोन्मनी",
+    "माहेश्वरी महादेवी महालक्ष्मीर् मृडप्रिया"
+   ],
+   "read_iast": [
+    "sarvayantrātmikā sarvatantrarūpā manonmanī",
+    "māheśvarī mahādevī mahālakṣmīr mṛḍapriyā"
+   ],
+   "learn": [
+    [
+     [
+      205,
+      "सर्व-यन्त्रात्मिका",
+      "sarva-yantrātmikā",
+      0
+     ],
+     [
+      206,
+      "सर्व-तन्त्र-रूपा",
+      "sarva-tantra-rūpā",
+      0
+     ],
+     [
+      207,
+      "मनोन्मनी",
+      "manonmanī",
+      0
+     ]
+    ],
+    [
+     [
+      208,
+      "माहेश्वरी",
+      "māheśvarī",
+      0
+     ],
+     [
+      209,
+      "महा-देवी",
+      "mahā-devī",
+      0
+     ],
+     [
+      210,
+      "महा-लक्ष्मीः",
+      "mahā-lakṣmīḥ",
+      1
+     ],
+     [
+      211,
+      "मृड-प्रिया",
+      "mṛḍa-priyā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose very nature is all the yantras; Whose form is all the Tantras; Manonmanī, the state in which the mind transcends itself",
     "The consort of Maheśvara; The great Goddess; The great goddess Lakṣmī; The beloved of Mṛḍa (Śiva)"
@@ -902,6 +2910,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "महारूपा महापूज्या महापातकनाशिनी",
     "महामाया महासत्त्वा महाशक्तिर्महारतिः"
+   ],
+   "read_dev": [
+    "महारूपा महापूज्या महापातकनाशिनी",
+    "महामाया महासत्त्वा महाशक्तिर् महारतिः"
+   ],
+   "read_iast": [
+    "mahārūpā mahāpūjyā mahāpātakanāśinī",
+    "mahāmāyā mahāsattvā mahāśaktir mahāratiḥ"
+   ],
+   "learn": [
+    [
+     [
+      212,
+      "महा-रूपा",
+      "mahā-rūpā",
+      0
+     ],
+     [
+      213,
+      "महा-पूज्या",
+      "mahā-pūjyā",
+      0
+     ],
+     [
+      214,
+      "महा-पातक-नाशिनी",
+      "mahā-pātaka-nāśinī",
+      0
+     ]
+    ],
+    [
+     [
+      215,
+      "महा-माया",
+      "mahā-māyā",
+      0
+     ],
+     [
+      216,
+      "महा-सत्त्वा",
+      "mahā-sattvā",
+      0
+     ],
+     [
+      217,
+      "महा-शक्तिः",
+      "mahā-śaktiḥ",
+      1
+     ],
+     [
+      218,
+      "महा-रतिः",
+      "mahā-ratiḥ",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has a great form; The greatest object of worship; Destroys even the greatest of sins",
@@ -919,6 +2983,62 @@ const LALITHA_DATA = {
     "महाभोगा महैश्वर्या महावीर्या महाबला",
     "महाबुद्धिर्महासिद्धिर्महायोगेश्वरेश्वरी"
    ],
+   "read_dev": [
+    "महाभोगा महैश्वर्या महावीर्या महाबला",
+    "महाबुद्धिर् महासिद्धिर् महायोगेश्वरेश्वरी"
+   ],
+   "read_iast": [
+    "mahābhogā mahaiśvaryā mahāvīryā mahābalā",
+    "mahābuddhir mahāsiddhir mahāyogeśvareśvarī"
+   ],
+   "learn": [
+    [
+     [
+      219,
+      "महा-भोगा",
+      "mahā-bhogā",
+      0
+     ],
+     [
+      220,
+      "महैश्वर्या",
+      "mahaiśvaryā",
+      0
+     ],
+     [
+      221,
+      "महा-वीर्या",
+      "mahā-vīryā",
+      0
+     ],
+     [
+      222,
+      "महा-बला",
+      "mahā-balā",
+      0
+     ]
+    ],
+    [
+     [
+      223,
+      "महा-बुद्धिः",
+      "mahā-buddhiḥ",
+      1
+     ],
+     [
+      224,
+      "महा-सिद्धिः",
+      "mahā-siddhiḥ",
+      1
+     ],
+     [
+      225,
+      "महा-योगेश्वरेश्वरी",
+      "mahā-yogeśvareśvarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Has immense wealth; Has supreme sovereignty; Supreme in valor; Supreme in might",
     "Supreme in intelligence; Endowed with the highest attainments; The sovereign of the great lords of yoga"
@@ -934,6 +3054,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "महातन्त्रा महामन्त्रा महायन्त्रा महासना",
     "महायागक्रमाराध्या महाभैरवपूजिता"
+   ],
+   "read_dev": [
+    "महातन्त्रा महामन्त्रा महायन्त्रा महासना",
+    "महायागक्रमाराध्या महाभैरवपूजिता"
+   ],
+   "read_iast": [
+    "mahātantrā mahāmantrā mahāyantrā mahāsanā",
+    "mahāyāgakramārādhyā mahābhairavapūjitā"
+   ],
+   "learn": [
+    [
+     [
+      226,
+      "महा-तन्त्रा",
+      "mahā-tantrā",
+      0
+     ],
+     [
+      227,
+      "महा-मन्त्रा",
+      "mahā-mantrā",
+      0
+     ],
+     [
+      228,
+      "महा-यन्त्रा",
+      "mahā-yantrā",
+      0
+     ],
+     [
+      229,
+      "महासना",
+      "mahāsanā",
+      0
+     ]
+    ],
+    [
+     [
+      230,
+      "महा-याग-क्रमाराध्या",
+      "mahā-yāga-kramārādhyā",
+      0
+     ],
+     [
+      231,
+      "महा-भैरव-पूजिता",
+      "mahā-bhairava-pūjitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The great Tantra; The greatest mantra; In the form of the great yantras; Whose seat is great",
@@ -951,6 +3121,38 @@ const LALITHA_DATA = {
     "महेश्वरमहाकल्पमहाताण्डवसाक्षिणी",
     "महाकामेशमहिषी महात्रिपुरसुन्दरी"
    ],
+   "read_dev": [
+    "महेश्वरमहाकल्पमहाताण्डवसाक्षिणी",
+    "महाकामेशमहिषी महात्रिपुरसुन्दरी"
+   ],
+   "read_iast": [
+    "maheśvaramahākalpamahātāṇḍavasākṣiṇī",
+    "mahākāmeśamahiṣī mahātripurasundarī"
+   ],
+   "learn": [
+    [
+     [
+      232,
+      "महेश्वर-महा-कल्प-महा-ताण्डव-साक्षिणी",
+      "maheśvara-mahā-kalpa-mahā-tāṇḍava-sākṣiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      233,
+      "महा-कामेश-महिषी",
+      "mahā-kāmeśa-mahiṣī",
+      0
+     ],
+     [
+      234,
+      "महा-त्रिपुर-सुन्दरी",
+      "mahā-tripura-sundarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The witness of the great dance of Maheśvara (Śiva) at the end of the great cycle of creation",
     "The great queen of Mahākāmeśvara (Śiva); The great Tripurasundarī, the beautiful one of the three cities"
@@ -966,6 +3168,38 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चतुःषष्ट्युपचाराढ्या चतुःषष्टिकलामयी",
     "महाचतुःषष्टिकोटियोगिनीगणसेविता"
+   ],
+   "read_dev": [
+    "चतुःषष्ट्युपचाराढ्या चतुःषष्टिकलामयी",
+    "महाचतुःषष्टिकोटियोगिनीगणसेविता"
+   ],
+   "read_iast": [
+    "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī",
+    "mahācatuḥṣaṣṭikoṭiyoginīgaṇasevitā"
+   ],
+   "learn": [
+    [
+     [
+      235,
+      "चतुः-षष्ट्य्-उपचाराढ्या",
+      "catuḥ-ṣaṣṭy-upacārāḍhyā",
+      0
+     ],
+     [
+      236,
+      "चतुः-षष्टि-कला-मयी",
+      "catuḥ-ṣaṣṭi-kalā-mayī",
+      0
+     ]
+    ],
+    [
+     [
+      237,
+      "महा-चतुः-षष्टि-कोटि-योगिनी-गण-सेविता",
+      "mahā-catuḥ-ṣaṣṭi-koṭi-yoginī-gaṇa-sevitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Honored with the sixty-four services of worship; Embodies the sixty-four fine arts",
@@ -983,6 +3217,56 @@ const LALITHA_DATA = {
     "मनुविद्या चन्द्रविद्या चन्द्रमण्डलमध्यगा",
     "चारुरूपा चारुहासा चारुचन्द्रकलाधरा"
    ],
+   "read_dev": [
+    "मनुविद्या चन्द्रविद्या चन्द्रमण्डलमध्यगा",
+    "चारुरूपा चारुहासा चारुचन्द्रकलाधरा"
+   ],
+   "read_iast": [
+    "manuvidyā candravidyā candramaṇḍalamadhyagā",
+    "cārurūpā cāruhāsā cārucandrakalādharā"
+   ],
+   "learn": [
+    [
+     [
+      238,
+      "मनु-विद्या",
+      "manu-vidyā",
+      0
+     ],
+     [
+      239,
+      "चन्द्र-विद्या",
+      "candra-vidyā",
+      0
+     ],
+     [
+      240,
+      "चन्द्र-मण्डल-मध्यगा",
+      "candra-maṇḍala-madhyagā",
+      0
+     ]
+    ],
+    [
+     [
+      241,
+      "चारु-रूपा",
+      "cāru-rūpā",
+      0
+     ],
+     [
+      242,
+      "चारु-हासा",
+      "cāru-hāsā",
+      0
+     ],
+     [
+      243,
+      "चारु-चन्द्र-कला-धरा",
+      "cāru-candra-kalā-dharā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The Manuvidyā, the form of Her mantra worshipped by Manu; The Candravidyā, the form of Her mantra worshipped by the Moon; Resides in the center of the moon's disc",
     "Whose form is beautiful; Has a beautiful smile; Wears a lovely crescent moon"
@@ -998,6 +3282,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चराचरजगन्नाथा चक्रराजनिकेतना",
     "पार्वती पद्मनयना पद्मरागसमप्रभा"
+   ],
+   "read_dev": [
+    "चराचरजगन्नाथा चक्रराजनिकेतना",
+    "पार्वती पद्मनयना पद्मरागसमप्रभा"
+   ],
+   "read_iast": [
+    "carācarajagannāthā cakrarājaniketanā",
+    "pārvatī padmanayanā padmarāgasamaprabhā"
+   ],
+   "learn": [
+    [
+     [
+      244,
+      "चराचर-जगन्-नाथा",
+      "carācara-jagan-nāthā",
+      0
+     ],
+     [
+      245,
+      "चक्र-राज-निकेतना",
+      "cakra-rāja-niketanā",
+      0
+     ]
+    ],
+    [
+     [
+      246,
+      "पार्वती",
+      "pārvatī",
+      0
+     ],
+     [
+      247,
+      "पद्म-नयना",
+      "padma-nayanā",
+      0
+     ],
+     [
+      248,
+      "पद्म-राग-सम-प्रभा",
+      "padma-rāga-sama-prabhā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The ruler of the animate and inanimate worlds; Whose abode is the king of cakras, the Śrīcakra",
@@ -1015,6 +3343,50 @@ const LALITHA_DATA = {
     "पञ्चप्रेतासनासीना पञ्चब्रह्मस्वरूपिणी",
     "चिन्मयी परमानन्दा विज्ञानघनरूपिणी"
    ],
+   "read_dev": [
+    "पञ्चप्रेतासनासीना पञ्चब्रह्मस्वरूपिणी",
+    "चिन्मयी परमानन्दा विज्ञानघनरूपिणी"
+   ],
+   "read_iast": [
+    "pañcapretāsanāsīnā pañcabrahmasvarūpiṇī",
+    "cinmayī paramānandā vijñānaghanarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      249,
+      "पञ्च-प्रेतासनासीना",
+      "pañca-pretāsanāsīnā",
+      0
+     ],
+     [
+      250,
+      "पञ्च-ब्रह्म-स्वरूपिणी",
+      "pañca-brahma-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      251,
+      "चिन्-मयी",
+      "cin-mayī",
+      0
+     ],
+     [
+      252,
+      "परमानन्दा",
+      "paramānandā",
+      0
+     ],
+     [
+      253,
+      "विज्ञान-घन-रूपिणी",
+      "vijñāna-ghana-rūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Sits on the seat formed by the five corpses; Whose own form is the five Brahmās",
     "Consciousness itself; Supreme bliss; Whose form is a solid mass of pure consciousness"
@@ -1030,6 +3402,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "ध्यानध्यातृध्येयरूपा धर्माधर्मविवर्जिता",
     "विश्वरूपा जागरिणी स्वपन्ती तैजसात्मिका"
+   ],
+   "read_dev": [
+    "ध्यानध्यातृध्येयरूपा धर्माधर्मविवर्जिता",
+    "विश्वरूपा जागरिणी स्वपन्ती तैजसात्मिका"
+   ],
+   "read_iast": [
+    "dhyānadhyātṛdhyeyarūpā dharmādharmavivarjitā",
+    "viśvarūpā jāgariṇī svapantī taijasātmikā"
+   ],
+   "learn": [
+    [
+     [
+      254,
+      "ध्यान-ध्यातृ-ध्येय-रूपा",
+      "dhyāna-dhyātṛ-dhyeya-rūpā",
+      0
+     ],
+     [
+      255,
+      "धर्माधर्म-विवर्जिता",
+      "dharmādharma-vivarjitā",
+      0
+     ]
+    ],
+    [
+     [
+      256,
+      "विश्व-रूपा",
+      "viśva-rūpā",
+      0
+     ],
+     [
+      257,
+      "जागरिणी",
+      "jāgariṇī",
+      0
+     ],
+     [
+      258,
+      "स्वपन्ती",
+      "svapantī",
+      0
+     ],
+     [
+      259,
+      "तैजसात्मिका",
+      "taijasātmikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose form is meditation, the meditator and the object of meditation; Devoid of (who transcends) both virtue and vice",
@@ -1047,6 +3469,68 @@ const LALITHA_DATA = {
     "सुप्ता प्राज्ञात्मिका तुर्या सर्वावस्थाविवर्जिता",
     "सृष्टिकर्त्री ब्रह्मरूपा गोप्त्री गोविन्दरूपिणी"
    ],
+   "read_dev": [
+    "सुप्ता प्राज्ञात्मिका तुर्या सर्वावस्थाविवर्जिता",
+    "सृष्टिकर्त्री ब्रह्मरूपा गोप्त्री गोविन्दरूपिणी"
+   ],
+   "read_iast": [
+    "suptā prājñātmikā turyā sarvāvasthāvivarjitā",
+    "sṛṣṭikartrī brahmarūpā goptrī govindarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      260,
+      "सुप्ता",
+      "suptā",
+      0
+     ],
+     [
+      261,
+      "प्राज्ञात्मिका",
+      "prājñātmikā",
+      0
+     ],
+     [
+      262,
+      "तुर्या",
+      "turyā",
+      0
+     ],
+     [
+      263,
+      "सर्वावस्था-विवर्जिता",
+      "sarvāvasthā-vivarjitā",
+      0
+     ]
+    ],
+    [
+     [
+      264,
+      "सृष्टि-कर्त्री",
+      "sṛṣṭi-kartrī",
+      0
+     ],
+     [
+      265,
+      "ब्रह्म-रूपा",
+      "brahma-rūpā",
+      0
+     ],
+     [
+      266,
+      "गोप्त्री",
+      "goptrī",
+      0
+     ],
+     [
+      267,
+      "गोविन्द-रूपिणी",
+      "govinda-rūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "In the deep-sleep state or assumes the form of the jīva experiencing deep sleep; Whose self is Prājña, the self in deep sleep; The Fourth (turya), the state beyond waking, dream and deep sleep; Transcends all states",
     "The creator; Has the form of Brahmā, the creator; Protects; Has assumed the form of Govinda (Viṣṇu) for the preservation of the universe"
@@ -1062,6 +3546,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "संहारिणी रुद्ररूपा तिरोधानकरीश्वरी",
     "सदाशिवाऽनुग्रहदा पञ्चकृत्यपरायणा"
+   ],
+   "read_dev": [
+    "संहारिणी रुद्ररूपा तिरोधानकरीश्वरी",
+    "सदाशिवा ऽनुग्रहदा पञ्चकृत्यपरायणा"
+   ],
+   "read_iast": [
+    "saṃhāriṇī rudrarūpā tirodhānakarīśvarī",
+    "sadāśivā 'nugrahadā pañcakṛtyaparāyaṇā"
+   ],
+   "learn": [
+    [
+     [
+      268,
+      "संहारिणी",
+      "saṃhāriṇī",
+      0
+     ],
+     [
+      269,
+      "रुद्र-रूपा",
+      "rudra-rūpā",
+      0
+     ],
+     [
+      270,
+      "तिरोधान-करी",
+      "tirodhāna-karī",
+      1
+     ],
+     [
+      271,
+      "ईश्वरी",
+      "īśvarī",
+      1
+     ]
+    ],
+    [
+     [
+      272,
+      "सदा-शिवा",
+      "sadā-śivā",
+      0
+     ],
+     [
+      273,
+      "अनुग्रह-दा",
+      "anugraha-dā",
+      1
+     ],
+     [
+      274,
+      "पञ्च-कृत्य-परायणा",
+      "pañca-kṛtya-parāyaṇā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The destroyer of the universe; Has assumed the form of Rudra (Śiva) for the dissolution of the universe; Brings about concealment (tirodhāna); The Sovereign, Īśvarī",
@@ -1079,6 +3619,56 @@ const LALITHA_DATA = {
     "भानुमण्डलमध्यस्था भैरवी भगमालिनी",
     "पद्मासना भगवती पद्मनाभसहोदरी"
    ],
+   "read_dev": [
+    "भानुमण्डलमध्यस्था भैरवी भगमालिनी",
+    "पद्मासना भगवती पद्मनाभसहोदरी"
+   ],
+   "read_iast": [
+    "bhānumaṇḍalamadhyasthā bhairavī bhagamālinī",
+    "padmāsanā bhagavatī padmanābhasahodarī"
+   ],
+   "learn": [
+    [
+     [
+      275,
+      "भानु-मण्डल-मध्य-स्था",
+      "bhānu-maṇḍala-madhya-sthā",
+      0
+     ],
+     [
+      276,
+      "भैरवी",
+      "bhairavī",
+      0
+     ],
+     [
+      277,
+      "भग-मालिनी",
+      "bhaga-mālinī",
+      0
+     ]
+    ],
+    [
+     [
+      278,
+      "पद्मासना",
+      "padmāsanā",
+      0
+     ],
+     [
+      279,
+      "भगवती",
+      "bhagavatī",
+      0
+     ],
+     [
+      280,
+      "पद्म-नाभ-सहोदरी",
+      "padma-nābha-sahodarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Abides at the center of the sun's disc; The wife of Bhairava (Śiva); Wears a garland made of the six excellences (of auspiciousness, supremacy, fame, valor, detachment and knowledge)",
     "Seated in the lotus flower; The Blessed One, possessed of all six excellences; The sister of Padmanābha (Viṣṇu)"
@@ -1094,6 +3684,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "उन्मेषनिमिषोत्पन्नविपन्नभुवनावली",
     "सहस्रशीर्षवदना सहस्राक्षी सहस्रपात्"
+   ],
+   "read_dev": [
+    "उन्मेषनिमिषोत्पन्नविपन्नभुवनावली",
+    "सहस्रशीर्षवदना सहस्राक्षी सहस्रपात्"
+   ],
+   "read_iast": [
+    "unmeṣanimiṣotpannavipannabhuvanāvalī",
+    "sahasraśīrṣavadanā sahasrākṣī sahasrapāt"
+   ],
+   "learn": [
+    [
+     [
+      281,
+      "उन्मेष-निमिषोत्पन्न-विपन्न-भुवनावली",
+      "unmeṣa-nimiṣotpanna-vipanna-bhuvanāvalī",
+      0
+     ]
+    ],
+    [
+     [
+      282,
+      "सहस्र-शीर्ष-वदना",
+      "sahasra-śīrṣa-vadanā",
+      0
+     ],
+     [
+      283,
+      "सहस्राक्षी",
+      "sahasrākṣī",
+      0
+     ],
+     [
+      284,
+      "सहस्र-पात्",
+      "sahasra-pāt",
+      0
+     ]
+    ]
    ],
    "translations": [
     "She at the opening and closing of whose eyes whole rows of worlds arise and perish",
@@ -1111,6 +3739,44 @@ const LALITHA_DATA = {
     "आब्रह्मकीटजननी वर्णाश्रमविधायिनी",
     "निजाज्ञारूपनिगमा पुण्यापुण्यफलप्रदा"
    ],
+   "read_dev": [
+    "आब्रह्मकीटजननी वर्णाश्रमविधायिनी",
+    "निजाज्ञारूपनिगमा पुण्यापुण्यफलप्रदा"
+   ],
+   "read_iast": [
+    "ābrahmakīṭajananī varṇāśramavidhāyinī",
+    "nijājñārūpanigamā puṇyāpuṇyaphalapradā"
+   ],
+   "learn": [
+    [
+     [
+      285,
+      "आब्रह्म-कीट-जननी",
+      "ābrahma-kīṭa-jananī",
+      0
+     ],
+     [
+      286,
+      "वर्णाश्रम-विधायिनी",
+      "varṇāśrama-vidhāyinī",
+      0
+     ]
+    ],
+    [
+     [
+      287,
+      "निजाज्ञा-रूप-निगमा",
+      "nijājñā-rūpa-nigamā",
+      0
+     ],
+     [
+      288,
+      "पुण्यापुण्य-फल-प्रदा",
+      "puṇyāpuṇya-phala-pradā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The mother of everything from Brahmā to the lowliest insect; Ordains the order of the classes and the stages of life",
     "Whose own commands are the Vedas; Dispenses the fruits of both good and evil actions"
@@ -1126,6 +3792,32 @@ const LALITHA_DATA = {
    "halves_dev": [
     "श्रुतिसीमन्तसिन्दूरीकृतपादाब्जधूलिका",
     "सकलागमसन्दोहशुक्तिसम्पुटमौक्तिका"
+   ],
+   "read_dev": [
+    "श्रुतिसीमन्तसिन्दूरीकृतपादाब्जधूलिका",
+    "सकलागमसन्दोहशुक्तिसम्पुटमौक्तिका"
+   ],
+   "read_iast": [
+    "śrutisīmantasindūrīkṛtapādābjadhūlikā",
+    "sakalāgamasandohaśuktisampuṭamauktikā"
+   ],
+   "learn": [
+    [
+     [
+      289,
+      "श्रुति-सीमन्त-सिन्दूरी-कृत-पादाब्ज-धूलिका",
+      "śruti-sīmanta-sindūrī-kṛta-pādābja-dhūlikā",
+      0
+     ]
+    ],
+    [
+     [
+      290,
+      "सकलागम-सन्दोह-शुक्ति-सम्पुट-मौक्तिका",
+      "sakalāgama-sandoha-śukti-sampuṭa-mauktikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "She the dust of whose lotus feet becomes the vermilion in the hair-parting of the Vedas",
@@ -1143,6 +3835,62 @@ const LALITHA_DATA = {
     "पुरुषार्थप्रदा पूर्णा भोगिनी भुवनेश्वरी",
     "अम्बिकाऽनादिनिधना हरिब्रह्मेन्द्रसेविता"
    ],
+   "read_dev": [
+    "पुरुषार्थप्रदा पूर्णा भोगिनी भुवनेश्वरी",
+    "अम्बिका ऽनादिनिधना हरिब्रह्मेन्द्रसेविता"
+   ],
+   "read_iast": [
+    "puruṣārthapradā pūrṇā bhoginī bhuvaneśvarī",
+    "ambikā 'nādinidhanā haribrahmendrasevitā"
+   ],
+   "learn": [
+    [
+     [
+      291,
+      "पुरुषार्थ-प्रदा",
+      "puruṣārtha-pradā",
+      0
+     ],
+     [
+      292,
+      "पूर्णा",
+      "pūrṇā",
+      0
+     ],
+     [
+      293,
+      "भोगिनी",
+      "bhoginī",
+      0
+     ],
+     [
+      294,
+      "भुवनेश्वरी",
+      "bhuvaneśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      295,
+      "अम्बिका",
+      "ambikā",
+      0
+     ],
+     [
+      296,
+      "अनादि-निधना",
+      "anādi-nidhanā",
+      1
+     ],
+     [
+      297,
+      "हरि-ब्रह्मेन्द्र-सेविता",
+      "hari-brahmendra-sevitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Grants the (four-fold) objects of human life; Full and complete; The enjoyer; The ruler of the universe",
     "The Mother, Ambikā; Has neither beginning nor end; Attended by Brahmā, Viṣṇu and Indra"
@@ -1158,6 +3906,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "नारायणी नादरूपा नामरूपविवर्जिता",
     "ह्रीङ्कारी ह्रीमती हृद्या हेयोपादेयवर्जिता"
+   ],
+   "read_dev": [
+    "नारायणी नादरूपा नामरूपविवर्जिता",
+    "ह्रीङ्कारी ह्रीमती हृद्या हेयोपादेयवर्जिता"
+   ],
+   "read_iast": [
+    "nārāyaṇī nādarūpā nāmarūpavivarjitā",
+    "hrīṅkārī hrīmatī hṛdyā heyopādeyavarjitā"
+   ],
+   "learn": [
+    [
+     [
+      298,
+      "नारायणी",
+      "nārāyaṇī",
+      0
+     ],
+     [
+      299,
+      "नाद-रूपा",
+      "nāda-rūpā",
+      0
+     ],
+     [
+      300,
+      "नाम-रूप-विवर्जिता",
+      "nāma-rūpa-vivarjitā",
+      0
+     ]
+    ],
+    [
+     [
+      301,
+      "ह्रीङ्-कारी",
+      "hrīṅ-kārī",
+      0
+     ],
+     [
+      302,
+      "ह्री-मती",
+      "hrī-matī",
+      0
+     ],
+     [
+      303,
+      "हृद्या",
+      "hṛdyā",
+      0
+     ],
+     [
+      304,
+      "हेयोपादेय-वर्जिता",
+      "heyopādeya-varjitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The feminine counterpart of Nārāyaṇa; In the form of sound; Has no name or form",
@@ -1175,6 +3979,68 @@ const LALITHA_DATA = {
     "राजराजार्चिता राज्ञी रम्या राजीवलोचना",
     "रञ्जनी रमणी रस्या रणत्किङ्किणिमेखला"
    ],
+   "read_dev": [
+    "राजराजार्चिता राज्ञी रम्या राजीवलोचना",
+    "रञ्जनी रमणी रस्या रणत्किङ्किणिमेखला"
+   ],
+   "read_iast": [
+    "rājarājārcitā rājñī ramyā rājīvalocanā",
+    "rañjanī ramaṇī rasyā raṇatkiṅkiṇimekhalā"
+   ],
+   "learn": [
+    [
+     [
+      305,
+      "राज-राजार्चिता",
+      "rāja-rājārcitā",
+      0
+     ],
+     [
+      306,
+      "राज्ञी",
+      "rājñī",
+      0
+     ],
+     [
+      307,
+      "रम्या",
+      "ramyā",
+      0
+     ],
+     [
+      308,
+      "राजीव-लोचना",
+      "rājīva-locanā",
+      0
+     ]
+    ],
+    [
+     [
+      309,
+      "रञ्जनी",
+      "rañjanī",
+      0
+     ],
+     [
+      310,
+      "रमणी",
+      "ramaṇī",
+      0
+     ],
+     [
+      311,
+      "रस्या",
+      "rasyā",
+      0
+     ],
+     [
+      312,
+      "रणत्-किङ्किणि-मेखला",
+      "raṇat-kiṅkiṇi-mekhalā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Worshipped by the King of kings; The Queen; Lovely and delightful; Whose eyes are like lotuses",
     "Delights the mind; Gives joy; To be relished, the essence of all delight; Wears a girdle of tinkling bells"
@@ -1190,6 +4056,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "रमा राकेन्दुवदना रतिरूपा रतिप्रिया",
     "रक्षाकरी राक्षसघ्नी रामा रमणलम्पटा"
+   ],
+   "read_dev": [
+    "रमा राकेन्दुवदना रतिरूपा रतिप्रिया",
+    "रक्षाकरी राक्षसघ्नी रामा रमणलम्पटा"
+   ],
+   "read_iast": [
+    "ramā rākenduvadanā ratirūpā ratipriyā",
+    "rakṣākarī rākṣasaghnī rāmā ramaṇalampaṭā"
+   ],
+   "learn": [
+    [
+     [
+      313,
+      "रमा",
+      "ramā",
+      0
+     ],
+     [
+      314,
+      "राकेन्दु-वदना",
+      "rākendu-vadanā",
+      0
+     ],
+     [
+      315,
+      "रति-रूपा",
+      "rati-rūpā",
+      0
+     ],
+     [
+      316,
+      "रति-प्रिया",
+      "rati-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      317,
+      "रक्षा-करी",
+      "rakṣā-karī",
+      0
+     ],
+     [
+      318,
+      "राक्षस-घ्नी",
+      "rākṣasa-ghnī",
+      0
+     ],
+     [
+      319,
+      "रामा",
+      "rāmā",
+      0
+     ],
+     [
+      320,
+      "रमण-लम्पटा",
+      "ramaṇa-lampaṭā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Ramā (Lakṣmī); Whose face is like the full moon; In the form of Rati, the wife of Kāma; Fond of Rati",
@@ -1207,6 +4135,56 @@ const LALITHA_DATA = {
     "काम्या कामकलारूपा कदम्बकुसुमप्रिया",
     "कल्याणी जगतीकन्दा करुणारससागरा"
    ],
+   "read_dev": [
+    "काम्या कामकलारूपा कदम्बकुसुमप्रिया",
+    "कल्याणी जगतीकन्दा करुणारससागरा"
+   ],
+   "read_iast": [
+    "kāmyā kāmakalārūpā kadambakusumapriyā",
+    "kalyāṇī jagatīkandā karuṇārasasāgarā"
+   ],
+   "learn": [
+    [
+     [
+      321,
+      "काम्या",
+      "kāmyā",
+      0
+     ],
+     [
+      322,
+      "काम-कला-रूपा",
+      "kāma-kalā-rūpā",
+      0
+     ],
+     [
+      323,
+      "कदम्ब-कुसुम-प्रिया",
+      "kadamba-kusuma-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      324,
+      "कल्याणी",
+      "kalyāṇī",
+      0
+     ],
+     [
+      325,
+      "जगती-कन्दा",
+      "jagatī-kandā",
+      0
+     ],
+     [
+      326,
+      "करुणा-रस-सागरा",
+      "karuṇā-rasa-sāgarā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "To be desired; In the form of Kāmakalā; Fond of kadamba flowers",
     "Auspicious; The root of the whole world; An ocean of the nectar of compassion"
@@ -1222,6 +4200,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कलावती कलालापा कान्ता कादम्बरीप्रिया",
     "वरदा वामनयना वारुणीमदविह्वला"
+   ],
+   "read_dev": [
+    "कलावती कलालापा कान्ता कादम्बरीप्रिया",
+    "वरदा वामनयना वारुणीमदविह्वला"
+   ],
+   "read_iast": [
+    "kalāvatī kalālāpā kāntā kādambarīpriyā",
+    "varadā vāmanayanā vāruṇīmadavihvalā"
+   ],
+   "learn": [
+    [
+     [
+      327,
+      "कलावती",
+      "kalāvatī",
+      0
+     ],
+     [
+      328,
+      "कलालापा",
+      "kalālāpā",
+      0
+     ],
+     [
+      329,
+      "कान्ता",
+      "kāntā",
+      0
+     ],
+     [
+      330,
+      "कादम्बरी-प्रिया",
+      "kādambarī-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      331,
+      "वर-दा",
+      "vara-dā",
+      0
+     ],
+     [
+      332,
+      "वाम-नयना",
+      "vāma-nayanā",
+      0
+     ],
+     [
+      333,
+      "वारुणी-मद-विह्वला",
+      "vāruṇī-mada-vihvalā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Possesses all the arts; Speaks musically and sweetly; Beautiful; Fond of kādambarī, the kadamba-flower wine",
@@ -1239,6 +4273,62 @@ const LALITHA_DATA = {
     "विश्वाधिका वेदवेद्या विन्ध्याचलनिवासिनी",
     "विधात्री वेदजननी विष्णुमाया विलासिनी"
    ],
+   "read_dev": [
+    "विश्वाधिका वेदवेद्या विन्ध्याचलनिवासिनी",
+    "विधात्री वेदजननी विष्णुमाया विलासिनी"
+   ],
+   "read_iast": [
+    "viśvādhikā vedavedyā vindhyācalanivāsinī",
+    "vidhātrī vedajananī viṣṇumāyā vilāsinī"
+   ],
+   "learn": [
+    [
+     [
+      334,
+      "विश्वाधिका",
+      "viśvādhikā",
+      0
+     ],
+     [
+      335,
+      "वेद-वेद्या",
+      "veda-vedyā",
+      0
+     ],
+     [
+      336,
+      "विन्ध्याचल-निवासिनी",
+      "vindhyācala-nivāsinī",
+      0
+     ]
+    ],
+    [
+     [
+      337,
+      "विधात्री",
+      "vidhātrī",
+      0
+     ],
+     [
+      338,
+      "वेद-जननी",
+      "veda-jananī",
+      0
+     ],
+     [
+      339,
+      "विष्णु-माया",
+      "viṣṇu-māyā",
+      0
+     ],
+     [
+      340,
+      "विलासिनी",
+      "vilāsinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Transcends the universe; To be known through the Vedas; Resides in the Vindhya mountains",
     "Creates and sustains this universe; The mother of the Vedas; The illusory power (māyā) of Viṣṇu; Playful"
@@ -1254,6 +4344,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "क्षेत्रस्वरूपा क्षेत्रेशी क्षेत्रक्षेत्रज्ञपालिनी",
     "क्षयवृद्धिविनिर्मुक्ता क्षेत्रपालसमर्चिता"
+   ],
+   "read_dev": [
+    "क्षेत्रस्वरूपा क्षेत्रेशी क्षेत्रक्षेत्रज्ञपालिनी",
+    "क्षयवृद्धिविनिर्मुक्ता क्षेत्रपालसमर्चिता"
+   ],
+   "read_iast": [
+    "kṣetrasvarūpā kṣetreśī kṣetrakṣetrajñapālinī",
+    "kṣayavṛddhivinirmuktā kṣetrapālasamarcitā"
+   ],
+   "learn": [
+    [
+     [
+      341,
+      "क्षेत्र-स्वरूपा",
+      "kṣetra-svarūpā",
+      0
+     ],
+     [
+      342,
+      "क्षेत्रेशी",
+      "kṣetreśī",
+      0
+     ],
+     [
+      343,
+      "क्षेत्र-क्षेत्रज्ञ-पालिनी",
+      "kṣetra-kṣetrajña-pālinī",
+      0
+     ]
+    ],
+    [
+     [
+      344,
+      "क्षय-वृद्धि-विनिर्मुक्ता",
+      "kṣaya-vṛddhi-vinirmuktā",
+      0
+     ],
+     [
+      345,
+      "क्षेत्र-पाल-समर्चिता",
+      "kṣetra-pāla-samarcitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose very form is the field (kṣetra), the body and all matter; The Sovereign of the field (kṣetra); Protects both the field and the knower of the field",
@@ -1271,6 +4405,62 @@ const LALITHA_DATA = {
     "विजया विमला वन्द्या वन्दारुजनवत्सला",
     "वाग्वादिनी वामकेशी वह्निमण्डलवासिनी"
    ],
+   "read_dev": [
+    "विजया विमला वन्द्या वन्दारुजनवत्सला",
+    "वाग्वादिनी वामकेशी वह्निमण्डलवासिनी"
+   ],
+   "read_iast": [
+    "vijayā vimalā vandyā vandārujanavatsalā",
+    "vāgvādinī vāmakeśī vahnimaṇḍalavāsinī"
+   ],
+   "learn": [
+    [
+     [
+      346,
+      "विजया",
+      "vijayā",
+      0
+     ],
+     [
+      347,
+      "विमला",
+      "vimalā",
+      0
+     ],
+     [
+      348,
+      "वन्द्या",
+      "vandyā",
+      0
+     ],
+     [
+      349,
+      "वन्दारु-जन-वत्सला",
+      "vandāru-jana-vatsalā",
+      0
+     ]
+    ],
+    [
+     [
+      350,
+      "वाग्-वादिनी",
+      "vāg-vādinī",
+      0
+     ],
+     [
+      351,
+      "वाम-केशी",
+      "vāma-keśī",
+      0
+     ],
+     [
+      352,
+      "वह्नि-मण्डल-वासिनी",
+      "vahni-maṇḍala-vāsinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Ever-victorious; Without a trace of impurity; Adorable, worthy of worship; Full of motherly love for those who worship Her",
     "Gives voice to all speech; Has beautiful hair; Resides in the disc of fire"
@@ -1286,6 +4476,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "भक्तिमत्कल्पलतिका पशुपाशविमोचिनी",
     "संहृताशेषपाषण्डा सदाचारप्रवर्तिका"
+   ],
+   "read_dev": [
+    "भक्तिमत्कल्पलतिका पशुपाशविमोचिनी",
+    "संहृताशेषपाषण्डा सदाचारप्रवर्तिका"
+   ],
+   "read_iast": [
+    "bhaktimatkalpalatikā paśupāśavimocinī",
+    "saṃhṛtāśeṣapāṣaṇḍā sadācārapravartikā"
+   ],
+   "learn": [
+    [
+     [
+      353,
+      "भक्तिमत्-कल्प-लतिका",
+      "bhaktimat-kalpa-latikā",
+      0
+     ],
+     [
+      354,
+      "पशु-पाश-विमोचिनी",
+      "paśu-pāśa-vimocinī",
+      0
+     ]
+    ],
+    [
+     [
+      355,
+      "संहृताशेष-पाषण्डा",
+      "saṃhṛtāśeṣa-pāṣaṇḍā",
+      0
+     ],
+     [
+      356,
+      "सद्-आचार-प्रवर्तिका",
+      "sad-ācāra-pravartikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The wish-granting creeper for Her devotees; Frees bound souls (paśu) from their bonds (pāśa)",
@@ -1303,6 +4531,50 @@ const LALITHA_DATA = {
     "तापत्रयाग्निसन्तप्तसमाह्लादनचन्द्रिका",
     "तरुणी तापसाराध्या तनुमध्या तमोऽपहा"
    ],
+   "read_dev": [
+    "तापत्रयाग्निसन्तप्तसमाह्लादनचन्द्रिका",
+    "तरुणी तापसाराध्या तनुमध्या तमोऽपहा"
+   ],
+   "read_iast": [
+    "tāpatrayāgnisantaptasamāhlādanacandrikā",
+    "taruṇī tāpasārādhyā tanumadhyā tamo'pahā"
+   ],
+   "learn": [
+    [
+     [
+      357,
+      "ताप-त्रयाग्नि-सन्तप्त-समाह्लादन-चन्द्रिका",
+      "tāpa-trayāgni-santapta-samāhlādana-candrikā",
+      0
+     ]
+    ],
+    [
+     [
+      358,
+      "तरुणी",
+      "taruṇī",
+      0
+     ],
+     [
+      359,
+      "तापसाराध्या",
+      "tāpasārādhyā",
+      0
+     ],
+     [
+      360,
+      "तनु-मध्या",
+      "tanu-madhyā",
+      0
+     ],
+     [
+      361,
+      "तमोऽपहा",
+      "tamo'pahā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The moonlight that gives joy to those burned by the triple fire of misery",
     "Ever young; Worshipped by ascetics; Slender-waisted; Dispels darkness, the ignorance of tamas"
@@ -1318,6 +4590,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चितिस्तत्पदलक्ष्यार्था चिदेकरसरूपिणी",
     "स्वात्मानन्दलवीभूतब्रह्माद्यानन्दसन्ततिः"
+   ],
+   "read_dev": [
+    "चितिस् तत्पदलक्ष्यार्था चिदेकरसरूपिणी",
+    "स्वात्मानन्दलवीभूतब्रह्माद्यानन्दसन्ततिः"
+   ],
+   "read_iast": [
+    "citis tatpadalakṣyārthā cidekarasarūpiṇī",
+    "svātmānandalavībhūtabrahmādyānandasantatiḥ"
+   ],
+   "learn": [
+    [
+     [
+      362,
+      "चितिः",
+      "citiḥ",
+      1
+     ],
+     [
+      363,
+      "तत्-पद-लक्ष्यार्था",
+      "tat-pada-lakṣyārthā",
+      0
+     ],
+     [
+      364,
+      "चिद्-एक-रस-रूपिणी",
+      "cid-eka-rasa-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      365,
+      "स्वात्मानन्द-लवी-भूत-ब्रह्माद्यानन्द-सन्ततिः",
+      "svātmānanda-lavī-bhūta-brahmādyānanda-santatiḥ",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Consciousness itself; The implied meaning (lakṣyārtha) of the word 'tat' (That); Whose nature is consciousness alone, one undivided essence",
@@ -1335,6 +4645,62 @@ const LALITHA_DATA = {
     "परा प्रत्यक्चितीरूपा पश्यन्ती परदेवता",
     "मध्यमा वैखरीरूपा भक्तमानसहंसिका"
    ],
+   "read_dev": [
+    "परा प्रत्यक्चितीरूपा पश्यन्ती परदेवता",
+    "मध्यमा वैखरीरूपा भक्तमानसहंसिका"
+   ],
+   "read_iast": [
+    "parā pratyakcitīrūpā paśyantī paradevatā",
+    "madhyamā vaikharīrūpā bhaktamānasahaṃsikā"
+   ],
+   "learn": [
+    [
+     [
+      366,
+      "परा",
+      "parā",
+      0
+     ],
+     [
+      367,
+      "प्रत्यक्-चिती-रूपा",
+      "pratyak-citī-rūpā",
+      0
+     ],
+     [
+      368,
+      "पश्यन्ती",
+      "paśyantī",
+      0
+     ],
+     [
+      369,
+      "पर-देवता",
+      "para-devatā",
+      0
+     ]
+    ],
+    [
+     [
+      370,
+      "मध्यमा",
+      "madhyamā",
+      0
+     ],
+     [
+      371,
+      "वैखरी-रूपा",
+      "vaikharī-rūpā",
+      0
+     ],
+     [
+      372,
+      "भक्त-मानस-हंसिका",
+      "bhakta-mānasa-haṃsikā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Parā, the Supreme, the highest level of speech; Whose form is inward-turned consciousness; Paśyantī, the second level of speech; The supreme Deity",
     "Madhyamā, the middle level of speech; In the form of Vaikharī, audible speech; The swan in the minds of Her devotees"
@@ -1350,6 +4716,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कामेश्वरप्राणनाडी कृतज्ञा कामपूजिता",
     "शृङ्गाररससम्पूर्णा जया जालन्धरस्थिता"
+   ],
+   "read_dev": [
+    "कामेश्वरप्राणनाडी कृतज्ञा कामपूजिता",
+    "शृङ्गाररससम्पूर्णा जया जालन्धरस्थिता"
+   ],
+   "read_iast": [
+    "kāmeśvaraprāṇanāḍī kṛtajñā kāmapūjitā",
+    "śṛṅgārarasasampūrṇā jayā jālandharasthitā"
+   ],
+   "learn": [
+    [
+     [
+      373,
+      "कामेश्वर-प्राण-नाडी",
+      "kāmeśvara-prāṇa-nāḍī",
+      0
+     ],
+     [
+      374,
+      "कृत-ज्ञा",
+      "kṛta-jñā",
+      0
+     ],
+     [
+      375,
+      "काम-पूजिता",
+      "kāma-pūjitā",
+      0
+     ]
+    ],
+    [
+     [
+      376,
+      "शृङ्गार-रस-सम्पूर्णा",
+      "śṛṅgāra-rasa-sampūrṇā",
+      0
+     ],
+     [
+      377,
+      "जया",
+      "jayā",
+      0
+     ],
+     [
+      378,
+      "जालन्धर-स्थिता",
+      "jālandhara-sthitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The very life-channel of Kāmeśvara, Her consort; Knows all that is done, and is grateful for it; Worshipped by Kāma",
@@ -1367,6 +4783,44 @@ const LALITHA_DATA = {
     "ओड्याणपीठनिलया बिन्दुमण्डलवासिनी",
     "रहोयागक्रमाराध्या रहस्तर्पणतर्पिता"
    ],
+   "read_dev": [
+    "ओड्याणपीठनिलया बिन्दुमण्डलवासिनी",
+    "रहोयागक्रमाराध्या रहस्तर्पणतर्पिता"
+   ],
+   "read_iast": [
+    "oḍyāṇapīṭhanilayā bindumaṇḍalavāsinī",
+    "rahoyāgakramārādhyā rahastarpaṇatarpitā"
+   ],
+   "learn": [
+    [
+     [
+      379,
+      "ओड्याण-पीठ-निलया",
+      "oḍyāṇa-pīṭha-nilayā",
+      0
+     ],
+     [
+      380,
+      "बिन्दु-मण्डल-वासिनी",
+      "bindu-maṇḍala-vāsinī",
+      0
+     ]
+    ],
+    [
+     [
+      381,
+      "रहो-याग-क्रमाराध्या",
+      "raho-yāga-kramārādhyā",
+      0
+     ],
+     [
+      382,
+      "रहस्-तर्पण-तर्पिता",
+      "rahas-tarpaṇa-tarpitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose abode is the Oḍyāṇa pīṭha; Resides in the bindu at the center of the Śrīcakra",
     "To be worshipped by the method of secret, inner worship; Gratified by secret offerings of libation"
@@ -1382,6 +4836,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सद्यःप्रसादिनी विश्वसाक्षिणी साक्षिवर्जिता",
     "षडङ्गदेवतायुक्ता षाड्गुण्यपरिपूरिता"
+   ],
+   "read_dev": [
+    "सद्यःप्रसादिनी विश्वसाक्षिणी साक्षिवर्जिता",
+    "षडङ्गदेवतायुक्ता षाड्गुण्यपरिपूरिता"
+   ],
+   "read_iast": [
+    "sadyaḥprasādinī viśvasākṣiṇī sākṣivarjitā",
+    "ṣaḍaṅgadevatāyuktā ṣāḍguṇyaparipūritā"
+   ],
+   "learn": [
+    [
+     [
+      383,
+      "सद्यः-प्रसादिनी",
+      "sadyaḥ-prasādinī",
+      0
+     ],
+     [
+      384,
+      "विश्व-साक्षिणी",
+      "viśva-sākṣiṇī",
+      0
+     ],
+     [
+      385,
+      "साक्षि-वर्जिता",
+      "sākṣi-varjitā",
+      0
+     ]
+    ],
+    [
+     [
+      386,
+      "षड्-अङ्ग-देवता-युक्ता",
+      "ṣaḍ-aṅga-devatā-yuktā",
+      0
+     ],
+     [
+      387,
+      "षाड्गुण्य-परिपूरिता",
+      "ṣāḍguṇya-paripūritā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Bestows Her grace immediately; Witness to the whole universe; Has no other witness",
@@ -1399,6 +4897,50 @@ const LALITHA_DATA = {
     "नित्यक्लिन्ना निरुपमा निर्वाणसुखदायिनी",
     "नित्याषोडशिकारूपा श्रीकण्ठार्धशरीरिणी"
    ],
+   "read_dev": [
+    "नित्यक्लिन्ना निरुपमा निर्वाणसुखदायिनी",
+    "नित्याषोडशिकारूपा श्रीकण्ठार्धशरीरिणी"
+   ],
+   "read_iast": [
+    "nityaklinnā nirupamā nirvāṇasukhadāyinī",
+    "nityāṣoḍaśikārūpā śrīkaṇṭhārdhaśarīriṇī"
+   ],
+   "learn": [
+    [
+     [
+      388,
+      "नित्य-क्लिन्ना",
+      "nitya-klinnā",
+      0
+     ],
+     [
+      389,
+      "निर्-उपमा",
+      "nir-upamā",
+      0
+     ],
+     [
+      390,
+      "निर्वाण-सुख-दायिनी",
+      "nirvāṇa-sukha-dāyinī",
+      0
+     ]
+    ],
+    [
+     [
+      391,
+      "नित्या-षोडशिका-रूपा",
+      "nityā-ṣoḍaśikā-rūpā",
+      0
+     ],
+     [
+      392,
+      "श्रीकण्ठार्ध-शरीरिणी",
+      "śrīkaṇṭhārdha-śarīriṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Ever moist with compassion; Incomparable; Confers the bliss of liberation",
     "Has the form of the sixteen Nityā goddesses; Possesses half of the body of Śrīkaṇṭha (Śiva), as Ardhanārīśvara"
@@ -1414,6 +4956,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "प्रभावती प्रभारूपा प्रसिद्धा परमेश्वरी",
     "मूलप्रकृतिरव्यक्ता व्यक्ताव्यक्तस्वरूपिणी"
+   ],
+   "read_dev": [
+    "प्रभावती प्रभारूपा प्रसिद्धा परमेश्वरी",
+    "मूलप्रकृतिर् अव्यक्ता व्यक्ताव्यक्तस्वरूपिणी"
+   ],
+   "read_iast": [
+    "prabhāvatī prabhārūpā prasiddhā parameśvarī",
+    "mūlaprakṛtir avyaktā vyaktāvyaktasvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      393,
+      "प्रभावती",
+      "prabhāvatī",
+      0
+     ],
+     [
+      394,
+      "प्रभा-रूपा",
+      "prabhā-rūpā",
+      0
+     ],
+     [
+      395,
+      "प्रसिद्धा",
+      "prasiddhā",
+      0
+     ],
+     [
+      396,
+      "परमेश्वरी",
+      "parameśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      397,
+      "मूल-प्रकृतिः",
+      "mūla-prakṛtiḥ",
+      1
+     ],
+     [
+      398,
+      "अव्यक्ता",
+      "avyaktā",
+      0
+     ],
+     [
+      399,
+      "व्यक्ताव्यक्त-स्वरूपिणी",
+      "vyaktāvyakta-svarūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Effulgent; Effulgence; Celebrated; The supreme sovereign",
@@ -1431,6 +5029,44 @@ const LALITHA_DATA = {
     "व्यापिनी विविधाकारा विद्याऽविद्यास्वरूपिणी",
     "महाकामेशनयनकुमुदाह्लादकौमुदी"
    ],
+   "read_dev": [
+    "व्यापिनी विविधाकारा विद्याऽविद्यास्वरूपिणी",
+    "महाकामेशनयनकुमुदाह्लादकौमुदी"
+   ],
+   "read_iast": [
+    "vyāpinī vividhākārā vidyā'vidyāsvarūpiṇī",
+    "mahākāmeśanayanakumudāhlādakaumudī"
+   ],
+   "learn": [
+    [
+     [
+      400,
+      "व्यापिनी",
+      "vyāpinī",
+      0
+     ],
+     [
+      401,
+      "विविधाकारा",
+      "vividhākārā",
+      0
+     ],
+     [
+      402,
+      "विद्याऽविद्या-स्वरूपिणी",
+      "vidyā'vidyā-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      403,
+      "महा-कामेश-नयन-कुमुदाह्लाद-कौमुदी",
+      "mahā-kāmeśa-nayana-kumudāhlāda-kaumudī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "All-pervading; Has a multitude of forms; The form of both knowledge and ignorance",
     "The moonlight that gladdens the water-lilies that are Mahākāmeśa's eyes"
@@ -1446,6 +5082,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "भक्तहार्दतमोभेदभानुमद्भानुसन्ततिः",
     "शिवदूती शिवाराध्या शिवमूर्तिः शिवङ्करी"
+   ],
+   "read_dev": [
+    "भक्तहार्दतमोभेदभानुमद्भानुसन्ततिः",
+    "शिवदूती शिवाराध्या शिवमूर्तिः शिवङ्करी"
+   ],
+   "read_iast": [
+    "bhaktahārdatamobhedabhānumadbhānusantatiḥ",
+    "śivadūtī śivārādhyā śivamūrtiḥ śivaṅkarī"
+   ],
+   "learn": [
+    [
+     [
+      404,
+      "भक्त-हार्द-तमो-भेद-भानुमद्-भानु-सन्ततिः",
+      "bhakta-hārda-tamo-bheda-bhānumad-bhānu-santatiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      405,
+      "शिव-दूती",
+      "śiva-dūtī",
+      0
+     ],
+     [
+      406,
+      "शिवाराध्या",
+      "śivārādhyā",
+      0
+     ],
+     [
+      407,
+      "शिव-मूर्तिः",
+      "śiva-mūrtiḥ",
+      0
+     ],
+     [
+      408,
+      "शिवङ्-करी",
+      "śivaṅ-karī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The stream of sunrays that dispels the darkness in the hearts of Her devotees",
@@ -1463,6 +5143,62 @@ const LALITHA_DATA = {
     "शिवप्रिया शिवपरा शिष्टेष्टा शिष्टपूजिता",
     "अप्रमेया स्वप्रकाशा मनोवाचामगोचरा"
    ],
+   "read_dev": [
+    "शिवप्रिया शिवपरा शिष्टेष्टा शिष्टपूजिता",
+    "अप्रमेया स्वप्रकाशा मनोवाचामगोचरा"
+   ],
+   "read_iast": [
+    "śivapriyā śivaparā śiṣṭeṣṭā śiṣṭapūjitā",
+    "aprameyā svaprakāśā manovācāmagocarā"
+   ],
+   "learn": [
+    [
+     [
+      409,
+      "शिव-प्रिया",
+      "śiva-priyā",
+      0
+     ],
+     [
+      410,
+      "शिव-परा",
+      "śiva-parā",
+      0
+     ],
+     [
+      411,
+      "शिष्टेष्टा",
+      "śiṣṭeṣṭā",
+      0
+     ],
+     [
+      412,
+      "शिष्ट-पूजिता",
+      "śiṣṭa-pūjitā",
+      0
+     ]
+    ],
+    [
+     [
+      413,
+      "अ-प्रमेया",
+      "a-prameyā",
+      0
+     ],
+     [
+      414,
+      "स्व-प्रकाशा",
+      "sva-prakāśā",
+      0
+     ],
+     [
+      415,
+      "मनो-वाचाम्-अगोचरा",
+      "mano-vācām-agocarā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Beloved of Śiva; Solely devoted to Śiva; Dear to the righteous; Worshipped by the righteous",
     "Immeasurable, beyond every means of knowledge; Self-luminous; Beyond the range of mind and speech"
@@ -1478,6 +5214,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चिच्छक्तिश् चेतनारूपा जडशक्तिर्जडात्मिका",
     "गायत्री व्याहृतिः सन्ध्या द्विजवृन्दनिषेविता"
+   ],
+   "read_dev": [
+    "चिच्छक्तिश् चेतनारूपा जडशक्तिर् जडात्मिका",
+    "गायत्री व्याहृतिः सन्ध्या द्विजवृन्दनिषेविता"
+   ],
+   "read_iast": [
+    "cicchaktiś cetanārūpā jaḍaśaktir jaḍātmikā",
+    "gāyatrī vyāhṛtiḥ sandhyā dvijavṛndaniṣevitā"
+   ],
+   "learn": [
+    [
+     [
+      416,
+      "चिच्-छक्तिः",
+      "cic-chaktiḥ",
+      1
+     ],
+     [
+      417,
+      "चेतना-रूपा",
+      "cetanā-rūpā",
+      0
+     ],
+     [
+      418,
+      "जड-शक्तिः",
+      "jaḍa-śaktiḥ",
+      1
+     ],
+     [
+      419,
+      "जडात्मिका",
+      "jaḍātmikā",
+      0
+     ]
+    ],
+    [
+     [
+      420,
+      "गायत्री",
+      "gāyatrī",
+      0
+     ],
+     [
+      421,
+      "व्याहृतिः",
+      "vyāhṛtiḥ",
+      0
+     ],
+     [
+      422,
+      "सन्ध्या",
+      "sandhyā",
+      0
+     ],
+     [
+      423,
+      "द्विज-वृन्द-निषेविता",
+      "dvija-vṛnda-niṣevitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The power of consciousness; Whose form is awareness (cetanā); The power that becomes the insentient world; In the form of the inanimate world",
@@ -1495,6 +5293,68 @@ const LALITHA_DATA = {
     "तत्त्वासना तत्त्वमयी पञ्चकोशान्तरस्थिता",
     "निःसीममहिमा नित्ययौवना मदशालिनी"
    ],
+   "read_dev": [
+    "तत्त्वासना तत् त्वम् अयी पञ्चकोशान्तरस्थिता",
+    "निःसीममहिमा नित्ययौवना मदशालिनी"
+   ],
+   "read_iast": [
+    "tattvāsanā tat tvam ayī pañcakośāntarasthitā",
+    "niḥsīmamahimā nityayauvanā madaśālinī"
+   ],
+   "learn": [
+    [
+     [
+      424,
+      "तत्त्वासना",
+      "tattvāsanā",
+      0
+     ],
+     [
+      425,
+      "तत्",
+      "tat",
+      0
+     ],
+     [
+      426,
+      "त्वम्",
+      "tvam",
+      0
+     ],
+     [
+      427,
+      "अयी",
+      "ayī",
+      0
+     ],
+     [
+      428,
+      "पञ्च-कोशान्तर-स्थिता",
+      "pañca-kośāntara-sthitā",
+      0
+     ]
+    ],
+    [
+     [
+      429,
+      "निःसीम-महिमा",
+      "niḥsīma-mahimā",
+      0
+     ],
+     [
+      430,
+      "नित्य-यौवना",
+      "nitya-yauvanā",
+      0
+     ],
+     [
+      431,
+      "मद-शालिनी",
+      "mada-śālinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose seat is the tattvas, the principles of reality; 'That', the supreme reality (brahman); 'Thou', the self addressed in the teaching 'That thou art'; Called upon with the loving cry 'ayī', 'O Mother!'; Abides within the five sheaths",
     "Whose glory is limitless; Ever youthful; Resplendent with rapture (mada)"
@@ -1510,6 +5370,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मदघूर्णितरक्ताक्षी मदपाटलगण्डभूः",
     "चन्दनद्रवदिग्धाङ्गी चाम्पेयकुसुमप्रिया"
+   ],
+   "read_dev": [
+    "मदघूर्णितरक्ताक्षी मदपाटलगण्डभूः",
+    "चन्दनद्रवदिग्धाङ्गी चाम्पेयकुसुमप्रिया"
+   ],
+   "read_iast": [
+    "madaghūrṇitaraktākṣī madapāṭalagaṇḍabhūḥ",
+    "candanadravadigdhāṅgī cāmpeyakusumapriyā"
+   ],
+   "learn": [
+    [
+     [
+      432,
+      "मद-घूर्णित-रक्ताक्षी",
+      "mada-ghūrṇita-raktākṣī",
+      0
+     ],
+     [
+      433,
+      "मद-पाटल-गण्ड-भूः",
+      "mada-pāṭala-gaṇḍa-bhūḥ",
+      0
+     ]
+    ],
+    [
+     [
+      434,
+      "चन्दन-द्रव-दिग्धाङ्गी",
+      "candana-drava-digdhāṅgī",
+      0
+     ],
+     [
+      435,
+      "चाम्पेय-कुसुम-प्रिया",
+      "cāmpeya-kusuma-priyā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose eyes are red and rolling with rapture; Whose cheeks are rosy with rapture",
@@ -1527,6 +5425,56 @@ const LALITHA_DATA = {
     "कुशला कोमलाकारा कुरुकुल्ला कुलेश्वरी",
     "कुलकुण्डालया कौलमार्गतत्परसेविता"
    ],
+   "read_dev": [
+    "कुशला कोमलाकारा कुरुकुल्ला कुलेश्वरी",
+    "कुलकुण्डालया कौलमार्गतत्परसेविता"
+   ],
+   "read_iast": [
+    "kuśalā komalākārā kurukullā kuleśvarī",
+    "kulakuṇḍālayā kaulamārgatatparasevitā"
+   ],
+   "learn": [
+    [
+     [
+      436,
+      "कुशला",
+      "kuśalā",
+      0
+     ],
+     [
+      437,
+      "कोमलाकारा",
+      "komalākārā",
+      0
+     ],
+     [
+      438,
+      "कुरुकुल्ला",
+      "kurukullā",
+      0
+     ],
+     [
+      439,
+      "कुलेश्वरी",
+      "kuleśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      440,
+      "कुल-कुण्डालया",
+      "kula-kuṇḍālayā",
+      0
+     ],
+     [
+      441,
+      "कौल-मार्ग-तत्पर-सेविता",
+      "kaula-mārga-tatpara-sevitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Skillful; Whose form is tender and graceful; The goddess Kurukullā; The sovereign of kula (the triad of knower, knowing and known)",
     "Dwells in the kulakuṇḍa, the hollow at the center of the mūlādhāra; Worshipped by those devoted to the Kaula path"
@@ -1542,6 +5490,80 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कुमारगणनाथाम्बा तुष्टिः पुष्टिर्मतिर्धृतिः",
     "शान्तिः स्वस्तिमती कान्तिर्नन्दिनी विघ्ननाशिनी"
+   ],
+   "read_dev": [
+    "कुमारगणनाथाम्बा तुष्टिः पुष्टिर् मतिर् धृतिः",
+    "शान्तिः स्वस्तिमती कान्तिर् नन्दिनी विघ्ननाशिनी"
+   ],
+   "read_iast": [
+    "kumāragaṇanāthāmbā tuṣṭiḥ puṣṭir matir dhṛtiḥ",
+    "śāntiḥ svastimatī kāntir nandinī vighnanāśinī"
+   ],
+   "learn": [
+    [
+     [
+      442,
+      "कुमार-गणनाथाम्बा",
+      "kumāra-gaṇanāthāmbā",
+      0
+     ],
+     [
+      443,
+      "तुष्टिः",
+      "tuṣṭiḥ",
+      0
+     ],
+     [
+      444,
+      "पुष्टिः",
+      "puṣṭiḥ",
+      1
+     ],
+     [
+      445,
+      "मतिः",
+      "matiḥ",
+      1
+     ],
+     [
+      446,
+      "धृतिः",
+      "dhṛtiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      447,
+      "शान्तिः",
+      "śāntiḥ",
+      0
+     ],
+     [
+      448,
+      "स्वस्ति-मती",
+      "svasti-matī",
+      0
+     ],
+     [
+      449,
+      "कान्तिः",
+      "kāntiḥ",
+      1
+     ],
+     [
+      450,
+      "नन्दिनी",
+      "nandinī",
+      0
+     ],
+     [
+      451,
+      "विघ्न-नाशिनी",
+      "vighna-nāśinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The mother of Kumāra (Skanda) and Gaṇanātha (Gaṇeśa); Contentment itself; The power of nourishment; Manifests as intelligence; Fortitude",
@@ -1559,6 +5581,62 @@ const LALITHA_DATA = {
     "तेजोवती त्रिनयना लोलाक्षीकामरूपिणी",
     "मालिनी हंसिनी माता मलयाचलवासिनी"
    ],
+   "read_dev": [
+    "तेजोवती त्रिनयना लोलाक्षीकामरूपिणी",
+    "मालिनी हंसिनी माता मलयाचलवासिनी"
+   ],
+   "read_iast": [
+    "tejovatī trinayanā lolākṣīkāmarūpiṇī",
+    "mālinī haṃsinī mātā malayācalavāsinī"
+   ],
+   "learn": [
+    [
+     [
+      452,
+      "तेजोवती",
+      "tejovatī",
+      0
+     ],
+     [
+      453,
+      "त्रि-नयना",
+      "tri-nayanā",
+      0
+     ],
+     [
+      454,
+      "लोलाक्षी-काम-रूपिणी",
+      "lolākṣī-kāma-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      455,
+      "मालिनी",
+      "mālinī",
+      0
+     ],
+     [
+      456,
+      "हंसिनी",
+      "haṃsinī",
+      0
+     ],
+     [
+      457,
+      "माता",
+      "mātā",
+      0
+     ],
+     [
+      458,
+      "मलयाचल-वासिनी",
+      "malayācala-vāsinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Effulgent; Has three eyes; Takes the form of love (kāma) in women, the restless-eyed",
     "Wears garlands; One with the haṃsas, the yogins of the highest attainment; The Mother; Dwells on the Malaya mountain"
@@ -1574,6 +5652,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सुमुखी नलिनी सुभ्रूः शोभना सुरनायिका",
     "कालकण्ठी कान्तिमती क्षोभिणी सूक्ष्मरूपिणी"
+   ],
+   "read_dev": [
+    "सुमुखी नलिनी सुभ्रूः शोभना सुरनायिका",
+    "कालकण्ठी कान्तिमती क्षोभिणी सूक्ष्मरूपिणी"
+   ],
+   "read_iast": [
+    "sumukhī nalinī subhrūḥ śobhanā suranāyikā",
+    "kālakaṇṭhī kāntimatī kṣobhiṇī sūkṣmarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      459,
+      "सु-मुखी",
+      "su-mukhī",
+      0
+     ],
+     [
+      460,
+      "नलिनी",
+      "nalinī",
+      0
+     ],
+     [
+      461,
+      "सु-भ्रूः",
+      "su-bhrūḥ",
+      0
+     ],
+     [
+      462,
+      "शोभना",
+      "śobhanā",
+      0
+     ],
+     [
+      463,
+      "सुर-नायिका",
+      "sura-nāyikā",
+      0
+     ]
+    ],
+    [
+     [
+      464,
+      "काल-कण्ठी",
+      "kāla-kaṇṭhī",
+      0
+     ],
+     [
+      465,
+      "कान्ति-मती",
+      "kānti-matī",
+      0
+     ],
+     [
+      466,
+      "क्षोभिणी",
+      "kṣobhiṇī",
+      0
+     ],
+     [
+      467,
+      "सूक्ष्म-रूपिणी",
+      "sūkṣma-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has a beautiful face; Lotus-like, tender and lovely as the lotus; Has beautiful eyebrows; Radiant and beautiful; The leader of the gods",
@@ -1591,6 +5737,62 @@ const LALITHA_DATA = {
     "वज्रेश्वरी वामदेवी वयोऽवस्थाविवर्जिता",
     "सिद्धेश्वरी सिद्धविद्या सिद्धमाता यशस्विनी"
    ],
+   "read_dev": [
+    "वज्रेश्वरी वामदेवी वयोऽवस्थाविवर्जिता",
+    "सिद्धेश्वरी सिद्धविद्या सिद्धमाता यशस्विनी"
+   ],
+   "read_iast": [
+    "vajreśvarī vāmadevī vayo'vasthāvivarjitā",
+    "siddheśvarī siddhavidyā siddhamātā yaśasvinī"
+   ],
+   "learn": [
+    [
+     [
+      468,
+      "वज्रेश्वरी",
+      "vajreśvarī",
+      0
+     ],
+     [
+      469,
+      "वाम-देवी",
+      "vāma-devī",
+      0
+     ],
+     [
+      470,
+      "वयोऽवस्था-विवर्जिता",
+      "vayo'vasthā-vivarjitā",
+      0
+     ]
+    ],
+    [
+     [
+      471,
+      "सिद्धेश्वरी",
+      "siddheśvarī",
+      0
+     ],
+     [
+      472,
+      "सिद्ध-विद्या",
+      "siddha-vidyā",
+      0
+     ],
+     [
+      473,
+      "सिद्ध-माता",
+      "siddha-mātā",
+      0
+     ],
+     [
+      474,
+      "यशस्विनी",
+      "yaśasvinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Vajreśvarī, the sixth of the Nityā goddesses; The consort of Vāmadeva (Śiva); Free from the changes of age",
     "The sovereign of the siddhas, the perfected adepts; The Siddhavidyā, the accomplished mantra (the fifteen-syllable mantra); The mother of the siddhas; Renowned, possessed of glory"
@@ -1606,6 +5808,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "विशुद्धिचक्रनिलयाऽऽरक्तवर्णा त्रिलोचना",
     "खट्वाङ्गादिप्रहरणा वदनैकसमन्विता"
+   ],
+   "read_dev": [
+    "विशुद्धिचक्रनिलया ऽऽरक्तवर्णा त्रिलोचना",
+    "खट्वाङ्गादिप्रहरणा वदनैकसमन्विता"
+   ],
+   "read_iast": [
+    "viśuddhicakranilayā ''raktavarṇā trilocanā",
+    "khaṭvāṅgādipraharaṇā vadanaikasamanvitā"
+   ],
+   "learn": [
+    [
+     [
+      475,
+      "विशुद्धि-चक्र-निलया",
+      "viśuddhi-cakra-nilayā",
+      0
+     ],
+     [
+      476,
+      "आरक्त-वर्णा",
+      "ārakta-varṇā",
+      1
+     ],
+     [
+      477,
+      "त्रि-लोचना",
+      "tri-locanā",
+      0
+     ]
+    ],
+    [
+     [
+      478,
+      "खट्वाङ्गादि-प्रहरणा",
+      "khaṭvāṅgādi-praharaṇā",
+      0
+     ],
+     [
+      479,
+      "वदनैक-समन्विता",
+      "vadanaika-samanvitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Resides in the viśuddhi cakra; Of slightly red (rosy) complexion; Has three eyes",
@@ -1623,6 +5869,50 @@ const LALITHA_DATA = {
     "पायसान्नप्रिया त्वक्स्था पशुलोकभयङ्करी",
     "अमृतादिमहाशक्तिसंवृता डाकिनीश्वरी"
    ],
+   "read_dev": [
+    "पायसान्नप्रिया त्वक्स्था पशुलोकभयङ्करी",
+    "अमृतादिमहाशक्तिसंवृता डाकिनीश्वरी"
+   ],
+   "read_iast": [
+    "pāyasānnapriyā tvaksthā paśulokabhayaṅkarī",
+    "amṛtādimahāśaktisaṃvṛtā ḍākinīśvarī"
+   ],
+   "learn": [
+    [
+     [
+      480,
+      "पायसान्न-प्रिया",
+      "pāyasānna-priyā",
+      0
+     ],
+     [
+      481,
+      "त्वक्-स्था",
+      "tvak-sthā",
+      0
+     ],
+     [
+      482,
+      "पशु-लोक-भयङ्करी",
+      "paśu-loka-bhayaṅkarī",
+      0
+     ]
+    ],
+    [
+     [
+      483,
+      "अमृतादि-महा-शक्ति-संवृता",
+      "amṛtādi-mahā-śakti-saṃvṛtā",
+      0
+     ],
+     [
+      484,
+      "डाकिनीश्वरी",
+      "ḍākinīśvarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Loves rice cooked in milk (pāyasa); Abides in the skin; Strikes fear into the world of paśus, the bound souls",
     "Surrounded by Amṛtā and the other great śaktis; Ḍākinī, the sovereign goddess"
@@ -1638,6 +5928,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "अनाहताब्जनिलया श्यामाभा वदनद्वया",
     "दंष्ट्रोज्ज्वलाऽक्षमालादिधरा रुधिरसंस्थिता"
+   ],
+   "read_dev": [
+    "अनाहताब्जनिलया श्यामाभा वदनद्वया",
+    "दंष्ट्रोज्ज्वला ऽक्षमालादिधरा रुधिरसंस्थिता"
+   ],
+   "read_iast": [
+    "anāhatābjanilayā śyāmābhā vadanadvayā",
+    "daṃṣṭrojjvalā 'kṣamālādidharā rudhirasaṃsthitā"
+   ],
+   "learn": [
+    [
+     [
+      485,
+      "अनाहताब्ज-निलया",
+      "anāhatābja-nilayā",
+      0
+     ],
+     [
+      486,
+      "श्यामाभा",
+      "śyāmābhā",
+      0
+     ],
+     [
+      487,
+      "वदन-द्वया",
+      "vadana-dvayā",
+      0
+     ]
+    ],
+    [
+     [
+      488,
+      "दंष्ट्रोज्ज्वला",
+      "daṃṣṭrojjvalā",
+      0
+     ],
+     [
+      489,
+      "अक्षमालादि-धरा",
+      "akṣamālādi-dharā",
+      1
+     ],
+     [
+      490,
+      "रुधिर-संस्थिता",
+      "rudhira-saṃsthitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Resides in the anāhata lotus in the heart; Whose luster is dark (śyāma); Has two faces",
@@ -1655,6 +5995,44 @@ const LALITHA_DATA = {
     "कालरात्र्यादिशक्त्यौघवृता स्निग्धौदनप्रिया",
     "महावीरेन्द्रवरदा राकिण्यम्बास्वरूपिणी"
    ],
+   "read_dev": [
+    "कालरात्र्यादिशक्त्यौघवृता स्निग्धौदनप्रिया",
+    "महावीरेन्द्रवरदा राकिण्यम्बास्वरूपिणी"
+   ],
+   "read_iast": [
+    "kālarātryādiśaktyaughavṛtā snigdhaudanapriyā",
+    "mahāvīrendravaradā rākiṇyambāsvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      491,
+      "कालरात्र्यादि-शक्त्यौघ-वृता",
+      "kālarātryādi-śaktyaugha-vṛtā",
+      0
+     ],
+     [
+      492,
+      "स्निग्धौदन-प्रिया",
+      "snigdhaudana-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      493,
+      "महा-वीरेन्द्र-वरदा",
+      "mahā-vīrendra-varadā",
+      0
+     ],
+     [
+      494,
+      "राकिण्यम्बा-स्वरूपिणी",
+      "rākiṇyambā-svarūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Surrounded by the host of śaktis beginning with Kālarātri; Loves rice made rich with ghee",
     "Grants boons to the foremost of great heroes; Has the form of Mother Rākiṇī"
@@ -1670,6 +6048,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मणिपूराब्जनिलया वदनत्रयसंयुता",
     "वज्रादिकायुधोपेता डामर्यादिभिरावृता"
+   ],
+   "read_dev": [
+    "मणिपूराब्जनिलया वदनत्रयसंयुता",
+    "वज्रादिकायुधोपेता डामर्यादिभिरावृता"
+   ],
+   "read_iast": [
+    "maṇipūrābjanilayā vadanatrayasaṃyutā",
+    "vajrādikāyudhopetā ḍāmaryādibhirāvṛtā"
+   ],
+   "learn": [
+    [
+     [
+      495,
+      "मणिपूराब्ज-निलया",
+      "maṇipūrābja-nilayā",
+      0
+     ],
+     [
+      496,
+      "वदन-त्रय-संयुता",
+      "vadana-traya-saṃyutā",
+      0
+     ]
+    ],
+    [
+     [
+      497,
+      "वज्रादिकायुधोपेता",
+      "vajrādikāyudhopetā",
+      0
+     ],
+     [
+      498,
+      "डामर्यादिभिर्-आवृता",
+      "ḍāmaryādibhir-āvṛtā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Resides in the maṇipūra lotus; Has three faces",
@@ -1687,6 +6103,50 @@ const LALITHA_DATA = {
     "रक्तवर्णा मांसनिष्ठा गुडान्नप्रीतमानसा",
     "समस्तभक्तसुखदा लाकिन्यम्बास्वरूपिणी"
    ],
+   "read_dev": [
+    "रक्तवर्णा मांसनिष्ठा गुडान्नप्रीतमानसा",
+    "समस्तभक्तसुखदा लाकिन्यम्बास्वरूपिणी"
+   ],
+   "read_iast": [
+    "raktavarṇā māṃsaniṣṭhā guḍānnaprītamānasā",
+    "samastabhaktasukhadā lākinyambāsvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      499,
+      "रक्त-वर्णा",
+      "rakta-varṇā",
+      0
+     ],
+     [
+      500,
+      "मांस-निष्ठा",
+      "māṃsa-niṣṭhā",
+      0
+     ],
+     [
+      501,
+      "गुडान्न-प्रीत-मानसा",
+      "guḍānna-prīta-mānasā",
+      0
+     ]
+    ],
+    [
+     [
+      502,
+      "समस्त-भक्त-सुख-दा",
+      "samasta-bhakta-sukha-dā",
+      0
+     ],
+     [
+      503,
+      "लाकिन्यम्बा-स्वरूपिणी",
+      "lākinyambā-svarūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Red in complexion; Abides in the flesh; Whose heart delights in rice cooked with jaggery",
     "Confers happiness on all Her devotees; Has the form of Mother Lākinī"
@@ -1702,6 +6162,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "स्वाधिष्ठानाम्बुजगता चतुर्वक्त्रमनोहरा",
     "शूलाद्यायुधसम्पन्ना पीतवर्णाऽतिगर्विता"
+   ],
+   "read_dev": [
+    "स्वाधिष्ठानाम्बुजगता चतुर्वक्त्रमनोहरा",
+    "शूलाद्यायुधसम्पन्ना पीतवर्णा ऽतिगर्विता"
+   ],
+   "read_iast": [
+    "svādhiṣṭhānāmbujagatā caturvaktramanoharā",
+    "śūlādyāyudhasampannā pītavarṇā 'tigarvitā"
+   ],
+   "learn": [
+    [
+     [
+      504,
+      "स्वाधिष्ठानाम्बुज-गता",
+      "svādhiṣṭhānāmbuja-gatā",
+      0
+     ],
+     [
+      505,
+      "चतुर्-वक्त्र-मनोहरा",
+      "catur-vaktra-manoharā",
+      0
+     ]
+    ],
+    [
+     [
+      506,
+      "शूलाद्यायुध-सम्पन्ना",
+      "śūlādyāyudha-sampannā",
+      0
+     ],
+     [
+      507,
+      "पीत-वर्णा",
+      "pīta-varṇā",
+      0
+     ],
+     [
+      508,
+      "अति-गर्विता",
+      "ati-garvitā",
+      1
+     ]
+    ]
    ],
    "translations": [
     "Abides in the svādhiṣṭhāna lotus; Captivating with Her four faces",
@@ -1719,6 +6223,50 @@ const LALITHA_DATA = {
     "मेदोनिष्ठा मधुप्रीता बन्धिन्यादिसमन्विता",
     "दध्यन्नासक्तहृदया काकिनीरूपधारिणी"
    ],
+   "read_dev": [
+    "मेदोनिष्ठा मधुप्रीता बन्धिन्यादिसमन्विता",
+    "दध्यन्नासक्तहृदया काकिनीरूपधारिणी"
+   ],
+   "read_iast": [
+    "medoniṣṭhā madhuprītā bandhinyādisamanvitā",
+    "dadhyannāsaktahṛdayā kākinīrūpadhāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      509,
+      "मेदो-निष्ठा",
+      "medo-niṣṭhā",
+      0
+     ],
+     [
+      510,
+      "मधु-प्रीता",
+      "madhu-prītā",
+      0
+     ],
+     [
+      511,
+      "बन्धिन्यादि-समन्विता",
+      "bandhinyādi-samanvitā",
+      0
+     ]
+    ],
+    [
+     [
+      512,
+      "दध्यन्नासक्त-हृदया",
+      "dadhyannāsakta-hṛdayā",
+      0
+     ],
+     [
+      513,
+      "काकिनी-रूप-धारिणी",
+      "kākinī-rūpa-dhāriṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Abides in the fat; Pleased with honey; Accompanied by Bandhinī and the other śaktis",
     "Whose heart is fond of curd-rice; Bears the form of Kākinī"
@@ -1734,6 +6282,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मूलाधाराम्बुजारूढा पञ्चवक्त्राऽस्थिसंस्थिता",
     "अङ्कुशादिप्रहरणा वरदादिनिषेविता"
+   ],
+   "read_dev": [
+    "मूलाधाराम्बुजारूढा पञ्चवक्त्रा ऽस्थिसंस्थिता",
+    "अङ्कुशादिप्रहरणा वरदादिनिषेविता"
+   ],
+   "read_iast": [
+    "mūlādhārāmbujārūḍhā pañcavaktrā 'sthisaṃsthitā",
+    "aṅkuśādipraharaṇā varadādiniṣevitā"
+   ],
+   "learn": [
+    [
+     [
+      514,
+      "मूलाधाराम्बुजारूढा",
+      "mūlādhārāmbujārūḍhā",
+      0
+     ],
+     [
+      515,
+      "पञ्च-वक्त्रा",
+      "pañca-vaktrā",
+      0
+     ],
+     [
+      516,
+      "अस्थि-संस्थिता",
+      "asthi-saṃsthitā",
+      1
+     ]
+    ],
+    [
+     [
+      517,
+      "अङ्कुशादि-प्रहरणा",
+      "aṅkuśādi-praharaṇā",
+      0
+     ],
+     [
+      518,
+      "वरदादि-निषेविता",
+      "varadādi-niṣevitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Seated on the mūlādhāra lotus; Has five faces; Resides in the bones",
@@ -1751,6 +6343,50 @@ const LALITHA_DATA = {
     "मुद्गौदनासक्तचित्ता साकिन्यम्बास्वरूपिणी",
     "आज्ञाचक्राब्जनिलया शुक्लवर्णा षडानना"
    ],
+   "read_dev": [
+    "मुद्गौदनासक्तचित्ता साकिन्यम्बास्वरूपिणी",
+    "आज्ञाचक्राब्जनिलया शुक्लवर्णा षडानना"
+   ],
+   "read_iast": [
+    "mudgaudanāsaktacittā sākinyambāsvarūpiṇī",
+    "ājñācakrābjanilayā śuklavarṇā ṣaḍānanā"
+   ],
+   "learn": [
+    [
+     [
+      519,
+      "मुद्गौदनासक्त-चित्ता",
+      "mudgaudanāsakta-cittā",
+      0
+     ],
+     [
+      520,
+      "साकिन्यम्बा-स्वरूपिणी",
+      "sākinyambā-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      521,
+      "आज्ञा-चक्राब्ज-निलया",
+      "ājñā-cakrābja-nilayā",
+      0
+     ],
+     [
+      522,
+      "शुक्ल-वर्णा",
+      "śukla-varṇā",
+      0
+     ],
+     [
+      523,
+      "षड्-आनना",
+      "ṣaḍ-ānanā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose mind delights in rice cooked with green gram (mudga); Has the form of Mother Sākinī",
     "Resides in the lotus of the ājñā cakra; White in color; Has six faces"
@@ -1766,6 +6402,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मज्जासंस्था हंसवतीमुख्यशक्तिसमन्विता",
     "हरिद्रान्नैकरसिका हाकिनीरूपधारिणी"
+   ],
+   "read_dev": [
+    "मज्जासंस्था हंसवतीमुख्यशक्तिसमन्विता",
+    "हरिद्रान्नैकरसिका हाकिनीरूपधारिणी"
+   ],
+   "read_iast": [
+    "majjāsaṃsthā haṃsavatīmukhyaśaktisamanvitā",
+    "haridrānnaikarasikā hākinīrūpadhāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      524,
+      "मज्जा-संस्था",
+      "majjā-saṃsthā",
+      0
+     ],
+     [
+      525,
+      "हंसवती-मुख्य-शक्ति-समन्विता",
+      "haṃsavatī-mukhya-śakti-samanvitā",
+      0
+     ]
+    ],
+    [
+     [
+      526,
+      "हरिद्रान्नैक-रसिका",
+      "haridrānnaika-rasikā",
+      0
+     ],
+     [
+      527,
+      "हाकिनी-रूप-धारिणी",
+      "hākinī-rūpa-dhāriṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Abides in the marrow; Accompanied by the śaktis headed by Haṃsavatī",
@@ -1783,6 +6457,50 @@ const LALITHA_DATA = {
     "सहस्रदलपद्मस्था सर्ववर्णोपशोभिता",
     "सर्वायुधधरा शुक्लसंस्थिता सर्वतोमुखी"
    ],
+   "read_dev": [
+    "सहस्रदलपद्मस्था सर्ववर्णोपशोभिता",
+    "सर्वायुधधरा शुक्लसंस्थिता सर्वतोमुखी"
+   ],
+   "read_iast": [
+    "sahasradalapadmasthā sarvavarṇopaśobhitā",
+    "sarvāyudhadharā śuklasaṃsthitā sarvatomukhī"
+   ],
+   "learn": [
+    [
+     [
+      528,
+      "सहस्र-दल-पद्म-स्था",
+      "sahasra-dala-padma-sthā",
+      0
+     ],
+     [
+      529,
+      "सर्व-वर्णोपशोभिता",
+      "sarva-varṇopaśobhitā",
+      0
+     ]
+    ],
+    [
+     [
+      530,
+      "सर्वायुध-धरा",
+      "sarvāyudha-dharā",
+      0
+     ],
+     [
+      531,
+      "शुक्ल-संस्थिता",
+      "śukla-saṃsthitā",
+      0
+     ],
+     [
+      532,
+      "सर्वतो-मुखी",
+      "sarvato-mukhī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Resides in the thousand-petaled lotus; Resplendent with all colors",
     "Holds all weapons; Resides in the semen, the vital essence; Has faces turned in all directions"
@@ -1798,6 +6516,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सर्वौदनप्रीतचित्ता याकिन्यम्बास्वरूपिणी",
     "स्वाहा स्वधाऽमतिर्मेधा श्रुतिः स्मृतिरनुत्तमा"
+   ],
+   "read_dev": [
+    "सर्वौदनप्रीतचित्ता याकिन्यम्बास्वरूपिणी",
+    "स्वाहा स्वधा ऽमतिर् मेधा श्रुतिः स्मृतिर् अनुत्तमा"
+   ],
+   "read_iast": [
+    "sarvaudanaprītacittā yākinyambāsvarūpiṇī",
+    "svāhā svadhā 'matir medhā śrutiḥ smṛtir anuttamā"
+   ],
+   "learn": [
+    [
+     [
+      533,
+      "सर्वौदन-प्रीत-चित्ता",
+      "sarvaudana-prīta-cittā",
+      0
+     ],
+     [
+      534,
+      "याकिन्यम्बा-स्वरूपिणी",
+      "yākinyambā-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      535,
+      "स्वाहा",
+      "svāhā",
+      0
+     ],
+     [
+      536,
+      "स्वधा",
+      "svadhā",
+      0
+     ],
+     [
+      537,
+      "अ-मतिः",
+      "a-matiḥ",
+      1
+     ],
+     [
+      538,
+      "मेधा",
+      "medhā",
+      0
+     ],
+     [
+      539,
+      "श्रुतिः",
+      "śrutiḥ",
+      0
+     ],
+     [
+      540,
+      "स्मृतिः",
+      "smṛtiḥ",
+      1
+     ],
+     [
+      541,
+      "अन्-उत्तमा",
+      "an-uttamā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose mind is pleased by all kinds of rice offerings; Has the form of Mother Yākinī",
@@ -1815,6 +6601,56 @@ const LALITHA_DATA = {
     "पुण्यकीर्तिः पुण्यलभ्या पुण्यश्रवणकीर्तना",
     "पुलोमजार्चिता बन्धमोचनी बन्धुरालका"
    ],
+   "read_dev": [
+    "पुण्यकीर्तिः पुण्यलभ्या पुण्यश्रवणकीर्तना",
+    "पुलोमजार्चिता बन्धमोचनी बन्धुरालका"
+   ],
+   "read_iast": [
+    "puṇyakīrtiḥ puṇyalabhyā puṇyaśravaṇakīrtanā",
+    "pulomajārcitā bandhamocanī bandhurālakā"
+   ],
+   "learn": [
+    [
+     [
+      542,
+      "पुण्य-कीर्तिः",
+      "puṇya-kīrtiḥ",
+      0
+     ],
+     [
+      543,
+      "पुण्य-लभ्या",
+      "puṇya-labhyā",
+      0
+     ],
+     [
+      544,
+      "पुण्य-श्रवण-कीर्तना",
+      "puṇya-śravaṇa-kīrtanā",
+      0
+     ]
+    ],
+    [
+     [
+      545,
+      "पुलोमजार्चिता",
+      "pulomajārcitā",
+      0
+     ],
+     [
+      546,
+      "बन्ध-मोचनी",
+      "bandha-mocanī",
+      0
+     ],
+     [
+      547,
+      "बन्धुरालका",
+      "bandhurālakā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose fame is holy; Attained through merit; She whom it is meritorious to hear of and to praise",
     "Worshipped by Pulomajā (Śacī, the wife of Indra); Releases from bondage; Whose locks of hair are wavy"
@@ -1830,6 +6666,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "विमर्शरूपिणी विद्या वियदादिजगत्प्रसूः",
     "सर्वव्याधिप्रशमनी सर्वमृत्युनिवारिणी"
+   ],
+   "read_dev": [
+    "विमर्शरूपिणी विद्या वियदादिजगत्प्रसूः",
+    "सर्वव्याधिप्रशमनी सर्वमृत्युनिवारिणी"
+   ],
+   "read_iast": [
+    "vimarśarūpiṇī vidyā viyadādijagatprasūḥ",
+    "sarvavyādhipraśamanī sarvamṛtyunivāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      548,
+      "विमर्श-रूपिणी",
+      "vimarśa-rūpiṇī",
+      0
+     ],
+     [
+      549,
+      "विद्या",
+      "vidyā",
+      0
+     ],
+     [
+      550,
+      "वियद्-आदि-जगत्-प्रसूः",
+      "viyad-ādi-jagat-prasūḥ",
+      0
+     ]
+    ],
+    [
+     [
+      551,
+      "सर्व-व्याधि-प्रशमनी",
+      "sarva-vyādhi-praśamanī",
+      0
+     ],
+     [
+      552,
+      "सर्व-मृत्यु-निवारिणी",
+      "sarva-mṛtyu-nivāriṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose form is vimarśa, the reflective awareness of consciousness; In the form of knowledge; The mother of the world, which begins with ether",
@@ -1847,6 +6727,56 @@ const LALITHA_DATA = {
     "अग्रगण्याऽचिन्त्यरूपा कलिकल्मषनाशिनी",
     "कात्यायनी कालहन्त्री कमलाक्षनिषेविता"
    ],
+   "read_dev": [
+    "अग्रगण्या ऽचिन्त्यरूपा कलिकल्मषनाशिनी",
+    "कात्यायनी कालहन्त्री कमलाक्षनिषेविता"
+   ],
+   "read_iast": [
+    "agragaṇyā 'cintyarūpā kalikalmaṣanāśinī",
+    "kātyāyanī kālahantrī kamalākṣaniṣevitā"
+   ],
+   "learn": [
+    [
+     [
+      553,
+      "अग्र-गण्या",
+      "agra-gaṇyā",
+      0
+     ],
+     [
+      554,
+      "अचिन्त्य-रूपा",
+      "acintya-rūpā",
+      1
+     ],
+     [
+      555,
+      "कलि-कल्मष-नाशिनी",
+      "kali-kalmaṣa-nāśinī",
+      0
+     ]
+    ],
+    [
+     [
+      556,
+      "कात्यायनी",
+      "kātyāyanī",
+      0
+     ],
+     [
+      557,
+      "काल-हन्त्री",
+      "kāla-hantrī",
+      0
+     ],
+     [
+      558,
+      "कमलाक्ष-निषेविता",
+      "kamalākṣa-niṣevitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "To be counted the foremost; Whose form is beyond the reach of thought; Destroys the sins of the Kali age",
     "Kātyāyanī, daughter of the sage Kātyāyana of Kata's line; The destroyer of time (death); Served and worshipped by lotus-eyed Viṣṇu"
@@ -1862,6 +6792,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "ताम्बूलपूरितमुखी दाडिमीकुसुमप्रभा",
     "मृगाक्षी मोहिनी मुख्या मृडानी मित्ररूपिणी"
+   ],
+   "read_dev": [
+    "ताम्बूलपूरितमुखी दाडिमीकुसुमप्रभा",
+    "मृगाक्षी मोहिनी मुख्या मृडानी मित्ररूपिणी"
+   ],
+   "read_iast": [
+    "tāmbūlapūritamukhī dāḍimīkusumaprabhā",
+    "mṛgākṣī mohinī mukhyā mṛḍānī mitrarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      559,
+      "ताम्बूल-पूरित-मुखी",
+      "tāmbūla-pūrita-mukhī",
+      0
+     ],
+     [
+      560,
+      "दाडिमी-कुसुम-प्रभा",
+      "dāḍimī-kusuma-prabhā",
+      0
+     ]
+    ],
+    [
+     [
+      561,
+      "मृगाक्षी",
+      "mṛgākṣī",
+      0
+     ],
+     [
+      562,
+      "मोहिनी",
+      "mohinī",
+      0
+     ],
+     [
+      563,
+      "मुख्या",
+      "mukhyā",
+      0
+     ],
+     [
+      564,
+      "मृडानी",
+      "mṛḍānī",
+      0
+     ],
+     [
+      565,
+      "मित्र-रूपिणी",
+      "mitra-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose mouth is filled with betel; Shines like a pomegranate flower",
@@ -1879,6 +6865,56 @@ const LALITHA_DATA = {
     "नित्यतृप्ता भक्तनिधिर्नियन्त्री निखिलेश्वरी",
     "मैत्र्यादिवासनालभ्या महाप्रलयसाक्षिणी"
    ],
+   "read_dev": [
+    "नित्यतृप्ता भक्तनिधिर् नियन्त्री निखिलेश्वरी",
+    "मैत्र्यादिवासनालभ्या महाप्रलयसाक्षिणी"
+   ],
+   "read_iast": [
+    "nityatṛptā bhaktanidhir niyantrī nikhileśvarī",
+    "maitryādivāsanālabhyā mahāpralayasākṣiṇī"
+   ],
+   "learn": [
+    [
+     [
+      566,
+      "नित्य-तृप्ता",
+      "nitya-tṛptā",
+      0
+     ],
+     [
+      567,
+      "भक्त-निधिः",
+      "bhakta-nidhiḥ",
+      1
+     ],
+     [
+      568,
+      "नियन्त्री",
+      "niyantrī",
+      0
+     ],
+     [
+      569,
+      "निखिलेश्वरी",
+      "nikhileśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      570,
+      "मैत्र्यादि-वासना-लभ्या",
+      "maitryādi-vāsanā-labhyā",
+      0
+     ],
+     [
+      571,
+      "महा-प्रलय-साक्षिणी",
+      "mahā-pralaya-sākṣiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Eternally contented; The treasure of the devotees; Controls and governs all beings; The ruler of all",
     "Attained through friendliness and the other good dispositions; Witness to the great dissolution"
@@ -1894,6 +6930,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "परा शक्तिः परा निष्ठा प्रज्ञानघनरूपिणी",
     "माध्वीपानालसा मत्ता मातृकावर्णरूपिणी"
+   ],
+   "read_dev": [
+    "परा शक्तिः परा निष्ठा प्रज्ञानघनरूपिणी",
+    "माध्वीपानालसा मत्ता मातृकावर्णरूपिणी"
+   ],
+   "read_iast": [
+    "parā śaktiḥ parā niṣṭhā prajñānaghanarūpiṇī",
+    "mādhvīpānālasā mattā mātṛkāvarṇarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      572,
+      "परा-शक्तिः",
+      "parā-śaktiḥ",
+      0
+     ],
+     [
+      573,
+      "परा-निष्ठा",
+      "parā-niṣṭhā",
+      0
+     ],
+     [
+      574,
+      "प्रज्ञान-घन-रूपिणी",
+      "prajñāna-ghana-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      575,
+      "माध्वी-पानालसा",
+      "mādhvī-pānālasā",
+      0
+     ],
+     [
+      576,
+      "मत्ता",
+      "mattā",
+      0
+     ],
+     [
+      577,
+      "मातृका-वर्ण-रूपिणी",
+      "mātṛkā-varṇa-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The supreme Power (Parā Śakti); The supreme end, the supreme abidance; Whose form is a solid mass of pure consciousness",
@@ -1911,6 +6997,50 @@ const LALITHA_DATA = {
     "महाकैलासनिलया मृणालमृदुदोर्लता",
     "महनीया दयामूर्तिर्महासाम्राज्यशालिनी"
    ],
+   "read_dev": [
+    "महाकैलासनिलया मृणालमृदुदोर्लता",
+    "महनीया दयामूर्तिर् महासाम्राज्यशालिनी"
+   ],
+   "read_iast": [
+    "mahākailāsanilayā mṛṇālamṛdudorlatā",
+    "mahanīyā dayāmūrtir mahāsāmrājyaśālinī"
+   ],
+   "learn": [
+    [
+     [
+      578,
+      "महा-कैलास-निलया",
+      "mahā-kailāsa-nilayā",
+      0
+     ],
+     [
+      579,
+      "मृणाल-मृदु-दोर्लता",
+      "mṛṇāla-mṛdu-dorlatā",
+      0
+     ]
+    ],
+    [
+     [
+      580,
+      "महनीया",
+      "mahanīyā",
+      0
+     ],
+     [
+      581,
+      "दया-मूर्तिः",
+      "dayā-mūrtiḥ",
+      1
+     ],
+     [
+      582,
+      "महा-साम्राज्य-शालिनी",
+      "mahā-sāmrājya-śālinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Dwells in the great Kailāsa; Whose creeper-like arms are as soft as lotus stalks",
     "Worthy of adoration; The personification of compassion; Possesses the great empire, sovereign over all"
@@ -1926,6 +7056,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "आत्मविद्या महाविद्या श्रीविद्या कामसेविता",
     "श्रीषोडशाक्षरीविद्या त्रिकूटा कामकोटिका"
+   ],
+   "read_dev": [
+    "आत्मविद्या महाविद्या श्रीविद्या कामसेविता",
+    "श्रीषोडशाक्षरीविद्या त्रिकूटा कामकोटिका"
+   ],
+   "read_iast": [
+    "ātmavidyā mahāvidyā śrīvidyā kāmasevitā",
+    "śrīṣoḍaśākṣarīvidyā trikūṭā kāmakoṭikā"
+   ],
+   "learn": [
+    [
+     [
+      583,
+      "आत्म-विद्या",
+      "ātma-vidyā",
+      0
+     ],
+     [
+      584,
+      "महा-विद्या",
+      "mahā-vidyā",
+      0
+     ],
+     [
+      585,
+      "श्री-विद्या",
+      "śrī-vidyā",
+      0
+     ],
+     [
+      586,
+      "काम-सेविता",
+      "kāma-sevitā",
+      0
+     ]
+    ],
+    [
+     [
+      587,
+      "श्री-षोडशाक्षरी-विद्या",
+      "śrī-ṣoḍaśākṣarī-vidyā",
+      0
+     ],
+     [
+      588,
+      "त्रि-कूटा",
+      "tri-kūṭā",
+      0
+     ],
+     [
+      589,
+      "काम-कोटिका",
+      "kāma-koṭikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The knowledge of the Self; The great knowledge; Śrīvidyā, the auspicious knowledge (the Pañcadaśī mantra); Worshipped by Kāmadeva",
@@ -1943,6 +7129,50 @@ const LALITHA_DATA = {
     "कटाक्षकिङ्करीभूतकमलाकोटिसेविता",
     "शिरःस्थिता चन्द्रनिभा भालस्थेन्द्रधनुःप्रभा"
    ],
+   "read_dev": [
+    "कटाक्षकिङ्करीभूतकमलाकोटिसेविता",
+    "शिरःस्थिता चन्द्रनिभा भालस्थेन्द्रधनुःप्रभा"
+   ],
+   "read_iast": [
+    "kaṭākṣakiṅkarībhūtakamalākoṭisevitā",
+    "śiraḥsthitā candranibhā bhālasthendradhanuḥprabhā"
+   ],
+   "learn": [
+    [
+     [
+      590,
+      "कटाक्ष-किङ्करी-भूत-कमला-कोटि-सेविता",
+      "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā",
+      0
+     ]
+    ],
+    [
+     [
+      591,
+      "शिरः-स्थिता",
+      "śiraḥ-sthitā",
+      0
+     ],
+     [
+      592,
+      "चन्द्र-निभा",
+      "candra-nibhā",
+      0
+     ],
+     [
+      593,
+      "भाल-स्था",
+      "bhāla-sthā",
+      1
+     ],
+     [
+      594,
+      "इन्द्र-धनुः-प्रभा",
+      "indra-dhanuḥ-prabhā",
+      1
+     ]
+    ]
+   ],
    "translations": [
     "Attended by millions of Lakṣmīs who have become handmaids of Her side-glance",
     "Resides in the head; Resplendent like the moon; Resides in the forehead (between the eyebrows); Resplendent like the rainbow"
@@ -1958,6 +7188,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "हृदयस्था रविप्रख्या त्रिकोणान्तरदीपिका",
     "दाक्षायणी दैत्यहन्त्री दक्षयज्ञविनाशिनी"
+   ],
+   "read_dev": [
+    "हृदयस्था रविप्रख्या त्रिकोणान्तरदीपिका",
+    "दाक्षायणी दैत्यहन्त्री दक्षयज्ञविनाशिनी"
+   ],
+   "read_iast": [
+    "hṛdayasthā raviprakhyā trikoṇāntaradīpikā",
+    "dākṣāyaṇī daityahantrī dakṣayajñavināśinī"
+   ],
+   "learn": [
+    [
+     [
+      595,
+      "हृदय-स्था",
+      "hṛdaya-sthā",
+      0
+     ],
+     [
+      596,
+      "रवि-प्रख्या",
+      "ravi-prakhyā",
+      0
+     ],
+     [
+      597,
+      "त्रि-कोणान्तर-दीपिका",
+      "tri-koṇāntara-dīpikā",
+      0
+     ]
+    ],
+    [
+     [
+      598,
+      "दाक्षायणी",
+      "dākṣāyaṇī",
+      0
+     ],
+     [
+      599,
+      "दैत्य-हन्त्री",
+      "daitya-hantrī",
+      0
+     ],
+     [
+      600,
+      "दक्ष-यज्ञ-विनाशिनी",
+      "dakṣa-yajña-vināśinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Resides in the heart; Shines like the sun; Shines as a light within the triangle",
@@ -1975,6 +7255,56 @@ const LALITHA_DATA = {
     "दरान्दोलितदीर्घाक्षी दरहासोज्ज्वलन्मुखी",
     "गुरुमूर्तिर्गुणनिधिर्गोमाता गुहजन्मभूः"
    ],
+   "read_dev": [
+    "दरान्दोलितदीर्घाक्षी दरहासोज्ज्वलन्मुखी",
+    "गुरुमूर्तिर् गुणनिधिर् गोमाता गुहजन्मभूः"
+   ],
+   "read_iast": [
+    "darāndolitadīrghākṣī darahāsojjvalanmukhī",
+    "gurumūrtir guṇanidhir gomātā guhajanmabhūḥ"
+   ],
+   "learn": [
+    [
+     [
+      601,
+      "दरान्दोलित-दीर्घाक्षी",
+      "darāndolita-dīrghākṣī",
+      0
+     ],
+     [
+      602,
+      "दर-हासोज्ज्वलन्-मुखी",
+      "dara-hāsojjvalan-mukhī",
+      0
+     ]
+    ],
+    [
+     [
+      603,
+      "गुरु-मूर्तिः",
+      "guru-mūrtiḥ",
+      1
+     ],
+     [
+      604,
+      "गुण-निधिः",
+      "guṇa-nidhiḥ",
+      1
+     ],
+     [
+      605,
+      "गो-माता",
+      "go-mātā",
+      0
+     ],
+     [
+      606,
+      "गुह-जन्म-भूः",
+      "guha-janma-bhūḥ",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose long eyes are gently tremulous; Whose face shines with a gentle smile",
     "Has assumed the form of the guru; The treasure house of all good qualities; The mother of cows (as Surabhi, the wish-granting cow); The source from which Guha (Skanda) was born"
@@ -1990,6 +7320,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "देवेशी दण्डनीतिस्था दहराकाशरूपिणी",
     "प्रतिपन्मुख्यराकान्ततिथिमण्डलपूजिता"
+   ],
+   "read_dev": [
+    "देवेशी दण्डनीतिस्था दहराकाशरूपिणी",
+    "प्रतिपन्मुख्यराकान्ततिथिमण्डलपूजिता"
+   ],
+   "read_iast": [
+    "deveśī daṇḍanītisthā daharākāśarūpiṇī",
+    "pratipanmukhyarākāntatithimaṇḍalapūjitā"
+   ],
+   "learn": [
+    [
+     [
+      607,
+      "देवेशी",
+      "deveśī",
+      0
+     ],
+     [
+      608,
+      "दण्ड-नीति-स्था",
+      "daṇḍa-nīti-sthā",
+      0
+     ],
+     [
+      609,
+      "दहराकाश-रूपिणी",
+      "daharākāśa-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      610,
+      "प्रतिपन्-मुख्य-राकान्त-तिथि-मण्डल-पूजिता",
+      "pratipan-mukhya-rākānta-tithi-maṇḍala-pūjitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The ruler of the gods; Abides in daṇḍanīti, the science of just rule; Whose form is the subtle space (daharākāśa) within the heart",
@@ -2007,6 +7375,44 @@ const LALITHA_DATA = {
     "कलात्मिका कलानाथा काव्यालापविनोदिनी",
     "सचामररमावाणीसव्यदक्षिणसेविता"
    ],
+   "read_dev": [
+    "कलात्मिका कलानाथा काव्यालापविनोदिनी",
+    "सचामररमावाणीसव्यदक्षिणसेविता"
+   ],
+   "read_iast": [
+    "kalātmikā kalānāthā kāvyālāpavinodinī",
+    "sacāmararamāvāṇīsavyadakṣiṇasevitā"
+   ],
+   "learn": [
+    [
+     [
+      611,
+      "कलात्मिका",
+      "kalātmikā",
+      0
+     ],
+     [
+      612,
+      "कला-नाथा",
+      "kalā-nāthā",
+      0
+     ],
+     [
+      613,
+      "काव्यालाप-विनोदिनी",
+      "kāvyālāpa-vinodinī",
+      0
+     ]
+    ],
+    [
+     [
+      614,
+      "सचामर-रमा-वाणी-सव्य-दक्षिण-सेविता",
+      "sacāmara-ramā-vāṇī-savya-dakṣiṇa-sevitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose very self is the kalās; The mistress of all the kalās; Delights in hearing poetry",
     "Attended by Lakṣmī on the left and Sarasvatī on the right, each bearing a chowrie"
@@ -2022,6 +7428,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "आदिशक्तिरमेयाऽऽत्मा परमा पावनाकृतिः",
     "अनेककोटिब्रह्माण्डजननी दिव्यविग्रहा"
+   ],
+   "read_dev": [
+    "आदिशक्तिर् अमेया ऽऽत्मा परमा पावनाकृतिः",
+    "अनेककोटिब्रह्माण्डजननी दिव्यविग्रहा"
+   ],
+   "read_iast": [
+    "ādiśaktir ameyā ''tmā paramā pāvanākṛtiḥ",
+    "anekakoṭibrahmāṇḍajananī divyavigrahā"
+   ],
+   "learn": [
+    [
+     [
+      615,
+      "आदि-शक्तिः",
+      "ādi-śaktiḥ",
+      1
+     ],
+     [
+      616,
+      "अमेया",
+      "ameyā",
+      0
+     ],
+     [
+      617,
+      "आत्मा",
+      "ātmā",
+      1
+     ],
+     [
+      618,
+      "परमा",
+      "paramā",
+      0
+     ],
+     [
+      619,
+      "पावनाकृतिः",
+      "pāvanākṛtiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      620,
+      "अनेक-कोटि-ब्रह्माण्ड-जननी",
+      "aneka-koṭi-brahmāṇḍa-jananī",
+      0
+     ],
+     [
+      621,
+      "दिव्य-विग्रहा",
+      "divya-vigrahā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The primordial Power, the first cause of the universe; Not measurable by any means; The self in all; The supreme; Whose form is purifying",
@@ -2039,6 +7501,68 @@ const LALITHA_DATA = {
     "क्लीङ्कारी केवला गुह्या कैवल्यपददायिनी",
     "त्रिपुरा त्रिजगद्वन्द्या त्रिमूर्तिस्त्रिदशेश्वरी"
    ],
+   "read_dev": [
+    "क्लीङ्कारी केवला गुह्या कैवल्यपददायिनी",
+    "त्रिपुरा त्रिजगद्वन्द्या त्रिमूर्तिस् त्रिदशेश्वरी"
+   ],
+   "read_iast": [
+    "klīṅkārī kevalā guhyā kaivalyapadadāyinī",
+    "tripurā trijagadvandyā trimūrtis tridaśeśvarī"
+   ],
+   "learn": [
+    [
+     [
+      622,
+      "क्लीङ्कारी",
+      "klīṅkārī",
+      0
+     ],
+     [
+      623,
+      "केवला",
+      "kevalā",
+      0
+     ],
+     [
+      624,
+      "गुह्या",
+      "guhyā",
+      0
+     ],
+     [
+      625,
+      "कैवल्य-पद-दायिनी",
+      "kaivalya-pada-dāyinī",
+      0
+     ]
+    ],
+    [
+     [
+      626,
+      "त्रिपुरा",
+      "tripurā",
+      0
+     ],
+     [
+      627,
+      "त्रि-जगद्-वन्द्या",
+      "tri-jagad-vandyā",
+      0
+     ],
+     [
+      628,
+      "त्रि-मूर्तिः",
+      "tri-mūrtiḥ",
+      1
+     ],
+     [
+      629,
+      "त्रि-दशेश्वरी",
+      "tri-daśeśvarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The source of the syllable klīṃ; Absolute, alone and unconditioned; Secret, to be known in secret; Bestows the state of kaivalya, final liberation",
     "Tripurā, the Goddess of the three cities, prior to the three gods; Adored by the inhabitants of all three worlds; Has three forms (as Brahmā, Viṣṇu and Śiva); The ruler of the gods"
@@ -2054,6 +7578,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "त्र्यक्षरी दिव्यगन्धाढ्या सिन्दूरतिलकाञ्चिता",
     "उमा शैलेन्द्रतनया गौरी गन्धर्वसेविता"
+   ],
+   "read_dev": [
+    "त्र्यक्षरी दिव्यगन्धाढ्या सिन्दूरतिलकाञ्चिता",
+    "उमा शैलेन्द्रतनया गौरी गन्धर्वसेविता"
+   ],
+   "read_iast": [
+    "tryakṣarī divyagandhāḍhyā sindūratilakāñcitā",
+    "umā śailendratanayā gaurī gandharvasevitā"
+   ],
+   "learn": [
+    [
+     [
+      630,
+      "त्र्य्-अक्षरी",
+      "try-akṣarī",
+      0
+     ],
+     [
+      631,
+      "दिव्य-गन्धाढ्या",
+      "divya-gandhāḍhyā",
+      0
+     ],
+     [
+      632,
+      "सिन्दूर-तिलकाञ्चिता",
+      "sindūra-tilakāñcitā",
+      0
+     ]
+    ],
+    [
+     [
+      633,
+      "उमा",
+      "umā",
+      0
+     ],
+     [
+      634,
+      "शैलेन्द्र-तनया",
+      "śailendra-tanayā",
+      0
+     ],
+     [
+      635,
+      "गौरी",
+      "gaurī",
+      0
+     ],
+     [
+      636,
+      "गन्धर्व-सेविता",
+      "gandharva-sevitā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The three-syllabled (mantra); Richly endowed with divine fragrance; Adorned with a tilaka of vermilion",
@@ -2071,6 +7651,68 @@ const LALITHA_DATA = {
     "विश्वगर्भा स्वर्णगर्भाऽवरदा वागधीश्वरी",
     "ध्यानगम्याऽपरिच्छेद्या ज्ञानदा ज्ञानविग्रहा"
    ],
+   "read_dev": [
+    "विश्वगर्भा स्वर्णगर्भा ऽवरदा वागधीश्वरी",
+    "ध्यानगम्या ऽपरिच्छेद्या ज्ञानदा ज्ञानविग्रहा"
+   ],
+   "read_iast": [
+    "viśvagarbhā svarṇagarbhā 'varadā vāgadhīśvarī",
+    "dhyānagamyā 'paricchedyā jñānadā jñānavigrahā"
+   ],
+   "learn": [
+    [
+     [
+      637,
+      "विश्व-गर्भा",
+      "viśva-garbhā",
+      0
+     ],
+     [
+      638,
+      "स्वर्ण-गर्भा",
+      "svarṇa-garbhā",
+      0
+     ],
+     [
+      639,
+      "अवरदा",
+      "avaradā",
+      1
+     ],
+     [
+      640,
+      "वाग्-अधीश्वरी",
+      "vāg-adhīśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      641,
+      "ध्यान-गम्या",
+      "dhyāna-gamyā",
+      0
+     ],
+     [
+      642,
+      "अपरिच्छेद्या",
+      "aparicchedyā",
+      1
+     ],
+     [
+      643,
+      "ज्ञान-दा",
+      "jñāna-dā",
+      0
+     ],
+     [
+      644,
+      "ज्ञान-विग्रहा",
+      "jñāna-vigrahā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Contains the whole universe in Her womb; Whose womb is golden, the source of the world (as Hiraṇyagarbha); Destroys the base (the demons); Presides over speech",
     "To be attained through meditation; Cannot be delimited; Bestows knowledge; Whose very body is knowledge"
@@ -2086,6 +7728,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सर्ववेदान्तसंवेद्या सत्यानन्दस्वरूपिणी",
     "लोपामुद्रार्चिता लीलाकॢप्तब्रह्माण्डमण्डला"
+   ],
+   "read_dev": [
+    "सर्ववेदान्तसंवेद्या सत्यानन्दस्वरूपिणी",
+    "लोपामुद्रार्चिता लीलाकॢप्तब्रह्माण्डमण्डला"
+   ],
+   "read_iast": [
+    "sarvavedāntasaṃvedyā satyānandasvarūpiṇī",
+    "lopāmudrārcitā līlākḷptabrahmāṇḍamaṇḍalā"
+   ],
+   "learn": [
+    [
+     [
+      645,
+      "सर्व-वेदान्त-संवेद्या",
+      "sarva-vedānta-saṃvedyā",
+      0
+     ],
+     [
+      646,
+      "सत्यानन्द-स्वरूपिणी",
+      "satyānanda-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      647,
+      "लोपामुद्रार्चिता",
+      "lopāmudrārcitā",
+      0
+     ],
+     [
+      648,
+      "लीला-कॢप्त-ब्रह्माण्ड-मण्डला",
+      "līlā-kḷpta-brahmāṇḍa-maṇḍalā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "To be known through all the Upaniṣads; Whose very nature is truth (being) and bliss",
@@ -2103,6 +7783,74 @@ const LALITHA_DATA = {
     "अदृश्या दृश्यरहिता विज्ञात्री वेद्यवर्जिता",
     "योगिनी योगदा योग्या योगानन्दा युगन्धरा"
    ],
+   "read_dev": [
+    "अदृश्या दृश्यरहिता विज्ञात्री वेद्यवर्जिता",
+    "योगिनी योगदा योग्या योगानन्दा युगन्धरा"
+   ],
+   "read_iast": [
+    "adṛśyā dṛśyarahitā vijñātrī vedyavarjitā",
+    "yoginī yogadā yogyā yogānandā yugandharā"
+   ],
+   "learn": [
+    [
+     [
+      649,
+      "अदृश्या",
+      "adṛśyā",
+      0
+     ],
+     [
+      650,
+      "दृश्य-रहिता",
+      "dṛśya-rahitā",
+      0
+     ],
+     [
+      651,
+      "विज्ञात्री",
+      "vijñātrī",
+      0
+     ],
+     [
+      652,
+      "वेद्य-वर्जिता",
+      "vedya-varjitā",
+      0
+     ]
+    ],
+    [
+     [
+      653,
+      "योगिनी",
+      "yoginī",
+      0
+     ],
+     [
+      654,
+      "योग-दा",
+      "yoga-dā",
+      0
+     ],
+     [
+      655,
+      "योग्या",
+      "yogyā",
+      0
+     ],
+     [
+      656,
+      "योगानन्दा",
+      "yogānandā",
+      0
+     ],
+     [
+      657,
+      "युगन्-धरा",
+      "yugan-dharā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Invisible, beyond the reach of the senses; Free of anything seen, with nothing outside Her to see; The knower; Has nothing to be known apart from Herself",
     "Possesses the power of yoga, ever united with Paraśiva; Bestows the power of yoga; Fit to be reached through yoga; Enjoys the bliss of yoga, and is that bliss; The bearer of the yugas"
@@ -2118,6 +7866,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "इच्छाशक्तिज्ञानशक्तिक्रियाशक्तिस्वरूपिणी",
     "सर्वाधारा सुप्रतिष्ठा सदसद्रूपधारिणी"
+   ],
+   "read_dev": [
+    "इच्छाशक्तिज्ञानशक्तिक्रियाशक्तिस्वरूपिणी",
+    "सर्वाधारा सुप्रतिष्ठा सदसद्रूपधारिणी"
+   ],
+   "read_iast": [
+    "icchāśaktijñānaśaktikriyāśaktisvarūpiṇī",
+    "sarvādhārā supratiṣṭhā sadasadrūpadhāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      658,
+      "इच्छा-शक्ति-ज्ञान-शक्ति-क्रिया-शक्ति-स्वरूपिणी",
+      "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      659,
+      "सर्वाधारा",
+      "sarvādhārā",
+      0
+     ],
+     [
+      660,
+      "सु-प्रतिष्ठा",
+      "su-pratiṣṭhā",
+      0
+     ],
+     [
+      661,
+      "सद्-असद्-रूप-धारिणी",
+      "sad-asad-rūpa-dhāriṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "In the form of the powers of will, knowledge and action",
@@ -2135,6 +7921,62 @@ const LALITHA_DATA = {
     "अष्टमूर्तिरजाजैत्री लोकयात्राविधायिनी",
     "एकाकिनी भूमरूपा निर्द्वैता द्वैतवर्जिता"
    ],
+   "read_dev": [
+    "अष्टमूर्तिर् अजाजैत्री लोकयात्राविधायिनी",
+    "एकाकिनी भूमरूपा निर्द्वैता द्वैतवर्जिता"
+   ],
+   "read_iast": [
+    "aṣṭamūrtir ajājaitrī lokayātrāvidhāyinī",
+    "ekākinī bhūmarūpā nirdvaitā dvaitavarjitā"
+   ],
+   "learn": [
+    [
+     [
+      662,
+      "अष्ट-मूर्तिः",
+      "aṣṭa-mūrtiḥ",
+      1
+     ],
+     [
+      663,
+      "अजा-जैत्री",
+      "ajā-jaitrī",
+      0
+     ],
+     [
+      664,
+      "लोक-यात्रा-विधायिनी",
+      "loka-yātrā-vidhāyinī",
+      0
+     ]
+    ],
+    [
+     [
+      665,
+      "एकाकिनी",
+      "ekākinī",
+      0
+     ],
+     [
+      666,
+      "भूम-रूपा",
+      "bhūma-rūpā",
+      0
+     ],
+     [
+      667,
+      "निर्-द्वैता",
+      "nir-dvaitā",
+      0
+     ],
+     [
+      668,
+      "द्वैत-वर्जिता",
+      "dvaita-varjitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Has eight forms; Conquers Ajā, the unborn Māyā of ignorance; Directs the course of the worlds",
     "The lone One; Whose form is the Bhūman, the boundless Plenitude; Without duality; Beyond duality"
@@ -2150,6 +7992,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "अन्नदा वसुदा वृद्धा ब्रह्मात्मैक्यस्वरूपिणी",
     "बृहती ब्राह्मणी ब्राह्मी ब्रह्मानन्दा बलिप्रिया"
+   ],
+   "read_dev": [
+    "अन्नदा वसुदा वृद्धा ब्रह्मात्मैक्यस्वरूपिणी",
+    "बृहती ब्राह्मणी ब्राह्मी ब्रह्मानन्दा बलिप्रिया"
+   ],
+   "read_iast": [
+    "annadā vasudā vṛddhā brahmātmaikyasvarūpiṇī",
+    "bṛhatī brāhmaṇī brāhmī brahmānandā balipriyā"
+   ],
+   "learn": [
+    [
+     [
+      669,
+      "अन्न-दा",
+      "anna-dā",
+      0
+     ],
+     [
+      670,
+      "वसु-दा",
+      "vasu-dā",
+      0
+     ],
+     [
+      671,
+      "वृद्धा",
+      "vṛddhā",
+      0
+     ],
+     [
+      672,
+      "ब्रह्मात्मैक्य-स्वरूपिणी",
+      "brahmātmaikya-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      673,
+      "बृहती",
+      "bṛhatī",
+      0
+     ],
+     [
+      674,
+      "ब्राह्मणी",
+      "brāhmaṇī",
+      0
+     ],
+     [
+      675,
+      "ब्राह्मी",
+      "brāhmī",
+      0
+     ],
+     [
+      676,
+      "ब्रह्मानन्दा",
+      "brahmānandā",
+      0
+     ],
+     [
+      677,
+      "बलि-प्रिया",
+      "bali-priyā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The giver of food to all living things; The giver of wealth; Ancient; Whose very nature is the oneness of Brahman and the Self (Ātman)",
@@ -2167,6 +8077,56 @@ const LALITHA_DATA = {
     "भाषारूपा बृहत्सेना भावाभावविवर्जिता",
     "सुखाराध्या शुभकरी शोभना सुलभा गतिः"
    ],
+   "read_dev": [
+    "भाषारूपा बृहत्सेना भावाभावविवर्जिता",
+    "सुखाराध्या शुभकरी शोभना सुलभा गतिः"
+   ],
+   "read_iast": [
+    "bhāṣārūpā bṛhatsenā bhāvābhāvavivarjitā",
+    "sukhārādhyā śubhakarī śobhanā sulabhā gatiḥ"
+   ],
+   "learn": [
+    [
+     [
+      678,
+      "भाषा-रूपा",
+      "bhāṣā-rūpā",
+      0
+     ],
+     [
+      679,
+      "बृहत्-सेना",
+      "bṛhat-senā",
+      0
+     ],
+     [
+      680,
+      "भावाभाव-विवर्जिता",
+      "bhāvābhāva-vivarjitā",
+      0
+     ]
+    ],
+    [
+     [
+      681,
+      "सुखाराध्या",
+      "sukhārādhyā",
+      0
+     ],
+     [
+      682,
+      "शुभ-करी",
+      "śubha-karī",
+      0
+     ],
+     [
+      683,
+      "शोभना-सुलभा-गतिः",
+      "śobhanā-sulabhā-gatiḥ",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "In the form of language; Has a vast army; Beyond being and non-being",
     "Easily worshipped; Brings about what is auspicious; The auspicious goal, easily reached"
@@ -2182,6 +8142,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "राजराजेश्वरी राज्यदायिनी राज्यवल्लभा",
     "राजत्कृपा राजपीठनिवेशितनिजाश्रिता"
+   ],
+   "read_dev": [
+    "राजराजेश्वरी राज्यदायिनी राज्यवल्लभा",
+    "राजत्कृपा राजपीठनिवेशितनिजाश्रिता"
+   ],
+   "read_iast": [
+    "rājarājeśvarī rājyadāyinī rājyavallabhā",
+    "rājatkṛpā rājapīṭhaniveśitanijāśritā"
+   ],
+   "learn": [
+    [
+     [
+      684,
+      "राज-राजेश्वरी",
+      "rāja-rājeśvarī",
+      0
+     ],
+     [
+      685,
+      "राज्य-दायिनी",
+      "rājya-dāyinī",
+      0
+     ],
+     [
+      686,
+      "राज्य-वल्लभा",
+      "rājya-vallabhā",
+      0
+     ]
+    ],
+    [
+     [
+      687,
+      "राजत्-कृपा",
+      "rājat-kṛpā",
+      0
+     ],
+     [
+      688,
+      "राज-पीठ-निवेशित-निजाश्रिता",
+      "rāja-pīṭha-niveśita-nijāśritā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The sovereign of the kings of kings; Gives dominion; She to whom sovereignty is dear",
@@ -2199,6 +8203,56 @@ const LALITHA_DATA = {
     "राज्यलक्ष्मीः कोशनाथा चतुरङ्गबलेश्वरी",
     "साम्राज्यदायिनी सत्यसन्धा सागरमेखला"
    ],
+   "read_dev": [
+    "राज्यलक्ष्मीः कोशनाथा चतुरङ्गबलेश्वरी",
+    "साम्राज्यदायिनी सत्यसन्धा सागरमेखला"
+   ],
+   "read_iast": [
+    "rājyalakṣmīḥ kośanāthā caturaṅgabaleśvarī",
+    "sāmrājyadāyinī satyasandhā sāgaramekhalā"
+   ],
+   "learn": [
+    [
+     [
+      689,
+      "राज्य-लक्ष्मीः",
+      "rājya-lakṣmīḥ",
+      0
+     ],
+     [
+      690,
+      "कोश-नाथा",
+      "kośa-nāthā",
+      0
+     ],
+     [
+      691,
+      "चतुरङ्ग-बलेश्वरी",
+      "caturaṅga-baleśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      692,
+      "साम्राज्य-दायिनी",
+      "sāmrājya-dāyinī",
+      0
+     ],
+     [
+      693,
+      "सत्य-सन्धा",
+      "satya-sandhā",
+      0
+     ],
+     [
+      694,
+      "सागर-मेखला",
+      "sāgara-mekhalā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The Fortune (Lakṣmī) of the kingdom; The mistress of the treasury; Sovereign of the fourfold army",
     "The bestower of imperial dominion; True to Her word; Girdled by the oceans"
@@ -2214,6 +8268,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "दीक्षिता दैत्यशमनी सर्वलोकवशङ्करी",
     "सर्वार्थदात्री सावित्री सच्चिदानन्दरूपिणी"
+   ],
+   "read_dev": [
+    "दीक्षिता दैत्यशमनी सर्वलोकवशङ्करी",
+    "सर्वार्थदात्री सावित्री सच्चिदानन्दरूपिणी"
+   ],
+   "read_iast": [
+    "dīkṣitā daityaśamanī sarvalokavaśaṅkarī",
+    "sarvārthadātrī sāvitrī saccidānandarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      695,
+      "दीक्षिता",
+      "dīkṣitā",
+      0
+     ],
+     [
+      696,
+      "दैत्य-शमनी",
+      "daitya-śamanī",
+      0
+     ],
+     [
+      697,
+      "सर्व-लोक-वशङ्करी",
+      "sarva-loka-vaśaṅkarī",
+      0
+     ]
+    ],
+    [
+     [
+      698,
+      "सर्वार्थ-दात्री",
+      "sarvārtha-dātrī",
+      0
+     ],
+     [
+      699,
+      "सावित्री",
+      "sāvitrī",
+      0
+     ],
+     [
+      700,
+      "सच्-चिद्-आनन्द-रूपिणी",
+      "sac-cid-ānanda-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Consecrated (dīkṣitā); Subdues the demons; Keeps all the worlds under Her control",
@@ -2231,6 +8335,62 @@ const LALITHA_DATA = {
     "देशकालापरिच्छिन्ना सर्वगा सर्वमोहिनी",
     "सरस्वती शास्त्रमयी गुहाम्बा गुह्यरूपिणी"
    ],
+   "read_dev": [
+    "देशकालापरिच्छिन्ना सर्वगा सर्वमोहिनी",
+    "सरस्वती शास्त्रमयी गुहाम्बा गुह्यरूपिणी"
+   ],
+   "read_iast": [
+    "deśakālāparicchinnā sarvagā sarvamohinī",
+    "sarasvatī śāstramayī guhāmbā guhyarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      701,
+      "देश-कालापरिच्छिन्ना",
+      "deśa-kālāparicchinnā",
+      0
+     ],
+     [
+      702,
+      "सर्व-गा",
+      "sarva-gā",
+      0
+     ],
+     [
+      703,
+      "सर्व-मोहिनी",
+      "sarva-mohinī",
+      0
+     ]
+    ],
+    [
+     [
+      704,
+      "सरस्वती",
+      "sarasvatī",
+      0
+     ],
+     [
+      705,
+      "शास्त्र-मयी",
+      "śāstra-mayī",
+      0
+     ],
+     [
+      706,
+      "गुहाम्बा",
+      "guhāmbā",
+      0
+     ],
+     [
+      707,
+      "गुह्य-रूपिणी",
+      "guhya-rūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Not limited by space and time; All-pervading, present everywhere; Deludes all",
     "Sarasvatī, the goddess of knowledge and speech; Consists of the scriptures; The mother of Guha (Skanda); Has a secret form"
@@ -2246,6 +8406,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सर्वोपाधिविनिर्मुक्ता सदाशिवपतिव्रता",
     "सम्प्रदायेश्वरी साध्वी गुरुमण्डलरूपिणी"
+   ],
+   "read_dev": [
+    "सर्वोपाधिविनिर्मुक्ता सदाशिवपतिव्रता",
+    "सम्प्रदायेश्वरी साध्वी गुरुमण्डलरूपिणी"
+   ],
+   "read_iast": [
+    "sarvopādhivinirmuktā sadāśivapativratā",
+    "sampradāyeśvarī sādhvī gurumaṇḍalarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      708,
+      "सर्वोपाधि-विनिर्मुक्ता",
+      "sarvopādhi-vinirmuktā",
+      0
+     ],
+     [
+      709,
+      "सदाशिव-पतिव्रता",
+      "sadāśiva-pativratā",
+      0
+     ]
+    ],
+    [
+     [
+      710,
+      "सम्प्रदायेश्वरी",
+      "sampradāyeśvarī",
+      0
+     ],
+     [
+      711,
+      "साधु",
+      "sādhu",
+      1
+     ],
+     [
+      712,
+      "ई",
+      "ī",
+      1
+     ],
+     [
+      713,
+      "गुरु-मण्डल-रूपिणी",
+      "guru-maṇḍala-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Free of all limiting adjuncts (upādhi); The devoted wife of Sadāśiva",
@@ -2263,6 +8473,74 @@ const LALITHA_DATA = {
     "कुलोत्तीर्णा भगाराध्या माया मधुमती मही",
     "गणाम्बा गुह्यकाराध्या कोमलाङ्गी गुरुप्रिया"
    ],
+   "read_dev": [
+    "कुलोत्तीर्णा भगाराध्या माया मधुमती मही",
+    "गणाम्बा गुह्यकाराध्या कोमलाङ्गी गुरुप्रिया"
+   ],
+   "read_iast": [
+    "kulottīrṇā bhagārādhyā māyā madhumatī mahī",
+    "gaṇāmbā guhyakārādhyā komalāṅgī gurupriyā"
+   ],
+   "learn": [
+    [
+     [
+      714,
+      "कुलोत्तीर्णा",
+      "kulottīrṇā",
+      0
+     ],
+     [
+      715,
+      "भगाराध्या",
+      "bhagārādhyā",
+      0
+     ],
+     [
+      716,
+      "माया",
+      "māyā",
+      0
+     ],
+     [
+      717,
+      "मधुमती",
+      "madhumatī",
+      0
+     ],
+     [
+      718,
+      "मही",
+      "mahī",
+      0
+     ]
+    ],
+    [
+     [
+      719,
+      "गणाम्बा",
+      "gaṇāmbā",
+      0
+     ],
+     [
+      720,
+      "गुह्यकाराध्या",
+      "guhyakārādhyā",
+      0
+     ],
+     [
+      721,
+      "कोमलाङ्गी",
+      "komalāṅgī",
+      0
+     ],
+     [
+      722,
+      "गुरु-प्रिया",
+      "guru-priyā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Transcends the kula (the senses); Worshipped in the sun's disc; Māyā, the power of illusion; Full of sweetness; The Earth",
     "The mother of the Gaṇas, Śiva's attendants; Worshipped by the Guhyakas; Whose limbs are soft and tender; Beloved of the gurus"
@@ -2278,6 +8556,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "स्वतन्त्रा सर्वतन्त्रेशी दक्षिणामूर्तिरूपिणी",
     "सनकादिसमाराध्या शिवज्ञानप्रदायिनी"
+   ],
+   "read_dev": [
+    "स्वतन्त्रा सर्वतन्त्रेशी दक्षिणामूर्तिरूपिणी",
+    "सनकादिसमाराध्या शिवज्ञानप्रदायिनी"
+   ],
+   "read_iast": [
+    "svatantrā sarvatantreśī dakṣiṇāmūrtirūpiṇī",
+    "sanakādisamārādhyā śivajñānapradāyinī"
+   ],
+   "learn": [
+    [
+     [
+      723,
+      "स्वतन्त्रा",
+      "svatantrā",
+      0
+     ],
+     [
+      724,
+      "सर्व-तन्त्रेशी",
+      "sarva-tantreśī",
+      0
+     ],
+     [
+      725,
+      "दक्षिणामूर्ति-रूपिणी",
+      "dakṣiṇāmūrti-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      726,
+      "सनकादि-समाराध्या",
+      "sanakādi-samārādhyā",
+      0
+     ],
+     [
+      727,
+      "शिव-ज्ञान-प्रदायिनी",
+      "śiva-jñāna-pradāyinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Independent, subject to none; The goddess of all Tantras; In the form of Dakṣiṇāmūrti",
@@ -2295,6 +8617,62 @@ const LALITHA_DATA = {
     "चित्कलाऽऽनन्दकलिका प्रेमरूपा प्रियङ्करी",
     "नामपारायणप्रीता नन्दिविद्या नटेश्वरी"
    ],
+   "read_dev": [
+    "चित्कला ऽऽनन्दकलिका प्रेमरूपा प्रियङ्करी",
+    "नामपारायणप्रीता नन्दिविद्या नटेश्वरी"
+   ],
+   "read_iast": [
+    "citkalā ''nandakalikā premarūpā priyaṅkarī",
+    "nāmapārāyaṇaprītā nandividyā naṭeśvarī"
+   ],
+   "learn": [
+    [
+     [
+      728,
+      "चित्-कला",
+      "cit-kalā",
+      0
+     ],
+     [
+      729,
+      "आनन्द-कलिका",
+      "ānanda-kalikā",
+      1
+     ],
+     [
+      730,
+      "प्रेम-रूपा",
+      "prema-rūpā",
+      0
+     ],
+     [
+      731,
+      "प्रियङ्करी",
+      "priyaṅkarī",
+      0
+     ]
+    ],
+    [
+     [
+      732,
+      "नाम-पारायण-प्रीता",
+      "nāma-pārāyaṇa-prītā",
+      0
+     ],
+     [
+      733,
+      "नन्दि-विद्या",
+      "nandi-vidyā",
+      0
+     ],
+     [
+      734,
+      "नटेश्वरी",
+      "naṭeśvarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The digit (kalā) of consciousness; The bud of bliss; Whose form is love; Grants what is dear to Her devotees",
     "Pleased by the recitation of Her names; The Vidyā (mantra) of Nandi; The consort of Naṭeśvara (Śiva, Lord of the dance)"
@@ -2310,6 +8688,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मिथ्याजगदधिष्ठाना मुक्तिदा मुक्तिरूपिणी",
     "लास्यप्रिया लयकरी लज्जा रम्भादिवन्दिता"
+   ],
+   "read_dev": [
+    "मिथ्याजगदधिष्ठाना मुक्तिदा मुक्तिरूपिणी",
+    "लास्यप्रिया लयकरी लज्जा रम्भादिवन्दिता"
+   ],
+   "read_iast": [
+    "mithyājagadadhiṣṭhānā muktidā muktirūpiṇī",
+    "lāsyapriyā layakarī lajjā rambhādivanditā"
+   ],
+   "learn": [
+    [
+     [
+      735,
+      "मिथ्या-जगद्-अधिष्ठाना",
+      "mithyā-jagad-adhiṣṭhānā",
+      0
+     ],
+     [
+      736,
+      "मुक्ति-दा",
+      "mukti-dā",
+      0
+     ],
+     [
+      737,
+      "मुक्ति-रूपिणी",
+      "mukti-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      738,
+      "लास्य-प्रिया",
+      "lāsya-priyā",
+      0
+     ],
+     [
+      739,
+      "लय-करी",
+      "laya-karī",
+      0
+     ],
+     [
+      740,
+      "लज्जा",
+      "lajjā",
+      0
+     ],
+     [
+      741,
+      "रम्भादि-वन्दिता",
+      "rambhādi-vanditā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The basis of the illusory universe; Gives liberation; In the form of liberation",
@@ -2327,6 +8761,44 @@ const LALITHA_DATA = {
     "भवदावसुधावृष्टिः पापारण्यदवानला",
     "दौर्भाग्यतूलवातूला जराध्वान्तरविप्रभा"
    ],
+   "read_dev": [
+    "भवदावसुधावृष्टिः पापारण्यदवानला",
+    "दौर्भाग्यतूलवातूला जराध्वान्तरविप्रभा"
+   ],
+   "read_iast": [
+    "bhavadāvasudhāvṛṣṭiḥ pāpāraṇyadavānalā",
+    "daurbhāgyatūlavātūlā jarādhvāntaraviprabhā"
+   ],
+   "learn": [
+    [
+     [
+      742,
+      "भव-दाव-सुधा-वृष्टिः",
+      "bhava-dāva-sudhā-vṛṣṭiḥ",
+      0
+     ],
+     [
+      743,
+      "पापारण्य-दवानला",
+      "pāpāraṇya-davānalā",
+      0
+     ]
+    ],
+    [
+     [
+      744,
+      "दौर्भाग्य-तूल-वातूला",
+      "daurbhāgya-tūla-vātūlā",
+      0
+     ],
+     [
+      745,
+      "जराध्वान्त-रवि-प्रभा",
+      "jarādhvānta-ravi-prabhā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The rain of nectar falling on the forest fire of worldly existence; The forest fire that consumes the forest of sins",
     "The gale that drives away the cotton wisps of misfortune; The sunlight that dispels the darkness of old age"
@@ -2342,6 +8814,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "भाग्याब्धिचन्द्रिका भक्तचित्तकेकिघनाघना",
     "रोगपर्वतदम्भोलिर्मृत्युदारुकुठारिका"
+   ],
+   "read_dev": [
+    "भाग्याब्धिचन्द्रिका भक्तचित्तकेकिघनाघना",
+    "रोगपर्वतदम्भोलिर् मृत्युदारुकुठारिका"
+   ],
+   "read_iast": [
+    "bhāgyābdhicandrikā bhaktacittakekighanāghanā",
+    "rogaparvatadambholir mṛtyudārukuṭhārikā"
+   ],
+   "learn": [
+    [
+     [
+      746,
+      "भाग्याब्धि-चन्द्रिका",
+      "bhāgyābdhi-candrikā",
+      0
+     ],
+     [
+      747,
+      "भक्त-चित्त-केकि-घनाघना",
+      "bhakta-citta-keki-ghanāghanā",
+      0
+     ]
+    ],
+    [
+     [
+      748,
+      "रोग-पर्वत-दम्भोलिः",
+      "roga-parvata-dambholiḥ",
+      1
+     ],
+     [
+      749,
+      "मृत्यु-दारु-कुठारिका",
+      "mṛtyu-dāru-kuṭhārikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The moonlight that swells the ocean of good fortune; The cloud that gladdens the peacocks who are the hearts of Her devotees",
@@ -2359,6 +8869,62 @@ const LALITHA_DATA = {
     "महेश्वरी महाकाली महाग्रासा महाशना",
     "अपर्णा चण्डिका चण्डमुण्डासुरनिषूदिनी"
    ],
+   "read_dev": [
+    "महेश्वरी महाकाली महाग्रासा महाशना",
+    "अपर्णा चण्डिका चण्डमुण्डासुरनिषूदिनी"
+   ],
+   "read_iast": [
+    "maheśvarī mahākālī mahāgrāsā mahāśanā",
+    "aparṇā caṇḍikā caṇḍamuṇḍāsuraniṣūdinī"
+   ],
+   "learn": [
+    [
+     [
+      750,
+      "महेश्वरी",
+      "maheśvarī",
+      0
+     ],
+     [
+      751,
+      "महा-काली",
+      "mahā-kālī",
+      0
+     ],
+     [
+      752,
+      "महा-ग्रासा",
+      "mahā-grāsā",
+      0
+     ],
+     [
+      753,
+      "महाशना",
+      "mahāśanā",
+      0
+     ]
+    ],
+    [
+     [
+      754,
+      "अपर्णा",
+      "aparṇā",
+      0
+     ],
+     [
+      755,
+      "चण्डिका",
+      "caṇḍikā",
+      0
+     ],
+     [
+      756,
+      "चण्ड-मुण्डासुर-निषूदिनी",
+      "caṇḍa-muṇḍāsura-niṣūdinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The great Sovereign (Maheśvarī); The great Kālī; The great devourer, swallowing all at the dissolution; Whose eating is great, who consumes all that is",
     "Owes no debt; Caṇḍikā, fierce against the wicked; Slew the demons Caṇḍa and Muṇḍa"
@@ -2374,6 +8940,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "क्षराक्षरात्मिका सर्वलोकेशी विश्वधारिणी",
     "त्रिवर्गदात्री सुभगा त्र्यम्बका त्रिगुणात्मिका"
+   ],
+   "read_dev": [
+    "क्षराक्षरात्मिका सर्वलोकेशी विश्वधारिणी",
+    "त्रिवर्गदात्री सुभगा त्र्यम्बका त्रिगुणात्मिका"
+   ],
+   "read_iast": [
+    "kṣarākṣarātmikā sarvalokeśī viśvadhāriṇī",
+    "trivargadātrī subhagā tryambakā triguṇātmikā"
+   ],
+   "learn": [
+    [
+     [
+      757,
+      "क्षराक्षरात्मिका",
+      "kṣarākṣarātmikā",
+      0
+     ],
+     [
+      758,
+      "सर्व-लोकेशी",
+      "sarva-lokeśī",
+      0
+     ],
+     [
+      759,
+      "विश्व-धारिणी",
+      "viśva-dhāriṇī",
+      0
+     ]
+    ],
+    [
+     [
+      760,
+      "त्रि-वर्ग-दात्री",
+      "tri-varga-dātrī",
+      0
+     ],
+     [
+      761,
+      "सुभगा",
+      "subhagā",
+      0
+     ],
+     [
+      762,
+      "त्र्यम्बका",
+      "tryambakā",
+      0
+     ],
+     [
+      763,
+      "त्रि-गुणात्मिका",
+      "tri-guṇātmikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Whose nature is both the perishable and the imperishable; The ruler of all worlds; Supports the universe",
@@ -2391,6 +9013,62 @@ const LALITHA_DATA = {
     "स्वर्गापवर्गदा शुद्धा जपापुष्पनिभाकृतिः",
     "ओजोवती द्युतिधरा यज्ञरूपा प्रियव्रता"
    ],
+   "read_dev": [
+    "स्वर्गापवर्गदा शुद्धा जपापुष्पनिभाकृतिः",
+    "ओजोवती द्युतिधरा यज्ञरूपा प्रियव्रता"
+   ],
+   "read_iast": [
+    "svargāpavargadā śuddhā japāpuṣpanibhākṛtiḥ",
+    "ojovatī dyutidharā yajñarūpā priyavratā"
+   ],
+   "learn": [
+    [
+     [
+      764,
+      "स्वर्गापवर्ग-दा",
+      "svargāpavarga-dā",
+      0
+     ],
+     [
+      765,
+      "शुद्धा",
+      "śuddhā",
+      0
+     ],
+     [
+      766,
+      "जपा-पुष्प-निभाकृतिः",
+      "japā-puṣpa-nibhākṛtiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      767,
+      "ओजोवती",
+      "ojovatī",
+      0
+     ],
+     [
+      768,
+      "द्युति-धरा",
+      "dyuti-dharā",
+      0
+     ],
+     [
+      769,
+      "यज्ञ-रूपा",
+      "yajña-rūpā",
+      0
+     ],
+     [
+      770,
+      "प्रिय-व्रता",
+      "priya-vratā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Bestows heaven and liberation; Pure; Whose form is red like the hibiscus flower",
     "Full of vitality; Bears radiance, full of light and splendor; In the form of sacrifice; Fond of vows"
@@ -2406,6 +9084,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "दुराराध्या दुराधर्षा पाटलीकुसुमप्रिया",
     "महती मेरुनिलया मन्दारकुसुमप्रिया"
+   ],
+   "read_dev": [
+    "दुराराध्या दुराधर्षा पाटलीकुसुमप्रिया",
+    "महती मेरुनिलया मन्दारकुसुमप्रिया"
+   ],
+   "read_iast": [
+    "durārādhyā durādharṣā pāṭalīkusumapriyā",
+    "mahatī merunilayā mandārakusumapriyā"
+   ],
+   "learn": [
+    [
+     [
+      771,
+      "दुर्-आराध्या",
+      "dur-ārādhyā",
+      0
+     ],
+     [
+      772,
+      "दुर्-आधर्षा",
+      "dur-ādharṣā",
+      0
+     ],
+     [
+      773,
+      "पाटली-कुसुम-प्रिया",
+      "pāṭalī-kusuma-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      774,
+      "महती",
+      "mahatī",
+      0
+     ],
+     [
+      775,
+      "मेरु-निलया",
+      "meru-nilayā",
+      0
+     ],
+     [
+      776,
+      "मन्दार-कुसुम-प्रिया",
+      "mandāra-kusuma-priyā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Difficult to worship; Cannot be assailed or overpowered; Fond of the pāṭalī flower (the pale red trumpet flower)",
@@ -2423,6 +9151,68 @@ const LALITHA_DATA = {
     "वीराराध्या विराड्रूपा विरजा विश्वतोमुखी",
     "प्रत्यग्रूपा पराकाशा प्राणदा प्राणरूपिणी"
    ],
+   "read_dev": [
+    "वीराराध्या विराड्रूपा विरजा विश्वतोमुखी",
+    "प्रत्यग्रूपा पराकाशा प्राणदा प्राणरूपिणी"
+   ],
+   "read_iast": [
+    "vīrārādhyā virāḍrūpā virajā viśvatomukhī",
+    "pratyagrūpā parākāśā prāṇadā prāṇarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      777,
+      "वीराराध्या",
+      "vīrārādhyā",
+      0
+     ],
+     [
+      778,
+      "विराड्-रूपा",
+      "virāḍ-rūpā",
+      0
+     ],
+     [
+      779,
+      "विरजा",
+      "virajā",
+      0
+     ],
+     [
+      780,
+      "विश्वतो-मुखी",
+      "viśvato-mukhī",
+      0
+     ]
+    ],
+    [
+     [
+      781,
+      "प्रत्यग्-रूपा",
+      "pratyag-rūpā",
+      0
+     ],
+     [
+      782,
+      "पराकाशा",
+      "parākāśā",
+      0
+     ],
+     [
+      783,
+      "प्राण-दा",
+      "prāṇa-dā",
+      0
+     ],
+     [
+      784,
+      "प्राण-रूपिणी",
+      "prāṇa-rūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Worshipped by heroic persons; Whose form is Virāj, the cosmic whole; Without rajas (desire and anger); Faces all directions",
     "The indwelling Self; The supreme space (ākāśa); The giver of life; Whose form is prāṇa, the breath of life"
@@ -2438,6 +9228,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मार्ताण्डभैरवाराध्या मन्त्रिणीन्यस्तराज्यधूः",
     "त्रिपुरेशी जयत्सेना निस्त्रैगुण्या परापरा"
+   ],
+   "read_dev": [
+    "मार्ताण्डभैरवाराध्या मन्त्रिणीन्यस्तराज्यधूः",
+    "त्रिपुरेशी जयत्सेना निस्त्रैगुण्या परापरा"
+   ],
+   "read_iast": [
+    "mārtāṇḍabhairavārādhyā mantriṇīnyastarājyadhūḥ",
+    "tripureśī jayatsenā nistraiguṇyā parāparā"
+   ],
+   "learn": [
+    [
+     [
+      785,
+      "मार्ताण्ड-भैरवाराध्या",
+      "mārtāṇḍa-bhairavārādhyā",
+      0
+     ],
+     [
+      786,
+      "मन्त्रिणी-न्यस्त-राज्य-धूः",
+      "mantriṇī-nyasta-rājya-dhūḥ",
+      0
+     ]
+    ],
+    [
+     [
+      787,
+      "त्रिपुरेशी",
+      "tripureśī",
+      0
+     ],
+     [
+      788,
+      "जयत्-सेना",
+      "jayat-senā",
+      0
+     ],
+     [
+      789,
+      "निस्-त्रैगुण्या",
+      "nis-traiguṇyā",
+      0
+     ],
+     [
+      790,
+      "परापरा",
+      "parāparā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Worshipped by Mārtāṇḍa Bhairava; Has entrusted the burden of Her kingdom to Her minister, Mantriṇī",
@@ -2455,6 +9295,56 @@ const LALITHA_DATA = {
     "सत्यज्ञानानन्दरूपा सामरस्यपरायणा",
     "कपर्दिनी कलामाला कामधुक् कामरूपिणी"
    ],
+   "read_dev": [
+    "सत्यज्ञानानन्दरूपा सामरस्यपरायणा",
+    "कपर्दिनी कलामाला कामधुक् कामरूपिणी"
+   ],
+   "read_iast": [
+    "satyajñānānandarūpā sāmarasyaparāyaṇā",
+    "kapardinī kalāmālā kāmadhuk kāmarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      791,
+      "सत्य-ज्ञानानन्द-रूपा",
+      "satya-jñānānanda-rūpā",
+      0
+     ],
+     [
+      792,
+      "सामरस्य-परायणा",
+      "sāmarasya-parāyaṇā",
+      0
+     ]
+    ],
+    [
+     [
+      793,
+      "कपर्दिनी",
+      "kapardinī",
+      0
+     ],
+     [
+      794,
+      "कला-माला",
+      "kalā-mālā",
+      0
+     ],
+     [
+      795,
+      "काम-धुक्",
+      "kāma-dhuk",
+      0
+     ],
+     [
+      796,
+      "काम-रूपिणी",
+      "kāma-rūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Truth, knowledge and bliss; Wholly intent on sāmarasya, the perfect equipoise of Śiva and Śakti",
     "The consort of Kapardin, Śiva of the matted locks; Wears the arts as a garland; Fulfills all desires; Assumes any form at will"
@@ -2470,6 +9360,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "कलानिधिः काव्यकला रसज्ञा रसशेवधिः",
     "पुष्टा पुरातना पूज्या पुष्करा पुष्करेक्षणा"
+   ],
+   "read_dev": [
+    "कलानिधिः काव्यकला रसज्ञा रसशेवधिः",
+    "पुष्टा पुरातना पूज्या पुष्करा पुष्करेक्षणा"
+   ],
+   "read_iast": [
+    "kalānidhiḥ kāvyakalā rasajñā rasaśevadhiḥ",
+    "puṣṭā purātanā pūjyā puṣkarā puṣkarekṣaṇā"
+   ],
+   "learn": [
+    [
+     [
+      797,
+      "कला-निधिः",
+      "kalā-nidhiḥ",
+      0
+     ],
+     [
+      798,
+      "काव्य-कला",
+      "kāvya-kalā",
+      0
+     ],
+     [
+      799,
+      "रस-ज्ञा",
+      "rasa-jñā",
+      0
+     ],
+     [
+      800,
+      "रस-शेवधिः",
+      "rasa-śevadhiḥ",
+      0
+     ]
+    ],
+    [
+     [
+      801,
+      "पुष्टा",
+      "puṣṭā",
+      0
+     ],
+     [
+      802,
+      "पुरातना",
+      "purātanā",
+      0
+     ],
+     [
+      803,
+      "पूज्या",
+      "pūjyā",
+      0
+     ],
+     [
+      804,
+      "पुष्करा",
+      "puṣkarā",
+      0
+     ],
+     [
+      805,
+      "पुष्करेक्षणा",
+      "puṣkarekṣaṇā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The treasure-house of all arts; The art of poetry; Knows all the rasas; The treasure-house of rasa",
@@ -2487,6 +9445,62 @@ const LALITHA_DATA = {
     "परञ्ज्योतिः परन्धाम परमाणुः परात्परा",
     "पाशहस्ता पाशहन्त्री परमन्त्रविभेदिनी"
    ],
+   "read_dev": [
+    "परञ्ज्योतिः परन्धाम परमाणुः परात्परा",
+    "पाशहस्ता पाशहन्त्री परमन्त्रविभेदिनी"
+   ],
+   "read_iast": [
+    "parañjyotiḥ parandhāma paramāṇuḥ parātparā",
+    "pāśahastā pāśahantrī paramantravibhedinī"
+   ],
+   "learn": [
+    [
+     [
+      806,
+      "परञ्-ज्योतिः",
+      "parañ-jyotiḥ",
+      0
+     ],
+     [
+      807,
+      "परन्-धाम",
+      "paran-dhāma",
+      0
+     ],
+     [
+      808,
+      "परमाणुः",
+      "paramāṇuḥ",
+      0
+     ],
+     [
+      809,
+      "परात्-परा",
+      "parāt-parā",
+      0
+     ]
+    ],
+    [
+     [
+      810,
+      "पाश-हस्ता",
+      "pāśa-hastā",
+      0
+     ],
+     [
+      811,
+      "पाश-हन्त्री",
+      "pāśa-hantrī",
+      0
+     ],
+     [
+      812,
+      "पर-मन्त्र-विभेदिनी",
+      "para-mantra-vibhedinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The supreme light; The supreme abode; The subtlest particle; The most supreme of the supreme ones",
     "Holds a noose in Her hand; Destroys the bonds; Shatters the mantras employed by enemies"
@@ -2502,6 +9516,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "मूर्ताऽमूर्ताऽनित्यतृप्ता मुनिमानसहंसिका",
     "सत्यव्रता सत्यरूपा सर्वान्तर्यामिनी सती"
+   ],
+   "read_dev": [
+    "मूर्ता ऽमूर्ता ऽनित्यतृप्ता मुनिमानसहंसिका",
+    "सत्यव्रता सत्यरूपा सर्वान्तर्यामिनी सती"
+   ],
+   "read_iast": [
+    "mūrtā 'mūrtā 'nityatṛptā munimānasahaṃsikā",
+    "satyavratā satyarūpā sarvāntaryāminī satī"
+   ],
+   "learn": [
+    [
+     [
+      813,
+      "मूर्ता",
+      "mūrtā",
+      0
+     ],
+     [
+      814,
+      "अमूर्ता",
+      "amūrtā",
+      1
+     ],
+     [
+      815,
+      "अनित्य-तृप्ता",
+      "anitya-tṛptā",
+      1
+     ],
+     [
+      816,
+      "मुनि-मानस-हंसिका",
+      "muni-mānasa-haṃsikā",
+      0
+     ]
+    ],
+    [
+     [
+      817,
+      "सत्य-व्रता",
+      "satya-vratā",
+      0
+     ],
+     [
+      818,
+      "सत्य-रूपा",
+      "satya-rūpā",
+      0
+     ],
+     [
+      819,
+      "सर्वान्तर्-यामिनी",
+      "sarvāntar-yāminī",
+      0
+     ],
+     [
+      820,
+      "सती",
+      "satī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has forms; Has no definite form; Satisfied even by our perishable offerings; The swan in the Mānasa lake that is the minds of sages",
@@ -2519,6 +9595,80 @@ const LALITHA_DATA = {
     "ब्रह्माणी ब्रह्मजननी बहुरूपा बुधार्चिता",
     "प्रसवित्री प्रचण्डाऽऽज्ञा प्रतिष्ठा प्रकटाकृतिः"
    ],
+   "read_dev": [
+    "ब्रह्माणी ब्रह्म जननी बहुरूपा बुधार्चिता",
+    "प्रसवित्री प्रचण्डा ऽऽज्ञा प्रतिष्ठा प्रकटाकृतिः"
+   ],
+   "read_iast": [
+    "brahmāṇī brahma jananī bahurūpā budhārcitā",
+    "prasavitrī pracaṇḍā ''jñā pratiṣṭhā prakaṭākṛtiḥ"
+   ],
+   "learn": [
+    [
+     [
+      821,
+      "ब्रह्माणी",
+      "brahmāṇī",
+      0
+     ],
+     [
+      822,
+      "ब्रह्म",
+      "brahma",
+      0
+     ],
+     [
+      823,
+      "जननी",
+      "jananī",
+      0
+     ],
+     [
+      824,
+      "बहु-रूपा",
+      "bahu-rūpā",
+      0
+     ],
+     [
+      825,
+      "बुधार्चिता",
+      "budhārcitā",
+      0
+     ]
+    ],
+    [
+     [
+      826,
+      "प्रसवित्री",
+      "prasavitrī",
+      0
+     ],
+     [
+      827,
+      "प्रचण्डा",
+      "pracaṇḍā",
+      0
+     ],
+     [
+      828,
+      "आज्ञा",
+      "ājñā",
+      1
+     ],
+     [
+      829,
+      "प्रतिष्ठा",
+      "pratiṣṭhā",
+      0
+     ],
+     [
+      830,
+      "प्रकटाकृतिः",
+      "prakaṭākṛtiḥ",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Brahmāṇī, the creative power of Brahmā; Brahman; The Mother; Has a multitude of forms; Worshipped by the wise",
     "Mother of the universe; Full of awe-inspiring wrath; The divine command Herself; The foundation; Whose form is manifest"
@@ -2534,6 +9684,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "प्राणेश्वरी प्राणदात्री पञ्चाशत्पीठरूपिणी",
     "विशृङ्खला विविक्तस्था वीरमाता वियत्प्रसूः"
+   ],
+   "read_dev": [
+    "प्राणेश्वरी प्राणदात्री पञ्चाशत्पीठरूपिणी",
+    "विशृङ्खला विविक्तस्था वीरमाता वियत्प्रसूः"
+   ],
+   "read_iast": [
+    "prāṇeśvarī prāṇadātrī pañcāśatpīṭharūpiṇī",
+    "viśṛṅkhalā viviktasthā vīramātā viyatprasūḥ"
+   ],
+   "learn": [
+    [
+     [
+      831,
+      "प्राणेश्वरी",
+      "prāṇeśvarī",
+      0
+     ],
+     [
+      832,
+      "प्राण-दात्री",
+      "prāṇa-dātrī",
+      0
+     ],
+     [
+      833,
+      "पञ्चाशत्-पीठ-रूपिणी",
+      "pañcāśat-pīṭha-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      834,
+      "वि-शृङ्खला",
+      "vi-śṛṅkhalā",
+      0
+     ],
+     [
+      835,
+      "विविक्त-स्था",
+      "vivikta-sthā",
+      0
+     ],
+     [
+      836,
+      "वीर-माता",
+      "vīra-mātā",
+      0
+     ],
+     [
+      837,
+      "वियत्-प्रसूः",
+      "viyat-prasūḥ",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Rules over the prāṇas and the senses; The giver of life; Whose form is the fifty sacred seats (pīṭhas)",
@@ -2551,6 +9757,56 @@ const LALITHA_DATA = {
     "मुकुन्दा मुक्तिनिलया मूलविग्रहरूपिणी",
     "भावज्ञा भवरोगघ्नी भवचक्रप्रवर्तिनी"
    ],
+   "read_dev": [
+    "मुकुन्दा मुक्तिनिलया मूलविग्रहरूपिणी",
+    "भावज्ञा भवरोगघ्नी भवचक्रप्रवर्तिनी"
+   ],
+   "read_iast": [
+    "mukundā muktinilayā mūlavigraharūpiṇī",
+    "bhāvajñā bhavarogaghnī bhavacakrapravartinī"
+   ],
+   "learn": [
+    [
+     [
+      838,
+      "मुकुन्दा",
+      "mukundā",
+      0
+     ],
+     [
+      839,
+      "मुक्ति-निलया",
+      "mukti-nilayā",
+      0
+     ],
+     [
+      840,
+      "मूल-विग्रह-रूपिणी",
+      "mūla-vigraha-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      841,
+      "भाव-ज्ञा",
+      "bhāva-jñā",
+      0
+     ],
+     [
+      842,
+      "भव-रोग-घ्नी",
+      "bhava-roga-ghnī",
+      0
+     ],
+     [
+      843,
+      "भव-चक्र-प्रवर्तिनी",
+      "bhava-cakra-pravartinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Grants liberation; She who is Mukundā, one with Viṣṇu; The abode of liberation; The root form of everything",
     "The knower of all thoughts and sentiments; Destroys the disease of worldly existence, the round of birth and death; Turns the wheel of the cycle of birth and death"
@@ -2566,6 +9822,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "छन्दःसारा शास्त्रसारा मन्त्रसारा तलोदरी",
     "उदारकीर्तिरुद्दामवैभवा वर्णरूपिणी"
+   ],
+   "read_dev": [
+    "छन्दःसारा शास्त्रसारा मन्त्रसारा तलोदरी",
+    "उदारकीर्तिर् उद्दामवैभवा वर्णरूपिणी"
+   ],
+   "read_iast": [
+    "chandaḥsārā śāstrasārā mantrasārā talodarī",
+    "udārakīrtir uddāmavaibhavā varṇarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      844,
+      "छन्दः-सारा",
+      "chandaḥ-sārā",
+      0
+     ],
+     [
+      845,
+      "शास्त्र-सारा",
+      "śāstra-sārā",
+      0
+     ],
+     [
+      846,
+      "मन्त्र-सारा",
+      "mantra-sārā",
+      0
+     ],
+     [
+      847,
+      "तलोदरी",
+      "talodarī",
+      0
+     ]
+    ],
+    [
+     [
+      848,
+      "उदार-कीर्तिः",
+      "udāra-kīrtiḥ",
+      1
+     ],
+     [
+      849,
+      "उद्दाम-वैभवा",
+      "uddāma-vaibhavā",
+      0
+     ],
+     [
+      850,
+      "वर्ण-रूपिणी",
+      "varṇa-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The essence of the Vedas; The essence of all scriptures; The essence of all mantras; Slender-waisted",
@@ -2583,6 +9895,38 @@ const LALITHA_DATA = {
     "जन्ममृत्युजरातप्तजनविश्रान्तिदायिनी",
     "सर्वोपनिषदुद्घुष्टा शान्त्यतीतकलात्मिका"
    ],
+   "read_dev": [
+    "जन्ममृत्युजरातप्तजनविश्रान्तिदायिनी",
+    "सर्वोपनिषदुद्घुष्टा शान्त्यतीतकलात्मिका"
+   ],
+   "read_iast": [
+    "janmamṛtyujarātaptajanaviśrāntidāyinī",
+    "sarvopaniṣadudghuṣṭā śāntyatītakalātmikā"
+   ],
+   "learn": [
+    [
+     [
+      851,
+      "जन्म-मृत्यु-जरा-तप्त-जन-विश्रान्ति-दायिनी",
+      "janma-mṛtyu-jarā-tapta-jana-viśrānti-dāyinī",
+      0
+     ]
+    ],
+    [
+     [
+      852,
+      "सर्वोपनिषद्-उद्घुष्टा",
+      "sarvopaniṣad-udghuṣṭā",
+      0
+     ],
+     [
+      853,
+      "शान्त्यतीत-कलात्मिका",
+      "śāntyatīta-kalātmikā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Gives peace and repose to those who are afflicted by birth, death and decrepitude",
     "Proclaimed by all the Upaniṣads; Whose very nature is the kalā beyond peace (śāntyatītā)"
@@ -2598,6 +9942,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "गम्भीरा गगनान्तस्था गर्विता गानलोलुपा",
     "कल्पनारहिता काष्ठाऽकान्ता कान्तार्धविग्रहा"
+   ],
+   "read_dev": [
+    "गम्भीरा गगनान्तस्था गर्विता गानलोलुपा",
+    "कल्पनारहिता काष्ठा ऽकान्ता कान्तार्धविग्रहा"
+   ],
+   "read_iast": [
+    "gambhīrā gaganāntasthā garvitā gānalolupā",
+    "kalpanārahitā kāṣṭhā 'kāntā kāntārdhavigrahā"
+   ],
+   "learn": [
+    [
+     [
+      854,
+      "गम्भीरा",
+      "gambhīrā",
+      0
+     ],
+     [
+      855,
+      "गगनान्त-स्था",
+      "gaganānta-sthā",
+      0
+     ],
+     [
+      856,
+      "गर्विता",
+      "garvitā",
+      0
+     ],
+     [
+      857,
+      "गान-लोलुपा",
+      "gāna-lolupā",
+      0
+     ]
+    ],
+    [
+     [
+      858,
+      "कल्पना-रहिता",
+      "kalpanā-rahitā",
+      0
+     ],
+     [
+      859,
+      "काष्ठा",
+      "kāṣṭhā",
+      0
+     ],
+     [
+      860,
+      "अकान्ता",
+      "akāntā",
+      1
+     ],
+     [
+      861,
+      "कान्तार्ध-विग्रहा",
+      "kāntārdha-vigrahā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Unfathomable; Dwells at the farthest bound of space, and within it; Proud; Delights in music",
@@ -2615,6 +10021,44 @@ const LALITHA_DATA = {
     "कार्यकारणनिर्मुक्ता कामकेलितरङ्गिता",
     "कनत्कनकताटङ्का लीलाविग्रहधारिणी"
    ],
+   "read_dev": [
+    "कार्यकारणनिर्मुक्ता कामकेलितरङ्गिता",
+    "कनत्कनकताटङ्का लीलाविग्रहधारिणी"
+   ],
+   "read_iast": [
+    "kāryakāraṇanirmuktā kāmakelitaraṅgitā",
+    "kanatkanakatāṭaṅkā līlāvigrahadhāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      862,
+      "कार्य-कारण-निर्मुक्ता",
+      "kārya-kāraṇa-nirmuktā",
+      0
+     ],
+     [
+      863,
+      "काम-केलि-तरङ्गिता",
+      "kāma-keli-taraṅgitā",
+      0
+     ]
+    ],
+    [
+     [
+      864,
+      "कनत्-कनक-ताटङ्का",
+      "kanat-kanaka-tāṭaṅkā",
+      0
+     ],
+     [
+      865,
+      "लीला-विग्रह-धारिणी",
+      "līlā-vigraha-dhāriṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Free from the bond of cause and effect; Surges in waves of joy in Her love-play with Kāmeśvara",
     "Wears glittering gold ear ornaments; Takes on forms in play"
@@ -2630,6 +10074,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "अजा क्षयविनिर्मुक्ता मुग्धा क्षिप्रप्रसादिनी",
     "अन्तर्मुखसमाराध्या बहिर्मुखसुदुर्लभा"
+   ],
+   "read_dev": [
+    "अजा क्षयविनिर्मुक्ता मुग्धा क्षिप्रप्रसादिनी",
+    "अन्तर्मुखसमाराध्या बहिर्मुखसुदुर्लभा"
+   ],
+   "read_iast": [
+    "ajā kṣayavinirmuktā mugdhā kṣipraprasādinī",
+    "antarmukhasamārādhyā bahirmukhasudurlabhā"
+   ],
+   "learn": [
+    [
+     [
+      866,
+      "अजा",
+      "ajā",
+      0
+     ],
+     [
+      867,
+      "क्षय-विनिर्मुक्ता",
+      "kṣaya-vinirmuktā",
+      0
+     ],
+     [
+      868,
+      "मुग्धा",
+      "mugdhā",
+      0
+     ],
+     [
+      869,
+      "क्षिप्र-प्रसादिनी",
+      "kṣipra-prasādinī",
+      0
+     ]
+    ],
+    [
+     [
+      870,
+      "अन्तर्-मुख-समाराध्या",
+      "antar-mukha-samārādhyā",
+      0
+     ],
+     [
+      871,
+      "बहिर्-मुख-सु-दुर्-लभा",
+      "bahir-mukha-su-dur-labhā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has no birth; Free from decay; Captivating in Her beauty; Quickly pleased",
@@ -2647,6 +10141,68 @@ const LALITHA_DATA = {
     "त्रयी त्रिवर्गनिलया त्रिस्था त्रिपुरमालिनी",
     "निरामया निरालम्बा स्वात्मारामा सुधासृतिः"
    ],
+   "read_dev": [
+    "त्रयी त्रिवर्गनिलया त्रिस्था त्रिपुरमालिनी",
+    "निरामया निरालम्बा स्वात्मारामा सुधासृतिः"
+   ],
+   "read_iast": [
+    "trayī trivarganilayā tristhā tripuramālinī",
+    "nirāmayā nirālambā svātmārāmā sudhāsṛtiḥ"
+   ],
+   "learn": [
+    [
+     [
+      872,
+      "त्रयी",
+      "trayī",
+      0
+     ],
+     [
+      873,
+      "त्रि-वर्ग-निलया",
+      "tri-varga-nilayā",
+      0
+     ],
+     [
+      874,
+      "त्रि-स्था",
+      "tri-sthā",
+      0
+     ],
+     [
+      875,
+      "त्रिपुर-मालिनी",
+      "tripura-mālinī",
+      0
+     ]
+    ],
+    [
+     [
+      876,
+      "निर्-आमया",
+      "nir-āmayā",
+      0
+     ],
+     [
+      877,
+      "निर्-आलम्बा",
+      "nir-ālambā",
+      0
+     ],
+     [
+      878,
+      "स्वात्मारामा",
+      "svātmārāmā",
+      0
+     ],
+     [
+      879,
+      "सुधा-सृतिः",
+      "sudhā-sṛtiḥ",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The three Vedas; The abode of the threefold aims of human life; Abides in the three worlds, the three times and the three states; Tripuramālinī, the presiding Goddess of the inner ten-triangle enclosure (antardaśāra) of the Śrīcakra",
     "Free from diseases of all kinds; Depends on none; Rejoices in Her own self; The stream of nectar"
@@ -2662,6 +10218,44 @@ const LALITHA_DATA = {
    "halves_dev": [
     "संसारपङ्कनिर्मग्नसमुद्धरणपण्डिता",
     "यज्ञप्रिया यज्ञकर्त्री यजमानस्वरूपिणी"
+   ],
+   "read_dev": [
+    "संसारपङ्कनिर्मग्नसमुद्धरणपण्डिता",
+    "यज्ञप्रिया यज्ञकर्त्री यजमानस्वरूपिणी"
+   ],
+   "read_iast": [
+    "saṃsārapaṅkanirmagnasamuddharaṇapaṇḍitā",
+    "yajñapriyā yajñakartrī yajamānasvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      880,
+      "संसार-पङ्क-निर्मग्न-समुद्धरण-पण्डिता",
+      "saṃsāra-paṅka-nirmagna-samuddharaṇa-paṇḍitā",
+      0
+     ]
+    ],
+    [
+     [
+      881,
+      "यज्ञ-प्रिया",
+      "yajña-priyā",
+      0
+     ],
+     [
+      882,
+      "यज्ञ-कर्त्री",
+      "yajña-kartrī",
+      0
+     ],
+     [
+      883,
+      "यजमान-स्वरूपिणी",
+      "yajamāna-svarūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Skilled in raising those who are immersed in the mire of transmigratory life",
@@ -2679,6 +10273,56 @@ const LALITHA_DATA = {
     "धर्माधारा धनाध्यक्षा धनधान्यविवर्धिनी",
     "विप्रप्रिया विप्ररूपा विश्वभ्रमणकारिणी"
    ],
+   "read_dev": [
+    "धर्माधारा धनाध्यक्षा धनधान्यविवर्धिनी",
+    "विप्रप्रिया विप्ररूपा विश्वभ्रमणकारिणी"
+   ],
+   "read_iast": [
+    "dharmādhārā dhanādhyakṣā dhanadhānyavivardhinī",
+    "viprapriyā viprarūpā viśvabhramaṇakāriṇī"
+   ],
+   "learn": [
+    [
+     [
+      884,
+      "धर्माधारा",
+      "dharmādhārā",
+      0
+     ],
+     [
+      885,
+      "धनाध्यक्षा",
+      "dhanādhyakṣā",
+      0
+     ],
+     [
+      886,
+      "धन-धान्य-विवर्धिनी",
+      "dhana-dhānya-vivardhinī",
+      0
+     ]
+    ],
+    [
+     [
+      887,
+      "विप्र-प्रिया",
+      "vipra-priyā",
+      0
+     ],
+     [
+      888,
+      "विप्र-रूपा",
+      "vipra-rūpā",
+      0
+     ],
+     [
+      889,
+      "विश्व-भ्रमण-कारिणी",
+      "viśva-bhramaṇa-kāriṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The support of dharma; Oversees wealth; Increases wealth and harvests",
     "Fond of the learned; Has the form of the vipra, the knower of the Self; Makes the universe go around through Her power of illusion"
@@ -2694,6 +10338,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "विश्वग्रासा विद्रुमाभा वैष्णवी विष्णुरूपिणी",
     "अयोनिर्योनिनिलया कूटस्था कुलरूपिणी"
+   ],
+   "read_dev": [
+    "विश्वग्रासा विद्रुमाभा वैष्णवी विष्णुरूपिणी",
+    "अयोनिर् योनिनिलया कूटस्था कुलरूपिणी"
+   ],
+   "read_iast": [
+    "viśvagrāsā vidrumābhā vaiṣṇavī viṣṇurūpiṇī",
+    "ayonir yoninilayā kūṭasthā kularūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      890,
+      "विश्व-ग्रासा",
+      "viśva-grāsā",
+      0
+     ],
+     [
+      891,
+      "विद्रुमाभा",
+      "vidrumābhā",
+      0
+     ],
+     [
+      892,
+      "वैष्णवी",
+      "vaiṣṇavī",
+      0
+     ],
+     [
+      893,
+      "विष्णु-रूपिणी",
+      "viṣṇu-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      894,
+      "अयोनिः",
+      "ayoniḥ",
+      1
+     ],
+     [
+      895,
+      "योनि-निलया",
+      "yoni-nilayā",
+      0
+     ],
+     [
+      896,
+      "कूट-स्था",
+      "kūṭa-sthā",
+      0
+     ],
+     [
+      897,
+      "कुल-रूपिणी",
+      "kula-rūpiṇī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Devours the universe; Shines like coral (with Her red complexion); The power of Viṣṇu; Has the form of Viṣṇu, the all-pervading",
@@ -2711,6 +10417,68 @@ const LALITHA_DATA = {
     "वीरगोष्ठीप्रिया वीरा नैष्कर्म्या नादरूपिणी",
     "विज्ञानकलना कल्या विदग्धा बैन्दवासना"
    ],
+   "read_dev": [
+    "वीरगोष्ठीप्रिया वीरा नैष्कर्म्या नादरूपिणी",
+    "विज्ञानकलना कल्या विदग्धा बैन्दवासना"
+   ],
+   "read_iast": [
+    "vīragoṣṭhīpriyā vīrā naiṣkarmyā nādarūpiṇī",
+    "vijñānakalanā kalyā vidagdhā baindavāsanā"
+   ],
+   "learn": [
+    [
+     [
+      898,
+      "वीर-गोष्ठी-प्रिया",
+      "vīra-goṣṭhī-priyā",
+      0
+     ],
+     [
+      899,
+      "वीरा",
+      "vīrā",
+      0
+     ],
+     [
+      900,
+      "नैष्कर्म्या",
+      "naiṣkarmyā",
+      0
+     ],
+     [
+      901,
+      "नाद-रूपिणी",
+      "nāda-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      902,
+      "विज्ञान-कलना",
+      "vijñāna-kalanā",
+      0
+     ],
+     [
+      903,
+      "कल्या",
+      "kalyā",
+      0
+     ],
+     [
+      904,
+      "विदग्धा",
+      "vidagdhā",
+      0
+     ],
+     [
+      905,
+      "बैन्दवासना",
+      "baindavāsanā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Fond of the assembly of warriors; Heroic; Beyond all action (naiṣkarmya); In the form of the primal sound",
     "The realization of supreme knowledge (vijñāna); Able, sound and auspicious; Expert in everything; Whose seat is the bindu, the central point of the Śrīcakra"
@@ -2726,6 +10494,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "तत्त्वाधिका तत्त्वमयी तत्त्वमर्थस्वरूपिणी",
     "सामगानप्रिया सौम्या सदाशिवकुटुम्बिनी"
+   ],
+   "read_dev": [
+    "तत्त्वाधिका तत्त्वमयी तत्त्वमर्थस्वरूपिणी",
+    "सामगानप्रिया सौम्या सदाशिवकुटुम्बिनी"
+   ],
+   "read_iast": [
+    "tattvādhikā tattvamayī tattvamarthasvarūpiṇī",
+    "sāmagānapriyā saumyā sadāśivakuṭumbinī"
+   ],
+   "learn": [
+    [
+     [
+      906,
+      "तत्त्वाधिका",
+      "tattvādhikā",
+      0
+     ],
+     [
+      907,
+      "तत्त्व-मयी",
+      "tattva-mayī",
+      0
+     ],
+     [
+      908,
+      "तत्त्वम्-अर्थ-स्वरूपिणी",
+      "tattvam-artha-svarūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      909,
+      "साम-गान-प्रिया",
+      "sāma-gāna-priyā",
+      0
+     ],
+     [
+      910,
+      "सौम्या",
+      "saumyā",
+      0
+     ],
+     [
+      911,
+      "सदाशिव-कुटुम्बिनी",
+      "sadāśiva-kuṭumbinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Transcends all cosmic categories; Reality itself, consisting of the tattvas; Whose very nature is the meaning of tat and tvam, That and thou",
@@ -2743,6 +10561,56 @@ const LALITHA_DATA = {
     "सव्यापसव्यमार्गस्था सर्वापद्विनिवारिणी",
     "स्वस्था स्वभावमधुरा धीरा धीरसमर्चिता"
    ],
+   "read_dev": [
+    "सव्यापसव्यमार्गस्था सर्वापद्विनिवारिणी",
+    "स्वस्था स्वभावमधुरा धीरा धीरसमर्चिता"
+   ],
+   "read_iast": [
+    "savyāpasavyamārgasthā sarvāpadvinivāriṇī",
+    "svasthā svabhāvamadhurā dhīrā dhīrasamarcitā"
+   ],
+   "learn": [
+    [
+     [
+      912,
+      "सव्यापसव्य-मार्ग-स्था",
+      "savyāpasavya-mārga-sthā",
+      0
+     ],
+     [
+      913,
+      "सर्वापद्-विनिवारिणी",
+      "sarvāpad-vinivāriṇī",
+      0
+     ]
+    ],
+    [
+     [
+      914,
+      "स्व-स्था",
+      "sva-sthā",
+      0
+     ],
+     [
+      915,
+      "स्वभाव-मधुरा",
+      "svabhāva-madhurā",
+      0
+     ],
+     [
+      916,
+      "धीरा",
+      "dhīrā",
+      0
+     ],
+     [
+      917,
+      "धीर-समर्चिता",
+      "dhīra-samarcitā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Occupies (or can be reached by) both the left and right paths of worship; Removes all dangers",
     "Abides in Herself; She who is free from all afflictions; Sweet in Her inherent nature; Wise; She who gives wisdom; Worshipped by the wise"
@@ -2758,6 +10626,50 @@ const LALITHA_DATA = {
    "halves_dev": [
     "चैतन्यार्घ्यसमाराध्या चैतन्यकुसुमप्रिया",
     "सदोदिता सदातुष्टा तरुणादित्यपाटला"
+   ],
+   "read_dev": [
+    "चैतन्यार्घ्यसमाराध्या चैतन्यकुसुमप्रिया",
+    "सदोदिता सदातुष्टा तरुणादित्यपाटला"
+   ],
+   "read_iast": [
+    "caitanyārghyasamārādhyā caitanyakusumapriyā",
+    "sadoditā sadātuṣṭā taruṇādityapāṭalā"
+   ],
+   "learn": [
+    [
+     [
+      918,
+      "चैतन्यार्घ्य-समाराध्या",
+      "caitanyārghya-samārādhyā",
+      0
+     ],
+     [
+      919,
+      "चैतन्य-कुसुम-प्रिया",
+      "caitanya-kusuma-priyā",
+      0
+     ]
+    ],
+    [
+     [
+      920,
+      "सदोदिता",
+      "sadoditā",
+      0
+     ],
+     [
+      921,
+      "सदा-तुष्टा",
+      "sadā-tuṣṭā",
+      0
+     ],
+     [
+      922,
+      "तरुणादित्य-पाटला",
+      "taruṇāditya-pāṭalā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "To be worshipped with consciousness as the arghya offering; Fond of the flower that is consciousness",
@@ -2775,6 +10687,44 @@ const LALITHA_DATA = {
     "दक्षिणादक्षिणाराध्या दरस्मेरमुखाम्बुजा",
     "कौलिनीकेवलाऽनर्घ्यकैवल्यपददायिनी"
    ],
+   "read_dev": [
+    "दक्षिणादक्षिणाराध्या दरस्मेरमुखाम्बुजा",
+    "कौलिनीकेवला ऽनर्घ्यकैवल्यपददायिनी"
+   ],
+   "read_iast": [
+    "dakṣiṇādakṣiṇārādhyā darasmeramukhāmbujā",
+    "kaulinīkevalā 'narghyakaivalyapadadāyinī"
+   ],
+   "learn": [
+    [
+     [
+      923,
+      "दक्षिणादक्षिणाराध्या",
+      "dakṣiṇādakṣiṇārādhyā",
+      0
+     ],
+     [
+      924,
+      "दर-स्मेर-मुखाम्बुजा",
+      "dara-smera-mukhāmbujā",
+      0
+     ]
+    ],
+    [
+     [
+      925,
+      "कौलिनी-केवला",
+      "kaulinī-kevalā",
+      0
+     ],
+     [
+      926,
+      "अनर्घ्य-कैवल्य-पद-दायिनी",
+      "anarghya-kaivalya-pada-dāyinī",
+      1
+     ]
+    ]
+   ],
    "translations": [
     "Worshipped by those of the right-hand path and those of the left; Whose lotus-face wears a gentle smile",
     "She who, for the followers of the Kaula way, is the Absolute, pure consciousness; Bestows the priceless state of final liberation (kaivalya)"
@@ -2790,6 +10740,62 @@ const LALITHA_DATA = {
    "halves_dev": [
     "स्तोत्रप्रिया स्तुतिमती श्रुतिसंस्तुतवैभवा",
     "मनस्विनी मानवती महेशी मङ्गलाकृतिः"
+   ],
+   "read_dev": [
+    "स्तोत्रप्रिया स्तुतिमती श्रुतिसंस्तुतवैभवा",
+    "मनस्विनी मानवती महेशी मङ्गलाकृतिः"
+   ],
+   "read_iast": [
+    "stotrapriyā stutimatī śrutisaṃstutavaibhavā",
+    "manasvinī mānavatī maheśī maṅgalākṛtiḥ"
+   ],
+   "learn": [
+    [
+     [
+      927,
+      "स्तोत्र-प्रिया",
+      "stotra-priyā",
+      0
+     ],
+     [
+      928,
+      "स्तुतिमती",
+      "stutimatī",
+      0
+     ],
+     [
+      929,
+      "श्रुति-संस्तुत-वैभवा",
+      "śruti-saṃstuta-vaibhavā",
+      0
+     ]
+    ],
+    [
+     [
+      930,
+      "मनस्विनी",
+      "manasvinī",
+      0
+     ],
+     [
+      931,
+      "मानवती",
+      "mānavatī",
+      0
+     ],
+     [
+      932,
+      "महेशी",
+      "maheśī",
+      0
+     ],
+     [
+      933,
+      "मङ्गलाकृतिः",
+      "maṅgalākṛtiḥ",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Fond of hymns in Her praise; Rich in praise, the true object of all praises; Whose glory is extolled by the Śrutis (the Vedas)",
@@ -2807,6 +10813,68 @@ const LALITHA_DATA = {
     "विश्वमाता जगद्धात्री विशालाक्षी विरागिणी",
     "प्रगल्भा परमोदारा परामोदा मनोमयी"
    ],
+   "read_dev": [
+    "विश्वमाता जगद्धात्री विशालाक्षी विरागिणी",
+    "प्रगल्भा परमोदारा परामोदा मनोमयी"
+   ],
+   "read_iast": [
+    "viśvamātā jagaddhātrī viśālākṣī virāgiṇī",
+    "pragalbhā paramodārā parāmodā manomayī"
+   ],
+   "learn": [
+    [
+     [
+      934,
+      "विश्व-माता",
+      "viśva-mātā",
+      0
+     ],
+     [
+      935,
+      "जगद्-धात्री",
+      "jagad-dhātrī",
+      0
+     ],
+     [
+      936,
+      "विशालाक्षी",
+      "viśālākṣī",
+      0
+     ],
+     [
+      937,
+      "विरागिणी",
+      "virāgiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      938,
+      "प्रगल्भा",
+      "pragalbhā",
+      0
+     ],
+     [
+      939,
+      "परमोदारा",
+      "paramodārā",
+      0
+     ],
+     [
+      940,
+      "परामोदा",
+      "parāmodā",
+      0
+     ],
+     [
+      941,
+      "मनोमयी",
+      "manomayī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The Mother of the universe; The nurse and sustainer of the world; Has large eyes; Dispassionate",
     "Skillful and confident; Supremely generous; Supremely joyful; In the form of the mind"
@@ -2822,6 +10890,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "व्योमकेशी विमानस्था वज्रिणी वामकेश्वरी",
     "पञ्चयज्ञप्रिया पञ्चप्रेतमञ्चाधिशायिनी"
+   ],
+   "read_dev": [
+    "व्योमकेशी विमानस्था वज्रिणी वामकेश्वरी",
+    "पञ्चयज्ञप्रिया पञ्चप्रेतमञ्चाधिशायिनी"
+   ],
+   "read_iast": [
+    "vyomakeśī vimānasthā vajriṇī vāmakeśvarī",
+    "pañcayajñapriyā pañcapretamañcādhiśāyinī"
+   ],
+   "learn": [
+    [
+     [
+      942,
+      "व्योम-केशी",
+      "vyoma-keśī",
+      0
+     ],
+     [
+      943,
+      "विमान-स्था",
+      "vimāna-sthā",
+      0
+     ],
+     [
+      944,
+      "वज्रिणी",
+      "vajriṇī",
+      0
+     ],
+     [
+      945,
+      "वामकेश्वरी",
+      "vāmakeśvarī",
+      0
+     ]
+    ],
+    [
+     [
+      946,
+      "पञ्च-यज्ञ-प्रिया",
+      "pañca-yajña-priyā",
+      0
+     ],
+     [
+      947,
+      "पञ्च-प्रेत-मञ्चाधिशायिनी",
+      "pañca-preta-mañcādhiśāyinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Has the sky as Her hair; Seated in Her celestial chariot; Bears the thunderbolt (vajra); Vāmakeśvarī, the sovereign Goddess of the Vāmakeśvara Tantra",
@@ -2839,6 +10957,62 @@ const LALITHA_DATA = {
     "पञ्चमी पञ्चभूतेशी पञ्चसङ्ख्योपचारिणी",
     "शाश्वती शाश्वतैश्वर्या शर्मदा शम्भुमोहिनी"
    ],
+   "read_dev": [
+    "पञ्चमी पञ्चभूतेशी पञ्चसङ्ख्योपचारिणी",
+    "शाश्वती शाश्वतैश्वर्या शर्मदा शम्भुमोहिनी"
+   ],
+   "read_iast": [
+    "pañcamī pañcabhūteśī pañcasaṅkhyopacāriṇī",
+    "śāśvatī śāśvataiśvaryā śarmadā śambhumohinī"
+   ],
+   "learn": [
+    [
+     [
+      948,
+      "पञ्चमी",
+      "pañcamī",
+      0
+     ],
+     [
+      949,
+      "पञ्च-भूतेशी",
+      "pañca-bhūteśī",
+      0
+     ],
+     [
+      950,
+      "पञ्च-सङ्ख्योपचारिणी",
+      "pañca-saṅkhyopacāriṇī",
+      0
+     ]
+    ],
+    [
+     [
+      951,
+      "शाश्वती",
+      "śāśvatī",
+      0
+     ],
+     [
+      952,
+      "शाश्वतैश्वर्या",
+      "śāśvataiśvaryā",
+      0
+     ],
+     [
+      953,
+      "शर्म-दा",
+      "śarma-dā",
+      0
+     ],
+     [
+      954,
+      "शम्भु-मोहिनी",
+      "śambhu-mohinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "The fifth, beyond Brahmā, Viṣṇu, Rudra and Īśvara; The sovereign of the five elements; Worshipped with the fivefold offerings (fragrance, flowers, incense, lamp and food)",
     "Eternal; Holds eternal sovereignty; The giver of happiness; Enchants Śambhu (Śiva)"
@@ -2854,6 +11028,74 @@ const LALITHA_DATA = {
    "halves_dev": [
     "धराधरसुता धन्या धर्मिणी धर्मवर्धिनी",
     "लोकातीता गुणातीता सर्वातीता शमात्मिका"
+   ],
+   "read_dev": [
+    "धरा धरसुता धन्या धर्मिणी धर्मवर्धिनी",
+    "लोकातीता गुणातीता सर्वातीता शमात्मिका"
+   ],
+   "read_iast": [
+    "dharā dharasutā dhanyā dharmiṇī dharmavardhinī",
+    "lokātītā guṇātītā sarvātītā śamātmikā"
+   ],
+   "learn": [
+    [
+     [
+      955,
+      "धरा",
+      "dharā",
+      0
+     ],
+     [
+      956,
+      "धर-सुता",
+      "dhara-sutā",
+      0
+     ],
+     [
+      957,
+      "धन्या",
+      "dhanyā",
+      0
+     ],
+     [
+      958,
+      "धर्मिणी",
+      "dharmiṇī",
+      0
+     ],
+     [
+      959,
+      "धर्म-वर्धिनी",
+      "dharma-vardhinī",
+      0
+     ]
+    ],
+    [
+     [
+      960,
+      "लोकातीता",
+      "lokātītā",
+      0
+     ],
+     [
+      961,
+      "गुणातीता",
+      "guṇātītā",
+      0
+     ],
+     [
+      962,
+      "सर्वातीता",
+      "sarvātītā",
+      0
+     ],
+     [
+      963,
+      "शमात्मिका",
+      "śamātmikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "The Earth, the bearer of all; The daughter of the mountain (Himavat); Possesses great wealth; She who is supremely blessed; Righteous; Promotes righteousness",
@@ -2871,6 +11113,62 @@ const LALITHA_DATA = {
     "बन्धूककुसुमप्रख्या बाला लीलाविनोदिनी",
     "सुमङ्गली सुखकरी सुवेषाढ्या सुवासिनी"
    ],
+   "read_dev": [
+    "बन्धूककुसुमप्रख्या बाला लीलाविनोदिनी",
+    "सुमङ्गली सुखकरी सुवेषाढ्या सुवासिनी"
+   ],
+   "read_iast": [
+    "bandhūkakusumaprakhyā bālā līlāvinodinī",
+    "sumaṅgalī sukhakarī suveṣāḍhyā suvāsinī"
+   ],
+   "learn": [
+    [
+     [
+      964,
+      "बन्धूक-कुसुम-प्रख्या",
+      "bandhūka-kusuma-prakhyā",
+      0
+     ],
+     [
+      965,
+      "बाला",
+      "bālā",
+      0
+     ],
+     [
+      966,
+      "लीला-विनोदिनी",
+      "līlā-vinodinī",
+      0
+     ]
+    ],
+    [
+     [
+      967,
+      "सु-मङ्गली",
+      "su-maṅgalī",
+      0
+     ],
+     [
+      968,
+      "सुख-करी",
+      "sukha-karī",
+      0
+     ],
+     [
+      969,
+      "सु-वेषाढ्या",
+      "su-veṣāḍhyā",
+      0
+     ],
+     [
+      970,
+      "सुवासिनी",
+      "suvāsinī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Whose radiance resembles the red bandhūka flower; Bālā, the ever-young girl; Delights in Her sport",
     "Eternally auspicious; She who is never widowed; Gives happiness; Rich in beautiful attire and adornment; Ever auspiciously married"
@@ -2886,6 +11184,56 @@ const LALITHA_DATA = {
    "halves_dev": [
     "सुवासिन्यर्चनप्रीताऽऽशोभना शुद्धमानसा",
     "बिन्दुतर्पणसन्तुष्टा पूर्वजा त्रिपुराम्बिका"
+   ],
+   "read_dev": [
+    "सुवासिन्यर्चनप्रीता ऽऽशोभना शुद्धमानसा",
+    "बिन्दुतर्पणसन्तुष्टा पूर्वजा त्रिपुराम्बिका"
+   ],
+   "read_iast": [
+    "suvāsinyarcanaprītā ''śobhanā śuddhamānasā",
+    "bindutarpaṇasantuṣṭā pūrvajā tripurāmbikā"
+   ],
+   "learn": [
+    [
+     [
+      971,
+      "सुवासिन्य्-अर्चन-प्रीता",
+      "suvāsiny-arcana-prītā",
+      0
+     ],
+     [
+      972,
+      "आशोभना",
+      "āśobhanā",
+      1
+     ],
+     [
+      973,
+      "शुद्ध-मानसा",
+      "śuddha-mānasā",
+      0
+     ]
+    ],
+    [
+     [
+      974,
+      "बिन्दु-तर्पण-सन्तुष्टा",
+      "bindu-tarpaṇa-santuṣṭā",
+      0
+     ],
+     [
+      975,
+      "पूर्व-जा",
+      "pūrva-jā",
+      0
+     ],
+     [
+      976,
+      "त्रिपुराम्बिका",
+      "tripurāmbikā",
+      0
+     ]
+    ]
    ],
    "translations": [
     "Pleased by the worship of suvāsinīs (auspicious married women); Radiant through and through; Whose mind is pure; She who purifies the minds of Her worshipers",
@@ -2903,6 +11251,50 @@ const LALITHA_DATA = {
     "दशमुद्रासमाराध्या त्रिपुराश्रीवशङ्करी",
     "ज्ञानमुद्रा ज्ञानगम्या ज्ञानज्ञेयस्वरूपिणी"
    ],
+   "read_dev": [
+    "दशमुद्रासमाराध्या त्रिपुराश्रीवशङ्करी",
+    "ज्ञानमुद्रा ज्ञानगम्या ज्ञानज्ञेयस्वरूपिणी"
+   ],
+   "read_iast": [
+    "daśamudrāsamārādhyā tripurāśrīvaśaṅkarī",
+    "jñānamudrā jñānagamyā jñānajñeyasvarūpiṇī"
+   ],
+   "learn": [
+    [
+     [
+      977,
+      "दश-मुद्रा-समाराध्या",
+      "daśa-mudrā-samārādhyā",
+      0
+     ],
+     [
+      978,
+      "त्रिपुराश्री-वशङ्करी",
+      "tripurāśrī-vaśaṅkarī",
+      0
+     ]
+    ],
+    [
+     [
+      979,
+      "ज्ञान-मुद्रा",
+      "jñāna-mudrā",
+      0
+     ],
+     [
+      980,
+      "ज्ञान-गम्या",
+      "jñāna-gamyā",
+      0
+     ],
+     [
+      981,
+      "ज्ञान-ज्ञेय-स्वरूपिणी",
+      "jñāna-jñeya-svarūpiṇī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Worshipped with the ten mudrās; Holds Tripurāśrī under Her sway",
     "In the form of the jñāna mudrā; To be reached through knowledge; Both knowledge and the known"
@@ -2918,6 +11310,68 @@ const LALITHA_DATA = {
    "halves_dev": [
     "योनिमुद्रा त्रिखण्डेशी त्रिगुणाम्बा त्रिकोणगा",
     "अनघाऽद्भुतचारित्रा वाञ्छितार्थप्रदायिनी"
+   ],
+   "read_dev": [
+    "योनिमुद्रा त्रिखण्डेशी त्रिगुणाम्बा त्रिकोणगा",
+    "अनघा ऽद्भुतचारित्रा वाञ्छितार्थप्रदायिनी"
+   ],
+   "read_iast": [
+    "yonimudrā trikhaṇḍeśī triguṇāmbā trikoṇagā",
+    "anaghā 'dbhutacāritrā vāñchitārthapradāyinī"
+   ],
+   "learn": [
+    [
+     [
+      982,
+      "योनि-मुद्रा",
+      "yoni-mudrā",
+      0
+     ],
+     [
+      983,
+      "त्रि-खण्डेशी",
+      "tri-khaṇḍeśī",
+      0
+     ],
+     [
+      984,
+      "त्रि-गुणा",
+      "tri-guṇā",
+      1
+     ],
+     [
+      985,
+      "अम्बा",
+      "ambā",
+      1
+     ],
+     [
+      986,
+      "त्रि-कोण-गा",
+      "tri-koṇa-gā",
+      0
+     ]
+    ],
+    [
+     [
+      987,
+      "अनघा",
+      "anaghā",
+      0
+     ],
+     [
+      988,
+      "अद्भुत-चारित्रा",
+      "adbhuta-cāritrā",
+      1
+     ],
+     [
+      989,
+      "वाञ्छितार्थ-प्रदायिनी",
+      "vāñchitārtha-pradāyinī",
+      0
+     ]
+    ]
    ],
    "translations": [
     "In the form of the yoni mudrā; The sovereign of the Trikhaṇḍā, the tenth mudrā; Endowed with the three guṇas of sattva, rajas and tamas; The Mother of all beings, the Mother of the universe; Resides in the triangle",
@@ -2935,6 +11389,44 @@ const LALITHA_DATA = {
     "अभ्यासातिशयज्ञाता षडध्वातीतरूपिणी",
     "अव्याजकरुणामूर्तिरज्ञानध्वान्तदीपिका"
    ],
+   "read_dev": [
+    "अभ्यासातिशयज्ञाता षडध्वातीतरूपिणी",
+    "अव्याजकरुणामूर्तिर् अज्ञानध्वान्तदीपिका"
+   ],
+   "read_iast": [
+    "abhyāsātiśayajñātā ṣaḍadhvātītarūpiṇī",
+    "avyājakaruṇāmūrtir ajñānadhvāntadīpikā"
+   ],
+   "learn": [
+    [
+     [
+      990,
+      "अभ्यासातिशय-ज्ञाता",
+      "abhyāsātiśaya-jñātā",
+      0
+     ],
+     [
+      991,
+      "षडध्वातीत-रूपिणी",
+      "ṣaḍadhvātīta-rūpiṇī",
+      0
+     ]
+    ],
+    [
+     [
+      992,
+      "अव्याज-करुणा-मूर्तिः",
+      "avyāja-karuṇā-mūrtiḥ",
+      1
+     ],
+     [
+      993,
+      "अज्ञान-ध्वान्त-दीपिका",
+      "ajñāna-dhvānta-dīpikā",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Known through intense and sustained spiritual practice; Whose form transcends the six paths",
     "The embodiment of compassion that asks for no reason; The bright lamp that dispels the darkness of ignorance"
@@ -2951,6 +11443,44 @@ const LALITHA_DATA = {
     "आबालगोपविदिता सर्वानुल्लङ्घ्यशासना",
     "श्रीचक्रराजनिलया श्रीमत्त्रिपुरसुन्दरी"
    ],
+   "read_dev": [
+    "आबालगोपविदिता सर्वानुल्लङ्घ्यशासना",
+    "श्रीचक्रराजनिलया श्रीमत्त्रिपुरसुन्दरी"
+   ],
+   "read_iast": [
+    "ābālagopaviditā sarvānullaṅghyaśāsanā",
+    "śrīcakrarājanilayā śrīmattripurasundarī"
+   ],
+   "learn": [
+    [
+     [
+      994,
+      "आबाल-गोप-विदिता",
+      "ābāla-gopa-viditā",
+      0
+     ],
+     [
+      995,
+      "सर्वानुल्लङ्घ्य-शासना",
+      "sarvānullaṅghya-śāsanā",
+      0
+     ]
+    ],
+    [
+     [
+      996,
+      "श्री-चक्र-राज-निलया",
+      "śrī-cakra-rāja-nilayā",
+      0
+     ],
+     [
+      997,
+      "श्रीमत्-त्रिपुर-सुन्दरी",
+      "śrīmat-tripura-sundarī",
+      0
+     ]
+    ]
+   ],
    "translations": [
     "Known by all, even by children and cowherds; Whose command no one can transgress",
     "Abides in the Śrīcakra, the king of cakras; The glorious Tripurasundarī"
@@ -2966,6 +11496,37 @@ const LALITHA_DATA = {
    "halves_dev": [
     "श्रीशिवा शिवशक्त्यैक्यरूपिणी ललिताम्बिका",
     "एवं श्रीललितादेव्या नाम्नां साहस्रकं जगुः"
+   ],
+   "read_dev": [
+    "श्रीशिवा शिवशक्त्यैक्यरूपिणी ललिताम्बिका",
+    "एवं श्रीललितादेव्या नाम्नां साहस्रकं जगुः"
+   ],
+   "read_iast": [
+    "śrīśivā śivaśaktyaikyarūpiṇī lalitāmbikā",
+    "evaṃ śrīlalitādevyā nāmnāṃ sāhasrakaṃ jaguḥ"
+   ],
+   "learn": [
+    [
+     [
+      998,
+      "श्री-शिवा",
+      "śrī-śivā",
+      0
+     ],
+     [
+      999,
+      "शिव-शक्त्य्-ऐक्य-रूपिणी",
+      "śiva-śakty-aikya-rūpiṇī",
+      0
+     ],
+     [
+      1000,
+      "ललिताम्बिका",
+      "lalitāmbikā",
+      0
+     ]
+    ],
+    []
    ],
    "translations": [
     "The auspicious and divine Śivā; The union of Śiva and Śakti in one form; The divine Mother Lalitā",

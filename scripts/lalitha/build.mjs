@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { readerData, prelimProofs, slokaUnit, prelimUnit, lineDev, lineIast } from './book.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const A = (p) => path.join(ROOT, p);
@@ -54,6 +55,10 @@ for (const b of BATCHES) {
 if (!PREVIEW) for (const n of T.names) if (!AN.has(n.num)) problems.push(`name ${n.num} has no analysis`);
 const NAMES = T.names.map((n) => ({ ...n, a: AN.get(n.num) || null }));
 const byNum = new Map(NAMES.map((n) => [n.num, n]));
+const PRELIM = readJSON(`${ED}/preliminaries.json`);
+/* the reader's lines (canonical words spaced; names separated) for every half-śloka */
+const R = readerData(T, Object.fromEntries(NAMES.map((n) => [n.num, { iast: n.a ? n.a.iast : n.iast }])), problems);
+prelimProofs(T, PRELIM, problems);
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
@@ -85,6 +90,9 @@ function buildDataJs() {
       text: v.halves.map((h) => h.iast).join(' .\n'),
       halves: v.halves.map((h) => h.iast),
       halves_dev: v.halves.map((h) => h.dev),
+      read_dev: R[v.num].map((r) => r.canonical.map((g) => g.dev).join(' ')),
+      read_iast: R[v.num].map((r) => r.canonical.map((g) => g.iast).join(' ')),
+      learn: R[v.num].map((r) => r.learning.map((l) => [l.num, l.dev, l.iast, l.restored ? 1 : 0])),
       translations: v.halves.map((h) => (h.closing ? CLOSING_HALF : h.names.map((k) => clause(byNum.get(k).a?.meaning)).join('; '))),
     })),
     names: NAMES.map((n) => ({
@@ -121,77 +129,6 @@ function buildWordsJs() {
 
 /* ------------------------------------------------------- the study edition */
 const LABEL = { typographical: 'Typographical', orthographic: 'Orthographic', grammatical: 'Grammatical', numbering: 'Numbering', encoding: 'Encoding', variant: 'Variant adopted', structural: 'Structural', interpretive: 'Interpretive' };
-
-function nameEntry(n) {
-  const a = n.a || {};
-  const sandhi = (a.sandhi || []);
-  const sm = a.samasa;
-  let h = `<article class="name" id="n-${n.num}">`;
-  h += `<header class="name-head"><span class="nnum">${n.num}</span>`
-    + `<span class="ndev nw" lang="sa">${esc(n.dev)}</span>`
-    + `<span class="niast" lang="sa-Latn">${esc(a.iast || n.iast)}</span></header>`;
-  h += '<dl class="facts">';
-  h += '<dt>Sandhi viccheda</dt><dd>';
-  if (!sandhi.length) h += '<span class="none">No sound change inside the name; the members stand as written.</span>';
-  else {
-    h += '<ul class="sandhi">';
-    for (const s of sandhi) {
-      h += `<li><span lang="sa">${esc(s.surface)}</span> → <span lang="sa">${esc(s.split)}</span>`
-        + (s.split_iast ? ` <span class="iast" lang="sa-Latn">(${esc(s.split_iast)})</span>` : '')
-        + ` <span class="rule">— ${esc(s.rule)}</span></li>`;
-    }
-    h += '</ul>';
-  }
-  h += '</dd>';
-  h += '<dt>Samāsa vigraha</dt><dd>';
-  if (!sm) h += '<span class="none">Not a compound.</span>';
-  else {
-    h += `<p class="stype">${esc(sm.type)}</p>`;
-    h += `<p class="vigraha"><span lang="sa">${esc(sm.vigraha)}</span>`
-      + (sm.vigraha_iast ? `<br><span class="iast" lang="sa-Latn">${esc(sm.vigraha_iast)}</span>` : '') + '</p>';
-    h += `<p>${esc(sm.explanation)}</p>`;
-  }
-  h += '</dd></dl>';
-  h += '<table class="words"><thead><tr><th scope="col">Sanskrit component</th><th scope="col">IAST</th><th scope="col">Literal English meaning</th></tr></thead><tbody>';
-  for (const c of a.components || []) {
-    h += `<tr><td lang="sa">${esc(c.dev)}</td><td lang="sa-Latn">${esc(c.iast)}</td><td>${esc(c.meaning)}${c.note ? `<span class="cnote"> — ${esc(c.note)}</span>` : ''}</td></tr>`;
-  }
-  h += '</tbody></table>';
-  h += `<p class="meaning"><span class="lbl">Complete meaning</span> ${esc(a.meaning)}</p>`;
-  h += `<p class="signif"><span class="lbl">Spiritual significance</span> ${esc(a.significance)}</p>`;
-  if (a.uncertain) h += `<p class="flag uncertain"><span class="lbl">Uncertain</span> ${esc(a.uncertain)}</p>`;
-  if (a.variants) h += `<p class="flag variant"><span class="lbl">Variants</span> ${esc(a.variants)}</p>`;
-  const corr = (LOG.names || []).find((c) => c.name === n.num);
-  if (corr) h += `<p class="flag corrected"><span class="lbl">Corrected in this edition</span> ${esc(corr.original_dev)} → ${esc(corr.corrected_dev)}. ${esc(corr.reason)}</p>`;
-  h += '</article>';
-  return h;
-}
-
-function slokaBlock(v) {
-  let h = `<section class="sloka" id="s-${v.num}">`;
-  h += `<h3 class="shead"><span class="slabel">Śloka</span> ${v.num}</h3>`;
-  h += '<div class="stext">';
-  h += `<p class="sdev" lang="sa">${v.halves.map((x, i) => esc(x.dev) + (i === 0 ? ' ।' : ` ॥ ${devNum(v.num)} ॥`)).join('<br>')}</p>`;
-  h += `<p class="siast" lang="sa-Latn">${v.halves.map((x, i) => esc(x.iast) + (i === 0 ? ' |' : ` || ${v.num} ||`)).join('<br>')}</p>`;
-  h += '</div>';
-  h += '<p class="dlabel">Names in this śloka</p><ol class="snames">';
-  for (const k of v.names) {
-    const n = byNum.get(k);
-    h += `<li value="${k}"><a href="#n-${k}"><span class="nw" lang="sa">${esc(n.dev)}</span> <span class="iast" lang="sa-Latn">${esc(n.a?.iast || n.iast)}</span></a></li>`;
-  }
-  h += '</ol>';
-  if (v.num === 183) h += '<p class="note">The second half of this śloka, <span lang="sa">एवं श्रीललितादेव्या नाम्नां साहस्रकं जगुः</span>, closes the hymn and contains no name. The names therefore fill 182½ ślokas.</p>';
-  const vn = VNOTE.get(v.num);
-  if (vn && (vn.external_sandhi || []).length) {
-    h += '<p class="dlabel">Where the names join in the śloka</p><ul class="ext">';
-    for (const s of vn.external_sandhi) h += `<li><span lang="sa">${esc(s.surface)}</span> → <span lang="sa">${esc(s.split)}</span>${s.split_iast ? ` <span class="iast" lang="sa-Latn">(${esc(s.split_iast)})</span>` : ''} <span class="rule">— ${esc(s.rule)}</span></li>`;
-    h += '</ul>';
-  }
-  if (vn && vn.note) h += `<p class="note">${esc(vn.note)}</p>`;
-  for (const k of v.names) h += nameEntry(byNum.get(k));
-  h += '</section>';
-  return h;
-}
 
 function correctionTables() {
   let h = '<h3>A.1 The Sanskrit of the names</h3><table class="log log-names"><thead><tr><th>Name</th><th>Original → corrected</th><th>Kind and reason</th></tr></thead><tbody>';
@@ -242,48 +179,57 @@ function buildEdition() {
   let b = '';
   b += `<section class="title-page"><p class="orn" aria-hidden="true">॥ श्रीः ॥</p>
 <h1><span lang="sa" class="tdev">श्रीललितासहस्रनामस्तोत्रम्</span><span class="tlat">Śrī Lalitā Sahasranāma</span></h1>
-<p class="sub">A study edition: corrected text, word division, sandhi and samāsa analysis, and the meaning of every name</p>
+<p class="sub">A chanting and learning edition: every śloka in readable Devanagari and IAST, every name separated and explained word by word</p>
 <p class="src">${esc(T.source)}</p>
 <p class="ver">Edition ${esc(E.version)} · ${esc(E.date)} · PaddySpeaks</p></section>`;
 
   b += `<nav class="toc" aria-label="Contents"><h2>Contents</h2><ol>
-<li><a href="#about">About this edition</a></li>
+<li><a href="#about">How to read this book</a></li>
 <li><a href="#nyasa">Nyāsa</a></li>
-<li><a href="#dhyana">Dhyāna ślokas</a></li>
+<li><a href="#dhyana">Dhyāna ślokas 1–4</a></li>
 <li><a href="#stotra">The stotra for recitation (183 ślokas)</a></li>
-<li><a href="#analysis">Śloka-by-śloka analysis of the 1,000 names</a><ol class="toc-b">${BATCHES.map((bt) => { const vs = T.verses.slice((bt.batch - 1) * 10, (bt.batch - 1) * 10 + 10); return `<li><a href="#s-${vs[0].num}">Ślokas ${vs[0].num}–${vs.at(-1).num} · names ${vs[0].names[0]}–${vs.at(-1).names.at(-1)}</a></li>`; }).join('')}</ol></li>
+<li><a href="#analysis">The 1,000 names, śloka by śloka</a><ol class="toc-b">${BATCHES.map((bt) => { const vs = T.verses.slice((bt.batch - 1) * 10, (bt.batch - 1) * 10 + 10); return `<li><a href="#s-${vs[0].num}">Ślokas ${vs[0].num}–${vs.at(-1).num} · names ${vs[0].names[0]}–${vs.at(-1).names.at(-1)}</a></li>`; }).join('')}</ol></li>
 <li><a href="#closing">Colophon</a></li>
 <li><a href="#log">Appendix A — Correction log</a></li>
 <li><a href="#variants">Appendix B — Variants and open questions</a></li>
 <li><a href="#reports">Appendix C — Batch consistency reports</a></li>
 <li><a href="#namavali">Appendix D — The 1,000 names (nāmāvalī)</a></li></ol></nav>`;
 
-  b += `<section id="about" class="prose"><h2>About this edition</h2>
-<p><strong>Text.</strong> The Lalitā Sahasranāma of the Brahmāṇḍa Purāṇa (Uttara-khaṇḍa), the dialogue of Hayagrīva and Agastya, divided into 1,000 names as Bhāskararāya divides them in the <em>Saubhāgyabhāskara</em>. The base is the stotra text this site has published since it began (sanskritdocuments.org), corrected name by name. It was checked against an independently published copy of the same recension (the <code>hindu-devotional-texts</code> package, Devanagari) and against the metre: every half-śloka of an anuṣṭubh has 16 syllables, and all 366 half-lines here do, so no akṣara is missing or extra.</p>
-<p><strong>What was corrected.</strong> Misspelt names, names split or joined wrongly, a name whose second half had been moved into its meaning (454), names shown under the wrong śloka on the website (ślokas 41–42, 53–56, 104–105, 117–120, 125–126, 144–145 and 182–183), English meanings that had drifted from their names, and word-by-word tables built by a dictionary rather than by grammar. Every substantive change is listed in Appendix A with its reason. Where two good readings exist, the one this text has always printed is kept unless it is wrong, and the other is recorded in Appendix B.</p>
-<p><strong>Numbering.</strong> The names fill 182½ ślokas; the second half of śloka 183 (<span lang="sa">एवं श्रीललितादेव्या नाम्नां साहस्रकं जगुः</span>) closes the hymn. Some names exist only because of Bhāskararāya's division and are kept as he counts them: <em>tat · tvam · ayī</em> (425–427, from <span lang="sa">तत्त्वमयी</span>), <em>sādhu · ī</em> (711–712, from <span lang="sa">साध्वी</span>), <em>brahma · jananī</em> (822–823) and <em>dharā · dharasutā</em> (955–956). The nyāsa, dhyāna and colophon are not numbered among the names. No phalaśruti is printed here, because the source does not contain one.</p>
-<p><strong>How to read an entry.</strong> Each śloka is given in Devanagari and IAST, with its names listed by number. Each name then has: <em>Sandhi viccheda</em>, the sound changes inside the name undone; <em>Samāsa vigraha</em>, the compound type and the traditional analysing sentence (vigraha-vākya), with how its members relate; a word-by-word table with one grammatical unit per row in its underlying form; the complete meaning; and a short note on its traditional significance. These are different things and are kept apart: the table is literal, the meaning follows the grammar, and the significance is interpretation. The hyphens in the IAST are reading aids placed only where the word can be cut without changing a letter. ${nUnc} interpretations that are disputed or could not be confirmed are marked <span class="flag-inline uncertain">Uncertain</span> and listed in Appendix B.</p>
-<p><strong>What this is not.</strong> It is not a translation of the <em>Saubhāgyabhāskara</em>, and it does not attribute a reading to Bhāskararāya or any other authority unless the attribution is secure. Readers who need the commentary itself should read it; this edition is a careful guide to the words.</p>
+  b += `<section id="about" class="prose"><h2>How to read this book</h2>
+<p>Every śloka — the nyāsa, the four dhyāna ślokas and the 183 ślokas of the names — is set out the same way, top to bottom:</p>
+<ol class="howto">
+<li><strong>The Sanskrit</strong>, large, exactly as it is recited, with a space wherever one word or name ends and the next begins <em>without any letter changing</em>. When sandhi joins two names, the joining sound stays with the first (<span lang="sa">भद्रमूर्तिर् भक्तसौभाग्यदायिनी</span>), and an elided initial vowel is shown by the avagraha (<span lang="sa">सर्वारुणा ऽनवद्याङ्गी</span>). Four times in the hymn two names melt into one sound and cannot be parted without changing the text (<span lang="sa">साध्वी</span> = 711 sādhu + 712 ī, for example); there they stay together.</li>
+<li><strong>The IAST</strong> transliteration, word for word the same.</li>
+<li><strong>The names, separated</strong> — the learning view. Every name is shown on its own, numbered, in its own form, with light hyphens at the joints of a compound. A name marked <span class="deg">°</span> has a different form in the recitation because of sandhi (भद्रमूर्तिः on its own, भद्रमूर्तिर् before भक्त…). This view is for learning; the line above is the text.</li>
+<li><strong>The translation</strong>, name by name, numbered.</li>
+<li><strong>Word by word</strong>: every name broken into its grammatical parts, each with its English meaning. The parts are given in their underlying forms (चित् + अग्नि for चिदग्नि), so the table shows what the words are, not only how they sound.</li>
+<li><strong>The names</strong>: for each name its meaning, the sandhi inside it, its compound and the traditional analysing sentence (vigraha-vākya), and a short note on its significance. Readings that are disputed are marked <span class="flag-inline">Uncertain</span> (${nUnc} of them, listed in Appendix B).</li>
+</ol>
+<p><strong>The text.</strong> The Lalitā Sahasranāma of the Brahmāṇḍa Purāṇa (Hayagrīva and Agastya), divided into 1,000 names as Bhāskararāya divides them: <em>tat · tvam · ayī</em> (425–427), <em>sādhu · ī</em> (711–712), <em>brahma · jananī</em> (822–823) and <em>dharā · dharasutā</em> (955–956) are his divisions. The text was corrected name by name, checked against an independent copy of the same recension, and proved against the metre (every half-śloka has its sixteen syllables). The names fill 182½ ślokas; the second half of śloka 183 closes the hymn. The nyāsa, dhyāna and colophon are not counted among the names. Every correction is in Appendix A.</p>
 </section>`;
 
-  b += `<section id="nyasa" class="prose part"><h2>Nyāsa <span lang="sa" class="hdev">न्यासः</span></h2><div class="verse-pair"><p class="sdev" lang="sa">${T.nyasa.map((l) => esc(l.dev)).join(' ।<br>')} ॥</p><p class="siast" lang="sa-Latn">${T.nyasa.map((l) => esc(l.iast)).join(' |<br>')} ||</p></div>
-<p class="note">The ṛṣi, chandas, devatā, bīja, śakti, kīlaka and viniyoga of the hymn, recited before it. This is the nyāsa as the source gives it; the fuller kara- and aṅga-nyāsa used in some traditions is not in the source and is not added.</p></section>`;
-
-  b += `<section id="dhyana" class="prose part"><h2>Dhyāna ślokas <span lang="sa" class="hdev">ध्यानम्</span></h2>`;
-  for (const d of T.dhyana) {
-    b += `<div class="dhy"><p class="dlabel">Dhyāna ${d.num}</p><p class="sdev" lang="sa">${d.lines.map((l) => esc(l.dev)).join(' ।<br>')} ॥</p><p class="siast" lang="sa-Latn">${d.lines.map((l) => esc(l.iast)).join(' |<br>')} ||</p><p class="tr">${esc(d.translation)}</p></div>`;
+  const P = PRELIM;
+  b += `<section id="nyasa" class="part"><h2>Nyāsa <span lang="sa" class="hdev">न्यासः</span></h2><p class="note">Recited before the hymn: its seers, metre, deity, seed, power, linchpin and purpose.</p>`;
+  b += prelimUnit({ id: 'nyasa-text', title: 'Nyāsa', lines: P.nyasa.map((l, i) => ({ read: l.read, learn: l.learn, end: i === P.nyasa.length - 1 ? ' ॥' : ' ।', endI: i === P.nyasa.length - 1 ? ' ||' : ' |' })), translation: P.nyasa.map((l) => l.translation).join(' '), perLineWords: P.nyasa.map((l, i) => ({ head: `<span class="gn">${i + 1}</span> <span lang="sa">${lineDev(l.read)}</span>`, rows: l.words })) });
+  b += '</section>';
+  b += `<section id="dhyana" class="part"><h2>Dhyāna ślokas <span lang="sa" class="hdev">ध्यानम्</span></h2><p class="note">Verses of meditation on the form of the Goddess, recited before the names.</p>`;
+  for (const d of P.dhyana) {
+    b += prelimUnit({ id: `dhyana-${d.num}`, title: `<span class="ul">Dhyāna</span> ${d.num}`, sub: `metre: ${d.metre}`, lines: d.lines.map((l, i) => ({ read: l.read, learn: l.learn, end: i === d.lines.length - 1 ? ' ॥' : (i % 2 === 0 && d.lines.length === 4 ? '' : ' ।'), endI: i === d.lines.length - 1 ? ' ||' : (i % 2 === 0 && d.lines.length === 4 ? '' : ' |') })), translation: d.translation, words: d.words });
   }
   b += '</section>';
 
-  b += `<section id="stotra" class="part"><h2>Śrī Lalitā Sahasranāma Stotram <span lang="sa" class="hdev">अथ श्रीललितासहस्रनामस्तोत्रम्</span></h2><p class="note">The text for recitation. Numbers in the margin are śloka numbers; the analysis below gives the name numbers.</p><div class="recite">`;
-  for (const v of T.verses) b += `<div class="rv" id="r-${v.num}"><span class="rn"><a href="#s-${v.num}">${v.num}</a></span><p lang="sa">${v.halves.map((x, i) => esc(x.dev) + (i === 0 ? ' ।' : ` ॥ ${devNum(v.num)} ॥`)).join('<br>')}</p><p class="ri" lang="sa-Latn">${v.halves.map((x) => esc(x.iast)).join('<br>')}</p></div>`;
+  b += `<section id="stotra" class="part"><h2>Śrī Lalitā Sahasranāma Stotram <span lang="sa" class="hdev">अथ श्रीललितासहस्रनामस्तोत्रम्</span></h2><p class="note">The text for recitation, words spaced as in the book. The number in the margin is the śloka; it links to the śloka's explanation.</p><div class="recite">`;
+  for (const v of T.verses) {
+    const rr = R[v.num];
+    b += `<div class="rv" id="r-${v.num}"><span class="rn"><a href="#s-${v.num}">${v.num}</a></span><p class="dev" lang="sa">${rr.map((r, i) => r.canonical.map((g) => esc(g.dev)).join(' ') + (i === 0 ? ' ।' : ` ॥ ${devNum(v.num)} ॥`)).join('<br>')}</p><p class="ri" lang="sa-Latn">${rr.map((r) => r.canonical.map((g) => esc(g.iast)).join(' ')).join('<br>')}</p></div>`;
+  }
   b += '</div></section>';
 
-  b += '<section id="analysis" class="part"><h2>Śloka-by-śloka analysis</h2>';
-  for (const v of (PREVIEW ? T.verses.filter((x) => x.names.every((k) => AN.has(k))) : T.verses)) b += slokaBlock(v);
+  b += '<section id="analysis" class="part"><h2>The 1,000 names, śloka by śloka</h2>';
+  for (const v of (PREVIEW ? T.verses.filter((x) => x.names.every((k) => AN.has(k))) : T.verses)) b += slokaUnit(v, R, byNum, LOG, VNOTE);
   b += '</section>';
 
-  b += `<section id="closing" class="prose part"><h2>Colophon</h2><p class="sdev" lang="sa">${esc(T.closing[0].dev)}</p><p class="siast" lang="sa-Latn">${esc(T.closing[0].iast)}</p><p class="tr">${esc(T.closing[0].translation)}</p></section>`;
+  b += `<section id="closing" class="prose part"><h2>Colophon</h2><p class="cdev" lang="sa">${esc(T.closing[0].dev)}</p><p class="ciast" lang="sa-Latn">${esc(T.closing[0].iast)}</p><p>${esc(T.closing[0].translation)}</p></section>`;
 
   b += `<section id="log" class="appendix"><h2>Appendix A — Correction log</h2><p>Kinds: <em>Typographical</em> (a slip in writing), <em>Orthographic</em> (a permitted spelling made consistent), <em>Grammatical</em> (a form the grammar does not allow), <em>Numbering</em>, <em>Encoding</em> (invisible characters), <em>Structural</em> (what appears where), <em>Variant adopted</em>.</p>${correctionTables()}</section>`;
   b += `<section id="variants" class="appendix"><h2>Appendix B — Variants and open questions</h2><h3>B.1 Textual variants</h3>${variantsSection()}</section>`;
@@ -299,7 +245,7 @@ function buildEdition() {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Śrī Lalitā Sahasranāma — Study Edition | PaddySpeaks</title>
-<meta name="description" content="A corrected study edition of the Lalitā Sahasranāma: every śloka in Devanagari and IAST, and every one of the 1,000 names with sandhi viccheda, samāsa vigraha, a word-by-word table and its meaning.">
+<meta name="description" content="A chanting and learning edition of the Lalitā Sahasranāma: every śloka in readable Devanagari and IAST, every one of the 1,000 names separated, translated and explained word by word.">
 <link rel="canonical" href="https://paddyspeaks.com/lalitha-sahasranama/edition/">
 <meta property="og:title" content="Śrī Lalitā Sahasranāma — Study Edition">
 <meta property="og:type" content="book">
@@ -307,7 +253,7 @@ function buildEdition() {
 <meta property="og:image" content="https://paddyspeaks.com/images/lalithasahasranamam.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Sanskrit&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Devanagari:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <meta name="ps:continue" content="sacred" data-title="Lalitā Sahasranāma — Study Edition">
 <style>
@@ -390,7 +336,7 @@ if (CHECK) {
   }
   if (args.has('--docx')) {
     const { renderDocx } = await import('./docx.mjs');
-    await renderDocx({ T: { ...T, verses: T.verses.filter((x) => x.names.every((k) => AN.has(k))) }, NAMES: NAMES.filter((n) => n.a), LOG, BATCHES, out: path.join(PREVIEW, DOCX) });
+    await renderDocx({ T, NAMES, LOG, BATCHES, PRELIM, R, out: path.join(PREVIEW, DOCX) });
   }
   console.log('  preview written to', PREVIEW);
 } else {
@@ -408,7 +354,7 @@ if (CHECK) {
   }
   if (args.has('--docx')) {
     const { renderDocx } = await import('./docx.mjs');
-    await renderDocx({ T, NAMES, LOG, BATCHES, out: A(DOCX) });
+    await renderDocx({ T, NAMES, LOG, BATCHES, PRELIM, R, out: A(DOCX) });
     meta.docx_source = editionHash;
     console.log(`  wrote ${DOCX}`);
   }

@@ -253,6 +253,9 @@ Read **`docs/LALITHA-SAHASRANAMA-EDITION.md`** before touching
   dharā/dharasutā stay split; 454 is one name). A name card shows the name whole.
 - Never attribute a reading to Bhāskararāya or a text unless it is secure; mark
   doubt `uncertain`. Never restore the removed root generators.
+- The book layout (canonical line spaced only where no letter changes; a separate,
+  numbered learning line with ° for sandhi-restored forms) is in `book.mjs` and
+  `reading.mjs`. Never show a sandhi-restored form as the canonical text.
 
 ## DE Interview Handbook (`articles/data-engineering-interview-prep.html`)
 

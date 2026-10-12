@@ -100,6 +100,29 @@ def check_text(t):
             err(f"IAST/Devanagari mismatch in {blk['iast'][:40]!r}")
 
 
+def check_preliminaries(t):
+    """nyāsa and dhyāna reading aids: they must spell the text exactly."""
+    path = ED / 'preliminaries.json'
+    if not path.exists():
+        err('preliminaries.json is missing')
+        return
+    p = json.loads(path.read_text())
+    sq = lambda s: re.sub(r'[\s-]', '', s)
+    pairs = [(f'nyāsa {i + 1}', a['iast'], b) for i, (a, b) in enumerate(zip(t['nyasa'], p['nyasa']))]
+    for d, pd in zip(t['dhyana'], p['dhyana']):
+        pairs += [(f"dhyāna {d['num']}.{j + 1}", a['iast'], b) for j, (a, b) in enumerate(zip(d['lines'], pd['lines']))]
+    for where, text, b in pairs:
+        for k in ('read', 'learn'):
+            if sq(b[k]) != sq(text):
+                err(f'{where}: the {k} line does not spell the text')
+    for unit in p['nyasa'] + p['dhyana']:
+        if not unit.get('translation') or not unit.get('words'):
+            err('a nyāsa/dhyāna unit lacks its translation or word table')
+        for w in unit.get('words', []):
+            if not w.get('iast') or not w.get('meaning'):
+                err(f'word entry {w} lacks iast or meaning')
+
+
 def check_corrections(t):
     path = ED / 'corrections.json'
     if not path.exists():
@@ -170,6 +193,7 @@ def main(argv):
     t = json.loads((ED / 'text.json').read_text())
     check_text(t)
     check_corrections(t)
+    check_preliminaries(t)
     only = None
     if '--batch' in argv:
         only = argv[argv.index('--batch') + 1].zfill(2)

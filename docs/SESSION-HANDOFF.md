@@ -1,10 +1,20 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-11 (Lalitā Sahasranāma corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-12 (Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-10-12): the Lalitā edition is now a chanting and learning book.**
+  At Paddy's request ("a reader should immediately recognize where each Sanskrit
+  word begins and ends"): every unit is Sanskrit (large, words spaced where no
+  letter changes) → IAST → names separated and numbered (° = form restored from
+  sandhi) → translation → word-by-word table → name details. The nyāsa and four
+  dhyāna ślokas now have the same treatment (`edition/preliminaries.json`). ~1,010
+  pages, Noto Serif Devanagari 19 pt. The chanting page shows the spaced lines and
+  the separated names, and its Download PDF opens the book. See
+  `docs/LALITHA-SAHASRANAMA-EDITION.md` § The book layout.
 
 - **NEWEST (2026-10-11): Lalitā Sahasranāma — corrected text and study edition.**
   At Paddy's request (a master prompt: correct the "Complete Text" PDF's Sanskrit,
