@@ -343,7 +343,7 @@ function notesPage() {
 <p><strong>Edition.</strong> ${esc(T.source.edition)}. Digital text: ${esc(T.source.digital)}.</p>
 <p><strong>Numbering.</strong> ${esc(T.source.numbering)}</p>
 <p><strong>Witnesses compared.</strong> Every chapter was aligned letter by letter against two independent texts:</p><ul>${T.source.witnesses.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
-<p>Where the Gita Press text differed from <em>both</em> witnesses, the difference was examined. Four were errors of the digital file and were corrected (below); the rest are genuine readings and are kept as printed, with the other reading recorded. Nothing was added from the other recensions and nothing was silently changed.</p>
+<p>Where the Gita Press text differed from <em>both</em> witnesses, the difference was examined. The errors of the digital file were corrected (below); the rest are genuine readings and are kept as printed, with the other reading recorded. Nothing was added from the other recensions and nothing was silently changed.</p>
 <h2>Corrections to the digital text</h2><div class="tw"><table><thead><tr><th scope="col">Where</th><th scope="col">Kind</th><th scope="col">From → to</th><th scope="col">Why</th></tr></thead><tbody>
 ${LOG.corrections.map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.kind)}</td><td><span lang="sa">${esc(x.from)}</span> → <span lang="sa">${esc(x.to)}</span></td><td>${esc(x.reason)}</td></tr>`).join('\n')}
 </tbody></table></div>
