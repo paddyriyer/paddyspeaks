@@ -232,6 +232,7 @@ def norm(s):
     s = re.sub('#+', PAUSE, s)
     s = re.sub('([vyl])̐ ?', 'N', s)
     s = s.replace('m̐', 'N')
+    s = re.sub(r'(ṃ|m|n) ?(?=[nm])', 'N', s)        # कल्पताम्मनः ≡ कल्पतां मनः
     s = re.sub(r'(ṃ|m|ṅ|ñ|ṇ|n) ?(?=(kh|gh|ch|jh|ṭh|ḍh|th|dh|ph|bh|[kgcjṭḍtdpbyvlrśṣsh]))', 'N', s)
     s = s.replace('ṃ', 'N')
     s = s.replace(' ', '').replace('·', '').replace('‌', '')

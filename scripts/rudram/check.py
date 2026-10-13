@@ -254,7 +254,7 @@ def check_analysis(T, key, A, S):
             if proves(all_words, ' '.join(samhita), rest, open_end=partial and len(units) < len(a['units']))[0]:
                 fail(f'{key}: the sandhi exception after word {k} («{all_words[k]}») is not needed — '
                      'the rules already join it; remove it')
-    if key == 'C11':
+    if key == 'C11' and not (partial and len(units) < len(a['units'])):
         nums = [w.replace('ँ', 'ं') for w in all_words if w.replace('ँ', 'ं') in C11_NUMBERS]
         if nums != C11_NUMBERS:
             fail(f'C11: the numbers are not the odd series 1–33 and the multiples of four to 48: {nums}')
