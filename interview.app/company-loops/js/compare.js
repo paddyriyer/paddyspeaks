@@ -38,3 +38,17 @@ export function fill(html, vars, escape) {
 function inlineVar(s, escape) {
   return escape(s).replace(/`([^`]+)`/g, "<code>$1</code>");
 }
+
+/* Does the answer mention a follow-up rule's keyword? Whole words only, so
+   "ttl" never fires on "settle" or "set" on "settlement"; a keyword may take
+   a common ending ("partition" matches "partitions" and "partitioned").
+   `text` is already lower-case. */
+export function mentions(text, keyword) {
+  const k = keyword.trim().toLowerCase();
+  if (!k) return false;
+  const kw = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+  // Word boundaries apply only where the keyword itself starts or ends with a word character.
+  const head = /^[a-z0-9_]/.test(k) ? "(?:^|[^a-z0-9_])" : "";
+  const tail = /[a-z0-9_]$/.test(k) ? "(?:s|es|ed|d|ing|er|ers|ly)?(?![a-z0-9_])" : "";
+  return new RegExp(head + kw + tail).test(text);
+}

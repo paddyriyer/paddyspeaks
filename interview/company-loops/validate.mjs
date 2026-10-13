@@ -22,7 +22,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..", "..");
 const APP = path.join(ROOT, "interview.app", "company-loops");
 const { makeRng } = await import(pathToFileURL(path.join(APP, "js", "rng.js")).href);
-const { compareRows, rowKey } = await import(pathToFileURL(path.join(APP, "js", "compare.js")).href);
+const { compareRows, rowKey, mentions } = await import(pathToFileURL(path.join(APP, "js", "compare.js")).href);
 
 const args = process.argv.slice(2);
 const SEEDS = Number(args[args.indexOf("--seeds") + 1]) || 10;
@@ -31,6 +31,13 @@ const ONLY = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 const index = JSON.parse(readFileSync(path.join(APP, "data", "index.json"), "utf8"));
 const problems = [];
 let instances = 0;
+
+// Follow-up rules react to whole words in the answer, never to letters inside a word.
+for (const [text, kw, want] of [["we settle daily", "ttl", false], ["set a ttl of 24h", "ttl", true],
+  ["the settlement file", "set", false], ["partitioned by day", "partition", true], ["meaningful", "mean", false],
+  ["use a dead letter queue", "dead letter", true], ["hash(user_id)", "user_id", true], ["sorted(xs)", "sorted(", true], ["x <400", "<400", true]]) {
+  if (mentions(text, kw) !== want) problems.push(`mentions(${JSON.stringify(text)}, ${JSON.stringify(kw)}) should be ${want}`);
+}
 let pg = null;
 const pyJobs = [];
 

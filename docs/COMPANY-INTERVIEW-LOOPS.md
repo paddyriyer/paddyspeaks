@@ -11,7 +11,8 @@ Interview Simulator" master prompt), with three decisions recorded from him:
    questions to companies" rule to its point: never claim provenance.
 2. **Engine first, then companies in batches.** The first release ships the full
    engine with OpenAI and Stripe complete; the other companies are listed as
-   *planned* and follow about four per PR.
+   *planned* and follow about four per PR. Batch 2 (2026-10-13) added Anthropic,
+   Google, Meta and Amazon.
 3. **Rules + bring-your-own-key follow-ups.** Deterministic follow-up rules work for
    everyone at no cost; a visitor's own Anthropic key (the one `/interview.app/mock-ai/`
    stores) adds fully adaptive follow-ups. No server-side model, no new spend.
@@ -78,6 +79,9 @@ interview.app/company-loops/
 1. 2 to 5 numbered, progressively harder
 **Follow-up rules.**
 - when: keyword, another phrase → ask: a follow-up that reacts to what they wrote
+                                             (whole words, plus endings such as -s, -ed,
+                                              -ing: "partition" matches "partitioned";
+                                              "ttl" never fires on "settle")
 **Production Reality Check.**                <- required in loops 3 and 4 (≥ 2 bullets)
 - an incident consistent with the scenario's parameters
 **Evaluation Criteria.** …
