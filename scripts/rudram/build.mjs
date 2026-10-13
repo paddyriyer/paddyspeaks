@@ -73,7 +73,7 @@ const stripAcc = (s) => s.replace(/[॒॑‌‍]/g, '');
 const noPm = (s) => s.replace(/\s*\[\d+\]/g, '');
 const missingIAST = new Set();
 function iast(dev) {
-  const k = dev;
+  const k = noPm(dev);
   if (k in DER.iast) return DER.iast[k];
   missingIAST.add(k);
   return '';
