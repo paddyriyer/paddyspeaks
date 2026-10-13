@@ -1,12 +1,24 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-12 (Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-13 (Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-12): Śrī Devī Māhātmyam study edition, `/devi-mahatmyam/`.**
+- **NEWEST (2026-10-13): Devī Māhātmyam UI/UX redesign** (Paddy's request: "sacred
+  in appearance, scholarly in content, effortless to read"; presentation only —
+  no Sanskrit or analysis changed). Home is the Devanagari title + the 13
+  chapters in their three caritas (no counters, no badges); the seven-part guide
+  moved to `edition/how-to-study.html`; verification by chapter is on the
+  Sources page. Chapter pages: sticky reader bar (verse N of M, prev/next, jump,
+  Aa settings: Sanskrit size, Devanagari/IAST/both, expand/collapse analysis),
+  Copy per verse; the verse, IAST, padaccheda, word meanings and translation are
+  always visible, the grammar and commentary collapsible. `edition/reader.js`,
+  localStorage `ps.dm.reader.v1`. A script audit confirmed every analysis field
+  is still on the pages; axe clean at 1280/390. See
+  `docs/DEVI-MAHATMYAM-EDITION.md` (Rules: the design).
+- **2026-10-12: Śrī Devī Māhātmyam study edition, `/devi-mahatmyam/`.**
   At Paddy's request (a master prompt: all 13 chapters, every verse in seven
   sections — Sanskrit, padaccheda, IAST, word table, vyākaraṇa, translations,
   labelled Śākta/Śrīvidyā commentary — with chapter introductions, conclusions
