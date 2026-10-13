@@ -12,7 +12,8 @@ brief every analysis batch is written to is `docs/DEVI-MAHATMYAM-BRIEF.md`.
 | `devi-mahatmyam/edition/analysis/CC.json` | **The analysis**, one file per chapter: for every mantra the padaccheda, word table, sandhi, samāsa, morphology, anvaya, literal and readable translations, labelled commentary, flags; the chapter's introduction, conclusion and completion report. |
 | `devi-mahatmyam/edition/analysis/parts/` | Workspace for batches in progress (`CC-x-NN.json`, `CC-frame.json`). Empty once a chapter is merged. |
 | `devi-mahatmyam/edition/edition.css` | Styles for every page (linked with `?v=<hash>`). |
-| `devi-mahatmyam/index.html`, `edition/chapter-NN.html`, `edition/notes.html` | GENERATED — the contents page, the 13 chapters, and source/corrections/variants. |
+| `devi-mahatmyam/edition/reader.js` | The reader controls (linked with `?v=<hash>`): verse progress, previous/next and jump-to-verse, Sanskrit size, Devanagari/IAST/both, expand/collapse all analysis, Copy. Settings live in localStorage `ps.dm.reader.v1` (registered in `data/platform/state-keys.json`). |
+| `devi-mahatmyam/index.html`, `edition/chapter-NN.html`, `edition/how-to-study.html`, `edition/notes.html` | GENERATED — the home page (the 13 chapters in their three caritas), the 13 chapters, How to Study, and Sources (text, verification by chapter, corrections, variants). |
 | `scripts/devi_mahatmyam/check.py` | The guardrail (in Validate Content). |
 | `scripts/devi_mahatmyam/sandhi.py` | External-sandhi rejoining, used by the checker to prove every padaccheda. |
 | `scripts/devi_mahatmyam/build.mjs` | Renders the pages; `--check` fails on stale output. |
@@ -62,6 +63,17 @@ python3 scripts/platform_build/build.py all             # search index (verses s
   `lalitha-sahasranama/edition/text.json`; Śrīvidyā connections only where real.
   The Devī Māhātmyam (Mārkaṇḍeya Purāṇa), the Lalitā Sahasranāma (Brahmāṇḍa
   Purāṇa) and the Soundarya Lahari stay distinct.
+- **The design (2026-10-13 redesign) is presentation only.** Every field of every
+  analysis entry is rendered; nothing is abbreviated for looks. Each verse shows,
+  in order and always visible: the Devanagari, the IAST, the padaccheda, the word
+  meanings and the translation; sandhi, samāsa, morphology & anvaya, the Śākta
+  commentary and (where present) the comparative Śrīvidyā notes are collapsible
+  sections. Verse anchors `#m-C-N` never change — search and the Sources page link
+  to them. The home page carries no counters and no verification badges; the
+  verification lives on the Sources page and in each chapter's report. Every
+  Devanagari size is multiplied by `--sa-scale`, so the reader's size setting
+  reaches all of it. No animations, nothing hidden until a script runs: without
+  `reader.js` the page reads in full and the progress/tools stay hidden.
 - **Supplementary texts** (Kavaca, Argalā, Kīlaka, Rātri/Devī Sūkta, Rahasyas)
   are not part of the 13 chapters. If they are ever added, they get their own
   section and file, never a place among the numbered mantras.
