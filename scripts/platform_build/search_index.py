@@ -10,7 +10,7 @@ One document schema for every kind of content:
 Shards, so a search never downloads more than it needs:
 
     core.json       everything except the three large sets below (~ loaded on open)
-    verses.json     Bhagavad Gita verses and the analysed Devī Māhātmyam mantras
+    verses.json     Bhagavad Gita verses, the analysed Devī Māhātmyam mantras and Śrī Rudram units
     names.json      Vishnu and Lalitha Sahasranama names and meanings
     questions.json  Interview Studio question titles
     manifest.json   counts, shard sizes, generation inputs
@@ -233,6 +233,37 @@ def devi_docs() -> tuple[list[dict], list[dict]]:
     return chapters, verses
 
 
+def rudram_docs() -> tuple[list[dict], list[dict]]:
+    """Śrī Rudram study edition: one doc per anuvāka (core) and one per analysed
+    unit (verses shard), from rudramchamakam/edition/."""
+    ed = ROOT / "rudramchamakam" / "edition"
+    if not (ed / "text.json").exists():
+        return [], []
+    text = json.loads((ed / "text.json").read_text(encoding="utf-8"))
+    anuvakas, units = [], []
+    for a in text["anuvakas"]:
+        part = "Namakam" if a["part"] == "namakam" else "Chamakam"
+        url = f"/rudramchamakam/{a['part']}-{a['n']:02d}.html"
+        ap = ed / "analysis" / f"{a['id'][0]}{a['n']:02d}.json"
+        an = json.loads(ap.read_text(encoding="utf-8")) if ap.exists() else {}
+        title = (an.get("title") or {}).get("en", "")
+        anuvakas.append(doc(f"rudram:{a['id']}", "sacred", f"Śrī Rudram, {part} {a['n']}" + (f": {title}" if title else ""),
+                            url, subtitle=f"Sacred text · Taittirīya Saṃhitā {a['ts']}",
+                            text=_clip(an.get("summary", ""), 400), tags=["Sri Rudram", part, "Rudram Chamakam"],
+                            category="learn", source="rudramchamakam/edition/text.json"))
+        by = {u["n"]: u for u in a["units"]}
+        for e in an.get("units", []):
+            u = by.get(e["n"])
+            if not u or not (e.get("translation") or {}).get("readable"):
+                continue
+            plain = re.sub(r"[\u0951\u0952]|\s*\[\d+\]", "", u["samhita"])
+            units.append(doc(f"rudram:{a['id']}.{e['n']}", "verse", f"Śrī Rudram, {part} {a['n']}.{e['n']}",
+                             f"{url}#{a['id'][0].lower()}{a['n']}-{e['n']}", subtitle=f"Sacred text · {part}",
+                             text=e["translation"]["readable"], tags=[plain], category="learn",
+                             source=f"rudramchamakam/edition/analysis/{a['id'][0]}{a['n']:02d}.json"))
+    return anuvakas, units
+
+
 def _q(s: str) -> str:
     from urllib.parse import quote
     return quote(s, safe="")
@@ -256,7 +287,8 @@ def build() -> dict[str, list[dict]]:
     cat = read_json(registry.CATALOG)
     chapters, verses, names = sacred_docs()
     dchapters, dverses = devi_docs()
-    chapters, verses = chapters + dchapters, verses + dverses
+    rchapters, rverses = rudram_docs()
+    chapters, verses = chapters + dchapters + rchapters, verses + dverses + rverses
     icore, questions = interview_docs()
     core = articles() + catalog_docs(cat) + design_docs() + icore + chapters + concept_docs()
     core.sort(key=lambda d: d["id"])
