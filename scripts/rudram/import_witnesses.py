@@ -171,20 +171,30 @@ def units_for(key, text):
 
 
 def sayana_blocks(path):
+    """Sāyaṇa's viniyoga and bhāṣya in the order of the file. Most files keep
+    every block inside <details>; anuvāka 8 sets its bhāṣya after the mantra as
+    plain paragraphs (unaccented prose), which are taken too."""
     t = body(path)
     out = []
-    for summ, txt in re.findall(r'<summary>(.*?)</summary>(.*?)</details>', t, re.S):
-        s = summ.strip()
+    pos = 0
+    for m in re.finditer(r'<details[^>]*>\s*<summary>(.*?)</summary>(.*?)</details>', t, re.S):
+        out += loose_prose(t[pos:m.start()])
+        pos = m.end()
+        s = m.group(1).strip()
         if s in ('सायण-टीका', 'सायणोक्त-विनियोगः'):
-            out.append({'kind': 'viniyoga' if 'विनियोग' in s else 'bhashya',
-                        'text': clean_sa(txt)})
-    if not out:      # anuvāka 8 is laid out without <details>: bhāṣya after the text
-        rest = re.sub(r'<details>.*?</details>', '', t, flags=re.S)
-        paras = [p for p in rest.split('\n\n') if p.strip() and not re.search('[' + ACC + ']', p)]
-        for p in paras:
+            out.append({'kind': 'viniyoga' if 'विनियोग' in s else 'bhashya', 'text': clean_sa(m.group(2))})
+    out += loose_prose(t[pos:])
+    return out
+
+
+def loose_prose(chunk):
+    """Paragraphs of commentary standing outside <details>: long, Devanagari,
+    and without svara marks (a mantra line always carries them)."""
+    out = []
+    for p in re.split(r'\n\s*\n', chunk):
+        p = p.strip()
+        if len(p) > 80 and '<' not in p and re.search('[\u0900-\u097F]', p) and not re.search('[' + ACC + ']', p):
             out.append({'kind': 'bhashya', 'text': clean_sa(p)})
-        for summ, txt in re.findall(r'<summary>(.*?)</summary>(.*?)</details>', t, re.S):
-            out.insert(0, {'kind': 'viniyoga', 'text': clean_sa(txt)})
     return out
 
 
