@@ -253,7 +253,16 @@ def proves(words, samhita_dev, exceptions=None, open_end=False):
     # with their pausal forms, which the PAUSE option below allows.
     best = ['']
 
+    memo = {}
+
     def dfs(i, settled, open_word):
+        key = (i, settled.replace(' ', ''), open_word)
+        if key in memo:
+            return memo[key]
+        memo[key] = r = _dfs(i, settled, open_word)
+        return r
+
+    def _dfs(i, settled, open_word):
         n = norm(settled)[:-2]      # the last letters may still change with the next word
         if not target.startswith(n):
             return False
@@ -284,6 +293,9 @@ def proves(words, samhita_dev, exceptions=None, open_end=False):
         else:
             opts = junction(open_word, nxt)
         opts = opts + [(open_word + PAUSE, nxt)]       # a pañcāśat pause
+        t_o = toks(open_word)
+        if len(t_o) > 1 and t_o[-1] == 'n' and t_o[-2] in SHORT and toks(nxt)[0] in VOWELS:
+            opts.append((open_word + 'n' + PAUSE, nxt))   # अस्मिन्न् [21] अनातुरम्: nn kept across the mark
         for left, right in opts:
             if dfs(i + 1, settled + left, right):
                 return True

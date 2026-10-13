@@ -64,7 +64,7 @@ for (const width of [390, 1280]) {
 }
 // glyph coverage: every distinct character of the text must have width in the edition's font stack
 {
-  const chars = [...new Set(T.anuvakas.flatMap((a) => a.units.map((u) => u.samhita)).join('').replace(/[\s\[\]0-9]/g, ''))];
+  const chars = [...new Set(T.anuvakas.flatMap((a) => a.units.map((u) => u.samhita)).join('').replace(/[\s\[\]0-9\u200c\u200d]/g, ''))]; // ZWNJ/ZWJ are zero-width by design
   const pg = await browser.newPage();
   await pg.goto(`${base}/rudramchamakam/namakam-01.html`, { waitUntil: 'load' });
   const zero = await pg.evaluate((cs) => {
@@ -94,7 +94,7 @@ srv.close();
 // the PDF carries the verified text (its IAST is extracted reliably)
 const pdf = path.join(ROOT, 'rudramchamakam/sri-rudram-reading-edition.pdf');
 if (fs.existsSync(pdf)) {
-  const txt = execFileSync('pdftotext', [pdf, '-'], { encoding: 'utf8' }).normalize('NFC').replace(/\s+/g, '');
+  const txt = execFileSync('pdftotext', [pdf, '-'], { encoding: 'utf8' }).replace(/[\s|]+/g, '').normalize('NFC');
   let missing = 0;
   for (const a of T.anuvakas) for (const u of a.units) {
     const i = (DER.iast[u.samhita.replace(/\s*\[\d+\]/g, '')] || '').normalize('NFC').replace(/[\s|]+/g, '');

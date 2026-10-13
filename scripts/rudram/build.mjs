@@ -15,6 +15,8 @@
  *   node scripts/rudram/build.mjs           write rudramchamakam/index.html, namakam-NN.html,
  *                                           chamakam-NN.html, sources.html
  *   node scripts/rudram/build.mjs --check   CI: fail if any of those is stale
+ *   EA_DEPS=/dir/with/node_modules node scripts/rudram/build.mjs --pdf
+ *                                           also render sri-rudram-reading-edition.pdf from print.html
  *
  * Never edit the HTML by hand. Run scripts/rudram/check.py too — it proves the
  * text and every padaccheda (docs/SRI-RUDRAM-EDITION.md).
@@ -178,7 +180,7 @@ function unitHTML(a, u, e, prev, next, i) {
     return h + notes.join('') + `<p class="v-iast" lang="sa-Latn">${iastLine(noPm(u.samhita))}</p><p class="pending">Padaccheda, word meanings, grammar and translation for this unit are in preparation.</p></section>`;
   }
   // B. padaccheda
-  h += `<div class="v-pada"><p class="lbl">Padaccheda <span>· the words separated (a learner’s word division; the traditional pada-pāṭha is not given)</span></p>
+  h += `<div class="v-pada"><p class="lbl">Padaccheda <span>· the words separated</span></p>
 <p class="pada-sa" lang="sa">${padaWords(e.padaccheda, a.part)}</p></div>`;
   // C. IAST
   h += `<div class="v-pada"><p class="lbl">IAST</p><p class="v-iast" lang="sa-Latn">${iastLine(noPm(u.samhita))}</p><p class="pada-iast" lang="sa-Latn">${padaWordsI(e.padaccheda)}</p></div>`;
@@ -287,7 +289,7 @@ function homePage() {
 <p>The text was verified before it was explained: see <a href="/${DIR}/sources.html">Sources, verification &amp; audit</a> for the witnesses, every correction, and the audit of the previous version of this page.</p></section>
 <div class="parts">${partHTML('namakam')}${partHTML('chamakam')}</div>
 <section class="supp" aria-labelledby="supp-h"><h2 id="supp-h" class="car-h"><span class="car-en">Around the recitation</span></h2><p>These are often recited with Śrī Rudram but are not part of the Taittirīya Saṃhitā 4.5 or 4.7, so they stand here, apart from the numbered anuvākas, each with its source.</p>${supp}</section>
-<div class="home-foot">${ORN}<p><a href="/${DIR}/sources.html">Sources, verification &amp; audit</a> · <a href="/sacred/">All sacred texts</a></p></div>
+<div class="home-foot">${ORN}<p><a href="/${DIR}/sri-rudram-reading-edition.pdf">Reading edition (PDF)</a> — the verified Saṃhitā, IAST, padaccheda and translation of every unit · <a href="/${DIR}/sources.html">Sources, verification &amp; audit</a> · <a href="/sacred/">All sacred texts</a></p></div>
 </div>`;
   const redirect = `<script>
 /* Old links (#section-N, the previous page's anuvāka cards) go to the new pages. */
@@ -441,7 +443,10 @@ if (CHECK) console.log(`ok: ${out.size} pages current`);
 
 /* --pdf: the reading edition as a PDF, made from print.html (needs playwright). */
 if (process.argv.includes('--pdf')) {
-  const { chromium } = await import('playwright');
+  // EA_DEPS=/dir/with/node_modules, as for the Every Arrow and Lalitā builds
+  const { createRequire } = await import('node:module');
+  const req = createRequire(path.join(process.env.EA_DEPS || ROOT, 'noop.js'));
+  const { chromium } = req('playwright');
   const http = await import('node:http');
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png' };
   const srv = http.createServer((req, res) => {
