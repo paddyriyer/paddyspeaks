@@ -126,6 +126,22 @@ The interview question discovery engine is documented in
   (in Validate Content). Runs: `.github/workflows/interview-intel.yml`, weekly
   and on every pushed decision file.
 
+## The Five-Round Loop (`/interview.app/loop/`)
+
+Read **`docs/FIVE-ROUND-LOOP.md`** before touching `interview.app/loop/` or
+`interview/loop/`. Twenty-five original senior data engineering problems in five
+rounds, in Practice, Mock interview and Assessment modes.
+
+- **Sources are `interview/loop/*.md` + `runners.py`; the page data is GENERATED**
+  by `python3 interview/loop/build.py` (CI runs `--check`). Never edit
+  `interview.app/loop/data/*.json`.
+- **Original practice problems.** Never call one real or attribute it to a company,
+  and never name a company as its "style" (the build fails on it).
+- **Never type an expected output.** Examples and checker results come from running
+  the reference solutions (`verify/compute_expected.py`, PostgreSQL for SQL).
+- Evaluator text never enters `questions.json`. Scores are the candidate's own; the
+  page never pretends to grade free text.
+
 ## FlightDeck (`/ic-flightdeck/`)
 
 Read **`docs/FLIGHTDECK.md`** before touching `ic-flightdeck/`. A self-contained
