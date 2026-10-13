@@ -62,13 +62,13 @@ A unit entry (see the models):
 1. Every word in its **own (pausal) form**: visarga restored (`नमः` not `नमो`,
    `रुद्रेभ्यः`), final `m` (`शिवम्`), final `t` (`अवोचत्`), final `n`
    (`अहीन्`, `सर्वान्`, `जम्भयन्`), elided vowels restored (`अपानः` after
-   `मे`), fused vowels separated (`च इमान्` from `चेमाँ`, `उत उ` from `उतो`,
+   `मे`), fused vowels separated (`च इमाम्` from `चेमाँ`, `उत उ` from `उतो`,
    `ते इषवे` from `त इषवे`, `मे आत्मा` from `म आत्मा`).
 2. **Keep compounds whole** (`हिरण्यबाहवे`, `पशुपतये`, `कृष्टपच्यम्`); their parts go
    in `samasa`. Compound-internal sandhi stays as written.
-3. **Keep verbal prefixes on their verbs** when written together (`अभिचाकशीहि`,
-   `अवसर्पति`); a preverb standing apart (`प्र … भरामहे`, `अव … तन्मसि`,
-   `नि … धेहि`) is its own word.
+3. **Keep verbal prefixes on their verbs** when written together (`अवसर्पति`);
+   a preverb standing apart (`प्र … भरामहे`, `अव … तन्मसि`, `नि … धेहि`) is its own
+   word. (Namakam 1.3 keeps `अभिचाकशीहि` whole with a note; either is proven.)
 4. **Every particle is a word.** `च`, `मे`, `ते`, `नः`, `वः`, `उत`, `उ`, `नमः`
    — however often they repeat. In the Chamakam the refrain `च मे` follows every
    item and every one is listed (the model C1.2 has thirty words).
