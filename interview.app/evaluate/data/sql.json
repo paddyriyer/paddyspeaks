@@ -15548,6 +15548,22 @@
       ],
       "answer": 1,
       "explanation": "Recursive CTEs with aggregations in the recursive term can cause massive row explosion if not carefully designed. Each level's rows are joined with aggregates of all previous levels, multiplying row count exponentially. A better approach uses bottom-up aggregation (leaf nodes to root) or separates recursion from aggregation using window functions."
+    },
+    {
+      "id": "sql-new-169",
+      "type": "single",
+      "topic": "Snowflake-specific: QUALIFY clause with window functions",
+      "difficulty": "hard",
+      "added_date": "2026-10-13",
+      "prompt": "You have a Snowflake table `session_logs(user_id STRING, session_id STRING, event_timestamp TIMESTAMP, event_type STRING)`. You need to find the most recent event per user session, but only include sessions where the user had more than 3 events. You write:\n\n```sql\nSELECT user_id, session_id, event_timestamp, event_type\nFROM session_logs\nQUALIFY ROW_NUMBER() OVER (PARTITION BY user_id, session_id ORDER BY event_timestamp DESC) = 1\n  AND COUNT(*) OVER (PARTITION BY user_id, session_id) > 3\n```\n\nWhat is the result of this query?",
+      "options": [
+        "Returns the most recent event for each session where that session has more than 3 events total",
+        "Returns all events for sessions with more than 3 events, ordered by most recent first",
+        "Throws a syntax error because QUALIFY cannot use window functions in its condition",
+        "Returns duplicate rows because QUALIFY is applied before the COUNT window function is evaluated"
+      ],
+      "answer": 0,
+      "explanation": "Snowflake's QUALIFY clause filters rows based on window function results, applied after the window functions are evaluated. The ROW_NUMBER() condition selects the most recent event (rank 1) per session, and the COUNT() condition filters to only sessions with >3 total events. Both window functions operate independently over their respective partitions, making this a valid and efficient approach."
     }
   ]
 }
