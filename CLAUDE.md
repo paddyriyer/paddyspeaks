@@ -142,6 +142,26 @@ rounds, in Practice, Mock interview and Assessment modes.
 - Evaluator text never enters `questions.json`. Scores are the candidate's own; the
   page never pretends to grade free text.
 
+## Company Interview Loops (`/interview.app/company-loops/`)
+
+Read **`docs/COMPANY-INTERVIEW-LOOPS.md`** before touching `interview.app/company-loops/`
+or `interview/company-loops/`. Five-loop interviews set in each company's public
+product domain; 33 companies listed, OpenAI and Stripe available first, the rest
+`planned` and added in batches.
+
+- **Real company names, labelled simulated** (Paddy's decision, 2026-10-13). Every
+  question says it is a simulated practice scenario set in the company's public
+  product domain, not a question from its interviews; never claim provenance or
+  knowledge of internal systems (the build fails on it). Publicly reported topics
+  come only from Interview Intelligence, with sources.
+- **Sources are `interview/company-loops/` (templates, `companies.json`, `config.json`)
+  and the generators in `interview.app/company-loops/gen/`; `data/` is GENERATED** by
+  `build.py` (CI `--check`). At least five templates per loop per available company.
+- **Never type an expected output.** Generators compute it from seeded data;
+  `validate.mjs` proves every generator against its independently written reference
+  (SQL in PGlite, Python via `pyrun.py`).
+- Follow-ups are deterministic rules plus the visitor's own key; no server-side model.
+
 ## FlightDeck (`/ic-flightdeck/`)
 
 Read **`docs/FLIGHTDECK.md`** before touching `ic-flightdeck/`. A self-contained
