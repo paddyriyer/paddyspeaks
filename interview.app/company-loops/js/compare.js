@@ -31,9 +31,14 @@ export function compareRows(got, want) {
   return "";
 }
 
-/* Fill {{name}} placeholders. Values are plain text with `code` spans. */
+/* Fill {{name}} placeholders. Values are plain text with `code` spans.
+   A time unit right after a value of 1 is made singular ("{{days}} days" with 1 → "1 day"). */
 export function fill(html, vars, escape) {
-  return html.replace(/\{\{(\w+)\}\}/g, (all, k) => (k in vars ? inlineVar(String(vars[k]), escape) : all));
+  return html.replace(/\{\{(\w+)\}\}(\s+(?:second|minute|hour|day|week|month|year)s\b)?/g, (all, k, unit) => {
+    if (!(k in vars)) return all;
+    const v = String(vars[k]);
+    return inlineVar(v, escape) + (unit ? (v === "1" ? unit.slice(0, -1) : unit) : "");
+  });
 }
 function inlineVar(s, escape) {
   return escape(s).replace(/`([^`]+)`/g, "<code>$1</code>");

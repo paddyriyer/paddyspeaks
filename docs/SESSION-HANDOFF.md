@@ -6,6 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-14): Company Interview Loops batch 5 — NVIDIA, MongoDB, LinkedIn,
+  Salesforce** (25 templates each; eighteen companies now available, 15 planned). Topic
+  plan checked against all 350 existing titles. LinkedIn templates never infer protected
+  traits and treat ranking only as a given scoring function; Salesforce analytics never
+  read record contents across orgs. Next candidates: Google DeepMind, Cloudflare,
+  Spotify, Adobe (watch overlap: Spotify vs Apple Music, DoorDash vs Uber, PayPal and
+  Block vs Stripe).
 - **NEWEST (2026-10-14): Company Interview Loops batch 4 — Microsoft, Apple, Airbnb,
   Confluent** (25 templates each; fourteen companies now available, 19 planned). Same
   process as batch 3: a binding topic plan checked against all 250 existing titles.

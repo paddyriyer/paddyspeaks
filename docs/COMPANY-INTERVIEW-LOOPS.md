@@ -13,7 +13,8 @@ Interview Simulator" master prompt), with three decisions recorded from him:
    engine with OpenAI and Stripe complete; the other companies are listed as
    *planned* and follow about four per PR. Batch 2 (2026-10-13) added Anthropic,
    Google, Meta and Amazon; batch 3 (2026-10-14) added Netflix, Uber, Databricks
-   and Snowflake; batch 4 (2026-10-14) added Microsoft, Apple, Airbnb and Confluent.
+   and Snowflake; batch 4 (2026-10-14) added Microsoft, Apple, Airbnb and Confluent;
+   batch 5 (2026-10-14) added NVIDIA, MongoDB, LinkedIn and Salesforce.
 3. **Rules + bring-your-own-key follow-ups.** Deterministic follow-up rules work for
    everyone at no cost; a visitor's own Anthropic key (the one `/interview.app/mock-ai/`
    stores) adds fully adaptive follow-ups. No server-side model, no new spend.
