@@ -6,6 +6,11 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-14): Company Interview Loops batch 3 — Netflix, Uber, Databricks,
+  Snowflake** (25 templates each; ten companies now available, 23 planned). This batch
+  was authored from a binding topic plan written first and checked against all 150
+  existing titles, which removed the duplicate rework batch 2 needed. Validation in CI:
+  `validate.mjs --seeds 12` proves 3,240 instances in about 2.5 minutes.
 - **NEWEST (2026-10-13): Company Interview Loops batch 2 — Anthropic, Google, Meta,
   Amazon** (25 templates each, 16 authoring agents, duplicates across loops and
   companies found by a title sweep and replaced). Six companies are now available;

@@ -12,7 +12,8 @@ Interview Simulator" master prompt), with three decisions recorded from him:
 2. **Engine first, then companies in batches.** The first release ships the full
    engine with OpenAI and Stripe complete; the other companies are listed as
    *planned* and follow about four per PR. Batch 2 (2026-10-13) added Anthropic,
-   Google, Meta and Amazon.
+   Google, Meta and Amazon; batch 3 (2026-10-14) added Netflix, Uber, Databricks
+   and Snowflake.
 3. **Rules + bring-your-own-key follow-ups.** Deterministic follow-up rules work for
    everyone at no cost; a visitor's own Anthropic key (the one `/interview.app/mock-ai/`
    stores) adds fully adaptive follow-ups. No server-side model, no new spend.
@@ -149,6 +150,11 @@ the other.
   hiring decision.
 
 ## Adding a company
+
+Plan first: write every new template's topic (company, loop, kind, one line) and check
+the list against `grep -h "^## " interview/company-loops/templates/*/loop?.md` before
+anyone writes a template. Authors working in parallel otherwise collide, within a
+company (the same problem in two loops) and across companies.
 
 Write `templates/<id>/loop1–5.md` and `.eval.md` (≥ 5 templates per loop), the
 generators, and the sources in `companies.json`. Then set `status` to `available`
