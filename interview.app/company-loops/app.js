@@ -625,6 +625,7 @@ function submitTurn(it, tpl, ins, F, replyText) {
     $("#reply").value = "";
   }
   const turn = nextTurn(it, tpl, ins, (answerText(it) + "\n" + text).toLowerCase());
+  turn.html = F(turn.html);  // store filled, so the review page (which has no instance values) shows the same text
   it.convo.push(turn);
   save(true);
   box.innerHTML = it.convo.map((m) => msgHTML(m, F)).join("");
@@ -665,7 +666,7 @@ async function clarify(it, tpl, ins, F) {
     const n = c.keywords.filter((k) => words.has(k) || [...words].some((w) => w.startsWith(k.slice(0, 5)) && k.length >= 5)).length;
     if (n > bestN) { best = c; bestN = n; }
   }
-  if (best && bestN >= 1) it.convo.push({ role: "clar", html: best.a });
+  if (best && bestN >= 1) it.convo.push({ role: "clar", html: F(best.a) });
   else if (aiKey()) {
     try {
       const r = await callAI(
