@@ -1,11 +1,17 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-13 (Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-10-14 (Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-14): Company Interview Loops batch 4 — Microsoft, Apple, Airbnb,
+  Confluent** (25 templates each; fourteen companies now available, 19 planned). Same
+  process as batch 3: a binding topic plan checked against all 250 existing titles.
+  Conversation turns and clarifications are now stored filled, so the review page
+  shows the same text as the live interview. Validation: `validate.mjs --seeds 12`
+  proves 4,536 instances (about 4.3 minutes locally).
 - **NEWEST (2026-10-14): Company Interview Loops batch 3 — Netflix, Uber, Databricks,
   Snowflake** (25 templates each; ten companies now available, 23 planned). This batch
   was authored from a binding topic plan written first and checked against all 150
