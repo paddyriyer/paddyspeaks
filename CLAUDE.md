@@ -146,8 +146,9 @@ rounds, in Practice, Mock interview and Assessment modes.
 
 Read **`docs/COMPANY-INTERVIEW-LOOPS.md`** before touching `interview.app/company-loops/`
 or `interview/company-loops/`. Five-loop interviews set in each company's public
-product domain; 33 companies listed, OpenAI and Stripe available first, the rest
-`planned` and added in batches.
+product domain; 33 companies listed. Available: OpenAI and Stripe (first release),
+then Anthropic, Google, Meta and Amazon (batch 2); the rest `planned` and added in
+batches. Companies get distinct problems — check every existing title before adding one.
 
 - **Real company names, labelled simulated** (Paddy's decision, 2026-10-13). Every
   question says it is a simulated practice scenario set in the company's public

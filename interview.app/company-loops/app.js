@@ -12,7 +12,7 @@
    (interview/company-loops/validate.mjs). Docs: docs/COMPANY-INTERVIEW-LOOPS.md.
    ============================================================ */
 import { makeRng } from "./js/rng.js";
-import { compareRows, fill } from "./js/compare.js";
+import { compareRows, fill, mentions } from "./js/compare.js";
 
 const STORE_KEY = "ps.cloops.v1";
 // The optional AI interviewer reuses the key and model chosen on /interview.app/mock-ai/
@@ -646,7 +646,7 @@ function nextTurn(it, tpl, ins, text) {
   if (it.fu >= max) return { role: "int", html: "That is all I have on this one. Finish when you are ready, or keep refining your answer." };
   for (const [k, r] of tpl.rules.entries()) {
     if (it.asked.includes(k)) continue;
-    const hit = r.when.find((w) => text.includes(w));
+    const hit = r.when.find((w) => mentions(text, w));
     if (hit) { it.asked.push(k); it.fu++; return { role: "int", html: r.ask, note: `reacting to “${hit}”` }; }
   }
   const nextFu = tpl.followups.findIndex((_, k) => !it.asked.includes("f" + k));

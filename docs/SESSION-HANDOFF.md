@@ -6,6 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-13): Company Interview Loops batch 2 — Anthropic, Google, Meta,
+  Amazon** (25 templates each, 16 authoring agents, duplicates across loops and
+  companies found by a title sweep and replaced). Six companies are now available;
+  next per the prompt: Netflix, Uber, Databricks, Snowflake. Follow-up rules now
+  match whole words (`mentions()` in `js/compare.js`, checked in `validate.mjs`).
+  The Interview Studio home page (`/interview.app/`) features the module in the band
+  under the hero, with Interview Intelligence reduced to a one-line strip (PR #937).
 - **NEWEST (2026-10-13): Company Interview Loops, `/interview.app/company-loops/`.**
   At Paddy's request (a master prompt for a company-specific five-loop simulator).
   33 companies in five categories; **OpenAI and Stripe available** (25 templates
