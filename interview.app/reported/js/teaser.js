@@ -1,14 +1,15 @@
 /* Interview Intelligence teaser on the Interview Studio home page.
  * Reads the same published data as /interview.app/reported/ and shows the
- * live count and the latest reported questions. Every number comes from the
- * data; with no data (or no JavaScript) the band still reads correctly.
+ * live count and, where the page has the list, the latest reported questions.
+ * Every number comes from the data; with no data (or no JavaScript) the band
+ * still reads correctly.
  * Text is set with textContent only.
  */
 (function () {
   'use strict';
   var box = document.getElementById('ii-latest');
   var count = document.getElementById('ii-count');
-  if (!box) return;
+  if (!box && !count) return;
 
   function el(tag, attrs, kids) {
     var n = document.createElement(tag);
@@ -31,10 +32,11 @@
       qs.forEach(function (q) { (q.companies_reported || []).forEach(function (c) { companies[c.slug] = 1; }); });
       var nCo = Object.keys(companies).length;
       var nPrep = qs.filter(function (q) { return q.prep && (q.prep.hints || []).length && q.prep.sample_solution; }).length;
-      count.textContent = qs.length + ' reported question' + (qs.length === 1 ? '' : 's') +
+      if (count) count.textContent = qs.length + ' reported question' + (qs.length === 1 ? '' : 's') +
         (nCo ? ' · ' + nCo + ' compan' + (nCo === 1 ? 'y' : 'ies') + ' named' : '') +
         (nPrep === qs.length ? ' · every one with hints and a worked solution'
           : nPrep ? ' · ' + nPrep + ' with hints and a worked solution' : '');
+      if (!box) return;
       qs.sort(function (a, b) { return (b.last_seen || '').localeCompare(a.last_seen || '') || (b.source_count - a.source_count); });
       while (box.firstChild) box.removeChild(box.firstChild);
       qs.slice(0, 3).forEach(function (q) {
