@@ -149,7 +149,8 @@ or `interview/company-loops/`. Five-loop interviews set in each company's public
 product domain; 33 companies listed. Available: OpenAI and Stripe (first release),
 then Anthropic, Google, Meta and Amazon (batch 2), then Netflix, Uber, Databricks and
 Snowflake (batch 3), then Microsoft, Apple, Airbnb and Confluent (batch 4), then NVIDIA,
-MongoDB, LinkedIn and Salesforce (batch 5); the rest `planned` and added in batches. Companies get distinct
+MongoDB, LinkedIn and Salesforce (batch 5), then Hugging Face, Cloudflare, Spotify and
+Adobe (batch 6); the rest `planned` and added in batches. Companies get distinct
 problems — plan every topic against every existing title before authoring a batch.
 
 - **Real company names, labelled simulated** (Paddy's decision, 2026-10-13). Every

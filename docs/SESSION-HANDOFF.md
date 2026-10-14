@@ -6,6 +6,12 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-14): Company Interview Loops batch 6 — Hugging Face, Cloudflare,
+  Spotify, Adobe** (25 templates each; twenty-two companies now available, 11 planned).
+  Topic plan checked against all 450 existing titles; Spotify kept clear of the Apple
+  Music and Netflix topics. Google DeepMind was skipped for now: its listed domains
+  repeat NVIDIA, Anthropic and OpenAI. Remaining planned: Google DeepMind, xAI,
+  CoreWeave, Together AI, Palantir, DoorDash, TikTok, Pinterest, Block, PayPal, Walmart.
 - **NEWEST (2026-10-14): Company Interview Loops batch 5 — NVIDIA, MongoDB, LinkedIn,
   Salesforce** (25 templates each; eighteen companies now available, 15 planned). Topic
   plan checked against all 350 existing titles. LinkedIn templates never infer protected
