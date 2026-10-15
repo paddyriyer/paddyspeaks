@@ -151,8 +151,8 @@ then Anthropic, Google, Meta and Amazon (batch 2), then Netflix, Uber, Databrick
 Snowflake (batch 3), then Microsoft, Apple, Airbnb and Confluent (batch 4), then NVIDIA,
 MongoDB, LinkedIn and Salesforce (batch 5), then Hugging Face, Cloudflare, Spotify and
 Adobe (batch 6), then Palantir, Pinterest, Walmart and Block (batch 7), then DoorDash,
-TikTok, PayPal and CoreWeave (batch 8); the rest `planned`
-and added in batches. Companies get distinct
+TikTok, PayPal and CoreWeave (batch 8), then Google DeepMind, xAI and Together AI
+(batch 9): all 33 are available. Companies get distinct
 problems — plan every topic against every existing title before authoring a batch.
 
 - **Real company names, labelled simulated** (Paddy's decision, 2026-10-13). Every

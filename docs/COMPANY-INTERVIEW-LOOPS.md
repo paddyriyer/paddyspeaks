@@ -17,7 +17,8 @@ Interview Simulator" master prompt), with three decisions recorded from him:
    batch 5 (2026-10-14) added NVIDIA, MongoDB, LinkedIn and Salesforce;
    batch 6 (2026-10-14) added Hugging Face, Cloudflare, Spotify and Adobe;
    batch 7 (2026-10-15) added Palantir, Pinterest, Walmart and Block;
-   batch 8 (2026-10-15) added DoorDash, TikTok, PayPal and CoreWeave.
+   batch 8 (2026-10-15) added DoorDash, TikTok, PayPal and CoreWeave;
+   batch 9 (2026-10-15) added Google DeepMind, xAI and Together AI, completing all 33.
 3. **Rules + bring-your-own-key follow-ups.** Deterministic follow-up rules work for
    everyone at no cost; a visitor's own Anthropic key (the one `/interview.app/mock-ai/`
    stores) adds fully adaptive follow-ups. No server-side model, no new spend.
