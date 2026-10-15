@@ -6,6 +6,15 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-15): Company Interview Loops batch 8 — DoorDash, TikTok, PayPal,
+  CoreWeave** (25 templates each; thirty companies now available, 3 planned). These four
+  overlap existing companies, so each kept to one angle: DoorDash the merchant and
+  consumer side (no dispatch; couriers only in aggregate), TikTok creation and community
+  (feed only as "a scoring function you are given"; moderation as process), PayPal the
+  consumer wallet and peer-to-peer side (integer minor units with exponents 0/2/3; no
+  credit conclusions), CoreWeave the business of selling GPU capacity (all figures
+  hypothetical). Topic plan checked against all 650 titles. Remaining planned: Google
+  DeepMind, xAI, Together AI (batch 9), then a library-wide check.
 - **NEWEST (2026-10-15): Company Interview Loops batch 7 — Palantir, Pinterest, Walmart,
   Block** (25 templates each; twenty-six companies now available, 7 planned). Topic plan
   checked against all 550 titles. From this batch the brief requires each python timing
