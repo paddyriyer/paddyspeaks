@@ -6,6 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-15): Company Interview Loops batch 7 — Palantir, Pinterest, Walmart,
+  Block** (25 templates each; twenty-six companies now available, 7 planned). Topic plan
+  checked against all 550 titles. From this batch the brief requires each python timing
+  test to fail the likely "middle" approach too, or the eval notes to say it passes.
+  Palantir stays commercial (no government or defence settings). Remaining planned:
+  Google DeepMind, xAI, CoreWeave, Together AI, DoorDash, TikTok, PayPal — all overlap
+  existing companies, so plan them carefully.
 - **NEWEST (2026-10-14): Company Interview Loops batch 6 — Hugging Face, Cloudflare,
   Spotify, Adobe** (25 templates each; twenty-two companies now available, 11 planned).
   Topic plan checked against all 450 existing titles; Spotify kept clear of the Apple
