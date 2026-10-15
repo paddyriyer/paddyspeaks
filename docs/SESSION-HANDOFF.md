@@ -6,6 +6,15 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-15): Company Interview Loops batch 9 — Google DeepMind, xAI,
+  Together AI** (25 templates each; all 33 companies now available, none planned). Each
+  kept to one angle: DeepMind a research lab's public science work (experiment tracking,
+  the protein structure database, watermark detection reporting — no evasion detail, no
+  medical conclusions), xAI a model API with spend-tier limits, batch jobs and cited
+  real-time search (public posts with a given schema), Together AI fine-tuning and serving
+  open models (customers' data never inspected beyond validation they asked for). Topic
+  plan checked against all 750 titles. From this batch the brief also caps each timing test
+  at about 2 s in CPython (Pyodide runs 2–4x slower). Next: a library-wide check.
 - **NEWEST (2026-10-15): Company Interview Loops batch 8 — DoorDash, TikTok, PayPal,
   CoreWeave** (25 templates each; thirty companies now available, 3 planned). These four
   overlap existing companies, so each kept to one angle: DoorDash the merchant and
