@@ -15,7 +15,8 @@ Interview Simulator" master prompt), with three decisions recorded from him:
    Google, Meta and Amazon; batch 3 (2026-10-14) added Netflix, Uber, Databricks
    and Snowflake; batch 4 (2026-10-14) added Microsoft, Apple, Airbnb and Confluent;
    batch 5 (2026-10-14) added NVIDIA, MongoDB, LinkedIn and Salesforce;
-   batch 6 (2026-10-14) added Hugging Face, Cloudflare, Spotify and Adobe.
+   batch 6 (2026-10-14) added Hugging Face, Cloudflare, Spotify and Adobe;
+   batch 7 (2026-10-15) added Palantir, Pinterest, Walmart and Block.
 3. **Rules + bring-your-own-key follow-ups.** Deterministic follow-up rules work for
    everyone at no cost; a visitor's own Anthropic key (the one `/interview.app/mock-ai/`
    stores) adds fully adaptive follow-ups. No server-side model, no new spend.
