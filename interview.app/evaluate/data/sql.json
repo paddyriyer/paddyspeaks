@@ -15580,6 +15580,22 @@
       ],
       "answer": 1,
       "explanation": "LATERAL joins execute the right-side subquery for each row from the left table, allowing efficient correlated retrieval of top-N rows per group without materializing all joins first. While option A works, it requires a window function pass and filtering, making it less efficient than LATERAL's direct row-level correlation. Options C and D are either impractical or inefficient for this use case."
+    },
+    {
+      "id": "sql-new-171",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-10-15",
+      "prompt": "You have a BigQuery table `events` (5TB, partitioned by event_date, clustered by user_id) with schema: event_id, user_id, event_date, event_type, properties (RECORD). You need to find users who performed action 'purchase' followed by 'support_ticket' within 7 days. You want to minimize bytes scanned. Which approach is most efficient?",
+      "options": [
+        "Use a self-join on the events table filtered by event_type IN ('purchase', 'support_ticket'), then apply window functions to detect the sequence within 7 days",
+        "Create a recursive CTE that starts with purchase events and recursively finds matching support_ticket events, then use BigQuery's APPROX_QUANTILES to estimate user counts",
+        "Aggregate purchase and support_ticket events into separate CTEs filtered by event_date range, then use a CROSS JOIN with BETWEEN logic to find sequences within 7 days",
+        "Use two separate queries: first query retrieves users with 'purchase' on specific dates stored in a temp table, second query joins against support_ticket events with explicit partition pruning on event_date using a 7-day window"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 is most efficient because it leverages BigQuery's partition pruning\u2014by querying purchase events first and explicitly filtering event_date, then joining support_ticket events within a known 7-day range, BigQuery can eliminate irrelevant partitions before scanning. Option 1 performs an expensive self-join on the full 5TB table. Option 2 uses recursive CTEs unnecessarily and APPROX_QUANTILES is for cardinality estimation, not sequence detection. Option 4's two-query approach with temp tables wastes I/O and lacks proper CTE optimization."
     }
   ]
 }
