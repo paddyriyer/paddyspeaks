@@ -4,7 +4,7 @@
  * Mirrors the repo convention (cf. interview.app/tests/*.mjs).
  */
 import { median, percentile, sessionize, isEngaged, newVsReturning, engagementSummary, retention, cohortWeeks } from '../lib/metrics.js';
-import { canonicalPath, normalizeReferrer, sourceOf, botScore, contentGroup, domainOf } from '../lib/classify.js';
+import { canonicalPath, normalizeReferrer, sourceOf, botScore, contentGroup, domainOf, isDatacenterOrg, botOrgFromAggregate, isBotOrg } from '../lib/classify.js';
 import { generateInsights, classifyContent, classifySources } from '../lib/insights.js';
 import {
   cleanText, escapeHtml, isEmail, isOptionalUrl, textLen, validateContact,
@@ -123,6 +123,25 @@ eq(botScore({ ua: 'Mozilla/5.0 (compatible; Googlebot/2.1)' }).class, 'bot', 'go
 ok(botScore({ ua: 'Mozilla/5.0 Chrome/120', asOrg: 'Amazon AWS', pageViews: 4, interactions: 0 }).class === 'suspected', 'datacenter+zero-interaction → suspected');
 eq(botScore({ ua: 'Mozilla/5.0 (iPhone) Safari', interactions: 5, pageViews: 3 }).class, 'human', 'normal visitor → human');
 ok(botScore({ ua: 'x', pageViews: 10, sessionSeconds: 3 }).reasons.includes('impossibly_fast'), 'impossibly fast flagged');
+
+/* ── org-level bot detection (validated against live data 2026-10-16) ── */
+ok(isDatacenterOrg('Tencent cloud computing (Beijing) Co., Ltd.'), 'tencent cloud → datacenter');
+ok(isDatacenterOrg('Beijing Sinnet Technology Co., Ltd.'), 'sinnet (AWS China) → datacenter');
+ok(!isDatacenterOrg('Comcast Cable Communications'), 'comcast ISP → not datacenter');
+ok(!isDatacenterOrg('Facebook Inc'), 'corporate office net → not datacenter (behaviour decides)');
+// Real Q1 rows: cookieless sweepers
+ok(botOrgFromAggregate({ views: 38, distinctIds: 38, newHits: 38, zeroDwell: 38 }), 'ACEVILLE 38/38/38/38 → bot');
+ok(botOrgFromAggregate({ views: 31, distinctIds: 31, newHits: 31, zeroDwell: 31 }), '6 Collyer Quay 31/31/31/31 → bot');
+ok(botOrgFromAggregate({ views: 9, distinctIds: 9, newHits: 9, zeroDwell: 9 }), '16 Collyer Quay 9/9/9/9 → bot');
+// Real Q1 rows: humans must NOT be flagged
+ok(!botOrgFromAggregate({ views: 22, distinctIds: 1, newHits: 0, zeroDwell: 0 }), 'Comcast 22/1/0/0 (returning reader) → human');
+ok(!botOrgFromAggregate({ views: 3, distinctIds: 3, newHits: 3, zeroDwell: 0 }), 'China Mobile 3/3/3/0 (read something) → human');
+ok(!botOrgFromAggregate({ views: 7, distinctIds: 2, newHits: 1, zeroDwell: 1 }), 'Bharti Airtel 7/2/1/1 → human');
+ok(!botOrgFromAggregate({ views: 2, distinctIds: 2, newHits: 2, zeroDwell: 2 }), 'tiny 2-view sample not judged → not bot');
+// isBotOrg combines both signals
+ok(isBotOrg('Tencent cloud computing (Beijing) Co., Ltd.', { views: 1, distinctIds: 1, newHits: 1, zeroDwell: 1 }), 'tencent 1 view → bot via datacenter');
+ok(isBotOrg('ACEVILLE PTE.LTD.', { views: 38, distinctIds: 38, newHits: 38, zeroDwell: 38 }), 'ACEVILLE → bot via behaviour');
+ok(!isBotOrg('Comcast Cable Communications', { views: 22, distinctIds: 1, newHits: 0, zeroDwell: 0 }), 'Comcast → not bot');
 
 /* ── content grouping (fix I: replaces buggy CASE) ── */
 eq(contentGroup('/'), 'homepage_navigation', 'root → homepage');
