@@ -79,21 +79,25 @@ export function isDatacenterOrg(asOrg = '') {
 
 /**
  * Behavioural "cookieless sweeper" test over one org's aggregate traffic in a
- * window. A crawler gets a fresh anonymous id on every hit (no cookie persists),
- * is therefore "new" every time, and reads nothing (no dwell). A real office —
- * even many one-page visitors — reuses ids across a session OR leaves dwell on
- * at least some hits, so it fails at least one gate.
+ * window. The decisive gate is that it reads NOTHING across its hits — a real
+ * reader, even a quick one, leaves some dwell (duration or scroll). A crawler
+ * also mostly gets a fresh anonymous id each hit (no cookie persists) and is
+ * "new" every time, so that corroborates. A real office leaves dwell on at
+ * least a few hits and so clears the zero-dwell gate.
  *
  * Validated against live data (2026-10-16): ACEVILLE 38/38/38/38 → bot;
- * 6 Collyer Quay 31/31/31/31 → bot; Comcast 22 views / 1 id / 0 zero-dwell →
- * human; China Mobile 3/3/3/0 (read something) → human.
+ * 6 Collyer Quay 31/31/31/31 → bot; "16 Collyer Quay # 18-29 Income" 14 views /
+ * 12 id / 12 new / 14 zero-dwell → bot (the all-three-≥0.9 rule missed this at
+ * 12/14=0.857, so zero-dwell is now the gate); Comcast 22 views / 1 id / 0
+ * zero-dwell → human; China Mobile 3/3/3/0 (read something) → human.
  */
-export const BOT_ORG = { minViews: 3, cookielessRatio: 0.9, newRatio: 0.9, zeroDwellRatio: 0.9 };
+export const BOT_ORG = { minViews: 3, zeroDwellRatio: 0.95, freshRatio: 0.7 };
 export function botOrgFromAggregate({ views = 0, distinctIds = 0, newHits = 0, zeroDwell = 0 } = {}) {
-  if (views < BOT_ORG.minViews) return false; // too small a sample to judge
-  return (distinctIds / views) >= BOT_ORG.cookielessRatio
-      && (newHits / views) >= BOT_ORG.newRatio
-      && (zeroDwell / views) >= BOT_ORG.zeroDwellRatio;
+  if (views < BOT_ORG.minViews) return false;          // too small a sample to judge
+  const readsNothing = (zeroDwell / views) >= BOT_ORG.zeroDwellRatio; // the gate: real readers leave dwell
+  const mostlyFresh = (distinctIds / views) >= BOT_ORG.freshRatio     // a fresh id on (almost) every hit, or
+                   || (newHits / views) >= BOT_ORG.freshRatio;        // "new" on (almost) every hit
+  return readsNothing && mostlyFresh;
 }
 
 /**

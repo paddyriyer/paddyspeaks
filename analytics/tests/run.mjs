@@ -129,15 +129,19 @@ ok(isDatacenterOrg('Tencent cloud computing (Beijing) Co., Ltd.'), 'tencent clou
 ok(isDatacenterOrg('Beijing Sinnet Technology Co., Ltd.'), 'sinnet (AWS China) → datacenter');
 ok(!isDatacenterOrg('Comcast Cable Communications'), 'comcast ISP → not datacenter');
 ok(!isDatacenterOrg('Facebook Inc'), 'corporate office net → not datacenter (behaviour decides)');
-// Real Q1 rows: cookieless sweepers
+// Real Q1 rows: cookieless sweepers (reads nothing + mostly fresh)
 ok(botOrgFromAggregate({ views: 38, distinctIds: 38, newHits: 38, zeroDwell: 38 }), 'ACEVILLE 38/38/38/38 → bot');
 ok(botOrgFromAggregate({ views: 31, distinctIds: 31, newHits: 31, zeroDwell: 31 }), '6 Collyer Quay 31/31/31/31 → bot');
 ok(botOrgFromAggregate({ views: 9, distinctIds: 9, newHits: 9, zeroDwell: 9 }), '16 Collyer Quay 9/9/9/9 → bot');
-// Real Q1 rows: humans must NOT be flagged
+// The one the all-three-≥0.9 rule missed (12/14 = 0.857 cookieless) — zero-dwell gate now catches it
+ok(botOrgFromAggregate({ views: 14, distinctIds: 12, newHits: 12, zeroDwell: 14 }), '16 Collyer Quay "Income" 14/12/12/14 (reads nothing) → bot');
+// Real Q1 rows: humans must NOT be flagged (they leave dwell → clear the gate)
 ok(!botOrgFromAggregate({ views: 22, distinctIds: 1, newHits: 0, zeroDwell: 0 }), 'Comcast 22/1/0/0 (returning reader) → human');
 ok(!botOrgFromAggregate({ views: 3, distinctIds: 3, newHits: 3, zeroDwell: 0 }), 'China Mobile 3/3/3/0 (read something) → human');
 ok(!botOrgFromAggregate({ views: 7, distinctIds: 2, newHits: 1, zeroDwell: 1 }), 'Bharti Airtel 7/2/1/1 → human');
 ok(!botOrgFromAggregate({ views: 2, distinctIds: 2, newHits: 2, zeroDwell: 2 }), 'tiny 2-view sample not judged → not bot');
+// A busy office where most hits DO read something is spared even if ids are fresh
+ok(!botOrgFromAggregate({ views: 20, distinctIds: 20, newHits: 20, zeroDwell: 8 }), 'office 20 fresh ids but 60% engaged → human');
 // isBotOrg combines both signals
 ok(isBotOrg('Tencent cloud computing (Beijing) Co., Ltd.', { views: 1, distinctIds: 1, newHits: 1, zeroDwell: 1 }), 'tencent 1 view → bot via datacenter');
 ok(isBotOrg('ACEVILLE PTE.LTD.', { views: 38, distinctIds: 38, newHits: 38, zeroDwell: 38 }), 'ACEVILLE → bot via behaviour');
