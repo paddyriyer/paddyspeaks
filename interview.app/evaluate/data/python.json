@@ -8980,6 +8980,22 @@
       ],
       "answer": 0,
       "explanation": "The context manager correctly closes the file in __exit__ regardless of exceptions, and returns False, which allows exceptions to propagate. The error is logged but the exception continues up the call stack. Returning False (the default) means the exception is not suppressed; returning True would suppress it."
+    },
+    {
+      "id": "py-new-169",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-10-16",
+      "prompt": "You're building a high-throughput data ingestion service that processes batches of records from 100 Kafka partitions concurrently. Each partition fetch is I/O-bound and takes ~500ms. You implement it with asyncio.gather() but notice that after 2 hours, the event loop starts dropping tasks silently with no exceptions raised. Which is the most likely root cause and how should you fix it?\n\nThe current code is:\n```python\nasync def ingest_partition(partition_id):\n    data = await fetch_from_kafka(partition_id)\n    await process_batch(data)\n    await store_to_warehouse(data)\n\nasync def main():\n    tasks = [ingest_partition(i) for i in range(100)]\n    await asyncio.gather(*tasks)\n```",
+      "options": [
+        "Task cancellation due to event loop timeout. Fix: wrap gather() in asyncio.timeout() with a longer duration.",
+        "Unbounded task accumulation causing memory exhaustion. The event loop's internal queue fills up. Fix: use asyncio.Semaphore to limit concurrent tasks and drain the queue periodically.",
+        "The GIL is blocking all tasks. Fix: use multiprocessing.Pool instead of asyncio.",
+        "asyncio.gather() has a hardcoded 2-hour limit. Fix: split tasks into smaller batches and call gather() multiple times."
+      ],
+      "answer": 1,
+      "explanation": "With 100 concurrent tasks each taking 500ms, the event loop's internal task queue can accumulate unfinished tasks faster than they complete, causing memory to grow unbounded over hours. The solution is to use asyncio.Semaphore to limit concurrency (e.g., 10-20 concurrent tasks) and allow completed tasks to drain. The GIL doesn't block asyncio because I/O operations release the GIL; there's no hard timeout in gather(); and the event loop queue isn't the direct issue\u2014it's the lack of backpressure control."
     }
   ]
 }

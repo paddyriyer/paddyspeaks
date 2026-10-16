@@ -15596,6 +15596,22 @@
       ],
       "answer": 3,
       "explanation": "Option 3 is most efficient because it leverages BigQuery's partition pruning\u2014by querying purchase events first and explicitly filtering event_date, then joining support_ticket events within a known 7-day range, BigQuery can eliminate irrelevant partitions before scanning. Option 1 performs an expensive self-join on the full 5TB table. Option 2 uses recursive CTEs unnecessarily and APPROX_QUANTILES is for cardinality estimation, not sequence detection. Option 4's two-query approach with temp tables wastes I/O and lacks proper CTE optimization."
+    },
+    {
+      "id": "sql-new-172",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-10-16",
+      "prompt": "You have a `bill_of_materials` table with columns: `part_id INT, parent_part_id INT, quantity INT`. You need to find the total quantity of a base part (part_id = 1) required if you account for all assemblies that use it recursively. For example, if Part A contains 2x Part B, and Part B contains 3x Part C, then Part A needs 6x Part C total. Which approach correctly implements this using a recursive CTE?\n\nConsider:\n- Query A: Uses a recursive CTE with SUM(quantity) in the recursive member, multiplying quantities through each level\n- Query B: Uses a recursive CTE but only sums at the leaf level, missing intermediate multiplications\n- Query C: Uses a window function with PARTITION BY instead of recursion\n- Query D: Uses a self-join loop without recursion depth control",
+      "options": [
+        "Query A: WITH RECURSIVE bom AS (SELECT part_id, parent_part_id, quantity, 1 as level FROM bill_of_materials WHERE part_id = 1 UNION ALL SELECT b.part_id, b.parent_part_id, b.quantity * bom.quantity, bom.level + 1 FROM bill_of_materials b JOIN bom ON b.parent_part_id = bom.part_id) SELECT SUM(quantity) FROM bom;",
+        "Query B: WITH RECURSIVE bom AS (SELECT part_id, parent_part_id, quantity FROM bill_of_materials WHERE parent_part_id IS NULL UNION ALL SELECT b.part_id, b.parent_part_id, b.quantity FROM bill_of_materials b JOIN bom ON b.parent_part_id = bom.part_id) SELECT SUM(quantity) FROM bom WHERE part_id = 1;",
+        "Query C: SELECT part_id, SUM(quantity) OVER (PARTITION BY parent_part_id ORDER BY part_id) as total_qty FROM bill_of_materials WHERE part_id = 1;",
+        "Query D: SELECT b1.quantity * COALESCE(b2.quantity, 1) FROM bill_of_materials b1 LEFT JOIN bill_of_materials b2 ON b1.part_id = b2.parent_part_id WHERE b1.part_id = 1;"
+      ],
+      "answer": 0,
+      "explanation": "Query A correctly implements the recursive solution by starting with the base part (part_id = 1) and recursively joining to find all child parts, multiplying quantities at each level (b.quantity * bom.quantity). This accumulates the total quantity needed when accounting for nested assemblies. Query B fails because it starts from leaf nodes and doesn't properly accumulate multiplications. Query C uses window functions which cannot express hierarchical multiplication. Query D's self-join approach doesn't handle arbitrary recursion depth needed for multi-level BOMs."
     }
   ]
 }
