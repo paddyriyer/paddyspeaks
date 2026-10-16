@@ -64,6 +64,47 @@ export function sourceOf({ referrer = '', utm_source = '', utm_medium = '', inte
 }
 
 /**
+ * Datacenter / cloud / hosting ASN names. A real reader sits behind a consumer
+ * or corporate ISP; traffic from a compute cloud is almost always automated.
+ * Kept deliberately to clearly-cloud names so a corporate office network
+ * (e.g. "Facebook Inc", "Microsoft Limited") is NOT swept up — those are
+ * separated by behaviour, not by name.
+ */
+const DATACENTER_ORG_RE = /amazon|aws|google cloud|gcp|microsoft azure|azure|digitalocean|linode|ovh|hetzner|leaseweb|contabo|scaleway|oracle cloud|alibaba|tencent|sinnet|datacenter|data center|hosting|cloud computing|vps|server/i;
+
+/** True when an ASN org name is a compute cloud / hosting provider. */
+export function isDatacenterOrg(asOrg = '') {
+  return DATACENTER_ORG_RE.test(String(asOrg || ''));
+}
+
+/**
+ * Behavioural "cookieless sweeper" test over one org's aggregate traffic in a
+ * window. A crawler gets a fresh anonymous id on every hit (no cookie persists),
+ * is therefore "new" every time, and reads nothing (no dwell). A real office —
+ * even many one-page visitors — reuses ids across a session OR leaves dwell on
+ * at least some hits, so it fails at least one gate.
+ *
+ * Validated against live data (2026-10-16): ACEVILLE 38/38/38/38 → bot;
+ * 6 Collyer Quay 31/31/31/31 → bot; Comcast 22 views / 1 id / 0 zero-dwell →
+ * human; China Mobile 3/3/3/0 (read something) → human.
+ */
+export const BOT_ORG = { minViews: 3, cookielessRatio: 0.9, newRatio: 0.9, zeroDwellRatio: 0.9 };
+export function botOrgFromAggregate({ views = 0, distinctIds = 0, newHits = 0, zeroDwell = 0 } = {}) {
+  if (views < BOT_ORG.minViews) return false; // too small a sample to judge
+  return (distinctIds / views) >= BOT_ORG.cookielessRatio
+      && (newHits / views) >= BOT_ORG.newRatio
+      && (zeroDwell / views) >= BOT_ORG.zeroDwellRatio;
+}
+
+/**
+ * Is an org's windowed traffic bot-like? Datacenter by name (any volume), or a
+ * cookieless sweeper by behaviour. Used to tag — never to drop rows silently.
+ */
+export function isBotOrg(asOrg, agg) {
+  return isDatacenterOrg(asOrg) || botOrgFromAggregate(agg || {});
+}
+
+/**
  * Multi-signal bot classification. Flags — never used to drop rows silently.
  * @returns { class: 'human'|'suspected'|'bot', score, reasons[] }
  */
@@ -77,8 +118,7 @@ export function botScore({ ua = '', asOrg = '', interactions = 0, pageViews = 1,
   }
   if (headless || /headless/i.test(u)) { score += 60; reasons.push('headless'); }
 
-  const org = (asOrg || '').toLowerCase();
-  if (/amazon|aws|google cloud|gcp|microsoft azure|azure|digitalocean|linode|ovh|hetzner|leaseweb|contabo|scaleway|oracle cloud|alibaba|tencent|datacenter|hosting/i.test(org)) {
+  if (isDatacenterOrg(asOrg)) {
     score += 40; reasons.push('datacenter_asn');
   }
   // Impossibly fast navigation: many pages in near-zero time

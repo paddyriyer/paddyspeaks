@@ -668,7 +668,12 @@
 
         <!-- ── Recent Activity ── -->
         <div class="panel">
-            <div class="panel-title">Recent Activity</div>
+            <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                <span>Recent Activity</span>
+                <label style="font-size:0.8rem;font-weight:400;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+                    <input type="checkbox" id="hideBotsToggle" checked onchange="toggleHideBots(this.checked)"> Hide bots<span id="botHiddenCount"></span>
+                </label>
+            </div>
             <div style="overflow-x:auto"><table class="data-table" id="tableActivity"><tbody></tbody></table></div>
         </div>
     </div>
@@ -1085,6 +1090,7 @@
         loadDashboard();
     }
     window.drillDown = drillDown;
+    window.toggleHideBots = toggleHideBots;
 
     function clearFilter(key) {
         delete currentFilters[key];
@@ -1655,8 +1661,10 @@
             var w = Math.round((o.views / maxViews) * 100);
             var name = o.as_org || 'Unknown';
             var isCompany = /META|GOOGLE|APPLE|MICROSOFT|AMAZON|LINKEDIN|NETFLIX|UBER|TWITTER|SALESFORCE|ORACLE|ADOBE|SNAP|PAYPAL|INTUIT|CISCO|VMWARE|IBM|INTEL|NVIDIA/i.test(name);
-            var badge = isCompany ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:6px">COMPANY</span>' : '';
-            html += '<tr style="cursor:pointer" onclick="drillDown(\'as_org\',\'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
+            var badge = o.bot
+                ? '<span title="' + (o.botReason === 'datacenter' ? 'Compute cloud / hosting network' : 'Cookieless sweeper: a fresh id every hit, nothing read') + '" style="background:#b4431f;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:6px">BOT</span>'
+                : (isCompany ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:6px">COMPANY</span>' : '');
+            html += '<tr style="cursor:pointer' + (o.bot ? ';opacity:0.6' : '') + '" onclick="drillDown(\'as_org\',\'' + escHtml(name).replace(/'/g, "\\'") + '\')">';
             html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(name) + badge + '</span></td>';
             html += '<td class="num">' + fmt(o.views) + '</td>';
             html += '<td class="num">' + fmt(o.visitors) + '</td>';
@@ -1698,23 +1706,32 @@
     }
 
     // ── Recent Activity Table ───────────────
+    var lastActivity = [];
+    var hideBots = true;
+    function toggleHideBots(on) { hideBots = !!on; renderActivityTable(lastActivity); }
     function renderActivityTable(activity) {
+        lastActivity = activity || [];
+        var botCount = lastActivity.filter(function(a) { return a.bot; }).length;
+        var rows = hideBots ? lastActivity.filter(function(a) { return !a.bot; }) : lastActivity;
+        var cc = document.getElementById('botHiddenCount');
+        if (cc) cc.textContent = botCount ? ' (' + botCount + ')' : '';
         var html = '<thead><tr><th>When</th><th>Page</th><th>Location</th><th>Org</th><th>Device</th><th style="text-align:right">Time</th><th style="text-align:right">Scroll</th></tr></thead><tbody>';
-        if (!activity.length) {
-            html += '<tr><td colspan="7" style="color:var(--muted);text-align:center">No activity yet</td></tr>';
+        if (!rows.length) {
+            html += '<tr><td colspan="7" style="color:var(--muted);text-align:center">' + (botCount && hideBots ? 'All recent activity was bots (' + botCount + ' hidden)' : 'No activity yet') + '</td></tr>';
         }
-        activity.forEach(function(a) {
+        rows.forEach(function(a) {
             var when = a.created_at ? formatDateTime(a.created_at) : '-';
             var page = (a.page || '/').replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
             var loc = (a.city && a.city !== 'Unknown' ? a.city + ', ' : '') + countryFlag(a.country) + ' ' + (a.country || '');
             var device = a.device_type || '-';
             var newBadge = a.is_new ? '<span style="background:#2a7a4a;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">NEW</span>' : '';
+            var botBadge = a.bot ? '<span title="Flagged as automated traffic" style="background:#b4431f;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">BOT</span>' : '';
             var utmBadge = a.utm_source ? '<span style="background:#2563a8;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:4px">' + escHtml(a.utm_source) + '</span>' : '';
             var org = a.as_org || '';
             var orgCompany = /META|GOOGLE|APPLE|MICROSOFT|AMAZON|LINKEDIN|NETFLIX|UBER/i.test(org);
-            html += '<tr>';
+            html += '<tr' + (a.bot ? ' style="opacity:0.55"' : '') + '>';
             html += '<td style="font-family:var(--font-mono);font-size:0.8rem;white-space:nowrap">' + when + '</td>';
-            html += '<td style="font-family:var(--font-mono);font-size:0.8rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(a.page) + '">' + escHtml(page) + newBadge + utmBadge + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.8rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escHtml(a.page) + '">' + escHtml(page) + newBadge + botBadge + utmBadge + '</td>';
             html += '<td style="font-size:0.85rem;white-space:nowrap">' + loc + '</td>';
             html += '<td style="font-family:var(--font-mono);font-size:0.75rem' + (orgCompany ? ';color:#2563a8;font-weight:600' : '') + '">' + (org ? escHtml(org) : '-') + '</td>';
             html += '<td style="font-size:0.85rem">' + device + '</td>';
