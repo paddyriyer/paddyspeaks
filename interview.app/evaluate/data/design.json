@@ -6776,6 +6776,54 @@
       ],
       "answer": 0,
       "explanation": "Data Vault 2.0 uses a single hub (h_customer) for the core entity and satellite tables for each attribute group. Each satellite tracks changes independently with effective and end dates, enabling flexible historical queries. Option 1 is the canonical DV2 design. Option 2 over-normalizes by creating hubs for attributes (not recommended). Option 3 loses time-series tracking and violates DV principles. Option 4 adds unnecessary complexity for merges\u2014that belongs in a separate dimensional model layer, not the vault core."
+    },
+    {
+      "id": "ds-new-132",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "Your dbt project processes 500GB of raw events daily. You're experiencing slow incremental model runs because the `dbt_invocations` ephemeral model is referenced by 45+ downstream models, causing redundant CTEs in compiled SQL. What's the best refactoring approach?",
+      "options": [
+        "Convert the ephemeral model to a temporary table and reference it as a source instead",
+        "Convert the ephemeral model to a materialized view or table, then import it as a ref() dependency",
+        "Add a dbt configuration to cache ephemeral models in memory across the DAG run",
+        "Split the ephemeral model into 5 smaller ephemeral models to reduce CTE complexity"
+      ],
+      "answer": 1,
+      "explanation": "Ephemeral models inline their SQL into every dependent model, causing redundant computation. Materializing it as a table or view forces a single computation, then 45+ models efficiently reference that result. This is a core dbt performance pattern when an ephemeral model has high fan-out."
+    },
+    {
+      "id": "ds-new-133",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "You're building a financial settlement pipeline: Kafka \u2192 Spark Streaming \u2192 Delta Lake. Transactions must never be duplicated or lost. Your Spark job crashes mid-batch after writing 80% of a micro-batch to Delta. On restart, how do you ensure exactly-once semantics without idempotent keys in the source?",
+      "options": [
+        "Use Spark's checkpointing with foreachBatch() and write both data and offset together to Delta in the same transaction, rolling back on failure",
+        "Enable Kafka auto-commit after each micro-batch write, which automatically handles offset management",
+        "Use Delta's MERGE statement with a surrogate key to deduplicate any reprocessed records",
+        "Write to a staging table first, then merge to the final table only after Kafka offset is committed"
+      ],
+      "answer": 0,
+      "explanation": "Exactly-once requires atomicity: the data and the offset (checkpoint) must commit together. Using foreachBatch() + transactional writes to Delta ensures both succeed or both fail, preventing duplicates or loss. Kafka auto-commit alone doesn't guarantee atomicity with writes, and surrogate keys require source-level idempotence logic."
+    },
+    {
+      "id": "ds-new-134",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "Your Snowflake cluster runs 200 daily queries, each scanning 50GB of a 2TB table. You notice 60% of queries filter by `region='US'`, but 40% scan all regions. Partitioning is not available. What's the most cost-effective solution for the US-filtered queries without breaking queries for other regions?",
+      "options": [
+        "Create a separate materialized view of US data and route US queries to it via application logic",
+        "Use Snowflake clustering on the region column to co-locate US records, improving scan efficiency",
+        "Partition the table into US and non-US external tables and use a union view to abstract the split",
+        "Enable result caching and rely on Snowflake's automatic query result reuse across the 60% overlapping workload"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake clustering automatically co-locates rows with the same region value on disk, allowing queries to skip scanning irrelevant microclusters. This reduces data scanned (cost) without schema changes or application routing logic. Result caching helps but is unpredictable; separate tables add complexity; materialized views duplicate storage."
     }
   ]
 }

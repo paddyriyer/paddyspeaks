@@ -1693,6 +1693,38 @@
       ],
       "answer": 1,
       "explanation": "Option B maintains compliance (PII masked) while achieving correctness coverage by synthetically extending test data history using patterns from production. Option A may still have gaps if sampling changes customer composition. Option C violates compliance by exposing PII in non-production. Option D skips critical correctness testing for business logic."
+    },
+    {
+      "id": "dash-new-051",
+      "type": "single",
+      "topic": "incremental refresh",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "Your dashboard extract refreshes incrementally every 15 minutes by querying WHERE updated_at > last_refresh_timestamp. Last night at 11:47 PM, a batch job backfilled 2 million historical records with updated_at = 11:45 PM. The next scheduled refresh at midnight catches these rows. However, users report that the 11:45 PM cohort appears twice in their dashboard\u2014once in yesterday's extract and again after midnight refresh. Which root cause is most likely?",
+      "options": [
+        "The incremental query lacks a deduplication step; records with the same natural key should use INSERT OR UPDATE logic instead of append-only inserts.",
+        "The system uses event-time (updated_at) rather than processing-time for the incremental boundary, causing late-arriving data to be double-counted across partition boundaries.",
+        "The extract refresh job and the data warehouse's background VACUUM operation ran concurrently, leaving orphaned row versions in the extract table.",
+        "The BI tool's caching layer stored the pre-midnight snapshot in memory and did not invalidate it when the new refresh completed."
+      ],
+      "answer": 1,
+      "explanation": "Incremental refreshes using event-time (updated_at) can capture late-arriving data if the source system backdates records. When a batch job inserts historical data with an old timestamp but current updated_at, that row falls within the incremental window and gets appended, but the previous full extract snapshot already contained it. Using processing-time or adding deduplication logic (MERGE/UPSERT patterns) prevents this. Options 0 and 2 conflate different issues; option 3 would cause the new data to be invisible, not duplicated."
+    },
+    {
+      "id": "dash-new-052",
+      "type": "single",
+      "topic": "extracts vs live connections",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "A financial services company maintains two dashboards: Dashboard A uses live DirectQuery against a Snowflake warehouse and shows intraday P&L updated every 5 minutes. Dashboard B uses a nightly extract imported into memory, refreshing at 9 AM each morning. Regulatory compliance requires that all reported P&L figures be immutable after 4:59 PM UTC. Which dashboard architecture best meets this requirement, and why?",
+      "options": [
+        "Dashboard A (live) is superior because DirectQuery ensures real-time compliance verification and prevents stale cache from violating audit trails.",
+        "Dashboard B (extract) is superior because an immutable snapshot loaded at a fixed time provides an auditable, point-in-time view that cannot be changed retroactively by query logic.",
+        "Both are equally compliant if both dashboards use the same underlying fact table and apply identical row-level security rules.",
+        "Neither can reliably meet immutability requirements; a separate read-only archive table with timestamp-based versioning is required."
+      ],
+      "answer": 1,
+      "explanation": "Regulatory immutability requires a fixed, auditable snapshot. Extract-based dashboards capture data at a specific moment (9 AM), preventing any retroactive recalculation. Live queries re-execute against current data and are vulnerable to logic changes, schema updates, or late-arriving corrections\u2014all of which could alter historical P&L retroactively. Option 0 conflates freshness with auditability; option 2 ignores that live queries can change; option 3 is overly prescriptive (extracts alone suffice if stored immutably)."
     }
   ]
 }

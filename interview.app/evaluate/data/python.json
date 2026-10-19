@@ -9044,6 +9044,54 @@
       ],
       "answer": 1,
       "explanation": "`glob('**/*.tar.gz')` with default `follow_symlinks=False` is the safest approach, preventing infinite loops from cyclic symlinks. `resolve()` dereferences symlinks only at extraction time. `rglob` doesn't expose symlink control; explicit globbing (option 2) is redundant; `walk()` is newer and less portable for production systems."
+    },
+    {
+      "id": "py-new-173",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "You're implementing a data pipeline that processes 1000 CSV files in parallel using multiprocessing.Pool. Each worker needs to share read-only configuration data (database credentials, schema definitions). What's the most efficient approach to pass this configuration to all workers?",
+      "options": [
+        "Pass the configuration as an argument to pool.map() for each file, serializing it 1000 times",
+        "Use multiprocessing.Manager().dict() to store configuration in shared memory accessible to all workers",
+        "Initialize configuration in the child process via an initializer function passed to Pool()",
+        "Use global variables in the main module; multiprocessing will automatically replicate them to all workers"
+      ],
+      "answer": 2,
+      "explanation": "Using an initializer function with Pool() is the most efficient approach because configuration is serialized once and set up in each child process, avoiding repeated serialization overhead and avoiding Manager()'s IPC overhead for read-only data. Global variables don't guarantee proper initialization in child processes across all platforms."
+    },
+    {
+      "id": "py-new-174",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "You have a 5GB pandas DataFrame with columns (user_id, timestamp, event_type, value). You need to compute the 95th percentile of 'value' for each user_id and event_type combination. Your current code uses df.groupby(['user_id', 'event_type'])['value'].quantile(0.95), but it's taking 8 minutes. Which optimization would provide the most significant speedup?",
+      "options": [
+        "Convert user_id and event_type to category dtype before groupby to reduce memory and groupby overhead",
+        "Use df.groupby(['user_id', 'event_type'], observed=True)['value'].quantile(0.95) to skip unobserved category combinations",
+        "Switch to Polars or DuckDB, which have optimized quantile implementations for grouped operations",
+        "Use df.nlargest() and df.nsmallest() to manually compute the 95th percentile instead of quantile()"
+      ],
+      "answer": 2,
+      "explanation": "Switching to Polars or DuckDB provides the most significant speedup because they use columnar processing and optimized quantile algorithms specifically designed for grouped aggregations. While converting to category dtype (option A) helps, it won't match the performance gains of specialized data processing engines for this use case."
+    },
+    {
+      "id": "py-new-175",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "You're building a metrics computation framework where compute_metric(metric_name, timestamp) is called repeatedly with the same arguments throughout a data pipeline run. You decide to use functools.lru_cache for optimization. However, you notice the cache hit rate is only 5% despite identical argument patterns. What's the most likely cause?",
+      "options": [
+        "The timestamp argument is a datetime object; datetime objects have poor hash distribution, making cache lookups slower",
+        "The timestamp argument is slightly different each time due to floating-point precision differences or timezone conversion logic",
+        "functools.lru_cache uses a weak reference strategy that allows arguments to be garbage collected, invalidating cache entries",
+        "The cache size (default 128) is too small; arguments beyond the 128th unique call are evicted and must be recomputed"
+      ],
+      "answer": 1,
+      "explanation": "The timestamp argument is likely slightly different each time due to floating-point precision, timezone conversions, or microsecond variations, causing cache misses even when logically identical. Each unique timestamp value creates a new cache entry. To fix this, you'd need to round/truncate the timestamp or use functools.cached_property with a tuple of normalized arguments."
     }
   ]
 }
