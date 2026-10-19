@@ -15612,6 +15612,70 @@
       ],
       "answer": 0,
       "explanation": "Query A correctly implements the recursive solution by starting with the base part (part_id = 1) and recursively joining to find all child parts, multiplying quantities at each level (b.quantity * bom.quantity). This accumulates the total quantity needed when accounting for nested assemblies. Query B fails because it starts from leaf nodes and doesn't properly accumulate multiplications. Query C uses window functions which cannot express hierarchical multiplication. Query D's self-join approach doesn't handle arbitrary recursion depth needed for multi-level BOMs."
+    },
+    {
+      "id": "sql-new-173",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "You have a `user_sessions` table with columns: `user_id`, `session_id`, `login_time`, `logout_time`. You need to get the most recent session for each user (based on login_time). In PostgreSQL, you write: `SELECT DISTINCT ON (user_id) user_id, session_id, login_time FROM user_sessions ORDER BY user_id, login_time DESC`. Why does this work correctly?",
+      "options": [
+        "DISTINCT ON returns the first row for each user_id after ordering, so login_time DESC ensures the most recent session appears first within each user_id group",
+        "DISTINCT ON applies DISTINCT after ORDER BY, filtering duplicates based on the final sort order",
+        "DISTINCT ON requires an aggregate function to determine which row is 'most recent' for each group",
+        "DISTINCT ON is equivalent to GROUP BY and automatically selects the row with the maximum login_time"
+      ],
+      "answer": 0,
+      "explanation": "DISTINCT ON (in PostgreSQL) returns the first row for each distinct value of the specified column(s) after the ORDER BY is applied. By ordering by login_time DESC, the most recent session becomes the first row for each user_id, which DISTINCT ON then selects. This is more efficient than GROUP BY with a window function."
+    },
+    {
+      "id": "sql-new-174",
+      "type": "single",
+      "topic": "transaction isolation",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "Your Snowflake warehouse experiences a phantom read issue in READ COMMITTED isolation. You have a `budget_allocations` table where two concurrent transactions both check if total allocated budget < 1000000, then both insert new allocations of 600000 each, resulting in 1200000 total. Which isolation level prevents this, and why?",
+      "options": [
+        "SERIALIZABLE, because it locks rows and prevents any concurrent writes to the same table",
+        "REPEATABLE READ, because it maintains consistent snapshots and prevents concurrent modifications to the same rows",
+        "SERIALIZABLE, because it serializes transactions and ensures intermediate state consistency between reads and writes",
+        "READ UNCOMMITTED, because it allows reading uncommitted data, reducing contention"
+      ],
+      "answer": 2,
+      "explanation": "A phantom read occurs when a transaction reads a set of rows matching a condition, then another transaction inserts new rows matching that condition. SERIALIZABLE isolation prevents this by essentially serializing conflicting transactions, ensuring that if Transaction A reads rows matching a condition, no other transaction can insert rows matching that condition until Transaction A completes. This is the strongest isolation level and prevents phantom reads."
+    },
+    {
+      "id": "sql-new-175",
+      "type": "single",
+      "topic": "partitioning",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "In BigQuery, you have a `sales_data` table (500GB) partitioned by `sale_date` (DATE) and clustered by `region` and `product_id`. A query scans `WHERE sale_date BETWEEN '2025-01-01' AND '2025-01-31' AND region = 'US'`. Which optimization occurs first?",
+      "options": [
+        "Clustering is applied first to eliminate non-US rows, then partitioning filters to January data",
+        "Partitioning is applied first to eliminate data outside January, then clustering filters to US rows within those partitions",
+        "Both partitioning and clustering are applied simultaneously in a single pass",
+        "Clustering is applied first because it's more selective than partitioning in this case"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery applies partitioning pruning before clustering pruning. Partitions are metadata-driven and eliminate entire date ranges at the storage level, while clustering is applied within the remaining partitions to further filter rows. This two-stage approach is more efficient because partitioning eliminates data before clustering logic is even evaluated."
+    },
+    {
+      "id": "sql-new-176",
+      "type": "single",
+      "topic": "DISTINCT ON",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "You need to select the earliest and latest event timestamp for each user from a `user_events` table in PostgreSQL. Using DISTINCT ON, you write: `SELECT DISTINCT ON (user_id) user_id, event_timestamp FROM user_events ORDER BY user_id, event_timestamp ASC`. What is the limitation of this approach?",
+      "options": [
+        "DISTINCT ON returns only one row per user (earliest based on ASC), so you cannot get both earliest and latest in a single query",
+        "DISTINCT ON requires all ORDER BY columns to appear in the SELECT list, which causes a syntax error",
+        "DISTINCT ON is incompatible with ORDER BY in PostgreSQL and will raise an exception",
+        "The query is correct and efficiently returns both earliest and latest timestamps per user"
+      ],
+      "answer": 0,
+      "explanation": "DISTINCT ON returns only the first row for each distinct value after ordering. With ORDER BY user_id, event_timestamp ASC, you get the earliest event per user, but not the latest. To get both earliest and latest, you'd need a UNION or window functions like ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_timestamp ASC/DESC). DISTINCT ON is limited to selecting a single row per group."
     }
   ]
 }

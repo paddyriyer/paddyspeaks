@@ -6728,6 +6728,54 @@
       ],
       "answer": 1,
       "explanation": "Bulk API v2 handles rate limits efficiently, exponential backoff with dead-letter queues ensures reliability without losing failed records, and row-level versioning in Snowflake with automated rollback triggers directly addresses auditability and the ability to revert bad data. This approach is purpose-built for handling Salesforce API constraints while maintaining data integrity. Message queues add latency, real-time streaming via third-party tools doesn't solve versioning, and sandbox validation doesn't prevent production issues."
+    },
+    {
+      "id": "ds-new-129",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "You're implementing CDC for a legacy Oracle database with 500+ tables into a data lake. The source system has no primary keys on 30% of tables, and your team wants to use Debezium with snapshot + incremental mode. Which approach best handles the non-PK tables while minimizing data quality issues?",
+      "options": [
+        "Use Debezium's AFTER_IMAGE mode and add synthetic UUIDs in a Spark job post-ingestion, then merge into Delta tables using these synthetic keys",
+        "Skip CDC for non-PK tables and use full table scans daily via Sqoop; implement row hashing on all columns to detect changes before merging",
+        "Use Debezium's before/after mode with logical replication, rely on timestamp-based deduplication in the warehouse layer, and accept eventual consistency",
+        "Partition non-PK tables by logical domain, add application-level row versioning via trigger, and use UPSERT with composite keys derived from business logic"
+      ],
+      "answer": 1,
+      "explanation": "Without primary keys, Debezium cannot reliably track row-level changes via CDC. Full table scans with row hashing (comparing all column values) is the most robust approach for detecting actual changes without false positives. Synthetic UUIDs add complexity and don't solve the core problem of identifying which rows changed. Logical replication without PKs still produces incomplete change sets, and relying on timestamps is unreliable for bulk updates."
+    },
+    {
+      "id": "ds-new-130",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "Your Spark job reads from Kafka (no offset commits), writes to Delta Lake, and can be retried mid-execution due to network failures. The job processes 10M events per run with a 5-minute SLA. Which design ensures true idempotency without duplicates or data loss, while meeting SLA constraints?",
+      "options": [
+        "Write to Delta with MERGE using event_id as unique key, but restart from earliest Kafka offset on failure\u2014accept re-processing overhead",
+        "Maintain an external deduplication table (Redis) storing processed event_ids with TTL; write to Delta only if event_id not in Redis before Kafka commit",
+        "Use Kafka offset commits before Delta writes; implement Delta TIME TRAVEL to rollback on failure and replay from last committed offset",
+        "Write to Delta with idempotent keys per batch, store batch_id + run_id in a control table, use Kafka consumer groups with state management to commit only after successful Delta write"
+      ],
+      "answer": 3,
+      "explanation": "True idempotency requires three elements: (1) idempotent writes (batch + run IDs ensure duplicate writes don't create duplicates), (2) state tracking (control table), and (3) atomic ordering (Kafka commits only after successful writes). Option 1 loses SLA due to full replays. Option 2 has Redis as a single point of failure and TTL race conditions. Option 3 commits before writes, violating idempotency guarantees. Option 3 (corrected) ensures the write succeeds before acknowledging the offset."
+    },
+    {
+      "id": "ds-new-131",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "You're migrating a star schema (dim_customer, dim_product, fct_sales) to Data Vault 2.0 in Snowflake. A customer can have multiple names, addresses, and phone numbers over time due to corrections and merges. How should you structure the Data Vault to handle this customer dimension complexity?",
+      "options": [
+        "Create a single h_customer hub with business_key=customer_id, then add three satellite tables (s_customer_name, s_customer_address, s_customer_phone) each with dw_effective_date and dw_end_date for tracking changes",
+        "Create h_customer, h_customer_name, h_customer_address as separate hubs with foreign key links in satellite tables to track the relationships over time",
+        "Flatten all customer attributes into one s_customer_detail satellite with JSON columns for name, address, and phone; use version numbers instead of date ranges",
+        "Create h_customer with composite key (customer_id + country), then add three satellites; use a separate bridge table to resolve customer merges"
+      ],
+      "answer": 0,
+      "explanation": "Data Vault 2.0 uses a single hub (h_customer) for the core entity and satellite tables for each attribute group. Each satellite tracks changes independently with effective and end dates, enabling flexible historical queries. Option 1 is the canonical DV2 design. Option 2 over-normalizes by creating hubs for attributes (not recommended). Option 3 loses time-series tracking and violates DV principles. Option 4 adds unnecessary complexity for merges\u2014that belongs in a separate dimensional model layer, not the vault core."
     }
   ]
 }

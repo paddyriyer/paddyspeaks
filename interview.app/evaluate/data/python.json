@@ -8996,6 +8996,54 @@
       ],
       "answer": 1,
       "explanation": "With 100 concurrent tasks each taking 500ms, the event loop's internal task queue can accumulate unfinished tasks faster than they complete, causing memory to grow unbounded over hours. The solution is to use asyncio.Semaphore to limit concurrency (e.g., 10-20 concurrent tasks) and allow completed tasks to drain. The GIL doesn't block asyncio because I/O operations release the GIL; there's no hard timeout in gather(); and the event loop queue isn't the direct issue\u2014it's the lack of backpressure control."
+    },
+    {
+      "id": "py-new-170",
+      "type": "single",
+      "topic": "memory management",
+      "difficulty": "hard",
+      "added_date": "2026-10-19",
+      "prompt": "You're building a data processing pipeline that reads sensor telemetry in batches. Each batch is stored in a list of dictionaries and processed via a generator. After processing 1000 batches, memory usage grows linearly instead of staying constant. Which approach most effectively prevents memory bloat?",
+      "options": [
+        "Use `gc.collect()` after each batch and rely on Python's automatic garbage collection",
+        "Process batches through a generator with `yield`, explicitly `del` intermediate DataFrames, and use `weakref.proxy()` for large object references",
+        "Convert all dictionaries to namedtuples since they use less memory than regular dicts",
+        "Increase the system swap space to allow the OS to handle memory spillover"
+      ],
+      "answer": 1,
+      "explanation": "Generators naturally allow memory reuse through `yield`, explicit `del` ensures reference counts drop immediately, and `weakref` prevents unexpected reference cycles. `gc.collect()` is reactive and expensive; namedtuples save minimal memory; increasing swap degrades performance catastrophically for data pipelines."
+    },
+    {
+      "id": "py-new-171",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "Your team uses dataclasses for event schemas that are serialized to Parquet. A colleague adds a mutable default list to a field: `events: list = []`. The code works in tests but fails in production with shared state across instances. What's the best fix without changing serialization?",
+      "options": [
+        "Use `events: list = field(default_factory=list)` and keep serialization unchanged",
+        "Change to `events: list = None` and initialize in `__post_init__` with `if self.events is None: self.events = []`",
+        "Mark the field as `frozen=True` at the dataclass level to prevent mutations",
+        "Use `events: tuple = ()` since tuples are immutable and avoid the default factory overhead"
+      ],
+      "answer": 0,
+      "explanation": "`field(default_factory=list)` creates a unique list instance per dataclass instance, preventing shared mutable defaults. This is the idiomatic Python solution that works seamlessly with Parquet serialization. Option 1 requires runtime checks; option 2 (frozen) prevents all mutations; option 3 changes the schema type."
+    },
+    {
+      "id": "py-new-172",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-10-19",
+      "prompt": "You're writing a data ingestion script that processes nested directories of compressed logs: `/data/2026-10/01/logs.tar.gz`, `/data/2026-10/02/logs.tar.gz`, etc. You need to find all `.tar.gz` files recursively and extract them. Using `pathlib`, which approach handles symlinks safely and avoids redundant traversals?",
+      "options": [
+        "`Path('/data').rglob('*.tar.gz')` iterates recursively, and `follow_symlinks=True` prevents infinite loops",
+        "`Path('/data').glob('**/*.tar.gz')` with `follow_symlinks=False` (default) avoids symlink loops; use `resolve()` to dereference symlinks only when extracting",
+        "`list(Path('/data').glob('**/2026-*/??/*.tar.gz'))` explicitly matches the date pattern and avoids `rglob` overhead",
+        "`Path('/data').walk()` (Python 3.12+) with `top_down=False` ensures safe symlink handling and memory efficiency"
+      ],
+      "answer": 1,
+      "explanation": "`glob('**/*.tar.gz')` with default `follow_symlinks=False` is the safest approach, preventing infinite loops from cyclic symlinks. `resolve()` dereferences symlinks only at extraction time. `rglob` doesn't expose symlink control; explicit globbing (option 2) is redundant; `walk()` is newer and less portable for production systems."
     }
   ]
 }
