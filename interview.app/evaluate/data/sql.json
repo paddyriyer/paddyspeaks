@@ -15676,6 +15676,22 @@
       ],
       "answer": 0,
       "explanation": "DISTINCT ON returns only the first row for each distinct value after ordering. With ORDER BY user_id, event_timestamp ASC, you get the earliest event per user, but not the latest. To get both earliest and latest, you'd need a UNION or window functions like ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_timestamp ASC/DESC). DISTINCT ON is limited to selecting a single row per group."
+    },
+    {
+      "id": "sql-new-177",
+      "type": "single",
+      "topic": "BigQuery-specific partitioning and NULLIF",
+      "difficulty": "hard",
+      "added_date": "2026-10-20",
+      "prompt": "You're querying a BigQuery table `events` partitioned by `event_date` (DATE) with 500M rows. The table has columns: `event_id`, `event_date`, `user_id`, `revenue` (NUMERIC, nullable), and `discount_code` (STRING, nullable). You need to calculate daily revenue excluding rows where discount_code is present but revenue is NULL. You also want to exclude rows where both revenue and discount_code are NULL. Which query correctly applies partition pruning while handling these nullability conditions?\n\nA) SELECT event_date, SUM(revenue) FROM events WHERE event_date BETWEEN '2024-01-01' AND '2024-01-31' AND NULLIF(discount_code, '') IS NULL AND revenue IS NOT NULL GROUP BY event_date\n\nB) SELECT event_date, SUM(COALESCE(revenue, 0)) FROM events WHERE event_date >= '2024-01-01' AND discount_code IS NULL GROUP BY event_date\n\nC) SELECT event_date, SUM(revenue) FROM events WHERE event_date BETWEEN '2024-01-01' AND '2024-01-31' AND NOT (discount_code IS NOT NULL AND revenue IS NULL) AND NOT (discount_code IS NULL AND revenue IS NULL) GROUP BY event_date\n\nD) SELECT event_date, SUM(revenue) FROM events WHERE YEAR(event_date) = 2024 AND MONTH(event_date) = 1 AND (discount_code IS NOT NULL OR revenue IS NOT NULL) GROUP BY event_date",
+      "options": [
+        "SELECT event_date, SUM(revenue) FROM events WHERE event_date BETWEEN '2024-01-01' AND '2024-01-31' AND NULLIF(discount_code, '') IS NULL AND revenue IS NOT NULL GROUP BY event_date",
+        "SELECT event_date, SUM(COALESCE(revenue, 0)) FROM events WHERE event_date >= '2024-01-01' AND discount_code IS NULL GROUP BY event_date",
+        "SELECT event_date, SUM(revenue) FROM events WHERE event_date BETWEEN '2024-01-01' AND '2024-01-31' AND NOT (discount_code IS NOT NULL AND revenue IS NULL) AND NOT (discount_code IS NULL AND revenue IS NULL) GROUP BY event_date",
+        "SELECT event_date, SUM(revenue) FROM events WHERE YEAR(event_date) = 2024 AND MONTH(event_date) = 1 AND (discount_code IS NOT NULL OR revenue IS NOT NULL) GROUP BY event_date"
+      ],
+      "answer": 2,
+      "explanation": "Option C correctly handles both nullability requirements while maintaining partition pruning. The date range (BETWEEN) preserves partition elimination in BigQuery. The two NOT conditions explicitly exclude rows where (discount_code exists AND revenue is NULL) and rows where (both are NULL), matching the requirements exactly. Options A and B either miss one condition or use SUM(COALESCE()) which incorrectly treats NULLs as zero. Option D uses function calls on event_date (YEAR, MONTH) which prevents partition pruning in BigQuery."
     }
   ]
 }
