@@ -385,8 +385,30 @@ async function handleStats(request, env, url, ch) {
     filterSQL += ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)';
   }
 
-  const w = 'WHERE created_at >= ?' + filterSQL;
-  const b = filterBinds;
+  // Base WHERE shows everything. Metric queries use `w`, which ALSO excludes
+  // known bot orgs so the totals aren't skewed (the Collyer Quay / ACEVILLE
+  // sweepers were ~hundreds of zero-dwell views). The Recent Activity feed and
+  // the org table use `w0`, so bots still appear there — tagged — for
+  // inspection. `?include_bots=1` turns the exclusion off and shows raw numbers.
+  const w0 = 'WHERE created_at >= ?' + filterSQL;
+  const b0 = filterBinds;
+
+  const includeBots = url.searchParams.get('include_bots') === '1';
+  const botOrgSet = new Set();
+  try {
+    // Pre-pass: detect bot orgs by behaviour BEFORE the metric queries so we can
+    // exclude them. One extra GROUP BY scan, but handleStats is edge-cached so it
+    // only runs on a cache miss.
+    const orgPre = await env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT visitor_id) as people, SUM(is_new) AS new_hits, SUM(CASE WHEN COALESCE(duration,0)=0 AND COALESCE(scroll_depth,0)=0 THEN 1 ELSE 0 END) AS zero_dwell FROM page_views ${w0} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 50`).bind(...b0).all();
+    for (const o of (orgPre.results || [])) {
+      if (isBotOrg(o.as_org, { views: o.views, distinctIds: o.people, newHits: o.new_hits || 0, zeroDwell: o.zero_dwell || 0 })) botOrgSet.add(o.as_org);
+    }
+  } catch (e) { /* detection is best-effort; on error fall back to no exclusion */ }
+
+  const botList = [...botOrgSet];
+  const botExcl = (!includeBots && botList.length) ? ` AND as_org NOT IN (${botList.map(() => '?').join(',')})` : '';
+  const w = w0 + botExcl;                               // metrics: bots excluded
+  const b = botExcl ? [...b0, ...botList] : b0;
 
   const batch = await env.DB.batch([
     env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors, COUNT(DISTINCT visitor_id) as unique_people, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_duration, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll, SUM(CASE WHEN is_new = 1 THEN 1 ELSE 0 END) as new_visitors, SUM(CASE WHEN is_new = 0 THEN 1 ELSE 0 END) as returning_visitors FROM page_views ${w}`).bind(...b),
@@ -404,11 +426,11 @@ async function handleStats(request, env, url, ch) {
     env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views ${w} GROUP BY hour ORDER BY hour`).bind(...b),
     env.DB.prepare(`SELECT timezone, COUNT(*) as views FROM page_views WHERE created_at >= ? AND timezone != '' GROUP BY timezone ORDER BY views DESC LIMIT 15`).bind(since),
     env.DB.prepare(`SELECT CAST(strftime('%w', created_at) AS INTEGER) as dow, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY dow ORDER BY dow`).bind(...b),
-    env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source, as_org FROM page_views ${w} ORDER BY created_at DESC LIMIT 50`).bind(...b),
-    env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, COUNT(DISTINCT visitor_id) as people, SUM(is_new) AS new_hits, SUM(CASE WHEN COALESCE(duration,0)=0 AND COALESCE(scroll_depth,0)=0 THEN 1 ELSE 0 END) AS zero_dwell FROM page_views ${w} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 30`).bind(...b),
+    env.DB.prepare(`SELECT created_at, page, country, city, browser, os, device_type, referrer, duration, scroll_depth, is_new, utm_source, as_org FROM page_views ${w0} ORDER BY created_at DESC LIMIT 50`).bind(...b0),
+    env.DB.prepare(`SELECT as_org, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, COUNT(DISTINCT visitor_id) as people, SUM(is_new) AS new_hits, SUM(CASE WHEN COALESCE(duration,0)=0 AND COALESCE(scroll_depth,0)=0 THEN 1 ELSE 0 END) AS zero_dwell FROM page_views ${w0} AND as_org != '' GROUP BY as_org ORDER BY views DESC LIMIT 30`).bind(...b0),
     env.DB.prepare(`SELECT CASE WHEN page LIKE '/articles/%' AND page LIKE '%gita%' OR page LIKE '%shankara%' OR page LIKE '%govindam%' OR page LIKE '%vedant%' OR page LIKE '%lotus%' OR page LIKE '%skull%' OR page LIKE '%discipline%' OR page LIKE '%chamakam%' OR page LIKE '%ashtavakra%' OR page LIKE '%narayaneeyam%' OR page LIKE '%frankl%' OR page LIKE '%fear-greed%' OR page LIKE '%death-fear%' OR page LIKE '%frenemies%' OR page LIKE '%prana%' OR page LIKE '%breathing%' OR page LIKE '%dharmakshetre%' THEN 'Philosophy' WHEN page LIKE '/interview%' THEN 'Interview Prep' WHEN page LIKE '/bhagavad-gita/%' OR page LIKE '/vishnu-sahasranama/%' OR page LIKE '/lalitha-sahasranama/%' OR page LIKE '/hanumanchalisa/%' OR page LIKE '/rudramchamakam/%' OR page LIKE '/soundarya-Lahari/%' OR page LIKE '/narayaneeyam/%' OR page LIKE '/bhaja-govindam/%' OR page LIKE '/durga-suktam/%' OR page LIKE '/sri-suktam/%' OR page LIKE '/purusha-suktam/%' OR page LIKE '/medha-suktam/%' OR page LIKE '/aditya-hridayam/%' OR page LIKE '/bajrang-baan/%' OR page LIKE '/sandhyavandanam/%' OR page LIKE '/navagraha/%' OR page LIKE '/abhirami-andhadhi/%' OR page LIKE '/subramanya-bhujangam/%' OR page LIKE '/rama-raksha-stotram/%' OR page LIKE '/ApaduddharakaStotram/%' OR page LIKE '/shashtikavacham/%' OR page LIKE '/mahAnyAsam/%' OR page LIKE '/amavasya-tharpanam/%' THEN 'Sacred Texts' WHEN page LIKE '/articles/%' THEN 'Technology' WHEN page = '/' OR page = '/index.html' THEN 'Homepage' ELSE 'Other' END as content_group, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time FROM page_views ${w} GROUP BY content_group ORDER BY views DESC`).bind(...b),
     env.DB.prepare(`SELECT COUNT(*) as total_sessions, SUM(CASE WHEN cnt = 1 THEN 1 ELSE 0 END) as bounced_sessions FROM (SELECT session_id, COUNT(*) as cnt FROM page_views ${w} GROUP BY session_id)`).bind(...b),
-    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '')).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since),
+    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ? AND created_at < ?` + (excludeMe ? ' AND visitor_id NOT IN (SELECT visitor_id FROM excluded_visitors)' : '') + botExcl).bind(new Date(Date.now() - days * 2 * 86400000).toISOString(), since, ...(botExcl ? botList : [])),
     env.DB.prepare(`SELECT page, COUNT(*) as entries FROM page_views ${w} AND page_num = 1 GROUP BY page ORDER BY entries DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT page, COUNT(*) as exits FROM (SELECT session_id, page, ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY created_at DESC) as rn FROM page_views ${w}) WHERE rn = 1 GROUP BY page ORDER BY exits DESC LIMIT 15`).bind(...b),
     env.DB.prepare(`SELECT search_query, COUNT(*) as views FROM page_views ${w} AND search_query != '' GROUP BY search_query ORDER BY views DESC LIMIT 20`).bind(...b),
@@ -471,13 +493,12 @@ async function handleStats(request, env, url, ch) {
   // every hit, "new" every time, zero dwell). We tag the org list and the Recent
   // Activity feed, and roll up how much traffic that accounts for, so the dashboard
   // can show humans-only without changing what is collected.
-  const botOrgSet = new Set();
+  // Tag the org table + Recent Activity for display. botOrgSet was computed in the
+  // pre-pass and already excluded from the metric totals above; reuse it so the
+  // "excluded from totals" set and the "BOT" tags are exactly the same.
   for (const o of data.organizations) {
-    const agg = { views: o.views, distinctIds: o.people, newHits: o.new_hits || 0, zeroDwell: o.zero_dwell || 0 };
-    const bot = isBotOrg(o.as_org, agg);
-    o.bot = bot;
-    o.botReason = bot ? (isDatacenterOrg(o.as_org) ? 'datacenter' : 'cookieless_sweeper') : '';
-    if (bot) botOrgSet.add(o.as_org);
+    o.bot = botOrgSet.has(o.as_org);
+    o.botReason = o.bot ? (isDatacenterOrg(o.as_org) ? 'datacenter' : 'cookieless_sweeper') : '';
   }
   let botViews = 0, botPeople = 0;
   for (const o of data.organizations) if (o.bot) { botViews += o.views; botPeople += o.people; }
@@ -486,8 +507,8 @@ async function handleStats(request, env, url, ch) {
     orgs: [...botOrgSet],
     views: botViews,
     people: botPeople,
-    // Only the top-30 orgs are inspected, so this is a floor, not an exact total.
-    note: 'Flagged read-side from org behaviour; collection is unchanged.',
+    excludedFromMetrics: botExcl !== '',
+    note: 'Bots are excluded from the totals; collection is unchanged.',
   };
 
   // Server-side hit counts (separate table)
