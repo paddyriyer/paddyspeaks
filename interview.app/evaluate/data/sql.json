@@ -15692,6 +15692,22 @@
       ],
       "answer": 2,
       "explanation": "Option C correctly handles both nullability requirements while maintaining partition pruning. The date range (BETWEEN) preserves partition elimination in BigQuery. The two NOT conditions explicitly exclude rows where (discount_code exists AND revenue is NULL) and rows where (both are NULL), matching the requirements exactly. Options A and B either miss one condition or use SUM(COALESCE()) which incorrectly treats NULLs as zero. Option D uses function calls on event_date (YEAR, MONTH) which prevents partition pruning in BigQuery."
+    },
+    {
+      "id": "sql-new-178",
+      "type": "single",
+      "topic": "CTEs with transaction isolation",
+      "difficulty": "hard",
+      "added_date": "2026-10-21",
+      "prompt": "You're writing a financial reconciliation query in Snowflake. You need to isolate a snapshot of account balances at a specific point in time (EOD yesterday) and compare them against today's balances to detect anomalies. You use a READ COMMITTED isolation level. Which approach best handles this requirement while avoiding dirty reads and ensuring consistency?\n\nA) Use a single CTE to SELECT account balances, then JOIN against today's live balances in the main query\n\nB) Use a CTE with ASOF JOIN to match balances from yesterday's timestamped table against today's table, wrapped in an explicit transaction with SET TRANSACTION ISOLATION LEVEL SERIALIZABLE for both CTEs\n\nC) Create two separate CTEs: one querying a time-travel snapshot (SELECT ... FROM table AT(OFFSET => -86400)) for yesterday's data, another from today's current table, then JOIN them with explicit WHERE timestamp conditions to ensure non-overlapping time ranges\n\nD) Use a single CTE to union yesterday's and today's balances, then apply ROW_NUMBER() to deduplicate and compare within the same query without transaction control",
+      "options": [
+        "Use a single CTE to SELECT account balances, then JOIN against today's live balances in the main query",
+        "Use a CTE with ASOF JOIN to match balances from yesterday's timestamped table against today's table, wrapped in an explicit transaction with SET TRANSACTION ISOLATION LEVEL SERIALIZABLE for both CTEs",
+        "Create two separate CTEs: one querying a time-travel snapshot (SELECT ... FROM table AT(OFFSET => -86400)) for yesterday's data, another from today's current table, then JOIN them with explicit WHERE timestamp conditions to ensure non-overlapping time ranges",
+        "Use a single CTE to union yesterday's and today's balances, then apply ROW_NUMBER() to deduplicate and compare within the same query without transaction control"
+      ],
+      "answer": 2,
+      "explanation": "Option C is correct because it leverages Snowflake's time-travel capability (AT clause) to create consistent point-in-time snapshots, avoiding dirty reads and ensuring isolation without over-locking with SERIALIZABLE. Separate CTEs with explicit timestamp filtering prevent mixing of data from different time periods. Option A risks reading uncommitted changes; Option B is over-engineered with unnecessary SERIALIZABLE isolation; Option D lacks temporal consistency and deduplication logic."
     }
   ]
 }

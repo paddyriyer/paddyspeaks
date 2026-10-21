@@ -9102,6 +9102,22 @@
       "prompt": "You're optimizing a data transformation service that repeatedly applies the same transformations to different datasets. You have a function `transform_data(data, filter_col, agg_func, normalize=False)` that's called thousands of times with overlapping parameter combinations. You want to cache results using `functools.lru_cache` to avoid redundant computations. What's the primary limitation you'll encounter when caching this function?\n\nA) `lru_cache` cannot handle mutable arguments like lists or dicts, so you'd need to convert data to tuples first\nB) `lru_cache` works fine with all argument types, but you must ensure `agg_func` is a lambda to be hashable\nC) The cache size will grow unbounded because data arguments are typically unique objects, defeating the purpose of caching\nD) `lru_cache` requires all arguments to be hashable, and callable objects like `agg_func` are unhashable by default",
       "answer": 0,
       "explanation": "While `lru_cache` requires all arguments to be hashable (making option D partially true), the practical limitation with this function is that `data` is typically a mutable object (list, dict, or DataFrame), which is unhashable. You'd need to convert it to an immutable type like a tuple. Option C is incorrect because if arguments are properly hashable and limited, caching still provides value. Option D's claim that callables are unhashable is false\u2014functions are hashable in Python. Option B is misleading\u2014lambdas aren't inherently hashable either and wouldn't solve the core issue."
+    },
+    {
+      "id": "py-new-177",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-10-21",
+      "prompt": "You're building a data transformation library where expensive computations (e.g., schema inference, statistics calculation) are repeatedly called with the same inputs across different pipeline stages. You decide to use `functools.lru_cache` to memoize these operations. However, you discover that when processing new data sources, cached results from previous sources are still being returned. Which of the following best explains the issue and provides the correct solution?",
+      "options": [
+        "lru_cache uses identity comparison by default; you should use functools.cache instead, which uses equality comparison for all argument types.",
+        "lru_cache doesn't handle unhashable types (like lists or dicts); the function arguments must be hashable, and mutable objects need to be converted to immutable equivalents like tuples for proper cache isolation.",
+        "lru_cache caches based on argument values, so if two different data sources produce identical schema dictionaries, they will incorrectly share cached results; use a custom cache key or instance-level memoization with a decorator that includes source metadata.",
+        "lru_cache has a global scope issue in data pipelines; you must use functools.partialmethod to bind the cache to specific pipeline instances instead."
+      ],
+      "answer": 2,
+      "explanation": "The core issue is that `lru_cache` is a global decorator that caches based solely on function arguments. If two different data sources have identical schema structures, they will collide in the cache. The solution involves either using a custom cache decorator that includes source identifiers in the key, using instance methods with separate caches, or structuring arguments to include unique source metadata. Option 1 is incorrect (cache and lru_cache behave identically for hashable types), Option 3 confuses decorators with method binding, and Option 4 misunderstands partialmethod's purpose."
     }
   ]
 }
