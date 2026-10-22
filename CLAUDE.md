@@ -342,6 +342,19 @@ Read **`docs/SRI-RUDRAM-EDITION.md`** (and, to write analysis,
   never set inside an anuvāka; the previous page did, and invented Sanskrit lines
   besides (the audit on `/rudramchamakam/sources.html`).
 
+## From Tap to Trace (`articles/from-tap-to-trace.html`)
+
+Read **`docs/FROM-TAP-TO-TRACE.md`** before editing. Hand-written article on item
+trackers, NFC, cloud identity and post-quantum migration.
+
+- Important claims carry evidence labels (Documented · Vendor claim · Research ·
+  Historical · Open · Inference · Speculative). Never present a historical finding
+  as a current vulnerability, or a quantum risk as a demonstrated attack.
+- No operational stalking detail, ever; safety notes say that disabling a tracker
+  can alert an abuser.
+- Figures 01–16 render as text until images land; follow the doc to add them.
+  References are auto-numbered from `#r-*` ids (snippet in the doc).
+
 ## DE Interview Handbook (`articles/data-engineering-interview-prep.html`)
 
 The Senior/L5 handbook is edited **directly** — the article is the source of truth.
