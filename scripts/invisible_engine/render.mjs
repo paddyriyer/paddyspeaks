@@ -23,4 +23,13 @@ for (const f of files) {
   await page.locator('svg').first().screenshot({ path: path.join(OUT, f.replace('.svg', '.png')) });
   console.log('rendered', f);
 }
+if (!only.length || only.includes('cover')) {
+  // The Read page's cover: rendered to PNG here, then encoded to WebP by
+  //   python3 -c "from PIL import Image; Image.open('invisible-engine/art/cover.png').save('invisible-engine/art/cover.webp', quality=86)"
+  await page.setViewportSize({ width: 1600, height: 800 });
+  const svg = fs.readFileSync(path.join(ROOT, 'invisible-engine', 'art', 'cover.svg'), 'utf8');
+  await page.setContent(`<!doctype html><html><body style="margin:0">${svg}</body></html>`);
+  await page.locator('svg').first().screenshot({ path: path.join(ROOT, 'invisible-engine', 'art', 'cover.png') });
+  console.log('rendered cover.svg');
+}
 await browser.close();
