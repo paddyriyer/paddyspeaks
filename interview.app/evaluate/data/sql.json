@@ -15708,6 +15708,22 @@
       ],
       "answer": 2,
       "explanation": "Option C is correct because it leverages Snowflake's time-travel capability (AT clause) to create consistent point-in-time snapshots, avoiding dirty reads and ensuring isolation without over-locking with SERIALIZABLE. Separate CTEs with explicit timestamp filtering prevent mixing of data from different time periods. Option A risks reading uncommitted changes; Option B is over-engineered with unnecessary SERIALIZABLE isolation; Option D lacks temporal consistency and deduplication logic."
+    },
+    {
+      "id": "sql-new-179",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "hard",
+      "added_date": "2026-10-22",
+      "prompt": "You're building a real-time inventory system in Snowflake using a MERGE statement. Your `inventory` table has (product_id, warehouse_id, quantity, last_updated). You receive a staged batch of updates in `inventory_staging` with the same schema. Some products are new, some quantities changed, and some warehouses closed (no longer in staging). You want to: (1) insert new product-warehouse combinations, (2) update quantities when they differ, (3) set quantity to 0 for closed warehouses (rows in inventory but not in staging). Which MERGE structure correctly handles all three cases?",
+      "options": [
+        "MERGE INTO inventory i USING inventory_staging s ON i.product_id = s.product_id AND i.warehouse_id = s.warehouse_id WHEN MATCHED AND i.quantity != s.quantity THEN UPDATE SET i.quantity = s.quantity WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, quantity, last_updated) VALUES (s.product_id, s.warehouse_id, s.quantity, CURRENT_TIMESTAMP());",
+        "MERGE INTO inventory i USING inventory_staging s ON i.product_id = s.product_id AND i.warehouse_id = s.warehouse_id WHEN MATCHED AND i.quantity != s.quantity THEN UPDATE SET i.quantity = s.quantity WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, quantity, last_updated) VALUES (s.product_id, s.warehouse_id, s.quantity, CURRENT_TIMESTAMP()) WHEN NOT MATCHED BY SOURCE THEN UPDATE SET i.quantity = 0, i.last_updated = CURRENT_TIMESTAMP();",
+        "MERGE INTO inventory i USING inventory_staging s ON i.product_id = s.product_id WHEN MATCHED AND i.quantity != s.quantity THEN UPDATE SET i.quantity = s.quantity WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, quantity) VALUES (s.product_id, s.warehouse_id, s.quantity) WHEN NOT MATCHED BY SOURCE THEN DELETE;",
+        "MERGE INTO inventory i USING (SELECT * FROM inventory_staging UNION ALL SELECT * FROM inventory WHERE (product_id, warehouse_id) NOT IN (SELECT product_id, warehouse_id FROM inventory_staging)) s ON i.product_id = s.product_id AND i.warehouse_id = s.warehouse_id WHEN MATCHED THEN UPDATE SET i.quantity = s.quantity WHEN NOT MATCHED THEN INSERT VALUES (s.*)"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct because it uses WHEN NOT MATCHED BY SOURCE to handle closed warehouses\u2014this clause targets rows in the target table (inventory) that don't have matching rows in the source (staging). The UPDATE sets quantity to 0, not DELETE, preserving the record for audit purposes. Options A and C don't handle closed warehouses; Option D unnecessarily constructs a union and has invalid syntax."
     }
   ]
 }
