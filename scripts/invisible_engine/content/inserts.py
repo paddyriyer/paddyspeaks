@@ -121,7 +121,7 @@ def _lost():
     <p class="readout" id="dd-read" aria-live="polite" data-js hidden></p>
     <ol class="dd-steps" id="dd-steps">{steps}</ol>
     <div class="row" data-js hidden><div class="seg" role="group" aria-label="Show one party’s view">{btns}</div></div>
-    <div class="tbl"><table class="cmp vis" id="dd-table">
+    <div class="tbl" tabindex="0" role="region" aria-label="Who can see what (scrolls sideways on small screens)"><table class="cmp vis" id="dd-table">
       <caption>Who can see what. “Metadata only” means the service sees that something happened, never the location inside the sealed report.</caption>
       <thead><tr><th scope="col">Information</th>{head}</tr></thead>
       <tbody>{rows}</tbody>

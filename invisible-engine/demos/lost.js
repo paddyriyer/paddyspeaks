@@ -96,7 +96,7 @@
         layer.appendChild(el('text', { x: 950, y: 224, 'font-size': 13, fill: COL.muted }, '+ a time'));
       }
       for (var s = 0; s < steps.length; s++) steps[s].classList.toggle('on', s === n - 1);
-      for (var r2 = 0; r2 < rows.length; r2++) rows[r2].classList.toggle('dim', +rows[r2].getAttribute('data-from') > n);
+      for (var r2 = 0; r2 < rows.length; r2++) rows[r2].classList.toggle('now', +rows[r2].getAttribute('data-from') === n);
       read.textContent = 'Step ' + n + ': ' + steps[n - 1].textContent;
     }
     function pick(id) {

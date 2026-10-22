@@ -103,7 +103,7 @@ scripts and `demos.mjs` read, so the words cannot drift from the tests. Demo C
 | Phase | Modules | Scenes | Demos | Status |
 | --- | --- | --- | --- | --- |
 | 1 | 1 Electronics & wireless · 2 Contactless card | 01–17 | A coil powers chip · B card vs wallet | **built** |
-| 2 | 3 RFID · 4 BLE whisper · 5 AirTag lifecycle | 18–41 | C BLE whisper · D lost AirTag · E four connections | planned |
+| 2 | 3 RFID · 4 BLE whisper · 5 AirTag lifecycle | 18–41 | C BLE whisper · D lost AirTag · E four connections | **built** |
 | 3 | 6 Ownership & crypto · 7 Privacy & safety | 42–55 | F key protection · K consent vs confidentiality | planned |
 | 4 | 8 Quantum interference · 9 Quantum computation | 56–72 | G phase lab · H H→Z→H · I Grover | planned |
 | 5 | 10 Future crypto · 11 CISO · 12 Holistic | 73–89 | J crypto explorer · L enterprise walk-through | planned |
@@ -173,30 +173,30 @@ Corrections needed before the held images can be used:
 | 15 | 2 | Dynamic payment cryptogram | 1 | built |  |
 | 16 | 2 | Physical card versus phone wallet | 1 | built |  |
 | 17 | 2 | Limits and threats | 1 | built |  |
-| 18 | 3 | Passive RFID warehouse inventory | 2 | planned |  |
-| 19 | 3 | Active and battery-assisted RFID | 2 | planned |  |
-| 20 | 3 | Access badge and back-end permission | 2 | planned |  |
-| 21 | 3 | Authenticated badge vs static-ID badge | 2 | planned |  |
-| 22 | 3 | RFID vs NFC vs QR vs serial vs BLE vs GPS | 2 | planned |  |
-| 23 | 4 | Tiny tracker cutaway | 2 | planned |  |
-| 24 | 4 | Advertisement pulse timeline | 2 | planned |  |
-| 25 | 4 | Whisper to scanner | 2 | planned |  |
-| 26 | 4 | Advertising packet anatomy | 2 | planned |  |
-| 27 | 4 | Why the tiny antenna works | 2 | planned |  |
-| 28 | 4 | Privacy through identifier changes | 2 | planned |  |
-| 29 | 4 | Battery-life trade-off lab | 2 | planned |  |
-| 30 | 4 | AirTag vs beacon vs GPS tracker | 2 | planned |  |
-| 31 | 5 | First-time setup | 2 | planned | Deepens FTT Part III |
-| 32 | 5 | Pairing and registration layers | 2 | planned |  |
-| 33 | 5 | Far-away luggage | 2 | planned |  |
-| 34 | 5 | Finder sees the whisper | 2 | planned |  |
-| 35 | 5 | Whose location is used? | 2 | planned |  |
-| 36 | 5 | Encrypted sighting | 2 | planned | Deepens FTT Part V / Fig 06 |
-| 37 | 5 | How the owner gets the answer | 2 | planned |  |
-| 38 | 5 | Five-swimlane engineering sequence | 2 | planned | FTT Fig 06 is the short form |
-| 39 | 5 | Nearby find is different (UWB) | 2 | planned |  |
-| 40 | 5 | NFC Lost Mode is different | 2 | planned |  |
-| 41 | 5 | Owner lifecycle | 2 | planned |  |
+| 18 | 3 | Passive RFID warehouse inventory | 2 | built |  |
+| 19 | 3 | Active and battery-assisted RFID | 2 | built |  |
+| 20 | 3 | Access badge and back-end permission | 2 | built |  |
+| 21 | 3 | Authenticated badge vs static-ID badge | 2 | built |  |
+| 22 | 3 | RFID vs NFC vs QR vs serial vs BLE vs GPS | 2 | built |  |
+| 23 | 4 | Tiny tracker cutaway | 2 | built |  |
+| 24 | 4 | Advertisement pulse timeline | 2 | built |  |
+| 25 | 4 | Whisper to scanner | 2 | built |  |
+| 26 | 4 | Advertising packet anatomy | 2 | built |  |
+| 27 | 4 | Why the tiny antenna works | 2 | built |  |
+| 28 | 4 | Privacy through identifier changes | 2 | built |  |
+| 29 | 4 | Battery-life trade-off lab | 2 | built |  |
+| 30 | 4 | AirTag vs beacon vs GPS tracker | 2 | built |  |
+| 31 | 5 | First-time setup | 2 | built | Deepens FTT Part III |
+| 32 | 5 | Pairing and registration layers | 2 | built |  |
+| 33 | 5 | Far-away luggage | 2 | built |  |
+| 34 | 5 | Finder sees the whisper | 2 | built |  |
+| 35 | 5 | Whose location is used? | 2 | built |  |
+| 36 | 5 | Encrypted sighting | 2 | built | Deepens FTT Part V / Fig 06 |
+| 37 | 5 | How the owner gets the answer | 2 | built |  |
+| 38 | 5 | Five-swimlane engineering sequence | 2 | built | FTT Fig 06 is the short form |
+| 39 | 5 | Nearby find is different (UWB) | 2 | built |  |
+| 40 | 5 | NFC Lost Mode is different | 2 | built |  |
+| 41 | 5 | Owner lifecycle | 2 | built |  |
 | 42 | 6 | Three ownership domains | 3 | planned | Deepens FTT Part III / Fig 03 |
 | 43 | 6 | Secrets journey | 3 | planned |  |
 | 44 | 6 | Public/private key teaching | 3 | planned |  |
@@ -269,6 +269,50 @@ Every number on a Phase 1 page, where it comes from, and how sure we are.
 | Apple Pay uses a Device Account Number and a per-transaction cryptogram from a counter and a key, released only after Secure Enclave authorisation | s16, demo B | Apple Platform Security, "Apple Pay component security" | Manufacturer documented |
 | Relay attacks on contactless payments demonstrated; Mastercard specifies a Relay Resistance Protocol (in specs since 2016; deployment limited per researchers) | s17 | Radu et al. (Birmingham); Boureanu et al. CCS 2020 | Independently demonstrated |
 | Unpredictable-number weaknesses (pre-play) in some terminals | s17 | Bond et al., IEEE S&P 2014 | Historical |
+
+## 5a. Claim ledger — Modules 3–5 (phase 2)
+
+Labels as in the pages: spec · doc (manufacturer documented) · research (independent) ·
+concept · illus · calc · hist · verify · undisclosed. Items marked *verify* are cited by
+title and should be re-checked against the current vendor page before the next phase.
+
+| Claim | Label | Source |
+| --- | --- | --- |
+| LF 125–134.2 kHz; HF 13.56 MHz (ISO/IEC 14443, 15693); UHF 860–960 MHz (EU 865–868, US 902–928) | spec | ISO/IEC 14443, 15693; RAIN RFID Alliance |
+| UHF air interface: GS1 EPC Gen2 = ISO/IEC 18000-63; inventory Select/Query/RN16/ACK/EPC | spec | GS1 EPC UHF Gen2 |
+| HF couples inductively (load modulation); passive UHF uses far-field backscatter; near-field boundary ≈ λ/2π | concept · calc | Dobkin, *The RF in RFID* |
+| A tag returns an identifier, not a location; "where" is the reader, antenna and time | concept | — |
+| Passive UHF reads at several metres; HF cm to ~1 m; active tags tens to 100+ m | illus | — |
+| Gen2 access/kill passwords are not strong authentication; Gen2v2 crypto suites optional | spec · verify | GS1 Gen2v2 |
+| Wiegand carries the badge number unencrypted; OSDP offers a Secure Channel | doc | SIA OSDP |
+| MIFARE Classic Crypto1 broken (2008), still deployed | hist | Garcia et al., ESORICS 2008 |
+| DESFire EV2/EV3, Seos/iCLASS SE, LEAF advertise AES mutual authentication | doc · verify | NXP; HID |
+| Relay remains possible with challenge–response; distance bounding or a second factor reduce it | concept | Brands &amp; Chaum 1993 |
+| AirTag: BLE, U1 (UWB), NFC, speaker, accelerometer, user-replaceable CR2032; no GNSS, no cellular; battery "more than a year" | doc | Apple AirTag tech specs |
+| Tracker board layout and firmware | illus · undisclosed | (labelled "not a teardown") |
+| BLE 2400–2483.5 MHz, 40 × 2 MHz; advertising channels 37/38/39 (2402/2426/2480 MHz); interval 20 ms–10.24 s + 0–10 ms advDelay | spec | Bluetooth Core Spec, Vol 6 Part B |
+| Legacy advertising packet: preamble 1 B, access address 0x8E89BED6, header 2 B, AdvA 6 B, AdvData ≤ 31 B, CRC 3 B | spec | Bluetooth Core Spec |
+| Passive scanning needs no connection or pairing; reception is probabilistic | spec · concept | Bluetooth Core Spec |
+| Resolvable private addresses rotate (stack timer, ~15 min typical); bonded peers resolve with the IRK | spec · illus | Bluetooth Core Spec, Vol 3 Part C |
+| λ ≈ 12.3 cm at 2.44 GHz; λ/4 ≈ 3.1 cm; free-space loss ≈ 60 dB at 10 m | calc | Friis |
+| CR2032 ≈ 225 mAh nominal, 3 V; worked example 6 mA · 3 ms / 2 s + 2 µA ≈ 11 µA | illus · calc | manufacturer datasheets |
+| Setup: hold near iPhone, Connect, name, Continue; registered to one Apple Account (2FA, Find My, Location Services) | doc | Apple Support, "Set up your AirTag" |
+| Setup messages, factory key material | undisclosed | — |
+| Owner devices hold a P-224 key pair and SK₀; rotating Pᵢ/dᵢ; tag advertises Pᵢ | doc · verify | Apple Platform Security guide, "Find My" |
+| Rotation intervals; exact advertisement payload | research | Heinrich et al., PoPETs 2021 |
+| A sighting uses the finder phone's own location (GNSS, Wi-Fi, cell); approximate; not live | doc · concept | Apple Platform Security guide |
+| Finder encrypts to Pᵢ (ephemeral ECDH, KDF, AES-GCM); report filed under SHA-256(Pᵢ) | doc · verify | Apple Platform Security guide |
+| Apple cannot read locations and does not know the finder; metadata (hash, upload time, connection data) remains | doc · concept | Apple Platform Security guide |
+| Precision Finding: UWB + camera, ARKit, accelerometer, gyroscope; iPhone 11 and later, not iPhone SE | doc · verify | Apple Support, Precision Finding |
+| NFC tap (iPhone or Android) opens a page with the serial number; Lost Mode adds the owner's chosen message and contact | doc | Apple Support, Lost Mode |
+| Unknown tag moving with you: page shows the last four digits of the owner's phone number | doc · verify | Apple Support |
+| Item Sharing with up to five people; owner can stop sharing | doc | Apple Support, "Share an AirTag" |
+| Find My key material syncs via end-to-end-encrypted iCloud Keychain | doc · verify | Apple Platform Security guide |
+| Re-keying and erasure on share, removal or reset; relay retention period | undisclosed | — |
+
+Open items for the next phase: confirm the *verify* rows against the current Apple
+pages and replace root links with exact URLs; recheck the illustrative range bars in
+Scene 19 (battery-assisted 30 m, active 100 m).
 
 ## 6. Rules for every phase
 

@@ -84,7 +84,7 @@
       svg.appendChild(el('text', { x: x0 - 10, y: yTop - 14, 'font-size': 14, fill: '#334155' }, 'current'));
       svg.appendChild(el('text', { x: x1, y: y0 + 26, 'text-anchor': 'end', 'font-size': 14, fill: '#334155' }, 'time → (three advertising intervals, not to scale)'));
       var span = (x1 - x0 - 20) / 3, pulseW = Math.max(6, Math.min(40, span * p.onMs / Math.max(p.intervalMs, 1) * 30));
-      var hTx = y0 - 70, hSleep = y0 - 6;
+      var hTx = yTop + 50, hSleep = y0 - 6;
       var d = 'M' + x0 + ',' + hSleep;
       for (var n = 0; n < 3; n++) {
         var px = x0 + 20 + n * span;
@@ -92,8 +92,8 @@
       }
       d += ' L' + x1 + ',' + hSleep;
       svg.appendChild(el('path', { d: d, fill: 'none', stroke: '#c2410c', 'stroke-width': 3 }));
-      svg.appendChild(el('text', { x: x0 + 28 + pulseW, y: hTx + 4, 'font-size': 13.5, fill: '#9a3412' }, 'advertising event: ' + p.txMa + ' mA for ' + p.onMs + ' ms'));
-      svg.appendChild(el('text', { x: x0 + 28 + span, y: hSleep - 10, 'font-size': 13.5, fill: '#475569' }, 'sleep: ' + p.sleepUa + ' µA'));
+      svg.appendChild(el('text', { x: x0 + 20, y: hTx - 12, 'font-size': 13.5, fill: '#9a3412' }, 'advertising event: ' + p.txMa + ' mA for ' + p.onMs + ' ms'));
+      svg.appendChild(el('text', { x: x0 + 34 + pulseW, y: hSleep - 74, 'font-size': 13.5, fill: '#475569' }, 'asleep between events: ' + p.sleepUa + ' µA'));
       var yAvg = hSleep - Math.max(4, Math.min(56, 300 * iavg / p.txMa));
       svg.appendChild(el('path', { d: 'M' + x0 + ',' + yAvg + ' L' + x1 + ',' + yAvg, stroke: '#14213d', 'stroke-width': 2, 'stroke-dasharray': '8 6' }));
       svg.appendChild(el('text', { x: x1 - 4, y: yAvg - 8, 'text-anchor': 'end', 'font-size': 14, 'font-weight': 700, fill: '#14213d' }, 'average ≈ ' + (iavg * 1000).toFixed(1) + ' µA'));
