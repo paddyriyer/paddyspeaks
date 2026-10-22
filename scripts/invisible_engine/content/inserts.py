@@ -220,3 +220,70 @@ def _consent():
 
 
 DEMO_K = _consent()
+
+# ── Phase 4 demos ──────────────────────────────────────────────────
+# All three run on qsim.js (an exact, tested state-vector simulator) or a tested model.
+DEMO_G = '''
+<section class="demo" id="demo-g" aria-labelledby="demo-g-h">
+  <header><span class="scene-n">Interactive demo G</span><h2 id="demo-g-h">Relative phase: waves, then amplitudes</h2></header>
+  <div class="body">
+    <noscript><p>This demo needs JavaScript. Scenes 58, 59 and 63 show the same results as still frames.</p></noscript>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="View">
+      <button type="button" data-mode="wave" aria-pressed="true">Water-wave analogy</button>
+      <button type="button" data-mode="quantum" aria-pressed="false">Quantum amplitudes</button>
+    </div></div>
+    <div class="row" data-js hidden><label class="ctl" for="dg-phi">Phase φ</label><input type="range" id="dg-phi" min="0" max="360" step="5" value="0"><output id="dg-phi-o" for="dg-phi">0°</output></div>
+    <div class="stage" id="dg-stage" data-js hidden></div>
+    <p class="readout" id="dg-read" aria-live="polite" data-js hidden></p>
+    <p class="assume"><strong>Where the analogy stops.</strong> The wave view adds two real waves you could see on water. The amplitude view adds two complex numbers, 1 and e<sup>iφ</sup>; nothing ripples, and the squared length gives a probability, P(0) = cos²(φ/2). Both views share a cosine; that is all they share. A qubit is not a tiny water wave.</p>
+  </div>
+</section>
+'''
+
+DEMO_H = '''
+<section class="demo" id="demo-h" aria-labelledby="demo-h-h">
+  <header><span class="scene-n">Interactive demo H</span><h2 id="demo-h-h">Step through a circuit</h2></header>
+  <div class="body">
+    <noscript><p>This demo needs JavaScript. Scenes 61–63 show H → Z → H as still frames.</p></noscript>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Circuit">
+      <button type="button" data-preset="hzh" aria-pressed="true">H → Z → H</button>
+      <button type="button" data-preset="phase" aria-pressed="false">H → phase(φ) → H</button>
+      <button type="button" data-preset="bell" aria-pressed="false">Bell pair</button>
+      <button type="button" data-preset="custom" aria-pressed="false">Build your own</button>
+    </div></div>
+    <div class="row" id="dh-phi-row" hidden><label class="ctl" for="dh-phi">Phase φ</label><input type="range" id="dh-phi" min="0" max="360" step="15" value="90"><output id="dh-phi-o" for="dh-phi">90°</output></div>
+    <div class="row" id="dh-pal" hidden><div class="seg" role="group" aria-label="Add a gate">
+      <button type="button" data-gate="X">+ X</button><button type="button" data-gate="Z">+ Z</button><button type="button" data-gate="H">+ H</button><button type="button" data-gate="S">+ S</button>
+    </div></div>
+    <div class="q-circ" id="dh-circ" data-js hidden></div>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Step">
+      <button type="button" data-step="back">← Back</button><button type="button" data-step="next">Next gate →</button><button type="button" data-step="reset">Reset</button><button type="button" data-step="measure">Measure 100 runs</button>
+    </div></div>
+    <div class="tbl" data-js hidden><table class="cmp q-state" id="dh-state"></table></div>
+    <p class="readout" id="dh-read" aria-live="polite" data-js hidden></p>
+    <p class="readout" id="dh-shots" aria-live="polite" data-js hidden></p>
+    <p class="assume"><strong>Model, and its limits.</strong> Ideal gates on one or two qubits, computed exactly; real hardware adds noise (Scene 70). Measurement is a separate step: each run returns one definite basis state, with odds set by the squared amplitudes.</p>
+  </div>
+</section>
+'''
+
+DEMO_I = '''
+<section class="demo" id="demo-i" aria-labelledby="demo-i-h">
+  <header><span class="scene-n">Interactive demo I</span><h2 id="demo-i-h">Grover: four drawers, one marked</h2></header>
+  <div class="body">
+    <noscript><p>This demo needs JavaScript. Scene 66 shows the same four steps as still frames.</p></noscript>
+    <div class="row" data-js hidden><span class="ctl">Marked drawer</span><div class="seg" role="group" aria-label="Marked drawer">
+      <button type="button" data-mark="0" aria-pressed="false">1</button><button type="button" data-mark="1" aria-pressed="false">2</button><button type="button" data-mark="2" aria-pressed="true">3</button><button type="button" data-mark="3" aria-pressed="false">4</button>
+    </div></div>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Step">
+      <button type="button" data-step="back">← Back</button><button type="button" data-step="next">Next step →</button><button type="button" data-step="reset">Reset</button>
+    </div></div>
+    <div class="stage" id="di-stage" data-js hidden></div>
+    <p class="readout" id="di-read" aria-live="polite" data-js hidden></p>
+    <h3>Why four drawers is a toy</h3>
+    <div class="row" data-js hidden><label class="ctl" for="di-n">Number of items</label><input type="range" id="di-n" min="4" max="1024" step="4" value="64"><output id="di-n-o" for="di-n">64 items</output></div>
+    <pre class="readout" id="di-curve" data-js hidden></pre>
+    <p class="assume">With four items one round happens to give certainty. In general Grover needs about (π/4)·√N rounds, each asking the oracle once, and stopping at the right moment matters: more rounds lower the odds again. That is a quadratic speed-up for unstructured search, not reading every answer at once, and the oracle must be built as a quantum circuit.</p>
+  </div>
+</section>
+'''
