@@ -128,7 +128,7 @@ def fmt(v):
 AMPS = hzh_amplitudes()
 
 s = Scene(86, 'Three journeys, three different kinds of “wave”',
-          'Four frames compare three journeys side by side. 1, energy harvested: a reader’s alternating magnetic field '
+          'Four frames compare three journeys. 1, energy harvested: a reader’s alternating magnetic field '
           'induces a current in a card’s coil a few centimetres away; physical energy moves. 2, a signal overheard: a tag '
           'radiates a short radio packet that any phone in range can receive without pairing; physical radio waves carry '
           'bits over metres. 3, amplitudes interfering: in H then Z then H, computed amplitudes go from 1 and 0, to 0.707 and '
@@ -276,11 +276,11 @@ scenes[88] = s.render('Agrees with demo K: encryption decides who else can read,
 
 # ── 89 System lifecycle ─────────────────────────────────────────────
 s = Scene(89, 'The life of a tag: a guardrail and a safety check at every stage',
-          'Four frames. 1, seven stages from left to right: issue and provision, register, discover, locate, share, revoke, '
-          'retire. 2, a security guardrail under each stage: keys made in secure hardware and signed firmware; one account '
+          'Four frames. 1, seven stages in order: issue and provision, register, discover, locate, share, revoke, '
+          'retire. 2, a security guardrail for each stage: keys made in secure hardware and signed firmware; one account '
           'with two-factor sign-in; rotating identifiers and no pairing to overhear; end-to-end encrypted reports opened only '
           'on the owner’s devices; explicit, limited invitations; stopping sharing and removing devices; removing the tag '
-          'from the account before it changes hands. 3, a human-safety checkpoint under each: alerts on by design; a tag '
+          'from the account before it changes hands. 3, a human-safety checkpoint for each: alerts on by design; a tag '
           'linked to someone else cannot be quietly added; separated tags become detectable; people carrying an unknown tag '
           'can be alerted and can read its serial number; review who can see you; plan before changing sharing, because it '
           'can alert an abuser; treat a second-hand tag still linked to someone as a warning sign. 4, a closing note that '

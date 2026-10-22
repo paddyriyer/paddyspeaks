@@ -253,9 +253,9 @@ scenes[20] = s.render()
 
 # ── 21 Static ID vs challenge–response ───────────────────────────────
 s = VScene(21, 'Weak badge, strong badge',
-           'Four frames. On the left, a static-ID badge sends the same number every time it is tapped. A copied badge, '
+           'Four frames. A static-ID badge sends the same number every time it is tapped. A copied badge, '
            'marked as a hazard, sends the identical number and the reader accepts it, because it checks only the '
-           'number. On the right, a secure badge receives a fresh random challenge from the reader and answers with a '
+           'number. A secure badge, by contrast, receives a fresh random challenge from the reader and answers with a '
            'response computed from the challenge and a secret key that never leaves its chip; replaying an old response '
            'fails because the next challenge is different. A table compares, at the level of concepts only, the risk '
            'of copying, replay and real-time relay for both badges, and what reduces relay risk.',
