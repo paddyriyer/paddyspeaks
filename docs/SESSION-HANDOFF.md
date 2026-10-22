@@ -6,7 +6,11 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-10-22): The Invisible Engine — phone-vertical twins** — at Paddy's request
+- **NEWEST (2026-10-22): Paddy's four held illustrations are in the lesson, corrected** —
+  `scripts/invisible_engine/held_images.py` patches nfc1, airtag, airtag1 and quantum (doc §3a)
+  into `invisible-engine/art/*.webp`; they open Modules 4, 5 and 8 and follow Scene 16, each
+  captioned with the list of what was changed. Originals in `images/` are untouched.
+- **2026-10-22: The Invisible Engine — phone-vertical twins** — at Paddy's request
   every one of the 89 scenes now has a phone-vertical drawing (`scenes/vmoduleNN.py` →
   `invisible-engine/scenes/v/`), shown on screens ≤ 640 px with the same frame stepper.
   `check.py` requires each twin to say exactly what the landscape scene says (same words,
@@ -21,7 +25,7 @@ clones fresh each time). CLAUDE.md points here._
   scenes 73–78), 11 (CISO operating model; 79–84) and 12 (the whole engine on one map; 85–89);
   demos J (quantum crypto explorer) and L (enterprise walk-through); eight animated GIFs; the
   one-page synopsis (HTML + PDF). (Phone-vertical twins were added afterwards, above.)
-  Open: the *verify* rows in §5a–§5d; Paddy's held images (§3a) still need corrections.
+  Open: the *verify* rows in §5a–§5d. (Paddy's held images were corrected afterwards, above.)
 - **2026-10-22: The Invisible Engine, phase 4** — Modules 8 (bits, waves, phase, qubits, H, Z,
   H→Z→H interference, double slit; scenes 56–64) and 9 (entanglement, Grover, Shor for N=15,
   gates, hardware, noise, where quantum helps, the security bridge; 65–72); demos G (relative

@@ -1,5 +1,5 @@
 # Module 4 content. Each scene: id, title, lede, frames, A(story, why), B, C, D, E, notes(eng, test, src)
-from .inserts import DEMO_C
+from .inserts import DEMO_C, FIG_TRACKER
 
 M = dict(
     num=4, file='m04.html', title='Bluetooth LE and the AirTag whisper',
@@ -207,5 +207,6 @@ dict(id=30, title='Three “trackers” that work in completely different ways',
  src=['Apple Platform Security, <a href="https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web">“Find My security”</a>.', 'Apple, iBeacon developer documentation; Google, Eddystone format specification (GitHub, google/eddystone).']),
 ])
 
+BEFORE = FIG_TRACKER
 INSERTS = {29: DEMO_C}
 SCRIPTS = ['/invisible-engine/demos/whisper.js']

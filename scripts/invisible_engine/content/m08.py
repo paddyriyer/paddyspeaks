@@ -1,4 +1,4 @@
-from .inserts import DEMO_G, DEMO_H
+from .inserts import DEMO_G, DEMO_H, FIG_QUANTUM
 
 # Sources used across the module.
 NC = 'M. A. Nielsen and I. L. Chuang, <em>Quantum Computation and Quantum Information</em>, 10th anniversary edition, Cambridge University Press, 2010.'
@@ -221,6 +221,6 @@ dict(id=64, title='The double slit: stripes made of single dots',
 
 ])
 
-BEFORE = ''
+BEFORE = FIG_QUANTUM
 INSERTS = {59: DEMO_G, 63: DEMO_H}
 SCRIPTS = ['/invisible-engine/demos/qsim.js', '/invisible-engine/demos/phase.js', '/invisible-engine/demos/circuit.js']

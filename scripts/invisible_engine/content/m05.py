@@ -1,4 +1,4 @@
-from .inserts import DEMO_D, DEMO_E
+from .inserts import DEMO_D, DEMO_E, FIG_EXPERIENCES
 
 APS = 'Apple Platform Security, <a href="https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web">“Find My security”</a> (check the current edition).'
 HEINRICH = 'A. Heinrich, M. Stute, T. Kornhuber, M. Hollick, “Who Can Find My Devices? Security and Privacy of Apple’s Crowd-Sourced Bluetooth Location Tracking System”, PoPETs 2021 (3) — <a href="https://petsymposium.org/popets/2021/popets-2021-0045.php">petsymposium.org</a>. Independent research (reverse engineering).'
@@ -267,5 +267,6 @@ dict(id=41, title='An owner’s life with the tag: what survives each change',
  src=['Apple Support, “Share an AirTag or other item in Find My”, “Remove an AirTag from your Apple Account” — <a href="https://support.apple.com/">support.apple.com</a>.', APS, FTT]),
 ])
 
+BEFORE = FIG_EXPERIENCES
 INSERTS = {37: DEMO_D, 40: DEMO_E}
 SCRIPTS = ['/invisible-engine/demos/lost.js', '/invisible-engine/demos/connections.js']
