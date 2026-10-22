@@ -225,3 +225,117 @@ def waves(x, y, n=3, color='#2563eb', s=1.0, dir=1):
     return ''.join(
         f'<path d="M{x + dir * (14 + i * 14) * s:.0f},{y - (14 + i * 12) * s:.0f} q{dir * (10 + i * 6) * s:.0f},{(14 + i * 12) * s:.0f} 0,{(28 + i * 24) * s:.0f}" '
         f'fill="none" stroke="{color}" stroke-width="{4 * s:.1f}" stroke-linecap="round" opacity="{1 - i * 0.2:.2f}"/>' for i in range(n))
+
+
+# ── shared objects for Modules 3–5 (phase 2) ─────────────────────────
+def cloud(x, y, w=220, label=None, color='#64748b', fill='#f8fafc'):
+    """A cloud service (relay, account service). (x, y) is the top-left of a w x 0.55w box."""
+    h = w * 0.55
+    out = (f'<path d="M{x + w * 0.22:.0f},{y + h:.0f} '
+           f'a{w * 0.2:.0f},{w * 0.2:.0f} 0 0 1 {w * 0.02:.0f},{-h * 0.62:.0f} '
+           f'a{w * 0.26:.0f},{w * 0.26:.0f} 0 0 1 {w * 0.5:.0f},{-h * 0.12:.0f} '
+           f'a{w * 0.18:.0f},{w * 0.18:.0f} 0 0 1 {w * 0.04:.0f},{h * 0.74:.0f} Z" '
+           f'fill="{fill}" stroke="{color}" stroke-width="3" stroke-linejoin="round"/>')
+    if label:
+        out += T(x + w * 0.5, y + h * 0.78, label, max(15, w * 0.075), 700, '#14213d', 'middle')
+    return out
+
+
+def server(x, y, s=1.0, label=None):
+    """A small rack of servers, 120 x 150 at s=1."""
+    out = ''
+    for i in range(3):
+        yy = y + i * 50 * s
+        out += (f'<rect x="{x}" y="{yy:.0f}" width="{120 * s:.0f}" height="{42 * s:.0f}" rx="{6 * s:.0f}" fill="#e2e8f0" stroke="#334155" stroke-width="2.5"/>'
+                f'<circle cx="{x + 18 * s:.0f}" cy="{yy + 21 * s:.0f}" r="{5 * s:.0f}" fill="#22c55e"/>'
+                f'<rect x="{x + 40 * s:.0f}" y="{yy + 16 * s:.0f}" width="{64 * s:.0f}" height="{10 * s:.0f}" rx="3" fill="#94a3b8"/>')
+    if label:
+        out += T(x + 60 * s, y + 172 * s, label, 16, 700, '#334155', 'middle')
+    return out
+
+
+def suitcase(x, y, s=1.0, color='#0e7490'):
+    """A wheeled suitcase, about 150 x 220 at s=1; (x, y) top-left of the body."""
+    w, h = 150 * s, 190 * s
+    return (f'<path d="M{x + w * 0.3:.0f},{y} L{x + w * 0.3:.0f},{y - 40 * s:.0f} L{x + w * 0.7:.0f},{y - 40 * s:.0f} L{x + w * 0.7:.0f},{y}" fill="none" stroke="#334155" stroke-width="{6 * s:.1f}"/>'
+            f'<rect x="{x + 5}" y="{y + 7}" width="{w:.0f}" height="{h:.0f}" rx="{18 * s:.0f}" fill="#0f172a" opacity="0.13"/>'
+            f'<rect x="{x}" y="{y}" width="{w:.0f}" height="{h:.0f}" rx="{18 * s:.0f}" fill="{color}"/>'
+            + ''.join(f'<path d="M{x + w * k:.0f},{y + 14 * s:.0f} L{x + w * k:.0f},{y + h - 14 * s:.0f}" stroke="#ffffff" stroke-opacity="0.35" stroke-width="{5 * s:.1f}"/>' for k in (0.3, 0.5, 0.7))
+            + f'<circle cx="{x + w * 0.2:.0f}" cy="{y + h + 12 * s:.0f}" r="{11 * s:.0f}" fill="#334155"/>'
+              f'<circle cx="{x + w * 0.8:.0f}" cy="{y + h + 12 * s:.0f}" r="{11 * s:.0f}" fill="#334155"/>')
+
+
+def person(x, y, s=1.0, color='#475569', phone_in_hand=False):
+    """A simple standing figure, about 80 x 220 at s=1; (x, y) is the top of the head's centre."""
+    out = (f'<circle cx="{x}" cy="{y + 24 * s:.0f}" r="{24 * s:.0f}" fill="{color}"/>'
+           f'<path d="M{x - 34 * s:.0f},{y + 140 * s:.0f} L{x - 34 * s:.0f},{y + 80 * s:.0f} Q{x - 34 * s:.0f},{y + 56 * s:.0f} {x - 10 * s:.0f},{y + 56 * s:.0f} '
+           f'L{x + 10 * s:.0f},{y + 56 * s:.0f} Q{x + 34 * s:.0f},{y + 56 * s:.0f} {x + 34 * s:.0f},{y + 80 * s:.0f} L{x + 34 * s:.0f},{y + 140 * s:.0f} Z" fill="{color}"/>'
+           f'<rect x="{x - 26 * s:.0f}" y="{y + 132 * s:.0f}" width="{20 * s:.0f}" height="{88 * s:.0f}" rx="{8 * s:.0f}" fill="{color}"/>'
+           f'<rect x="{x + 6 * s:.0f}" y="{y + 132 * s:.0f}" width="{20 * s:.0f}" height="{88 * s:.0f}" rx="{8 * s:.0f}" fill="{color}"/>')
+    if phone_in_hand:
+        out += f'<rect x="{x + 34 * s:.0f}" y="{y + 92 * s:.0f}" width="{18 * s:.0f}" height="{32 * s:.0f}" rx="{4 * s:.0f}" fill="#111827" stroke="#e5e7eb" stroke-width="1.5"/>'
+    return out
+
+
+def pin(x, y, s=1.0, color='#2563eb'):
+    """A map pin whose point is at (x, y)."""
+    return (f'<path d="M{x},{y} C{x - 34 * s:.0f},{y - 50 * s:.0f} {x - 34 * s:.0f},{y - 90 * s:.0f} {x},{y - 94 * s:.0f} '
+            f'C{x + 34 * s:.0f},{y - 90 * s:.0f} {x + 34 * s:.0f},{y - 50 * s:.0f} {x},{y} Z" fill="{color}"/>'
+            f'<circle cx="{x}" cy="{y - 64 * s:.0f}" r="{11 * s:.0f}" fill="#ffffff"/>')
+
+
+def id_badge(x, y, w=150, label="STAFF", color="#0f766e"):
+    """A staff ID badge on a clip (generic, fictional), w x 1.45w."""
+    h = w * 1.45
+    return (f'<rect x="{x + w * 0.38:.0f}" y="{y - 22}" width="{w * 0.24:.0f}" height="30" rx="6" fill="#94a3b8"/>'
+            f'<rect x="{x + 4}" y="{y + 6}" width="{w}" height="{h:.0f}" rx="12" fill="#0f172a" opacity="0.12"/>'
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h:.0f}" rx="12" fill="#ffffff" stroke="#334155" stroke-width="3"/>'
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h * 0.2:.0f}" rx="12" fill="{color}"/>'
+            f'<rect x="{x}" y="{y + h * 0.12:.0f}" width="{w}" height="{h * 0.08:.0f}" fill="{color}"/>'
+            + T(x + w / 2, y + h * 0.15, label, w * 0.11, 800, '#ffffff', 'middle')
+            + f'<circle cx="{x + w / 2:.0f}" cy="{y + h * 0.42:.0f}" r="{w * 0.17:.0f}" fill="#cbd5e1"/>'
+              f'<rect x="{x + w * 0.2:.0f}" y="{y + h * 0.66:.0f}" width="{w * 0.6:.0f}" height="{h * 0.05:.0f}" rx="4" fill="#94a3b8"/>'
+              f'<rect x="{x + w * 0.28:.0f}" y="{y + h * 0.76:.0f}" width="{w * 0.44:.0f}" height="{h * 0.04:.0f}" rx="4" fill="#cbd5e1"/>')
+
+
+def wall_reader(x, y, s=1.0, led='#22c55e'):
+    """A wall-mounted access-control reader, 110 x 170 at s=1."""
+    return (f'<rect x="{x + 4}" y="{y + 6}" width="{110 * s:.0f}" height="{170 * s:.0f}" rx="{16 * s:.0f}" fill="#0f172a" opacity="0.14"/>'
+            f'<rect x="{x}" y="{y}" width="{110 * s:.0f}" height="{170 * s:.0f}" rx="{16 * s:.0f}" fill="#1f2937"/>'
+            f'<circle cx="{x + 55 * s:.0f}" cy="{y + 70 * s:.0f}" r="{30 * s:.0f}" fill="none" stroke="#9ca3af" stroke-width="{3 * s:.1f}"/>'
+            + contactless(x + 42 * s, y + 70 * s, 0.7 * s, '#e5e7eb', 2.5 * s)
+            + f'<circle cx="{x + 55 * s:.0f}" cy="{y + 140 * s:.0f}" r="{8 * s:.0f}" fill="{led}"/>')
+
+
+def qr(x, y, size=120):
+    """A QR-code-like pattern (decorative, not a real code)."""
+    c = size / 7
+    out = f'<rect x="{x}" y="{y}" width="{size}" height="{size}" fill="#ffffff" stroke="#334155" stroke-width="2"/>'
+    for cx, cy in ((0, 0), (4, 0), (0, 4)):
+        out += (f'<rect x="{x + cx * c + 2:.0f}" y="{y + cy * c + 2:.0f}" width="{3 * c - 4:.0f}" height="{3 * c - 4:.0f}" fill="none" stroke="#111827" stroke-width="{c * 0.5:.1f}"/>'
+                f'<rect x="{x + (cx + 1) * c:.0f}" y="{y + (cy + 1) * c:.0f}" width="{c:.0f}" height="{c:.0f}" fill="#111827"/>')
+    for i, j in ((4, 4), (5, 5), (6, 4), (4, 6), (6, 6), (5, 3), (3, 5)):
+        out += f'<rect x="{x + i * c:.0f}" y="{y + j * c:.0f}" width="{c * 0.9:.0f}" height="{c * 0.9:.0f}" fill="#111827"/>'
+    return out
+
+
+def box_parcel(x, y, w=150, label=None):
+    """A cardboard parcel (front face w x 0.7w) with a shipping label."""
+    h = w * 0.7
+    out = (f'<path d="M{x},{y} L{x + w * 0.2:.0f},{y - h * 0.25:.0f} L{x + w * 1.2:.0f},{y - h * 0.25:.0f} L{x + w},{y} Z" fill="#e9c38f" stroke="#92400e" stroke-width="2"/>'
+           f'<path d="M{x + w},{y} L{x + w * 1.2:.0f},{y - h * 0.25:.0f} L{x + w * 1.2:.0f},{y + h * 0.75:.0f} L{x + w},{y + h:.0f} Z" fill="#c8964f" stroke="#92400e" stroke-width="2"/>'
+           f'<rect x="{x}" y="{y}" width="{w}" height="{h:.0f}" fill="#d9a766" stroke="#92400e" stroke-width="2"/>'
+           f'<rect x="{x + w * 0.45:.0f}" y="{y + h * 0.3:.0f}" width="{w * 0.45:.0f}" height="{h * 0.45:.0f}" fill="#ffffff" stroke="#92400e" stroke-width="1.5"/>')
+    if label:
+        out += T(x + w * 0.675, y + h * 0.58, label, w * 0.09, 700, '#334155', 'middle')
+    return out
+
+
+def tracker_box(x, y, s=1.0):
+    """A generic GPS + cellular tracker: a larger box with an antenna stub, 160 x 100 at s=1."""
+    return (f'<rect x="{x + 4}" y="{y + 6}" width="{160 * s:.0f}" height="{100 * s:.0f}" rx="{16 * s:.0f}" fill="#0f172a" opacity="0.13"/>'
+            f'<rect x="{x}" y="{y}" width="{160 * s:.0f}" height="{100 * s:.0f}" rx="{16 * s:.0f}" fill="#334155"/>'
+            f'<rect x="{x + 120 * s:.0f}" y="{y - 30 * s:.0f}" width="{12 * s:.0f}" height="{34 * s:.0f}" rx="4" fill="#334155"/>'
+            f'<rect x="{x + 16 * s:.0f}" y="{y + 18 * s:.0f}" width="{70 * s:.0f}" height="{30 * s:.0f}" rx="5" fill="#0ea5e9"/>'
+            + T(x + 51 * s, y + 39 * s, 'GPS', 15 * s, 800, '#ffffff', 'middle')
+            + f'<circle cx="{x + 130 * s:.0f}" cy="{y + 70 * s:.0f}" r="{7 * s:.0f}" fill="#22c55e"/>')

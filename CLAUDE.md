@@ -361,9 +361,11 @@ Read **`docs/INVISIBLE-ENGINE.md`** before touching `invisible-engine/` or
 `scripts/invisible_engine/`. An illustrated lesson in five reader levels (child →
 CISO), built in phases (Modules 1–2 live; 3–12 planned).
 
-- **Scene diagrams are GENERATED** from `scripts/invisible_engine/scenes/moduleNN.py`
-  by `build.py` (CI `--check`); PNGs by `render.mjs`. Never hand-edit an SVG. Look at
-  every changed PNG before committing.
+- **Scene diagrams AND pages are GENERATED** by `scripts/invisible_engine/build.py`
+  (CI `--check`): SVGs from `scenes/moduleNN.py`, `invisible-engine/*.html` from
+  `pages.py` + `content/mNN.py`; PNGs by `render.mjs`. Never hand-edit an SVG or a lesson
+  page. Look at every changed PNG before committing. Demo facts for D and E live once,
+  in `invisible-engine/demos/*.json`.
 - Every scene: five levels (A–E), frame captions matching the SVG, a text alternative,
   an accuracy check and sources (`invisible-engine/tests/check.py`). Arrow colours keep
   their meanings (energy, signal, plaintext, crypto, admin, hazard, boundary).
