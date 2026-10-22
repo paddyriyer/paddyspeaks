@@ -160,5 +160,32 @@ ok(near6(Q.probs(Hp)[1], 1), 'demo H preset H → Z → H ends in |1⟩');
 const Hb = H.run(Q, H.PRESETS.bell, 2, 0);
 ok(near6(Q.probs(Hb)[0], 0.5) && near6(Q.probs(Hb)[3], 0.5), 'demo H preset Bell pair');
 
+
+// Phase 5: demo J (explorer.json) and demo L (enterprise.json)
+const J = JSON.parse(fs.readFileSync(path.join(DIR, 'explorer.json'), 'utf8'));
+const jit = (id) => J.items.find((x) => x.id === id);
+const need = ['rsa', 'ecc', 'aes', 'sha', 'mlkem', 'mldsa', 'slhdsa', 'card', 'ble', 'fw', 'cloud'];
+ok(need.every((id) => jit(id)), 'demo J covers RSA, ECC, AES, SHA, ML-KEM, ML-DSA, SLH-DSA, cards, BLE, firmware and cloud');
+for (const it of J.items) {
+  ok(J.fields.every(([k]) => typeof it[k] === 'string' && it[k].length > 15) && J.statuses[it.status], `demo J ${it.id}: every field filled, known status`);
+  ok(/^\/invisible-engine\/m\d\d\.html#s\d\d$/.test(it.scene), `demo J ${it.id}: links to its scene`);
+}
+ok(['rsa', 'ecc'].every((id) => jit(id).status === 'shor') && /None is publicly known to exist/.test(J.statuses.shor), 'RSA and ECC fail only on a machine not known to exist');
+ok(['aes', 'sha'].every((id) => jit(id).status === 'grover' && /Not broken/.test(jit(id).caveats)), 'AES and SHA-2 are weakened in an idealised count, not broken');
+ok(['mlkem', 'mldsa', 'slhdsa'].every((id) => jit(id).status === 'pq') && /ordinary chips/.test(J.statuses.pq), 'the NIST algorithms are designed to resist and run on ordinary chips');
+ok(/1,184/.test(jit('mlkem').caveats) && /1,088/.test(jit('mlkem').caveats) && /3,309/.test(jit('mldsa').caveats) && /7,856/.test(jit('slhdsa').caveats), 'sizes quoted from FIPS 203/204/205');
+const jall = JSON.stringify(J).toLowerCase();
+ok(!/quantum-proof|unbreakable|already broken|is broken today|tries all/.test(jall), 'demo J makes no false threat or safety claim');
+
+const L = JSON.parse(fs.readFileSync(path.join(DIR, 'enterprise.json'), 'utf8'));
+ok(L.scenarios.map((x) => x.id).join() === 'visitor,employee,travel,asset', 'demo L: visitor, employee, travel and asset scenarios');
+for (const x of L.scenarios) {
+  ok(x.controls.every((c) => c.who && c.who.length >= 2 && L.categories.some(([k]) => k === c.cat)), `demo L ${x.id}: every recommendation names who can implement it`);
+  ok(x.limit.length > 20, `demo L ${x.id}: states where the company's authority stops`);
+}
+const lall = JSON.stringify(L).toLowerCase();
+ok(!/(monitor|track|surveil)\w* (the )?(employees|staff|people)/.test(lall), 'demo L never recommends watching employees');
+ok(/tags locate assets, never people/.test(lall) && /disabling a tracker can alert/.test(lall), 'demo L: assets not people; safety note');
+
 console.log(fails ? `✗ ${fails} failed, ${passes} passed` : `✓ invisible-engine demos: ${passes} checks passed`);
 process.exit(fails ? 1 : 0);
