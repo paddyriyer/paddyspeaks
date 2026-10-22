@@ -9,8 +9,8 @@ clones fresh each time). CLAUDE.md points here._
 - **NEWEST (2026-10-22): article "From Tap to Trace"** (`articles/from-tap-to-trace.html`,
   technology, 90 min). Paddy's master prompt: NFC, AirTags, cloud identity and the quantum
   future of privacy, in twelve parts plus appendices, references and an accuracy audit.
-  **The sixteen diagrams are pending: Paddy will upload them.** Each figure slot currently
-  shows a "diagram in words"; how to insert an image, plus every figure's prompt, node/edge
+  **Paddy's five diagrams are in** (figures 01, 02, 03, 10, 14; SVG shown, PNG linked);
+  the other eleven slots show a "diagram in words"; how to insert an image, plus every figure's prompt, node/edge
   spec, must-not list and Mermaid source, is in `docs/FROM-TAP-TO-TRACE.md`. Share card is a
   typographic placeholder made with Pillow. apple.com and arxiv.org were unreachable from the
   container, so several claims were verified through search listings; the page's audit lists
