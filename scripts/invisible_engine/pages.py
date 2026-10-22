@@ -200,7 +200,8 @@ def module_page(mod, avail):
         body += inserts.get(sc['id'], '')
     body += getattr(mod, 'AFTER', '')
     n = M['num']
-    prev_l = '<a href="/invisible-engine/">← Lesson home</a>' if n == 1 else f'<a href="/invisible-engine/m{n - 1:02d}.html">← Module {n - 1}</a>'
+    earlier = [k for k in avail if k < n]  # the nearest module that exists, never a missing page
+    prev_l = f'<a href="/invisible-engine/m{max(earlier):02d}.html">← Module {max(earlier)}</a>' if earlier else '<a href="/invisible-engine/">← Lesson home</a>'
     nxt = [m for m in PLAN if m[0] == n + 1]
     if not nxt:
         next_l = '<a href="/invisible-engine/">Lesson home →</a>'

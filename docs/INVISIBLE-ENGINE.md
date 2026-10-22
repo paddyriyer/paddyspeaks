@@ -104,7 +104,7 @@ scripts and `demos.mjs` read, so the words cannot drift from the tests. Demo C
 | --- | --- | --- | --- | --- |
 | 1 | 1 Electronics & wireless · 2 Contactless card | 01–17 | A coil powers chip · B card vs wallet | **built** |
 | 2 | 3 RFID · 4 BLE whisper · 5 AirTag lifecycle | 18–41 | C BLE whisper · D lost AirTag · E four connections | **built** |
-| 3 | 6 Ownership & crypto · 7 Privacy & safety | 42–55 | F key protection · K consent vs confidentiality | planned |
+| 3 | 6 Ownership & crypto · 7 Privacy & safety | 42–55 | F key protection · K consent vs confidentiality | **built** |
 | 4 | 8 Quantum interference · 9 Quantum computation | 56–72 | G phase lab · H H→Z→H · I Grover | planned |
 | 5 | 10 Future crypto · 11 CISO · 12 Holistic | 73–89 | J crypto explorer · L enterprise walk-through | planned |
 
@@ -197,20 +197,20 @@ Corrections needed before the held images can be used:
 | 39 | 5 | Nearby find is different (UWB) | 2 | built |  |
 | 40 | 5 | NFC Lost Mode is different | 2 | built |  |
 | 41 | 5 | Owner lifecycle | 2 | built |  |
-| 42 | 6 | Three ownership domains | 3 | planned | Deepens FTT Part III / Fig 03 |
-| 43 | 6 | Secrets journey | 3 | planned |  |
-| 44 | 6 | Public/private key teaching | 3 | planned |  |
-| 45 | 6 | Encryption layers | 3 | planned |  |
-| 46 | 6 | Who can see what | 3 | planned | Extends FTT Table 5 |
-| 47 | 6 | Competing ecosystem designs | 3 | planned | Extends FTT Part VIII |
-| 48 | 6 | Identity lifecycle attack | 3 | planned | FTT Part VI threats 4–8 |
-| 49 | 6 | Unwanted tracking | 3 | planned | FTT Part VII |
-| 50 | 7 | Threat landscape | 3 | planned |  |
-| 51 | 7 | Privacy paradox | 3 | planned | FTT Fig 11 |
-| 52 | 7 | Cross-platform alerts | 3 | planned | FTT Part VII (DULT) |
-| 53 | 7 | Three realistic people | 3 | planned |  |
-| 54 | 7 | Incident forensic trail | 3 | planned |  |
-| 55 | 7 | Ethical, proportional mitigations | 3 | planned |  |
+| 42 | 6 | Three ownership domains | 3 | built | Deepens FTT Part III / Fig 03 |
+| 43 | 6 | Secrets journey | 3 | built |  |
+| 44 | 6 | Public/private key teaching | 3 | built |  |
+| 45 | 6 | Encryption layers | 3 | built |  |
+| 46 | 6 | Who can see what | 3 | built | Extends FTT Table 5 |
+| 47 | 6 | Competing ecosystem designs | 3 | built | Extends FTT Part VIII |
+| 48 | 6 | Identity lifecycle attack | 3 | built | FTT Part VI threats 4–8 |
+| 49 | 6 | Unwanted tracking | 3 | built | FTT Part VII |
+| 50 | 7 | Threat landscape | 3 | built |  |
+| 51 | 7 | Privacy paradox | 3 | built | FTT Fig 11 |
+| 52 | 7 | Cross-platform alerts | 3 | built | FTT Part VII (DULT) |
+| 53 | 7 | Three realistic people | 3 | built |  |
+| 54 | 7 | Incident forensic trail | 3 | built |  |
+| 55 | 7 | Ethical, proportional mitigations | 3 | built |  |
 | 56 | 8 | A bit is a definite state | 4 | planned |  |
 | 57 | 8 | Classical waves before quantum | 4 | planned |  |
 | 58 | 8 | Frequency, wavelength, phase | 4 | planned |  |
@@ -299,7 +299,8 @@ title and should be re-checked against the current vendor page before the next p
 | Setup: hold near iPhone, Connect, name, Continue; registered to one Apple Account (2FA, Find My, Location Services) | doc | Apple Support, "Set up your AirTag" |
 | Setup messages, factory key material | undisclosed | — |
 | Owner devices hold a P-224 key pair and SK₀; rotating Pᵢ/dᵢ; tag advertises Pᵢ | doc · verify | Apple Platform Security guide, "Find My" |
-| Rotation intervals; exact advertisement payload | research | Heinrich et al., PoPETs 2021 |
+| Broadcast key changes about every 15 minutes | doc | Apple Platform Security, “Find My security” (also cited in *Every Arrow*) |
+| Separated-state rotation behaviour; exact advertisement payload | research | Heinrich et al., PoPETs 2021 |
 | A sighting uses the finder phone's own location (GNSS, Wi-Fi, cell); approximate; not live | doc · concept | Apple Platform Security guide |
 | Finder encrypts to Pᵢ (ephemeral ECDH, KDF, AES-GCM); report filed under SHA-256(Pᵢ) | doc · verify | Apple Platform Security guide |
 | Apple cannot read locations and does not know the finder; metadata (hash, upload time, connection data) remains | doc · concept | Apple Platform Security guide |
@@ -313,6 +314,34 @@ title and should be re-checked against the current vendor page before the next p
 Open items for the next phase: confirm the *verify* rows against the current Apple
 pages and replace root links with exact URLs; recheck the illustrative range bars in
 Scene 19 (battery-assisted 30 m, active 100 m).
+
+## 5b. Claim ledger — Modules 6–7 (phase 3)
+
+| Claim | Label | Source |
+| --- | --- | --- |
+| Find My reports are end-to-end encrypted; Apple cannot read locations or identify finders | doc | Apple Platform Security, “Find My security” |
+| Broadcast key changes about every 15 minutes | doc | same (also cited in *Every Arrow*) |
+| Key pair (d, P) and SK₀; rotating Pᵢ/dᵢ; ECDH → KDF → AES-GCM report encryption | doc · verify | Apple Platform Security |
+| Find My key material syncs via end-to-end-encrypted iCloud Keychain to trusted devices | verify | Apple Platform Security |
+| How a shared user’s device gets access | undisclosed | — |
+| Signatures prove origin and integrity, not confidentiality | spec | FIPS 186-5 |
+| BLE advertising carries no link-layer encryption | spec | Bluetooth Core Spec |
+| Find Hub: E2E with a key unlocked by the screen lock; default aggregated location in busy areas | doc | Google security blog; “How Find Hub protects your data” |
+| SmartThings Find: encrypted, Knox, private ID changes every 15 minutes; one account at a time | doc | Samsung Newsroom |
+| Tile network, Scan and Secure, Anti-Theft Mode | verify | not confirmed from Tile’s pages |
+| Cross-platform alerts, iOS 17.5+ / Android 6.0+ (May 2024); IETF DULT working-group drafts | doc · verify status | Apple Newsroom; IETF datatracker |
+| Alerts need separation from the owner and time; a separated tag sounds when moved (timing not stated) | doc | Apple Support 119874; Personal Safety User Guide |
+| A manual scan shows what is near now, not what followed | doc | Android Help, “Find unknown trackers” |
+| Consider safety before disabling a tracker: it can alert whoever placed it | doc | Apple Personal Safety User Guide; FTT Part XI |
+| Find Hub’s acceptable use policy forbids tracking people without knowledge and consent | doc | Google |
+| NFC tap shows the serial number; for a tag moving with you, part of the owner’s phone number | doc · verify | Apple Support |
+| Apple can provide paired-account details to valid law-enforcement requests | doc | Apple Newsroom, February 2022 |
+| A located device’s location is kept for up to 24 hours | doc | Apple, “Find My &amp; Privacy” |
+| Safety Check reviews and stops sharing | doc · verify | Apple Personal Safety User Guide |
+| Demo F: toy group mod 2³¹ − 1; real arithmetic, insecure sizes; sharing/revocation a conceptual abstraction | concept | keys.js (tested) |
+
+Open items: confirm the *verify* rows (Safety Check and iCloud Keychain deep links; Google
+partner-tracker and UWB cells; Samsung UWB; Tile) before phase 4.
 
 ## 6. Rules for every phase
 

@@ -137,7 +137,7 @@ dict(id=28, title='Changing names: why a rotating identifier protects privacy',
          'A rotating identifier: a passer-by sees three unrelated values.',
          'Only the owner, who holds the key the identifiers come from, can link them.',
          'What rotation does not stop: radio fingerprinting, one moving thing seen again and again along a route, long intervals between changes, and implementation flaws.',
-         'Find My, as documented: Apple says identifiers come from rotating public keys; exact intervals are known from independent research, not from Apple.'],
+         'Find My, as documented: Apple says identifiers come from rotating public keys and change about every 15 minutes; how a tag behaves while separated from its owner comes from independent research.'],
  A=(['Imagine a dog wearing a name tag that never changes.', 'Anyone could follow “Rex” from street to street.', 'Now the tag shows a new secret name every so often.', 'Only the owner knows all the names belong to the same dog.'],
     'Changing the name stops strangers joining the dots, while the owner, who knows the secret, can still find the dog.'),
  B='''<p>A fixed identifier turns every Bluetooth scanner into a potential tracking device. Rotating identifiers make each sighting look unrelated to the last, unless you hold the key that generated them. Apple’s Find My, Google’s Find Hub and others all use some form of rotation.</p>
@@ -145,7 +145,7 @@ dict(id=28, title='Changing names: why a rotating identifier protects privacy',
  C='''<ul>
 <li>Bluetooth LE privacy: resolvable private address (RPA) generated from an Identity Resolving Key; regenerated on a timer set by the host (commonly ~15 min). <span class="tag spec">Bluetooth Core Spec</span> <span class="tag illus">interval typical</span></li>
 <li>Find My: the accessory derives a sequence of public keys (NIST P-224) from a key pair and shared secret, and advertises the current one; the owner’s devices can compute the same sequence. <span class="tag doc">Apple Platform Security</span></li>
-<li>Rotation intervals for AirTag (e.g., ~15 minutes near the owner, longer when separated) were measured by independent researchers and may change with firmware. <span class="tag research">independent research</span></li>
+<li>Apple documents that the key a Find My accessory broadcasts changes about every 15 minutes. <span class="tag doc">documented</span> Longer intervals while a tag is separated from its owner were measured by independent researchers and may change with firmware. <span class="tag research">independent research</span></li>
 </ul>''',
  D='''<ul>
 <li>Correlation channels outside the identifier: RF fingerprinting (carrier-frequency offset, transient shape), co-location with another device that does not rotate, rotation boundaries that are predictable, and motion patterns.</li>
@@ -153,8 +153,8 @@ dict(id=28, title='Changing names: why a rotating identifier protects privacy',
 </ul>''',
  E='''<ul><li>For BLE assets you deploy, ask whether identifiers rotate, how often, and who can link them. A fixed-ID beacon on a laptop bag is a tracking beacon for anyone who cares to scan.</li></ul>''',
  eng='<p>Identifier values are made up. Shops are generic places, not a real route.</p>',
- test=['Does the scene say rotation makes correlation impossible? (No; frame 4 lists what remains.)', 'Are Find My intervals presented as Apple-documented? (No; labelled independent research.)'],
- src=['Apple, <a href="https://support.apple.com/guide/security/welcome/web">Apple Platform Security</a> guide, “Find My” section.', 'Heinrich et al., PETS 2021 — <a href="https://arxiv.org/abs/2103.02282">arXiv:2103.02282</a>.', 'Bluetooth SIG, Core Specification, Vol 3 Part C §10.7 (privacy feature).']),
+ test=['Does the scene say rotation makes correlation impossible? (No; frame 4 lists what remains.)', 'Is each interval labelled by its source? (Yes: ~15 minutes is Apple-documented; separated-state behaviour is independent research.)'],
+ src=['Apple Platform Security, <a href="https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web">“Find My security”</a>.', 'Heinrich et al., PETS 2021 — <a href="https://arxiv.org/abs/2103.02282">arXiv:2103.02282</a>.', 'Bluetooth SIG, Core Specification, Vol 3 Part C §10.7 (privacy feature).']),
 
 dict(id=29, title='Battery life is a budget',
  lede='Battery life is a sum: radio events, sleep, sensors, the occasional sound or ranging session, and the battery’s own slow self-discharge, set against a capacity that shrinks in the cold.',
@@ -204,7 +204,7 @@ dict(id=30, title='Three “trackers” that work in completely different ways',
  E='''<ul><li>Write separate rules for GPS trackers, item trackers and beacons in asset and travel policies; one “tracker policy” will be wrong for at least two of them.</li></ul>''',
  eng='<p>Generic devices. Radio arcs illustrative. Cellular reports drawn purple because such services normally use encrypted transport.</p>',
  test=['Does the scene say an item tracker knows its location? (No.)', 'Is any brand logo shown? (No.)'],
- src=['Apple, <a href="https://support.apple.com/guide/security/welcome/web">Apple Platform Security</a>, “Find My”.', 'Apple, iBeacon developer documentation; Google, Eddystone format specification (GitHub, google/eddystone).']),
+ src=['Apple Platform Security, <a href="https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web">“Find My security”</a>.', 'Apple, iBeacon developer documentation; Google, Eddystone format specification (GitHub, google/eddystone).']),
 ])
 
 INSERTS = {29: DEMO_C}

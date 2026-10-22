@@ -359,7 +359,8 @@ trackers, NFC, cloud identity and post-quantum migration.
 
 Read **`docs/INVISIBLE-ENGINE.md`** before touching `invisible-engine/` or
 `scripts/invisible_engine/`. An illustrated lesson in five reader levels (child →
-CISO), built in phases (Modules 1–2 live; 3–12 planned).
+CISO), built in phases (Modules 1–7 live; 8–12 planned). Safety scenes (Modules 6–7)
+follow From Tap to Trace: disabling a tracker can alert whoever placed it; no evasion detail.
 
 - **Scene diagrams AND pages are GENERATED** by `scripts/invisible_engine/build.py`
   (CI `--check`): SVGs from `scenes/moduleNN.py`, `invisible-engine/*.html` from

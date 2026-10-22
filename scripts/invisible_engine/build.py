@@ -26,11 +26,10 @@ def modules() -> list[str]:
     return sorted(p.stem for p in (HERE / "scenes").glob("module[0-9][0-9].py"))
 
 
-def collect(only: list[str]) -> dict[pathlib.Path, str]:
+def scene_outputs(only: list[str]) -> dict[pathlib.Path, str]:
     out: dict[pathlib.Path, str] = {}
     seen: dict[int, str] = {}
-    scene_mods = [m for m in modules() if not only or m in only]
-    for m in scene_mods:
+    for m in [m for m in modules() if not only or m in only]:
         mod = importlib.import_module(f"scenes.{m}")
         for n, svg in mod.scenes.items():
             if n in seen:
@@ -40,27 +39,38 @@ def collect(only: list[str]) -> dict[pathlib.Path, str]:
     if not only:
         from cover import cover
         out[ROOT / "invisible-engine" / "art" / "cover.svg"] = cover()
-    page_only = [a for a in only if a.startswith("m") and not a.startswith("module")]
-    if not only or page_only:
-        import pages
-        out.update(pages.build(page_only or None))
     return out
+
+
+def page_outputs(only: list[str]) -> dict[pathlib.Path, str]:
+    # Pages take each scene's alt text from its SVG on disk, so they are built
+    # after the scenes have been written.
+    page_only = [a for a in only if a.startswith("m") and not a.startswith("module")]
+    if only and not page_only:
+        return {}
+    import pages
+    return pages.build(page_only or None)
 
 
 def main(argv: list[str]) -> int:
     check = "--check" in argv
     only = [a for a in argv if not a.startswith("--")]
     stale = []
-    for p, text in collect(only).items():
-        old = p.read_text(encoding="utf-8") if p.exists() else None
-        if old == text:
-            continue
-        if check:
-            stale.append(str(p.relative_to(ROOT)))
-        else:
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(text, encoding="utf-8")
-            print(f"  wrote {p.relative_to(ROOT)}")
+
+    def apply(outputs: dict[pathlib.Path, str]) -> None:
+        for p, text in outputs.items():
+            old = p.read_text(encoding="utf-8") if p.exists() else None
+            if old == text:
+                continue
+            if check:
+                stale.append(str(p.relative_to(ROOT)))
+            else:
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.write_text(text, encoding="utf-8")
+                print(f"  wrote {p.relative_to(ROOT)}")
+
+    apply(scene_outputs(only))
+    apply(page_outputs(only))
     if stale:
         print("stale (run python3 scripts/invisible_engine/build.py): " + ", ".join(stale))
         return 1

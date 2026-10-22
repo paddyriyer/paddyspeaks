@@ -1,6 +1,6 @@
 from .inserts import DEMO_D, DEMO_E
 
-APS = 'Apple Platform Security guide, “Find My” and “Find My network” sections — <a href="https://support.apple.com/guide/security/welcome/web">support.apple.com/guide/security</a> (check the current edition).'
+APS = 'Apple Platform Security, <a href="https://support.apple.com/guide/security/find-my-security-sec6cbc80fd0/web">“Find My security”</a> (check the current edition).'
 HEINRICH = 'A. Heinrich, M. Stute, T. Kornhuber, M. Hollick, “Who Can Find My Devices? Security and Privacy of Apple’s Crowd-Sourced Bluetooth Location Tracking System”, PoPETs 2021 (3) — <a href="https://petsymposium.org/popets/2021/popets-2021-0045.php">petsymposium.org</a>. Independent research (reverse engineering).'
 FTT = '<a href="/articles/from-tap-to-trace.html">From Tap to Trace</a> (the essay version: Part III on ownership, Part V on the finding network, Figure 06).'
 

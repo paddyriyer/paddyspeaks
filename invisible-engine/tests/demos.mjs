@@ -1,5 +1,6 @@
 // The Invisible Engine — demo model tests (no browser, no dependencies).
 //   node invisible-engine/tests/demos.mjs
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
@@ -74,6 +75,47 @@ ok(/Not a global location/.test(tab('precision').not), 'precision finding is not
 ok(/excluding iPhone SE/.test(tab('precision').not), 'precision finding excludes iPhone SE');
 ok(/Not distant tracking/.test(tab('nfc').not) && /centimetres/.test(tab('nfc').range), 'NFC is touch-range, no distant tracking');
 ok(/one Apple Account/.test(tab('setup').pairs), 'setup links the tag to one account');
+
+
+// Demo F: key protection — toy but real arithmetic
+const F = load('keys.js').IEDemoF.model;
+const nodeSha = (x) => crypto.createHash('sha256').update(x, 'utf8').digest('hex');
+for (const x of ['', 'abc', 'Platform 4, Central Station, 14:05', 'é—ü', 'x'.repeat(130)]) ok(F.sha256(x) === nodeSha(x), `SHA-256 matches Node for ${JSON.stringify(x.slice(0, 12))}`);
+const own = F.ownerKeys(123456789n, 'seed-a');
+for (let i = 0; i < 5; i++) {
+  const Pi = F.tagPublic(own.P, own.seed, i), di = F.ownerPrivate(own.d, own.seed, i);
+  ok(F.modpow(F.g, di, F.p) === Pi, `window ${i}: the tag's public key matches the owner's private key without the tag holding d`);
+  const rep = F.seal(Pi, 'loc ' + i, 987654321n + BigInt(i));
+  ok(F.open(di, rep) === 'loc ' + i, `window ${i}: the owner opens the sealed report`);
+  ok(F.open(F.ownerPrivate(own.d, own.seed, i + 1), rep) === null, `window ${i}: the next window's key cannot open it`);
+  ok(F.open(di, Object.assign({}, rep, { ct: (rep.ct[0] === 'f' ? '0' : 'f') + rep.ct.slice(1) })) === null, `window ${i}: a tampered report is rejected`);
+  ok(!JSON.stringify({ E: String(rep.E), ct: rep.ct, lookup: rep.lookup }).includes('loc'), `window ${i}: what the relay stores does not contain the location`);
+}
+ok(F.tagPublic(own.P, own.seed, 1) !== F.tagPublic(own.P, own.seed, 2), 'the broadcast key changes between windows');
+const mk = 55555n, sg = F.sign(mk, 'firmware v2', 777n);
+ok(F.verify(F.modpow(F.g, mk, F.p), 'firmware v2', sg) && !F.verify(F.modpow(F.g, mk, F.p), 'firmware v3', sg), 'a signature verifies with the public key and fails on a changed message');
+const shared = F.shareWindows(own.seed, 2, 4);
+ok(Object.keys(shared).join() === '2,3,4' && shared[3] === F.windowSecret(own.seed, 3), 'sharing hands over only the chosen windows');
+
+// Demo K: consent vs confidentiality (consent.json)
+const Kd = JSON.parse(fs.readFileSync(path.join(DIR, 'consent.json'), 'utf8'));
+const rd = (id) => Kd.readers.find((r) => r.id === id);
+ok(Kd.levels.every((l) => rd('holder').see[l.id] === 'yes'), 'the account holder sees the location at every protection level');
+ok(['e2e', 'e2epq'].every((l) => rd('relay').see[l] === 'no' && rd('wire').see[l] === 'no'), 'end-to-end: neither the relay nor the network can read it');
+ok(rd('relay').see.tls === 'yes' && rd('wire').see.tls === 'no', 'in-transit only: the network cannot, the service can');
+ok(Kd.scenarios.map((x) => x.id).join() === 'lost,covert', 'two scenarios: a lost bag and a hidden tag');
+ok(/cannot tell a lost bag from a person/.test(Kd.scenarios[1].consent), 'the hidden-tag scenario says encryption cannot judge consent');
+ok(/disabling it can alert the person who placed it/.test(Kd.safety), 'the safety note says disabling can alert whoever placed it');
+ok(/None of these depend on the encryption/.test(Kd.helps_note), 'protections for the carrier do not depend on encryption');
+const allK = JSON.stringify(Kd).toLowerCase();
+ok(!/(how to (find|disable|silence|defeat)|remove the battery|bypass)/.test(allK), 'no operational evasion or disablement instructions');
+
+
+// Demo K's script reads the page's cell classes; the page must carry them.
+const m07 = fs.readFileSync(path.join(DIR, '..', 'm07.html'), 'utf8');
+const holderRow = (m07.match(/<tr data-reader="holder">(.*?)<\/tr>/) || [])[1] || '';
+ok((holderRow.match(/class="v-yes"/g) || []).length === Kd.levels.length, 'demo K page: the account holder row is marked readable at every level');
+ok(/classList\.contains\('v-yes'\)/.test(fs.readFileSync(path.join(DIR, 'consent.js'), 'utf8')), 'demo K script reads the same v-yes class the page carries');
 
 console.log(fails ? `✗ ${fails} failed, ${passes} passed` : `✓ invisible-engine demos: ${passes} checks passed`);
 process.exit(fails ? 1 : 0);

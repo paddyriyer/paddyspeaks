@@ -7,7 +7,7 @@ STORY = [
     ('/invisible-engine/scenes/png/s10.png', 'Open the card', 'Inside: a loop of fine wire around the edge and a tiny chip. The loop catches energy; the chip uses it to talk and keep a secret.', '/invisible-engine/m02.html#s10'),
     ('/invisible-engine/scenes/png/s15.png', 'A fresh secret code', 'Each payment, the card makes a new code that only its bank can check. A copied code is useless next time.', '/invisible-engine/m02.html#s15'),
     ('/invisible-engine/scenes/png/s33.png', 'A tracker that whispers', 'A lost suitcase holds a small tag. It cannot see a map. It whispers, and a stranger’s phone that knows where it is passes the message on, sealed.', '/invisible-engine/m05.html#s33'),
-    ('/images/articles/from-tap-to-trace/fig-03-account-keys.png', 'Keys, accounts, people', 'Whoever holds the right key can read where the tag has been. That protects the owner — and can expose a person carrying someone else’s tag.', '/articles/from-tap-to-trace.html#p3'),
+    ('/invisible-engine/scenes/png/s49.png', 'Keys, accounts, people', 'Whoever holds the right key can read where the tag has been. That protects the owner — and can expose a person carrying someone else’s tag.', '/invisible-engine/m06.html#s49'),
     ('/images/articles/from-tap-to-trace/fig-14-quantum.png', 'Waves, qubits, tomorrow’s locks', 'Why is the code hard to break? The story reaches waves that cancel, qubits, and the new locks being built for a quantum future.', '/articles/from-tap-to-trace.html#p9'),
 ]
 
@@ -27,10 +27,10 @@ def body(mods, legend):
                       f'<p class="status soon">Coming in phase {phase}</p></div>')
     return f'''<main id="main">
 <div class="ie-head">
-  <p class="ie-kicker">A PaddySpeaks lesson · Phase 2 of 5</p>
+  <p class="ie-kicker">A PaddySpeaks lesson · Phase 3 of 5</p>
   <h1>The Invisible Engine</h1>
   <p class="dek">From a powerless credit card to a whispering tracker, from waves that cancel to quantum computers that challenge cryptographic trust.</p>
-  <div class="ie-meta"><span>Five reader levels: A child · B adult · C engineer · D security architect · E CISO</span><span>Modules 1–5 available</span></div>
+  <div class="ie-meta"><span>Five reader levels: A child · B adult · C engineer · D security architect · E CISO</span><span>Modules 1–7 available</span></div>
 </div>
 <div class="ie-wrap">
   <p class="lede" style="font-family:var(--serif);font-size:20px;max-width:760px">The same invisible world can power a contactless card, help recover a suitcase, expose a person’s whereabouts and force us to rethink encryption. Most explanations fuse four different things into one glowing arrow: <strong>energy</strong>, <strong>signals</strong>, <strong>data</strong> and <strong>promises about who may read the data</strong>. This lesson pulls them apart — first the object, then what moves inside it, then who talks to whom, and only then why the data can be trusted, who can misuse it and what quantum changes.</p>
@@ -38,7 +38,7 @@ def body(mods, legend):
   <h2 style="margin-top:44px">The whole story, for an eleven-year-old</h2>
   <p>Six pictures. Each one opens the scene that explains it.</p>
   <div class="cards">{story}</div>
-  <p class="note">Step 4 opens Module 5. Steps 5 and 6 become lesson modules in later phases (keys and people in Modules 6–7, quantum in 8–10); until then they open the matching parts of the essay <a href=\"/articles/from-tap-to-trace.html\">From Tap to Trace</a>.</p>
+  <p class="note">Steps 4 and 5 open Modules 5 and 6. Step 6 becomes lesson modules in later phases (quantum in Modules 8–10); until then it opens the matching part of the essay <a href=\"/articles/from-tap-to-trace.html\">From Tap to Trace</a>.</p>
 
   <h2 style="margin-top:44px">Choose your path</h2>
   <div class="cards">
