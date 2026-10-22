@@ -119,11 +119,11 @@ scenes[42] = s.render('Conceptual. Overlap labels follow Apple’s documented Fi
 
 # ── 43 Secrets journey ───────────────────────────────────────────────
 s = Scene(43, 'The journey of a secret: from birth to revocation',
-          'Five frames along two lanes. Top lane, the owner-held keys that open location reports: 1, they are generated on '
+          'Five frames in two groups. First, the owner-held keys that open location reports: 1, they are generated on '
           'the owner’s device, a key pair plus a secret seed; 2, at setup the tag receives only what it needs to derive '
           'rotating public keys, never the private key; 3, the private keys stay on the owner’s trusted devices and, Apple '
           'says, sync between them through end-to-end encrypted iCloud Keychain; 4, both sides derive a new key pair about '
-          'every 15 minutes. 5, recovery and revocation, and the bottom lane: manufacturer and service keys (TLS '
+          'every 15 minutes. 5, recovery and revocation, and the second group: manufacturer and service keys (TLS '
           'certificates, device attestation, firmware signing) do different jobs and cannot open the reports.',
           sub='Two families of keys. Only one of them can read where the tag has been.')
 s.raw(T(60, 182, 'OWNER-HELD KEYS — they open location reports', 16, 800, '#6b21a8', mono=True))

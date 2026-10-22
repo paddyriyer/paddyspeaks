@@ -383,7 +383,7 @@ scenes[38] = s.render()
 
 # ── 39 Nearby find ───────────────────────────────────────────────────
 s = Scene(39, 'Finding it nearby is a different mechanism',
-          'Five frames. Left, Find My’s map shows a last-seen point built from sightings, a global location. Right, in the '
+          'Five frames. First, Find My’s map shows a last-seen point built from sightings, a global location. Then, in the '
           'same room, the owner’s iPhone asks the tag to play a sound over Bluetooth; a compatible iPhone with ultra-wideband '
           'exchanges ranging messages with the tag and measures distance from the time of flight; the phone combines that '
           'with its camera, ARKit and motion sensors to point an arrow; and a note that the Bluetooth advertisement itself '

@@ -368,6 +368,10 @@ follow From Tap to Trace: disabling a tracker can alert whoever placed it; no ev
   `pages.py` + `content/mNN.py`; PNGs by `render.mjs`. Never hand-edit an SVG or a lesson
   page. Look at every changed PNG before committing. Demo facts for D and E live once,
   in `invisible-engine/demos/*.json`.
+- **Every scene has a phone-vertical twin** (`scenes/vmoduleNN.py` → `invisible-engine/scenes/v/`,
+  shown on phones). `check.py` fails unless the twin has exactly the landscape scene's words,
+  frames, title and desc — change a scene's wording in both files. `render.mjs --lint` (and
+  `--v --lint`) lists overlapping, clipped or too-small text.
 - Every scene: five levels (A–E), frame captions matching the SVG, a text alternative,
   an accuracy check and sources (`invisible-engine/tests/check.py`). Arrow colours keep
   their meanings (energy, signal, plaintext, crypto, admin, hazard, boundary).
