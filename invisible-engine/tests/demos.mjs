@@ -117,5 +117,48 @@ const holderRow = (m07.match(/<tr data-reader="holder">(.*?)<\/tr>/) || [])[1] |
 ok((holderRow.match(/class="v-yes"/g) || []).length === Kd.levels.length, 'demo K page: the account holder row is marked readable at every level');
 ok(/classList\.contains\('v-yes'\)/.test(fs.readFileSync(path.join(DIR, 'consent.js'), 'utf8')), 'demo K script reads the same v-yes class the page carries');
 
+
+// Phase 4: the quantum simulator and demos G, H, I
+const Q = load('qsim.js').IEQ;
+const near6 = (a, b) => Math.abs(a - b) < 1e-9;
+let st = Q.zero(1); for (const g of ['H', 'Z', 'H']) st = Q.apply1(st, 1, 0, Q.GATES[g]);
+ok(near6(Q.probs(st)[1], 1), 'H → Z → H takes |0⟩ to |1⟩');
+st = Q.apply1(Q.zero(1), 1, 0, Q.GATES.H); const plus = Q.probs(st);
+st = Q.apply1(st, 1, 0, Q.GATES.Z);
+ok(near6(Q.probs(st)[0], plus[0]) && near6(st[1][0], -Math.sqrt(plus[1])), 'Z changes the relative phase, not the probabilities');
+for (let d = 0; d <= 360; d += 15) {
+  let t = Q.apply1(Q.zero(1), 1, 0, Q.GATES.H); t = Q.apply1(t, 1, 0, Q.P(d * Math.PI / 180)); t = Q.apply1(t, 1, 0, Q.GATES.H);
+  ok(near6(Q.probs(t)[0], Math.cos(d * Math.PI / 360) ** 2) && near6(Q.norm(t), 1), `H·phase(${d}°)·H gives P(0) = cos²(φ/2), normalised`);
+}
+let gl = Q.apply1(Q.zero(1), 1, 0, Q.GATES.H); const gl2 = gl.map((a) => Q.mul(a, Q.expi(1.234)));
+ok(Q.probs(gl).every((p, i) => near6(p, Q.probs(gl2)[i])), 'a global phase changes no probability');
+let bell = Q.cnot(Q.apply1(Q.zero(2), 2, 0, Q.GATES.H), 2, 0, 1);
+ok(near6(Q.probs(bell)[0], 0.5) && near6(Q.probs(bell)[3], 0.5) && near6(Q.probs(bell)[1] + Q.probs(bell)[2], 0), 'H then CNOT gives (|00⟩+|11⟩)/√2');
+// no-signalling: Bob's own outcome odds are 50/50 whatever Alice does to her qubit first
+for (const g of ['X', 'Z', 'H']) { const b2 = Q.apply1(bell, 2, 0, Q.GATES[g]); const pb1 = Q.probs(b2)[1] + Q.probs(b2)[3]; ok(near6(pb1, 0.5), `no-signalling: Alice applying ${g} leaves Bob at 50/50`); }
+let gr = Q.oracle(Q.uniform(2), 2);
+ok(near6(Q.mean(gr)[0], 0.25) && near6(gr[2][0], -0.5), 'Grover N=4: the oracle gives −1/2 and a mean of 1/4');
+gr = Q.diffuse(gr);
+ok(near6(gr[2][0], 1) && [0, 1, 3].every((k) => near6(gr[k][0], 0)), 'Grover N=4: diffusion gives +1 for the marked item and 0 elsewhere');
+const I = load('grover.js').IEDemoI.model;
+for (const N of [4, 8, 16, 64, 256]) {
+  let s8 = Q.uniform(Math.log2(N)); const mk = N - 1;
+  for (let k = 1; k <= 3; k++) { s8 = Q.diffuse(Q.oracle(s8, mk)); if (Math.log2(N) <= 3) ok(near6(Q.probs(s8)[mk], I.successAfter(N, k)), `Grover N=${N}, round ${k}: simulation matches sin²((2k+1)θ)`); }
+  ok(Math.abs(I.bestRounds(N) - Math.PI / 4 * Math.sqrt(N)) < 1, `Grover N=${N}: best round count ≈ (π/4)√N`);
+}
+ok(I.successAfter(8, 3) < I.successAfter(8, 2), 'Grover overshoots: an extra round lowers the odds');
+const G = load('phase.js').IEDemoG.model;
+for (let d = 0; d <= 360; d += 30) {
+  const ph = d * Math.PI / 180, q = G.quantum(ph);
+  ok(near6(q.p0, Math.cos(ph / 2) ** 2) && near6(q.p0 + q.p1, 1), `demo G: P(0) = cos²(φ/2) at ${d}°`);
+  let peak = 0; for (let t = 0; t < 2 * Math.PI; t += 0.001) peak = Math.max(peak, Math.abs(G.waveSum(t, ph)));
+  ok(Math.abs(peak - G.wavePeak(ph)) < 1e-3, `demo G: the plotted sum peaks at 2|cos(φ/2)| at ${d}°`);
+}
+const H = load('circuit.js').IEDemoH;
+const Hp = H.run(Q, H.PRESETS.hzh, 3, 0);
+ok(near6(Q.probs(Hp)[1], 1), 'demo H preset H → Z → H ends in |1⟩');
+const Hb = H.run(Q, H.PRESETS.bell, 2, 0);
+ok(near6(Q.probs(Hb)[0], 0.5) && near6(Q.probs(Hb)[3], 0.5), 'demo H preset Bell pair');
+
 console.log(fails ? `✗ ${fails} failed, ${passes} passed` : `✓ invisible-engine demos: ${passes} checks passed`);
 process.exit(fails ? 1 : 0);
