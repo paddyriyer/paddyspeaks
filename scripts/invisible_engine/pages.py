@@ -141,6 +141,9 @@ def scene_html(sc):
     tests = ''.join(f'<li>{x}</li>' for x in sc['test'])
     srcs = ''.join(f'<li>{x}</li>' for x in sc['src'])
     alt = html.escape(svg_desc(n), quote=True)
+    has_gif = (ROOT / 'scenes' / 'gif' / f'{sid}.gif').exists()
+    gif_ctl = f' <a class="png" href="/invisible-engine/scenes/gif/{sid}.gif">GIF</a>' if has_gif else ''
+    gif_note = f' · <a href="/invisible-engine/scenes/gif/{sid}.gif">Animated GIF</a>' if has_gif else ''
     return f'''
 <section class="scene" id="{sid}" aria-labelledby="{sid}-h">
   <div class="scene-head"><span class="scene-n">Scene {n:02d}</span><h2 id="{sid}-h">{sc['title']}</h2></div>
@@ -152,7 +155,7 @@ def scene_html(sc):
       <button type="button" data-act="next">Next →</button>
       <button type="button" data-act="all">Show all</button>
       <span class="count" aria-hidden="true"></span>
-      <a class="png" href="/invisible-engine/scenes/png/{sid}.png">PNG</a>
+      <a class="png" href="/invisible-engine/scenes/png/{sid}.png">PNG</a>{gif_ctl}
     </div>
     <figcaption class="sr">Scene {n:02d} frames</figcaption>
     <ol class="frames">{frames}</ol>
@@ -171,7 +174,7 @@ def scene_html(sc):
       <h4>Engineering notes</h4>{sc['eng']}
       <h4>Accuracy check (red team)</h4><ul>{tests}</ul>
       <h4>Sources</h4><ul class="src">{srcs}</ul>
-      <p><a href="/invisible-engine/scenes/{sid}.svg">SVG</a> · <a href="/invisible-engine/scenes/png/{sid}.png">PNG</a></p>
+      <p><a href="/invisible-engine/scenes/{sid}.svg">SVG</a> · <a href="/invisible-engine/scenes/png/{sid}.png">PNG</a>{gif_note}</p>
     </div>
   </details>
 </section>
@@ -214,6 +217,65 @@ def module_page(mod, avail):
     return body
 
 
+SYNOPSIS_CSS = """
+  @page { size: A4 landscape; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, 'Helvetica Neue', Arial, sans-serif; color: #14213d; background: #fffdf8; }
+  main { max-width: 1120px; margin: 0 auto; padding: 20px 16px; }
+  h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.3px; }
+  .dek { margin: 0 0 14px; color: #475569; font-size: 15.5px; }
+  ol { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  li { border: 1px solid #e2ddd2; border-radius: 10px; padding: 10px; background: #fff; break-inside: avoid; }
+  li img { width: 100%; height: auto; border-radius: 6px; border: 1px solid #eee7da; display: block; }
+  li b { display: block; margin: 8px 0 2px; font-size: 15.5px; }
+  li b span { color: #1d4ed8; margin-right: 6px; }
+  li p { margin: 0; font-size: 13.5px; line-height: 1.4; }
+  .end { margin: 12px 0 0; font-size: 14px; }
+  .end strong { color: #1d4ed8; }
+  .foot { margin-top: 8px; font-size: 11.5px; color: #64748b; }
+  @media (max-width: 760px) { ol { grid-template-columns: minmax(0, 1fr); } }
+  @media print {
+    main { max-width: none; padding: 0; }
+    h1 { font-size: 22px; } .dek { font-size: 12.5px; margin-bottom: 8px; }
+    ol { gap: 8px; } li { padding: 7px; }
+    li img { height: 40mm; object-fit: cover; object-position: top; }
+    li b { font-size: 13px; margin-top: 5px; } li p { font-size: 11px; line-height: 1.35; }
+    .end { font-size: 12px; margin-top: 8px; } .foot { font-size: 10px; margin-top: 4px; }
+  }
+"""
+
+
+def synopsis() -> str:
+    """The one-page illustrated synopsis for an eleven-year-old, from home.STORY.
+    Self-contained (relative image paths, inline styles) so it prints to PDF as one page."""
+    from content import home
+    items = ''.join(
+        f'<li><a href="{href}"><img src="{img.replace("/invisible-engine/", "")}" alt="{html.escape(t)}: {html.escape(d)}"></a>'
+        f'<b><span>{i + 1}</span>{t}</b><p>{d}</p></li>'
+        for i, (img, t, d, href) in enumerate(home.STORY))
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Invisible Engine in one page | PaddySpeaks</title>
+<meta name="description" content="The whole Invisible Engine lesson in six pictures, for an eleven-year-old: a card with no battery, a tracker that whispers, keys, people, and tomorrow’s locks.">
+<link rel="canonical" href="https://paddyspeaks.com/invisible-engine/synopsis.html">
+<style>{SYNOPSIS_CSS}</style>
+</head>
+<body>
+<main>
+  <h1>The Invisible Engine, in one page</h1>
+  <p class="dek">A card with no battery, a tag that whispers, and the keys that decide who may read a location. Six pictures, in order. Each opens its scene in the full lesson.</p>
+  <ol>{items}</ol>
+  <p class="end"><strong>The big idea:</strong> energy, signals, data and promises about who may read the data are four different things. Most mistakes come from drawing them as one arrow.</p>
+  <p class="foot">The Invisible Engine · paddyspeaks.com/invisible-engine/ · Pictures are schematic; card numbers and devices are fictional.</p>
+</main>
+</body>
+</html>
+'''
+
+
 def build(only: list[str] | None = None) -> dict[pathlib.Path, str]:
     """Return {path: html} for the lesson home and every available module page."""
     from content import home
@@ -225,4 +287,5 @@ def build(only: list[str] | None = None) -> dict[pathlib.Path, str]:
         out[ROOT / f'm{n:02d}.html'] = module_page(mod, avail)
     if not only:
         out[ROOT / 'index.html'] = head('Lesson home', home.DESC, '', avail) + home.body(mods(avail), LEGEND) + tail('')
+        out[ROOT / 'synopsis.html'] = synopsis()
     return out

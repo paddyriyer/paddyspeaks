@@ -287,3 +287,63 @@ DEMO_I = '''
   </div>
 </section>
 '''
+
+# ── Phase 5 demos ──────────────────────────────────────────────────
+# J and L read their facts from invisible-engine/demos/explorer.json and enterprise.json.
+def _explorer():
+    d = _json.loads((_DEMOS / 'explorer.json').read_text(encoding='utf-8'))
+    e = _html.escape
+    stat_label = {'shor': 'Would fail at scale', 'grover': 'Weakened (idealised)', 'pq': 'Designed to resist', 'mixed': 'Mixed'}
+    filt = '<button type="button" data-status="all" aria-pressed="true">All</button>' + ''.join(
+        f'<button type="button" data-status="{k}" aria-pressed="false">{e(stat_label[k])}</button>' for k in d['statuses'])
+    picks = ''.join(f'<button type="button" data-item="{it["id"]}" data-st="{it["status"]}" aria-pressed="false">{e(it["label"])}</button>' for it in d['items'])
+    cards = ''
+    for it in d['items']:
+        rows = ''.join(f'<dt>{e(lbl)}</dt><dd>{e(it[k])}</dd>' for k, lbl in d['fields'])
+        tag = {'spec': 'specification', 'concept': 'conceptual', 'verify': 'verify', 'undisclosed': 'not publicly disclosed', 'doc': 'documented'}[it['tag']]
+        cards += (f'<section class="de-panel dj-card dj-{it["status"]}" data-card="{it["id"]}"><h3>{e(it["label"])} <span class="tag {it["tag"]}">{tag}</span></h3>'
+                  f'<p class="dj-status">{e(d["statuses"][it["status"]])}</p><dl>{rows}</dl>'
+                  f'<p class="src"><a href="{it["scene"]}">The scene that explains it</a></p></section>')
+    return f'''
+<section class="demo" id="demo-j" aria-labelledby="demo-j-h">
+  <header><span class="scene-n">Interactive demo J</span><h2 id="demo-j-h">Which locks does a quantum computer threaten?</h2></header>
+  <div class="body">
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Show">{filt}</div></div>
+    <div class="row" data-js hidden><div class="seg dj-picks" role="group" aria-label="Primitive">{picks}</div></div>
+    <p class="readout" id="dj-read" aria-live="polite" data-js hidden></p>
+    <div class="dj-cards">{cards}</div>
+    <p class="assume">Nothing listed here is broken today. “Would fail at scale” means on a large fault-tolerant quantum computer, which is not publicly known to exist; resource estimates are dated and change. Post-quantum algorithms are designed to resist known quantum attacks and run on ordinary chips.</p>
+  </div>
+</section>
+'''
+
+
+def _enterprise():
+    d = _json.loads((_DEMOS / 'enterprise.json').read_text(encoding='utf-8'))
+    e = _html.escape
+    catname = dict(d['categories'])
+    scen = ''.join(f'<button type="button" data-scen="{x["id"]}" aria-pressed="false">{e(x["label"])}</button>' for x in d['scenarios'])
+    cats = '<button type="button" data-cat-btn="all" aria-pressed="true">All</button>' + ''.join(
+        f'<button type="button" data-cat-btn="{k}" aria-pressed="false">{e(v)}</button>' for k, v in d['categories'])
+    panels = ''
+    for x in d['scenarios']:
+        rows = ''.join(f'<tr data-cat="{c["cat"]}"><th scope="row">{e(catname[c["cat"]])}</th><td>{e(c["do"])}</td><td>{e(c["who"])}</td></tr>' for c in x['controls'])
+        panels += (f'<section class="de-panel" data-panel="{x["id"]}"><h3>{e(x["label"])}</h3><p>{e(x["situation"])}</p>'
+                   f'<p class="dl-limit"><strong>Where the company’s authority stops:</strong> {e(x["limit"])}</p>'
+                   f'<div class="tbl" tabindex="0" role="region" aria-label="{e(x["label"])}: recommendations"><table class="cmp"><thead><tr><th scope="col">Kind</th><th scope="col">Recommendation</th><th scope="col">Who can do it</th></tr></thead><tbody>{rows}</tbody></table></div></section>')
+    return f'''
+<section class="demo" id="demo-l" aria-labelledby="demo-l-h">
+  <header><span class="scene-n">Interactive demo L</span><h2 id="demo-l-h">Enterprise walk-through: who can actually do what</h2></header>
+  <div class="body">
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Scenario">{scen}</div></div>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Kind of control">{cats}</div></div>
+    <p class="readout" id="dl-read" aria-live="polite" data-js hidden></p>
+    {panels}
+    <p class="safety">{e(d["safety"])}</p>
+  </div>
+</section>
+'''
+
+
+DEMO_J = _explorer()
+DEMO_L = _enterprise()
