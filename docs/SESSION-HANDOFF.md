@@ -6,6 +6,14 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-10-22): The Invisible Engine, phase 1** (`/invisible-engine/`): Paddy's
+  master prompt for one integrated lesson (89 scenes, 12 modules, five reader levels).
+  Decisions: a new lesson section, delivered in phases. Phase 1 = lesson home, Modules 1–2
+  (scenes 01–17), demos A (coil powers chip) and B (card vs wallet). At Paddy's request every
+  diagram is an **illustration** (objects, numbered steps, coloured panels), generated from
+  `scripts/invisible_engine/scenes/`. Paddy uploaded six images: `nfc.png` (Module 2
+  overview) and `airtag2.png` (From Tap to Trace Fig 06) are in; four are held with a
+  correction list in `docs/INVISIBLE-ENGINE.md` §3a. Next: phase 2 (Modules 3–5).
 - **NEWEST (2026-10-22): article "From Tap to Trace"** (`articles/from-tap-to-trace.html`,
   technology, 90 min). Paddy's master prompt: NFC, AirTags, cloud identity and the quantum
   future of privacy, in twelve parts plus appendices, references and an accuracy audit.

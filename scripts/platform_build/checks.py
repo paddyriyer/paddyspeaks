@@ -237,7 +237,7 @@ def check_state_keys() -> list[str]:
     def known(key: str) -> bool:
         return any(key == sp["key"] or (sp["match"] == "prefix" and key.startswith(sp["key"])) for sp in specs)
 
-    roots = ("lib/", "interview.app/", "jobs/js/", "careeros/", "privacy/", "index.html")
+    roots = ("lib/", "interview.app/", "jobs/js/", "careeros/", "privacy/", "invisible-engine/", "index.html")
     cat = read_json(CATALOG)
     roots += tuple(t["path"] for t in cat["sacred_texts"])
     files = [f for f in tracked_files("*.js") + public_html_files()

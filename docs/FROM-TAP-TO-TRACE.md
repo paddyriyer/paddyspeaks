@@ -51,12 +51,13 @@ now in `images/articles/from-tap-to-trace/` and wired in:
 | 01 | `fig-01-network.svg/.png` | How an AirTag is found without GPS or cellular |
 | 02 | `fig-02-nfc-ble-uwb.svg/.png` | NFC, BLE, and UWB do different jobs |
 | 03 | `fig-03-account-keys.svg/.png` | An Apple Account is not a decryption key |
+| 06 | `fig-06-find-my-keys.webp` | Public keys, rotating IDs, and privacy in Find My (2nd upload) |
 | 10 | `fig-10-unwanted-tracking.svg/.png` | Why encryption does not prevent unwanted tracking |
 | 14 | `fig-14-quantum.svg/.png` | Quantum risk is not one universal attack on encryption |
 
 The page shows the SVG (crisp, ~12 KB) and links to the PNG ("Open full size").
 The "diagram in words" stays below each image in a `<details class="fig-words">`.
-Figures 04–09, 11–13, 15 and 16 still render as text only; a new image for one
+Figures 04, 05, 07–09, 11–13, 15 and 16 still render as text only; a new image for one
 of them follows the same pattern (`.fig-img` then `.fig-words`).
 
 Each of the five was checked against the article: none shows plaintext at the
