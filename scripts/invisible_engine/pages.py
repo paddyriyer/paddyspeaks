@@ -286,6 +286,9 @@ def build(only: list[str] | None = None) -> dict[pathlib.Path, str]:
             continue
         out[ROOT / f'm{n:02d}.html'] = module_page(mod, avail)
     if not only:
-        out[ROOT / 'index.html'] = head('Lesson home', home.DESC, '', avail) + home.body(mods(avail), LEGEND) + tail('')
+        # counts are computed, never typed: modules with a page, scenes on those pages
+        n_scenes = sum(len(m.M['scenes']) for m in avail.values())
+        body = home.body(mods(avail), LEGEND).replace('{modules}', str(len(avail))).replace('{scenes}', str(n_scenes))
+        out[ROOT / 'index.html'] = head('Lesson home', home.DESC, '', avail) + body + tail('')
         out[ROOT / 'synopsis.html'] = synopsis()
     return out

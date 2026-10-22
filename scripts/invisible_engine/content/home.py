@@ -27,10 +27,10 @@ def body(mods, legend):
                       f'<p class="status soon">Coming in phase {phase}</p></div>')
     return f'''<main id="main">
 <div class="ie-head">
-  <p class="ie-kicker">A PaddySpeaks lesson · Phase 4 of 5</p>
+  <p class="ie-kicker">A PaddySpeaks lesson · {{modules}} modules, {{scenes}} scenes</p>
   <h1>The Invisible Engine</h1>
   <p class="dek">From a powerless credit card to a whispering tracker, from waves that cancel to quantum computers that challenge cryptographic trust.</p>
-  <div class="ie-meta"><span>Five reader levels: A child · B adult · C engineer · D security architect · E CISO</span><span>Modules 1–9 available</span></div>
+  <div class="ie-meta"><span>Five reader levels: A child · B adult · C engineer · D security architect · E CISO</span><span>All twelve modules available</span></div>
 </div>
 <div class="ie-wrap">
   <p class="lede" style="font-family:var(--serif);font-size:20px;max-width:760px">The same invisible world can power a contactless card, help recover a suitcase, expose a person’s whereabouts and force us to rethink encryption. Most explanations fuse four different things into one glowing arrow: <strong>energy</strong>, <strong>signals</strong>, <strong>data</strong> and <strong>promises about who may read the data</strong>. This lesson pulls them apart — first the object, then what moves inside it, then who talks to whom, and only then why the data can be trusted, who can misuse it and what quantum changes.</p>
@@ -38,7 +38,7 @@ def body(mods, legend):
   <h2 style="margin-top:44px">The whole story, for an eleven-year-old</h2>
   <p>Six pictures. Each one opens the scene that explains it. <a href="/invisible-engine/synopsis.html">The same story on one printable page</a> (<a href="/invisible-engine/synopsis.pdf">PDF</a>).</p>
   <div class="cards">{story}</div>
-  <p class="note">Steps 4, 5 and 6 open Modules 5, 6 and 8. Module 10 (future cryptography) comes in phase 5; the essay <a href=\"/articles/from-tap-to-trace.html\">From Tap to Trace</a>.</p>
+  <p class="note">Steps 4, 5 and 6 open Modules 5, 6 and 8. For the same story told as an essay, read <a href=\"/articles/from-tap-to-trace.html\">From Tap to Trace</a>.</p>
 
   <h2 style="margin-top:44px">Choose your path</h2>
   <div class="cards">

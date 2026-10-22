@@ -359,7 +359,7 @@ trackers, NFC, cloud identity and post-quantum migration.
 
 Read **`docs/INVISIBLE-ENGINE.md`** before touching `invisible-engine/` or
 `scripts/invisible_engine/`. An illustrated lesson in five reader levels (child →
-CISO), built in phases (Modules 1–9 live; 10–12 planned). Quantum demos run on
+CISO): 12 modules, 89 scenes, demos A–L, all live (built in five phases). Quantum demos run on
 `invisible-engine/demos/qsim.js`, tested in `demos.mjs`; never type a quantum number. Safety scenes (Modules 6–7)
 follow From Tap to Trace: disabling a tracker can alert whoever placed it; no evasion detail.
 
