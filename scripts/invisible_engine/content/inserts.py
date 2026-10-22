@@ -157,3 +157,66 @@ def _connections():
 
 DEMO_D = _lost()
 DEMO_E = _connections()
+
+# ── Phase 3 demos ──────────────────────────────────────────────────
+# F is a toy but mathematically real model in invisible-engine/demos/keys.js (tested).
+# K reads its facts from invisible-engine/demos/consent.json, like D and E.
+DEMO_F = '''
+<section class="demo" id="demo-f" aria-labelledby="demo-f-h">
+  <header><span class="scene-n">Interactive demo F</span><h2 id="demo-f-h">Key protection: who holds which secret</h2></header>
+  <div class="body">
+    <noscript><p>This demo needs JavaScript. Scenes 43 and 44 show the same ideas as still frames.</p></noscript>
+    <p>Real arithmetic, toy sizes. Each run makes fresh keys in your browser; nothing is sent anywhere.</p>
+    <div class="row" data-js hidden><label class="ctl" for="df-win">Time window</label><input type="range" id="df-win" min="0" max="8" step="1" value="1"><output id="df-win-o" for="df-win">window 1</output></div>
+    <div class="row" data-js hidden><label class="ctl" for="df-msg">What the finder seals</label><input type="text" id="df-msg" value="Platform 4, Central Station, 14:05" maxlength="60" size="34"></div>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Actions">
+      <button type="button" data-act="new">New keys</button>
+      <button type="button" data-act="tamper" aria-pressed="false">Tamper with the report</button>
+      <button type="button" data-act="share">Share windows with a family member</button>
+      <button type="button" data-act="revoke">Revoke after this window</button>
+    </div></div>
+    <pre class="readout" id="df-out" aria-live="polite" data-js hidden></pre>
+    <div class="views" id="df-who" data-js hidden></div>
+    <p class="assume"><strong>Model, and its limits.</strong> The numbers live in the group of integers modulo the prime 2<sup>31</sup> − 1 with generator 7: far too small to be secure, chosen so every value fits on screen. The pattern is the one Apple documents for Find My (each window’s public key can be computed without the private key; only the owner can compute the matching private key), but real systems use elliptic curves (Apple documents NIST P-224) and AES-GCM, not this hash keystream. Sharing and revocation are a <em>conceptual abstraction</em>: Apple does not document how shared access is keyed. Revocation here works forward only: what a recipient already received stays received.</p>
+  </div>
+</section>
+'''
+
+
+def _consent():
+    d = _json.loads((_DEMOS / 'consent.json').read_text(encoding='utf-8'))
+    e = _html.escape
+    word = {'yes': 'Can read it', 'no': 'Cannot read it'}
+    head = ''.join(f'<th scope="col" data-col="{l["id"]}">{e(l["label"])}</th>' for l in d['levels'])
+    rows = ''.join(f'<tr data-reader="{r["id"]}"><th scope="row">{e(r["label"])}</th>'
+                   + ''.join(f'<td data-col="{l["id"]}" class="v-{r["see"][l["id"]]}">{word[r["see"][l["id"]]]}</td>' for l in d['levels']) + '</tr>'
+                   for r in d['readers'])
+    notes = ''.join(f'<li><strong>{e(l["label"])}.</strong> {e(l["note"])}</li>' for l in d['levels'])
+    scen_btns = ''.join(f'<button type="button" data-scen="{x["id"]}" aria-pressed="false">{e(x["label"])}</button>' for x in d['scenarios'])
+    lev_btns = ''.join(f'<button type="button" data-level="{l["id"]}" aria-pressed="false">{e(l["label"])}</button>' for l in d['levels'])
+    stories = ''.join(f'<div class="dk-story" data-story="{x["id"]}" data-located="{e(x["located"])}"><b>{e(x["label"])}</b>{e(x["story"])} <em>{e(x["consent"])}</em></div>' for x in d['scenarios'])
+    helps = ''.join(f'<li>{e(h)}</li>' for h in d['helps'])
+    return f'''
+<section class="demo" id="demo-k" aria-labelledby="demo-k-h">
+  <header><span class="scene-n">Interactive demo K</span><h2 id="demo-k-h">Consent is not confidentiality</h2></header>
+  <div class="body">
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Scenario">{scen_btns}</div></div>
+    <div class="row" data-js hidden><div class="seg" role="group" aria-label="Protection">{lev_btns}</div></div>
+    <div class="views dk-stories">{stories}</div>
+    <div class="tbl" tabindex="0" role="region" aria-label="Who can read the location (scrolls sideways on small screens)"><table class="cmp vis" id="dk-table">
+      <caption>Who can read the location, at each level of protection. The answer is the same in both scenarios.</caption>
+      <thead><tr><th scope="col">Who</th>{head}</tr></thead>
+      <tbody>{rows}</tbody>
+    </table></div>
+    <p class="readout" id="dk-read" aria-live="polite" data-js hidden></p>
+    <ul class="dk-notes">{notes}</ul>
+    <h3>What protects the person carrying it</h3>
+    <ul>{helps}</ul>
+    <p><strong>{e(d["helps_note"])}</strong></p>
+    <p class="safety">{e(d["safety"])}</p>
+  </div>
+</section>
+'''
+
+
+DEMO_K = _consent()

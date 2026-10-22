@@ -329,7 +329,7 @@ s = Scene(28, 'Changing names: why a rotating identifier protects privacy',
           'passer-by three unrelated values; only the owner, who holds the key the identifiers come from, can link them; '
           'what rotation does not stop: radio fingerprinting, correlating one moving thing over time, long rotation '
           'intervals and implementation flaws; and a note that Find My identifiers are derived from rotating keys, with '
-          'exact intervals known from independent research rather than Apple.',
+          'Apple documents a key change about every 15 minutes; behaviour while separated from the owner comes from independent research.',
           sub='A changing name stops casual linking. It does not make a tracker invisible.')
 places = [(520, 'café'), (860, 'station'), (1200, 'office')]
 
@@ -367,7 +367,7 @@ s.raw(T(140, 662, 'What rotation does not stop', 21, 800, '#14213d'))
 s.raw(T(100, 702, '• radio fingerprinting (tiny differences in each transmitter)\n• one moving thing seen again and again along a route\n• long intervals between changes; implementation flaws', 16.5, 400, '#334155'))
 s.f(5)
 s.raw(callout(1000, 610, 540, 200, 'Find My, as documented',
-              'Apple: identifiers come from rotating\npublic keys (Platform Security guide).\nExact intervals are known from\nindependent research, not Apple.', 'purple', 5, 19, 15.5))
+              'Apple: identifiers come from rotating\npublic keys, changed about every\n15 minutes (Find My security guide).\nSeparated-tag behaviour: research.', 'purple', 5, 19, 15.5))
 scenes[28] = s.render('Identifier values are made up.')
 
 

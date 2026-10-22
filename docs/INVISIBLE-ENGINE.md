@@ -299,7 +299,8 @@ title and should be re-checked against the current vendor page before the next p
 | Setup: hold near iPhone, Connect, name, Continue; registered to one Apple Account (2FA, Find My, Location Services) | doc | Apple Support, "Set up your AirTag" |
 | Setup messages, factory key material | undisclosed | — |
 | Owner devices hold a P-224 key pair and SK₀; rotating Pᵢ/dᵢ; tag advertises Pᵢ | doc · verify | Apple Platform Security guide, "Find My" |
-| Rotation intervals; exact advertisement payload | research | Heinrich et al., PoPETs 2021 |
+| Broadcast key changes about every 15 minutes | doc | Apple Platform Security, “Find My security” (also cited in *Every Arrow*) |
+| Separated-state rotation behaviour; exact advertisement payload | research | Heinrich et al., PoPETs 2021 |
 | A sighting uses the finder phone's own location (GNSS, Wi-Fi, cell); approximate; not live | doc · concept | Apple Platform Security guide |
 | Finder encrypts to Pᵢ (ephemeral ECDH, KDF, AES-GCM); report filed under SHA-256(Pᵢ) | doc · verify | Apple Platform Security guide |
 | Apple cannot read locations and does not know the finder; metadata (hash, upload time, connection data) remains | doc · concept | Apple Platform Security guide |
