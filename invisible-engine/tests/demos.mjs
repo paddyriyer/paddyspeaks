@@ -110,5 +110,12 @@ ok(/None of these depend on the encryption/.test(Kd.helps_note), 'protections fo
 const allK = JSON.stringify(Kd).toLowerCase();
 ok(!/(how to (find|disable|silence|defeat)|remove the battery|bypass)/.test(allK), 'no operational evasion or disablement instructions');
 
+
+// Demo K's script reads the page's cell classes; the page must carry them.
+const m07 = fs.readFileSync(path.join(DIR, '..', 'm07.html'), 'utf8');
+const holderRow = (m07.match(/<tr data-reader="holder">(.*?)<\/tr>/) || [])[1] || '';
+ok((holderRow.match(/class="v-yes"/g) || []).length === Kd.levels.length, 'demo K page: the account holder row is marked readable at every level');
+ok(/classList\.contains\('v-yes'\)/.test(fs.readFileSync(path.join(DIR, 'consent.js'), 'utf8')), 'demo K script reads the same v-yes class the page carries');
+
 console.log(fails ? `✗ ${fails} failed, ${passes} passed` : `✓ invisible-engine demos: ${passes} checks passed`);
 process.exit(fails ? 1 : 0);

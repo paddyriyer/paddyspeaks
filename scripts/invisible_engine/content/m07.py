@@ -157,7 +157,7 @@ dict(id=55, title='Proportionate protection: who can do what',
 <li>The who-columns are an illustrative allocation. <span class="tag illus">illustrative</span></li>
 </ul>''',
  D='''<p>Map each control to an owner and an evidence source: who implements it, and how you would know it is working. Controls without an owner decay; controls owned by the wrong party (an employer “protecting” staff by tracking them) become the threat.</p>''',
- E='''<ul><li>Write a short tracker policy: company devices on company accounts; no tracking of people; alerts left on; a named route for reports.</li>
+ E='''<ul><li>Write a short tracker policy: company devices on company accounts; tags locate assets, never people; alerts left on; a named route for reports.</li>
 <li>Review it with HR and legal once a year, and after any incident.</li></ul>''',
  eng='<p>Filled dot: implements. Ring: supports. Dash: not usually that party’s job. The allocation is ours, for teaching.</p>',
  test=['Does any control involve watching the person being protected? (No; the scene warns against it.)', 'Is each control given an owner? (Yes.)', 'Are standards described as drafts where they are drafts? (Yes.)'],

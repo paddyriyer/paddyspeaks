@@ -25,8 +25,9 @@
       var holder = host.querySelector('#dk-table tr[data-reader="holder"] td[data-col="' + cur.level + '"]');
       var levLabel = host.querySelector('[data-level="' + cur.level + '"]').textContent;
       var located = host.querySelector('[data-story="' + cur.scen + '"]').getAttribute('data-located');
-      read.textContent = levLabel + ': the account holder ' + (holder && /Yes/.test(holder.textContent) ? 'still sees' : 'does not see') +
-        ' the location of ' + located + '. Changing the encryption changes who else can read it, never whether ' + located + ' agreed.';
+      var sees = holder && holder.classList.contains('v-yes');
+      read.textContent = levLabel + ': the account holder ' + (sees ? 'can still read' : 'cannot read') + ' the location of ' + located +
+        '. Encryption changes who else can read it; it does not change who agreed.';
     }
     for (var k = 0; k < scen.length; k++) scen[k].addEventListener('click', function () { cur.scen = this.getAttribute('data-scen'); render(); });
     for (var m = 0; m < lev.length; m++) lev[m].addEventListener('click', function () { cur.level = this.getAttribute('data-level'); render(); });
