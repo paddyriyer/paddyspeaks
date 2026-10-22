@@ -3,7 +3,7 @@
  * Without this script every level is shown and each diagram appears as an
  * <img> in its final state, with the frame captions in the page text. With it:
  *   - body[data-level] shows one reader level (A–E) or all of them;
- *   - each scene's SVG is fetched and inlined, so its <g data-f="n"> layers can
+ *   - each scene's SVG (its phone-vertical twin on a narrow screen) is fetched and inlined, so its <g data-f="n"> layers can
  *     be revealed one frame at a time with Back / Next (nothing plays by itself);
  *   - a jump list moves between scenes.
  * The chosen level is the only thing stored: localStorage "ie.level".
@@ -129,7 +129,11 @@
   function inline(viz) {
     var img = viz.querySelector('img[data-svg]');
     if (!img || !window.fetch || !window.DOMParser) return;
-    fetch(img.getAttribute('src'), { credentials: 'same-origin' }).then(function (r) {
+    // A phone-vertical twin, when the page offers one and the screen is narrow.
+    var pic = img.parentNode.nodeName.toLowerCase() === 'picture' ? img.parentNode : null;
+    var alt = pic && pic.querySelector('source[srcset]');
+    var url = alt && window.matchMedia && window.matchMedia(alt.getAttribute('media')).matches ? alt.getAttribute('srcset') : img.getAttribute('src');
+    fetch(url, { credentials: 'same-origin' }).then(function (r) {
       if (!r.ok) throw new Error(r.status);
       return r.text();
     }).then(function (txt) {
@@ -146,7 +150,7 @@
       if (d) { d.id = id + '-d'; }
       if (t) node.setAttribute('aria-labelledby', id + '-t' + (d ? ' ' + id + '-d' : ''));
       node.removeAttribute('width'); node.removeAttribute('height');
-      img.parentNode.replaceChild(node, img);
+      (pic || img).parentNode.replaceChild(node, pic || img);
       wireScene(viz, node);
     }).catch(function () { /* keep the static image: every frame visible */ });
   }

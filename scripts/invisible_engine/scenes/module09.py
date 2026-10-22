@@ -427,7 +427,8 @@ s.raw(T(860, 188, 'CNOT', 16, 800, '#14213d', 'middle') + cnot_sym(860, 225, 290
 s.raw(lines(910, 240, ['flips the target', 'when the control is 1'], 15))
 s.raw(T(1260, 188, 'Controlled phase', 16, 800, '#14213d', 'middle'))
 s.raw(f'<path d="M1260,225 L1260,290" stroke="#334155" stroke-width="3"/><circle cx="1260" cy="225" r="9" fill="#334155"/><circle cx="1260" cy="290" r="9" fill="#334155"/>')
-s.raw(lines(1290, 240, ['adds phase e^{iφ}', 'when both are 1'], 15))
+s.raw('<text x="1290" y="240" style="font-size:15px;font-weight:400;fill:#334155">adds phase e<tspan dy="-6" style="font-size:11px">iφ</tspan></text>'
+      + T(1290, 264, 'when both are 1', 15, 400, '#334155'))
 s.raw(callout(80, 330, 680, 90, 'A gate is a rule for amplitudes', 'Each one is a small matrix acting on the state.', 'blue', 1, 19, 16))
 s.f(2)
 s.raw(mat(900, 360, [['1/√2', '1/√2'], ['1/√2', '−1/√2']], 170) + T(1085, 410, '×', 26, 800, '#334155', 'middle'))
@@ -445,7 +446,7 @@ s.raw(classical_wire(790, 980, 600) + classical_wire(790, 980, 700))
 s.raw(T(1000, 607, 'bit', 16, 700, '#475569') + T(1000, 707, 'bit', 16, 700, '#475569'))
 s.raw(callout(1080, 560, 460, 160, 'Measurement is separate', 'It gives one classical bit per qubit\n(double lines) and destroys the\nsuperposition. It cannot be undone.', 'amber', 4, 19, 16))
 s.f(5)
-s.raw(callout(1080, 160, 460, 140, 'Try it yourself', 'Demo H in Module 8 runs these gates\non a small simulator and shows every\namplitude after every step.', 'green', 5, 19, 16))
+s.raw(callout(80, 436, 680, 100, 'Try it yourself', 'Demo H in Module 8 runs these gates on a small simulator\nand shows every amplitude after every step.', 'green', 5, 19, 16))
 scenes[68] = s.render('Ideal gates. Real gates are imperfect (Scene 70).')
 
 

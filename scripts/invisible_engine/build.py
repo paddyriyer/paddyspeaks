@@ -2,10 +2,12 @@
 
     python3 scripts/invisible_engine/build.py                 # write scenes, cover and pages
     python3 scripts/invisible_engine/build.py --check         # fail if anything is stale (CI)
-    python3 scripts/invisible_engine/build.py module04 m04    # only those scene modules / pages
+    python3 scripts/invisible_engine/build.py module04 m04    # only those scene modules (and their
+                                                              # vertical twins) / pages
 
 Sources:
   scenes/moduleNN.py   every scene diagram → invisible-engine/scenes/sNN.svg
+  scenes/vmoduleNN.py  its phone-vertical twin → invisible-engine/scenes/v/sNN.svg
   cover.py             the Read page cover → invisible-engine/art/cover.svg
   pages.py + content/  the lesson home and module pages → invisible-engine/*.html
 PNGs are rendered separately by render.mjs (needs playwright). See docs/INVISIBLE-ENGINE.md.
@@ -26,6 +28,10 @@ def modules() -> list[str]:
     return sorted(p.stem for p in (HERE / "scenes").glob("module[0-9][0-9].py"))
 
 
+def vmodules() -> list[str]:
+    return sorted(p.stem for p in (HERE / "scenes").glob("vmodule[0-9][0-9].py"))
+
+
 def scene_outputs(only: list[str]) -> dict[pathlib.Path, str]:
     out: dict[pathlib.Path, str] = {}
     seen: dict[int, str] = {}
@@ -36,6 +42,14 @@ def scene_outputs(only: list[str]) -> dict[pathlib.Path, str]:
                 raise SystemExit(f"scene {n:02d} defined in both {seen[n]} and {m}")
             seen[n] = m
             out[OUT / f"s{n:02d}.svg"] = svg
+    vseen: dict[int, str] = {}
+    for m in [m for m in vmodules() if not only or m in only or m[1:] in only]:
+        mod = importlib.import_module(f"scenes.{m}")
+        for n, svg in mod.scenes.items():
+            if n in vseen:
+                raise SystemExit(f"vertical scene {n:02d} defined in both {vseen[n]} and {m}")
+            vseen[n] = m
+            out[OUT / "v" / f"s{n:02d}.svg"] = svg
     if not only:
         from cover import cover
         out[ROOT / "invisible-engine" / "art" / "cover.svg"] = cover()

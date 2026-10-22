@@ -131,6 +131,11 @@ def tail(page, scripts=()):
 '''
 
 
+# Narrow screens get each scene's phone-vertical twin (scenes/v/); lesson.js inlines the
+# same choice so the frame stepper works on either layout.
+PHONE = '(max-width: 640px)'
+
+
 def scene_html(sc):
     sc = {k: (v.replace('<p class="eq">', '<p class="eq" tabindex="0">') if isinstance(v, str) else v) for k, v in sc.items()}
     n = sc['id']
@@ -144,12 +149,20 @@ def scene_html(sc):
     has_gif = (ROOT / 'scenes' / 'gif' / f'{sid}.gif').exists()
     gif_ctl = f' <a class="png" href="/invisible-engine/scenes/gif/{sid}.gif">GIF</a>' if has_gif else ''
     gif_note = f' · <a href="/invisible-engine/scenes/gif/{sid}.gif">Animated GIF</a>' if has_gif else ''
+    vsvg = ROOT / 'scenes' / 'v' / f'{sid}.svg'
+    if vsvg.exists():
+        vh = re.search(r'viewBox="0 0 720 (\d+)"', vsvg.read_text(encoding='utf-8')).group(1)
+        v_src = f'<source media="{PHONE}" srcset="/invisible-engine/scenes/v/{sid}.svg" width="720" height="{vh}">'
+        v_note = (f' · Phone-vertical <a href="/invisible-engine/scenes/v/{sid}.svg">SVG</a>'
+                  f' · <a href="/invisible-engine/scenes/v/png/{sid}.png">PNG</a>')
+    else:
+        v_src = v_note = ''
     return f'''
 <section class="scene" id="{sid}" aria-labelledby="{sid}-h">
   <div class="scene-head"><span class="scene-n">Scene {n:02d}</span><h2 id="{sid}-h">{sc['title']}</h2></div>
   <p class="lede">{sc['lede']}</p>
   <figure class="viz">
-    <div class="art"><img data-svg="{sid}" src="/invisible-engine/scenes/{sid}.svg" width="1600" height="900" loading="lazy" alt="{alt}"></div>
+    <div class="art"><picture>{v_src}<img data-svg="{sid}" src="/invisible-engine/scenes/{sid}.svg" width="1600" height="900" loading="lazy" alt="{alt}"></picture></div>
     <div class="ctl" hidden>
       <button type="button" data-act="back">← Back</button>
       <button type="button" data-act="next">Next →</button>
@@ -174,7 +187,7 @@ def scene_html(sc):
       <h4>Engineering notes</h4>{sc['eng']}
       <h4>Accuracy check (red team)</h4><ul>{tests}</ul>
       <h4>Sources</h4><ul class="src">{srcs}</ul>
-      <p><a href="/invisible-engine/scenes/{sid}.svg">SVG</a> · <a href="/invisible-engine/scenes/png/{sid}.png">PNG</a>{gif_note}</p>
+      <p><a href="/invisible-engine/scenes/{sid}.svg">SVG</a> · <a href="/invisible-engine/scenes/png/{sid}.png">PNG</a>{gif_note}{v_note}</p>
     </div>
   </details>
 </section>

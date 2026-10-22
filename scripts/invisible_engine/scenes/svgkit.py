@@ -44,7 +44,38 @@ STYLE = """
 """
 
 
+def wrap(s, n):
+    """Greedy word wrap at spaces only (the vertical scenes must keep every word)."""
+    lines, cur = [], ''
+    for w in s.split():
+        if cur and len(cur) + 1 + len(w) > n:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f'{cur} {w}' if cur else w
+    return lines + ([cur] if cur else [])
+
+
+def _defs():
+    out = ['  <defs>']
+    for k in ('energy', 'signal', 'plain', 'crypto', 'admin'):
+        out.append(f'    <marker id="m-{k}" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L12,6 L0,12 Z" class="c-{k}"/></marker>')
+        out.append(f'    <marker id="ms-{k}" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="5" markerHeight="5" orient="auto"><path d="M12,0 L0,6 L12,12 Z" class="c-{k}"/></marker>')
+    out.append('  </defs>')
+    return out
+
+
+def _legend_mark(k, x, y):
+    if k in ('hazard', 'bound'):
+        cls = 'hz' if k == 'hazard' else 'bound'
+        return f'    <rect x="{x}" y="{y - 14}" width="34" height="18" rx="3" class="{cls}" style="stroke-width:{3 if k == "hazard" else 4}"/>'
+    return f'    <path d="M{x},{y - 5} L{x + 34},{y - 5}" class="a-{k}" marker-end="url(#m-{k})"/>'
+
+
 class Scene:
+    DY = {'h': 40, 't': 27, 'tb': 27, 's': 22, 'sb': 22, 'm': 21, 'note': 21}   # line steps per class
+    LABEL = (16, 9.6, 21)   # arrow-label font size, width per character, line step
+
     def __init__(self, num, title, desc, kicker=None, sub=None):
         self.num, self.title, self.desc, self.sub = num, title, desc, sub
         self.kicker = kicker or f'SCENE {num:02d}'
@@ -66,7 +97,7 @@ class Scene:
         if len(lines) == 1:
             self.add(f'<text x="{x}" y="{y}" class="{cls}" text-anchor="{anchor}"{extra}>{esc(s)}</text>')
         else:
-            dy = {'h': 40, 't': 27, 'tb': 27, 's': 22, 'sb': 22, 'm': 21, 'note': 21}.get(cls, 24)
+            dy = self.DY.get(cls, 24)
             ts = ''.join(f'<tspan x="{x}" dy="{0 if i == 0 else dy}">{esc(l)}</tspan>' for i, l in enumerate(lines))
             self.add(f'<text x="{x}" y="{y}" class="{cls}" text-anchor="{anchor}"{extra}>{ts}</text>')
 
@@ -109,12 +140,13 @@ class Scene:
 
     def label(self, x, y, s, kind=None):
         lines = s.split('\n')
-        w = max(len(l) for l in lines) * 9.6 + 20
-        h = 26 + 21 * (len(lines) - 1)
+        fs, cw, lh = self.LABEL
+        w = max(len(l) for l in lines) * cw + 20
+        h = round(fs * 1.62) + lh * (len(lines) - 1)
         col = COL.get(kind, '#14213d')
-        self.add(f'<rect x="{x - w / 2:.0f}" y="{y - 18}" width="{w:.0f}" height="{h}" rx="6" class="lab"/>')
-        ts = ''.join(f'<tspan x="{x:.0f}" dy="{0 if i == 0 else 21}">{esc(l)}</tspan>' for i, l in enumerate(lines))
-        self.add(f'<text x="{x:.0f}" y="{y}" text-anchor="middle" style="font-size:16px;font-weight:600;fill:{col}">{ts}</text>')
+        self.add(f'<rect x="{x - w / 2:.0f}" y="{y - round(fs * 1.12)}" width="{w:.0f}" height="{h}" rx="6" class="lab"/>')
+        ts = ''.join(f'<tspan x="{x:.0f}" dy="{0 if i == 0 else lh}">{esc(l)}</tspan>' for i, l in enumerate(lines))
+        self.add(f'<text x="{x:.0f}" y="{y}" text-anchor="middle" style="font-size:{fs}px;font-weight:600;fill:{col}">{ts}</text>')
 
     def coil(self, cx, cy, w, h, turns=3, gap=10, cls='coil'):
         for i in range(turns):
@@ -133,11 +165,8 @@ class Scene:
                f'  <title>Scene {self.num:02d}: {esc(self.title)}</title>',
                f'  <desc>{esc(self.desc)}</desc>',
                f'  <style>{STYLE}  </style>',
-               '  <defs>']
-        for k in ('energy', 'signal', 'plain', 'crypto', 'admin'):
-            out.append(f'    <marker id="m-{k}" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L12,6 L0,12 Z" class="c-{k}"/></marker>')
-            out.append(f'    <marker id="ms-{k}" viewBox="0 0 12 12" refX="1" refY="6" markerWidth="5" markerHeight="5" orient="auto"><path d="M12,0 L0,6 L12,12 Z" class="c-{k}"/></marker>')
-        out.append('  </defs>')
+               ]
+        out += _defs()
         out.append('  <rect class="bg" width="1600" height="900"/>')
         out.append(f'  <text x="60" y="50" class="k">{esc(self.kicker)}</text>')
         out.append(f'  <text x="60" y="96" style="font-size:40px;font-weight:800;fill:#0f172a;letter-spacing:-0.5px">{esc(self.title)}</text>')
@@ -158,15 +187,103 @@ class Scene:
         for k in ('energy', 'signal', 'plain', 'crypto', 'admin', 'hazard', 'bound'):
             if k not in self.used:
                 continue
-            if k in ('hazard', 'bound'):
-                cls = 'hz' if k == 'hazard' else 'bound'
-                out.append(f'    <rect x="{x}" y="{y - 14}" width="34" height="18" rx="3" class="{cls}" style="stroke-width:{3 if k == "hazard" else 4}"/>')
-            else:
-                out.append(f'    <path d="M{x},{y - 5} L{x + 34},{y - 5}" class="a-{k}" marker-end="url(#m-{k})"/>')
+            out.append(_legend_mark(k, x, y))
             out.append(f'    <text x="{x + 46}" y="{y}" class="s">{esc(LEGEND[k])}</text>')
             x += 46 + len(LEGEND[k]) * 8.6 + 30
         if note:
             out.append(f'    <text x="1540" y="{y}" class="note" text-anchor="end">{esc(note)}</text>')
+        out.append('  </g>')
+        out.append('</svg>')
+        return '\n'.join(out) + '\n'
+
+
+# Phone type scale: the vertical scene is shown about 340 px wide on a phone (scale ~0.47),
+# so 21 px here reads as ~10 px there. render.mjs --v --lint flags text under 19.5 px.
+VSTYLE = STYLE + """
+    .k{font-size:20px}
+    .t,.tb{font-size:24px}
+    .s,.sb{font-size:21px}
+    .m{font-size:20px}
+    .note{font-size:20px}
+"""
+
+
+class VScene(Scene):
+    """The phone-vertical twin of a Scene: 720 wide and about h tall (1200 to 1600).
+
+    Same title, desc, sub, frames, words and arrow kinds as the landscape scene
+    (invisible-engine/tests/check.py compares them); only the layout and type scale
+    differ. The header and legend are laid out here; the body is drawn in its own
+    coordinates, x 0..720 (margins 40) and y 0..self.bh, and translated below the header;
+    the legend follows the body, so the canvas is h less any legend rows not needed.
+    Keep every word: wrap at spaces only, never hyphenate or abbreviate. Body text is
+    at least 21 px, callout titles about 26 px.
+    """
+    W = 720
+    DY = {'h': 50, 't': 31, 'tb': 31, 's': 28, 'sb': 28, 'm': 27, 'note': 27}
+    LABEL = (20, 11.6, 26)
+
+    def __init__(self, num, title, desc, kicker=None, sub=None, h=1280, note=None):
+        super().__init__(num, title, desc, kicker, sub)
+        self.H, self.note = h, note
+        self.tl = wrap(title, 25)
+        self.sl = wrap(sub, 50) if sub else []
+        self.nl = wrap(note, 56) if note else []
+        self.top = 66 + 52 * len(self.tl) + 31 * len(self.sl) + 30
+        # legend rows are known only at render (arrow kinds used); reserve the worst case (4)
+        self.bh = self.H - self.top - 46 - 34 * 4 - (27 * len(self.nl) + 8 if self.nl else 0)
+
+    def render(self, note=None):
+        if note:
+            self.note, self.nl = note, wrap(note, 56)
+        W, H = self.W, self.H
+        out = ['<?xml version="1.0" encoding="UTF-8"?>',
+               f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" '
+               'font-family="Inter, Arial, sans-serif">',
+               f'  <title>Scene {self.num:02d}: {esc(self.title)}</title>',
+               f'  <desc>{esc(self.desc)}</desc>',
+               f'  <style>{VSTYLE}  </style>']
+        out += _defs()
+        out.append(f'  <rect class="bg" width="{W}" height="{H}"/>')
+        out.append(f'  <text x="40" y="50" class="k">{esc(self.kicker)}</text>')
+        y = 66
+        for ln in self.tl:
+            y += 52
+            out.append(f'  <text x="40" y="{y - 6}" style="font-size:44px;font-weight:800;fill:#0f172a;letter-spacing:-0.5px">{esc(ln)}</text>')
+        for ln in self.sl:
+            y += 31
+            out.append(f'  <text x="40" y="{y + 4}" style="font-size:23px;fill:#475569">{esc(ln)}</text>')
+        for fr in sorted({f for f, _ in self.parts}):
+            body = '\n    '.join(s for f, s in self.parts if f == fr)
+            attr = f' data-f="{fr}"' if fr else ''
+            out.append(f'  <g{attr} transform="translate(0,{self.top})">\n    ' + body + '\n  </g>')
+        # legend: flowed rows at the bottom, the note above them
+        items = [k for k in ('energy', 'signal', 'plain', 'crypto', 'admin', 'hazard', 'bound') if k in self.used]
+        rows, cur, x = [], [], 40
+        for k in items:
+            w = 46 + len(LEGEND[k]) * 10.6 + 24
+            if cur and x + w > W - 30:
+                rows.append(cur)
+                cur, x = [], 40
+            cur.append((k, x))
+            x += w
+        if cur:
+            rows.append(cur)
+        # the legend follows the body, so the canvas ends where the legend does
+        line_y = self.top + self.bh + 14
+        y0 = line_y + 36 + (27 * len(self.nl) + 8 if self.nl else 0)
+        H = y0 + 34 * (len(rows) - 1) + 30
+        out[1] = out[1].replace(f'0 0 {W} {self.H}', f'0 0 {W} {H}').replace(f'height="{self.H}"', f'height="{H}"')
+        out[out.index(f'  <rect class="bg" width="{W}" height="{self.H}"/>')] = f'  <rect class="bg" width="{W}" height="{H}"/>'
+        out.append('  <g class="legend">')
+        out.append(f'    <line x1="40" y1="{line_y}" x2="{W - 40}" y2="{line_y}" stroke="#e2e8f0" stroke-width="2"/>')
+        for i, ln in enumerate(self.nl):
+            out.append(f'    <text x="40" y="{line_y + 30 + 27 * i}" class="note">{esc(ln)}</text>')
+        for r, row in enumerate(rows):
+            for k, x in row:
+                yy = y0 + 34 * r
+                out.append(_legend_mark(k, x, yy))
+                out.append(f'    <text x="{x + 46}" y="{yy}" class="s">{esc(LEGEND[k])}</text>')
         out.append('  </g>')
         out.append('</svg>')
         return '\n'.join(out) + '\n'
