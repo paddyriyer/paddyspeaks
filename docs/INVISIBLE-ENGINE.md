@@ -79,11 +79,24 @@ step badges and coloured step panels, a 40 px title and a one-line subtitle, in 
 manner of Paddy's reference images. The arrow semantics and legend above still apply
 inside every illustration. New scenes reuse the components in `art.py`.
 
-**Editing workflow:** change `moduleNN.py` → `python3 scripts/invisible_engine/build.py`
-→ render PNGs → look at every changed PNG before committing (overlaps are the common
-failure) → `python3 invisible-engine/tests/check.py`. The pages (`index.html`,
-`mNN.html`) are hand-edited HTML; keep frame captions in step with the SVG's frames
-(the test enforces the count).
+**Editing workflow:** change `scenes/moduleNN.py` or `content/mNN.py` →
+`python3 scripts/invisible_engine/build.py` (or `build.py module04 m04` for one module) →
+render PNGs (`render.mjs s23 s24 …`) → look at every changed PNG before committing
+(overlaps are the common failure) → `python3 invisible-engine/tests/check.py` and
+`node invisible-engine/tests/demos.mjs`.
+
+**The pages are GENERATED** (since phase 2) by `scripts/invisible_engine/pages.py` from
+`scripts/invisible_engine/content/`: `mNN.py` holds a module's text (`M`: scenes with
+frames, the five levels, notes, red-team checks and sources; optional `BEFORE`,
+`INSERTS` for demos placed after a scene, `SCRIPTS`), `home.py` the lesson home, and
+`inserts.py` the demos' static HTML. A module becomes "available" (nav, home card, pager)
+when its `content/mNN.py` exists. Scene alt text is the SVG's `<desc>`. Never hand-edit
+`invisible-engine/*.html`; CI (`build.py --check`) fails when it is stale.
+
+**Demos D and E** keep their facts in `invisible-engine/demos/lost.json` and
+`connections.json`: the static, no-JavaScript HTML is written from the same JSON the
+scripts and `demos.mjs` read, so the words cannot drift from the tests. Demo C
+(`whisper.js`) is a pure, tested model like demo A.
 
 ## 3. Phases
 
