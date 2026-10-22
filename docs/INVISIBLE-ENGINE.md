@@ -105,7 +105,7 @@ scripts and `demos.mjs` read, so the words cannot drift from the tests. Demo C
 | 1 | 1 Electronics & wireless · 2 Contactless card | 01–17 | A coil powers chip · B card vs wallet | **built** |
 | 2 | 3 RFID · 4 BLE whisper · 5 AirTag lifecycle | 18–41 | C BLE whisper · D lost AirTag · E four connections | **built** |
 | 3 | 6 Ownership & crypto · 7 Privacy & safety | 42–55 | F key protection · K consent vs confidentiality | **built** |
-| 4 | 8 Quantum interference · 9 Quantum computation | 56–72 | G phase lab · H H→Z→H · I Grover | planned |
+| 4 | 8 Quantum interference · 9 Quantum computation | 56–72 | G phase lab · H H→Z→H · I Grover | **built** |
 | 5 | 10 Future crypto · 11 CISO · 12 Holistic | 73–89 | J crypto explorer · L enterprise walk-through | planned |
 
 Deferred, recorded honestly: phone-vertical SVG variants (the 16:9 SVG scales and the
@@ -211,23 +211,23 @@ Corrections needed before the held images can be used:
 | 53 | 7 | Three realistic people | 3 | built |  |
 | 54 | 7 | Incident forensic trail | 3 | built |  |
 | 55 | 7 | Ethical, proportional mitigations | 3 | built |  |
-| 56 | 8 | A bit is a definite state | 4 | planned |  |
-| 57 | 8 | Classical waves before quantum | 4 | planned |  |
-| 58 | 8 | Frequency, wavelength, phase | 4 | planned |  |
-| 59 | 8 | Complex amplitudes | 4 | planned |  |
-| 60 | 8 | Qubit and the Born rule | 4 | planned |  |
-| 61 | 8 | Hadamard gate | 4 | planned |  |
-| 62 | 8 | Z changes phase, not outcomes | 4 | planned |  |
-| 63 | 8 | Interference in H–Z–H | 4 | planned |  |
-| 64 | 8 | Double slit and observation limits | 4 | planned |  |
-| 65 | 9 | Entanglement | 4 | planned |  |
-| 66 | 9 | Grover, four items | 4 | planned |  |
-| 67 | 9 | Shor, period finding | 4 | planned |  |
-| 68 | 9 | Gates and circuits | 4 | planned |  |
-| 69 | 9 | Physical hardware | 4 | planned |  |
-| 70 | 9 | Noise and error | 4 | planned |  |
-| 71 | 9 | Where quantum wins and doesn't | 4 | planned |  |
-| 72 | 9 | Quantum–security connection | 4 | planned |  |
+| 56 | 8 | A bit is a definite state | 4 | built |  |
+| 57 | 8 | Classical waves before quantum | 4 | built |  |
+| 58 | 8 | Frequency, wavelength, phase | 4 | built |  |
+| 59 | 8 | Complex amplitudes | 4 | built |  |
+| 60 | 8 | Qubit and the Born rule | 4 | built |  |
+| 61 | 8 | Hadamard gate | 4 | built |  |
+| 62 | 8 | Z changes phase, not outcomes | 4 | built |  |
+| 63 | 8 | Interference in H–Z–H | 4 | built |  |
+| 64 | 8 | Double slit and observation limits | 4 | built |  |
+| 65 | 9 | Entanglement | 4 | built |  |
+| 66 | 9 | Grover, four items | 4 | built |  |
+| 67 | 9 | Shor, period finding | 4 | built |  |
+| 68 | 9 | Gates and circuits | 4 | built |  |
+| 69 | 9 | Physical hardware | 4 | built |  |
+| 70 | 9 | Noise and error | 4 | built |  |
+| 71 | 9 | Where quantum wins and doesn't | 4 | built |  |
+| 72 | 9 | Quantum–security connection | 4 | built |  |
 | 73 | 10 | Cryptographic inventory | 5 | planned |  |
 | 74 | 10 | NIST algorithms | 5 | planned |  |
 | 75 | 10 | Protocol migration boundaries | 5 | planned |  |
@@ -342,6 +342,32 @@ Scene 19 (battery-assisted 30 m, active 100 m).
 
 Open items: confirm the *verify* rows (Safety Check and iCloud Keychain deep links; Google
 partner-tracker and UWB cells; Samsung UWB; Tile) before phase 4.
+
+## 5c. Claim ledger — Modules 8–9 (phase 4)
+
+Every number drawn in these scenes and every demo result is computed (Python for the
+scenes; `qsim.js`, tested by `demos.mjs`, for the demos), never typed.
+
+| Claim | Label | Source |
+| --- | --- | --- |
+| n bits give 2ⁿ states, one held at a time; an unknown quantum state cannot be copied | spec | Horowitz &amp; Hill; Wootters &amp; Zurek 1982 |
+| A·sin ωt + A·sin(ωt+φ) has amplitude 2A·\|cos(φ/2)\|; intensity ∝ amplitude² | calc · spec | Feynman Lectures Vol. I ch. 29 |
+| Global phase unobservable; relative phase observable; Born rule P = \|amplitude\|² | spec | Nielsen &amp; Chuang |
+| H·H = I; HZH = X; after H, P(0) = cos²(φ/2) | calc | derived; tested in demos.mjs |
+| Single-electron buildup (1989); C₆₀ interference (1999); which-path information and decoherence remove fringes | hist · spec | Tonomura et al.; Arndt et al.; Scully, Englert &amp; Walther 1991; Zurek 2003 |
+| (\|00⟩+\|11⟩)/√2 from H and CNOT; no faster-than-light signalling | calc · spec | Nielsen &amp; Chuang; tested in demos.mjs |
+| Grover: N=4 exact in one round; ~(π/4)√N rounds; success sin²((2k+1)θ); overshoot | calc | Grover 1996; tested in demos.mjs |
+| Shor for N=15, a=7: period 4, gcd gives 3 and 5; QFT peaks at multiples of 16/r | calc | Shor 1997 |
+| Dilution refrigerators ~10–20 mK; GHz microwave control; trapped ions driven by lasers | concept · illus | review literature (verify citations) |
+| Surface code ≈ 2d²−1 physical qubits per logical qubit | concept · calc | — |
+| Google “Willow” below-threshold error correction (2024) | research · verify | Nature 2024 |
+| Idealised Grover: AES-128 → 2⁶⁴, AES-256 → 2¹²⁸; parallel speed-up only √k | concept | Grover; FTT Part IX |
+| RSA-2048 estimates: ~20 million noisy qubits, ~8 h (2019); under a million, under a week (2025) | research | Gidney &amp; Ekerå 2019; Gidney 2025 (verify id) |
+| ML-KEM, ML-DSA, SLH-DSA (FIPS 203/204/205, August 2024) run on ordinary chips | spec | NIST |
+| NIST IR 8547 transition timeline | verify | NIST (initial public draft) |
+
+Open items: fetch and confirm the Feynman Lectures, Willow, Gidney 2025 and NIST IR 8547
+links, and the hardware review citations, before phase 5.
 
 ## 6. Rules for every phase
 

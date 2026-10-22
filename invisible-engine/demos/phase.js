@@ -72,7 +72,9 @@
         arrow(ex, ey, fx, fy, '#7c3aed', 4);
         if (Math.hypot(fx - cx, fy - cy) > 6) arrow(cx, cy, fx, fy, '#14213d', 3);
         svg.appendChild(el('text', { x: cx + 20, y: cy + 26, 'font-size': 14, fill: '#6d28d9' }, '1'));
-        svg.appendChild(el('text', { x: (ex + fx) / 2 + 8, y: (ey + fy) / 2 - 6, 'font-size': 14, fill: '#6d28d9' }, 'e^{iφ}'));
+        var lab = el('text', { x: (ex + fx) / 2 + 8, y: (ey + fy) / 2 - 6, 'font-size': 15, fill: '#6d28d9' }, 'e');
+        lab.appendChild(el('tspan', { dy: -7, 'font-size': 11 }, 'iφ'));
+        svg.appendChild(lab);
         // probability bars
         var bx = 680;
         [['P(0) = cos²(φ/2)', q.p0], ['P(1) = sin²(φ/2)', q.p1]].forEach(function (r, k) {
@@ -82,7 +84,7 @@
           svg.appendChild(el('rect', { x: bx, y: y, width: Math.max(2, 340 * r[1]), height: 26, rx: 6, fill: '#15803d' }));
         });
         svg.appendChild(el('text', { x: bx, y: 350, 'font-size': 14, fill: '#334155' }, 'Probabilities are never negative; amplitudes can cancel.'));
-        read.textContent = 'Relative phase ' + deg + '°. Start in (|0⟩ + e^{iφ}|1⟩)/√2, then apply H: the amplitude of |0⟩ is (1 + e^{iφ})/2, the dark arrow halved. ' +
+        read.textContent = 'Relative phase ' + deg + '°. Start in (|0⟩ + e^(iφ)|1⟩)/√2, then apply H: the amplitude of |0⟩ is (1 + e^(iφ))/2, the dark arrow halved. ' +
           'P(0) = ' + q.p0.toFixed(3) + ', P(1) = ' + q.p1.toFixed(3) + '. A phase applied to both parts at once (global phase) would rotate both arrows together and change nothing measurable.';
       }
     }

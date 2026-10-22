@@ -55,7 +55,7 @@
       if (step === 1 || step === 2) {
         var my = zero - (step === 1 ? m : Q.mean(Q.oracle(Q.uniform(2), marked))[0]) * scale;
         svg.appendChild(el('path', { d: 'M30,' + my + ' H510', stroke: '#c2410c', 'stroke-width': 2, 'stroke-dasharray': '8 6' }));
-        svg.appendChild(el('text', { x: 512, y: my + 5, 'font-size': 13, fill: '#9a3412', 'text-anchor': 'end' }, 'mean ' + (step === 1 ? m : 0.25).toFixed(2)));
+        svg.appendChild(el('text', { x: 516, y: my + 5, 'font-size': 13, fill: '#9a3412' }, 'mean ' + (step === 1 ? m : 0.25).toFixed(2)));
       }
       var msg = 'Step ' + step + ': ' + NAMES[step] + '. ';
       if (step === 0) msg += 'All four amplitudes are +1/2, so each drawer has probability 1/4.';
