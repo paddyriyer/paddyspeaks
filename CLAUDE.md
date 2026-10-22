@@ -355,6 +355,22 @@ trackers, NFC, cloud identity and post-quantum migration.
 - Figures 01–16 render as text until images land; follow the doc to add them.
   References are auto-numbered from `#r-*` ids (snippet in the doc).
 
+## The Invisible Engine (`/invisible-engine/`)
+
+Read **`docs/INVISIBLE-ENGINE.md`** before touching `invisible-engine/` or
+`scripts/invisible_engine/`. An illustrated lesson in five reader levels (child →
+CISO), built in phases (Modules 1–2 live; 3–12 planned).
+
+- **Scene diagrams are GENERATED** from `scripts/invisible_engine/scenes/moduleNN.py`
+  by `build.py` (CI `--check`); PNGs by `render.mjs`. Never hand-edit an SVG. Look at
+  every changed PNG before committing.
+- Every scene: five levels (A–E), frame captions matching the SVG, a text alternative,
+  an accuracy check and sources (`invisible-engine/tests/check.py`). Arrow colours keep
+  their meanings (energy, signal, plaintext, crypto, admin, hazard, boundary).
+- Never fuse energy, signal, data and a security promise into one arrow; label
+  unverified numbers illustrative; no fraud, relay or stalking instructions; nothing
+  quantum is described as already broken.
+
 ## DE Interview Handbook (`articles/data-engineering-interview-prep.html`)
 
 The Senior/L5 handbook is edited **directly** — the article is the source of truth.
