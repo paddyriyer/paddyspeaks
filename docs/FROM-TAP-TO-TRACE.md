@@ -43,22 +43,38 @@ Title 4 is the strongest LinkedIn hook if a shorter share line is needed.
 
 ## 3. Adding the illustrations
 
+**Status (2026-10-22):** Paddy supplied five diagrams (SVG + PNG, 1900×1000),
+now in `images/articles/from-tap-to-trace/` and wired in:
+
+| Figure | File | Paddy's title |
+| --- | --- | --- |
+| 01 | `fig-01-network.svg/.png` | How an AirTag is found without GPS or cellular |
+| 02 | `fig-02-nfc-ble-uwb.svg/.png` | NFC, BLE, and UWB do different jobs |
+| 03 | `fig-03-account-keys.svg/.png` | An Apple Account is not a decryption key |
+| 10 | `fig-10-unwanted-tracking.svg/.png` | Why encryption does not prevent unwanted tracking |
+| 14 | `fig-14-quantum.svg/.png` | Quantum risk is not one universal attack on encryption |
+
+The page shows the SVG (crisp, ~12 KB) and links to the PNG ("Open full size").
+The "diagram in words" stays below each image in a `<details class="fig-words">`.
+Figures 04–09, 11–13, 15 and 16 still render as text only; a new image for one
+of them follows the same pattern (`.fig-img` then `.fig-words`).
+
+Each of the five was checked against the article: none shows plaintext at the
+service, none implies NFC tracks, and the quantum figure says current AirTags are
+not assumed to use ML-KEM.
+
+### How to add one
+
 Each figure has a slot: `<figure class="fig" id="fig-NN">` with a comment naming
 the expected file. Today each slot shows a **diagram in words** (the `.flow` or
 `.lanes` block inside `.fig-art`), so the page is complete without images.
 
-When an image arrives:
-
-1. Save as `images/articles/from-tap-to-trace/fig-NN.webp` (16:9, 2400×1350
-   recommended) and, optionally, `fig-NN-v.webp` (4:5, 1600×2000, for carousels).
-2. Inside that figure's `.fig-art`, insert at the top:
-   ```html
-   <img src="/images/articles/from-tap-to-trace/fig-NN.webp" width="2400" height="1350" loading="lazy" alt="…full description of nodes and arrows…">
-   ```
-3. Wrap the existing `.flow`/`.lanes` block in
-   `<details><summary>Diagram in words</summary> … </details>` so the text
-   alternative stays available. Move the `role="img"`/`aria-label` from `.fig-art`
-   onto nothing (the `<img alt>` replaces it).
+1. Save as `images/articles/from-tap-to-trace/fig-NN-<name>.svg` (and a PNG).
+2. Before the figure's `.fig-art`, add
+   `<div class="fig-img"><a href="….png"><img src="….svg" width=… height=… loading="lazy" alt="…full description of nodes and arrows…"></a><a class="fig-full" href="….png">Open full size ↗</a></div>`.
+3. Wrap the existing `.fig-art` in
+   `<details class="fig-words"><summary>Diagram in words</summary> … </details>`
+   and drop its `role="img"`/`aria-label` (the `<img alt>` replaces it).
 4. Check the image against the figure's **must-not** list below before publishing.
    If an image implies something false, fix the image, not the caption.
 5. Run `python3 scripts/platform_build/build.py all` and the article's accessibility
