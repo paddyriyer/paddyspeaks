@@ -141,16 +141,21 @@ scripts and `demos.mjs` read, so the words cannot drift from the tests. Demo C
 | --- | --- | --- |
 | `nfc.png` → `invisible-engine/art/contactless-power.webp` | Module 2 overview | **Used**, with reading notes on four points (below) |
 | `airtag2.png` → `images/articles/from-tap-to-trace/fig-06-find-my-keys.webp` | *From Tap to Trace* Figure 06 | **Used**; accurate |
-| `nfc1.png` (Tap to Pay: security and privacy) | Module 2, Scene 16 / demo B | **Held**: fix first |
-| `airtag.png` (How an AirTag works) | Module 4 (phase 2) | **Held**: fix first |
-| `airtag1.png` (Three AirTag experiences) | Module 5, demo E (phase 2) | **Held**: fix first |
-| `quantum.png` (bits to interference to security) | Modules 8–9 (phase 4) | **Held**: fix first |
+| `nfc1.png` → `invisible-engine/art/tap-to-pay-card-vs-wallet.webp` | Module 2, after Scene 16 (before demo B) | **Used, corrected** (2026-10-22) |
+| `airtag.png` → `invisible-engine/art/how-an-item-tracker-works.webp` | Module 4 overview | **Used, corrected** |
+| `airtag1.png` → `invisible-engine/art/three-tracker-experiences.webp` | Module 5 overview | **Used, corrected** |
+| `quantum.png` → `invisible-engine/art/bits-to-interference-to-security.webp` | Module 8 overview | **Used, corrected** |
 
 Reading notes shown with `nfc.png`: “backscatter” is the UHF term (HF uses load
 modulation); the 1.8–3.3 V range is illustrative; the card proves itself mainly to the
 issuer, not the terminal; short range is not an authorisation control.
 
-Corrections needed before the held images can be used:
+**How the corrections are made:** `python3 scripts/invisible_engine/held_images.py` applies a
+list of patches to each original in `images/` (left untouched): the wrong words are painted over
+with the surrounding colour and the corrected words set in their place, a logo becomes a generic
+mark, and a footnote band is added under the picture. Each figure's caption lists every change
+(`_figure` in `content/inserts.py`). To change a correction, edit the patch list and re-run the
+script, then look at the output. The corrections applied, as first identified:
 
 - **nfc1.png** — (1) “Main privacy protection: dynamic one-time cryptogram (prevents
   replay *and tracking*)” is wrong: a plastic card sends a static card number, which links

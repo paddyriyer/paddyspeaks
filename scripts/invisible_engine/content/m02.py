@@ -1,4 +1,4 @@
-from .inserts import OVERVIEW, DEMO_A, DEMO_B
+from .inserts import OVERVIEW, DEMO_A, DEMO_B, FIG_TAP
 
 M = dict(
     num=2, file='m02.html', title='Passive NFC and the anatomy of a contactless card',
@@ -214,5 +214,5 @@ dict(id=17, title='What contactless does not promise — and the layers that def
 ])
 
 BEFORE = OVERVIEW
-INSERTS = {12: DEMO_A, 16: DEMO_B}
+INSERTS = {12: DEMO_A, 16: FIG_TAP + DEMO_B}
 SCRIPTS = ['/invisible-engine/demos/coil.js', '/invisible-engine/demos/wallet.js']

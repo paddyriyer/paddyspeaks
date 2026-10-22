@@ -15,6 +15,81 @@ OVERVIEW = '''
 </figure>
 '''
 
+def _figure(fid: str, src: str, alt: str, lead: str, changes: list[str]) -> str:
+    """One of Paddy's illustrations, corrected by scripts/invisible_engine/held_images.py.
+    The caption lists every change made to the original, so nothing is silently altered."""
+    items = ''.join(f'<li>{c}</li>' for c in changes)
+    return f'''
+<figure class="overview" id="{fid}">
+  <a href="/invisible-engine/art/{src}"><img src="/invisible-engine/art/{src}" width="1448" height="1152" loading="lazy" alt="{alt}"></a>
+  <figcaption>
+    <p><strong>{lead}</strong> Illustration by Paddy Iyer, corrected for this lesson.</p>
+    <details><summary>What was corrected in this illustration</summary>
+      <ul class="fix">{items}</ul>
+    </details>
+  </figcaption>
+</figure>
+'''
+
+
+FIG_TAP = _figure(
+    'fig-tap-to-pay', 'tap-to-pay-card-vs-wallet.webp',
+    'Illustration: Tap to Pay, security and privacy. Left, a physical contactless card: the card sends transaction data and a '
+    'dynamic one-time cryptogram to the payment terminal, which passes it to the merchant, then via the acquirer (the merchant’s bank) '
+    'to a generic card network and on to the issuer bank, which verifies and approves or declines. Right, a mobile wallet: the phone '
+    'sends a token instead of the card number plus a cryptogram; the merchant sees only the token. A table compares them: the merchant '
+    'sees the real card number with a card and a token with a wallet; the issuer validates the cryptogram, and the network’s token '
+    'service maps the token to the real card number; the cryptogram prevents replay, but a plastic card’s number is static, so payments '
+    'with one card can be linked, while a wallet adds tokenisation.',
+    'The two credentials of Scene 16 in one picture.',
+    ['The card network’s real logos are replaced by a generic network.',
+     'The acquirer (merchant’s bank) is added between merchant and network.',
+     '“Issuer maps the token” now reads: the network’s token service maps the token.',
+     'The cryptogram prevents replay, not tracking: a plastic card sends a static number, so its payments can be linked.',
+     'A footnote says the flow is the four-party one; in three-party schemes such as American Express the network is also the issuer.'])
+
+FIG_TRACKER = _figure(
+    'fig-how-a-tracker-works', 'how-an-item-tracker-works.webp',
+    'Illustration: How an AirTag works, in three panels. 1, the tag is mostly asleep and at intervals wakes to send a short Bluetooth '
+    'Low Energy advertisement with a rotating identifier; an illustrative cutaway, not a teardown, labels the Bluetooth radio, the '
+    'ultra-wideband chip, the speaker and the coin-cell battery, which Apple says lasts more than a year. 2, a nearby phone hears the '
+    'advertisement; the phone, not the tag, knows the location, from its own GPS, Wi-Fi and cellular data. 3, the phone encrypts its own '
+    'location and a timestamp and files the report under a hash of the tag’s rotating key; the relay stores it, and the owner’s device '
+    'retrieves and decrypts it to show the last-seen place on a map.',
+    'Module 4 in one picture.',
+    ['“Every few seconds” is now “at intervals”: Apple does not publish the advertising interval.',
+     '“Up to about a year” is now “more than a year”, Apple’s stated battery figure.',
+     'The circuit board is labelled “illustrative layout, not a teardown”.',
+     'Step 4 no longer says the tag’s ID is encrypted: the report is filed under an unencrypted hash of the rotating key; the location and time are encrypted.'])
+
+FIG_EXPERIENCES = _figure(
+    'fig-three-experiences', 'three-tracker-experiences.webp',
+    'Illustration: Three AirTag experiences. 1, setup: bring a new tag near an iPhone, tap Connect, name the item, and it is linked '
+    'to the owner’s Apple Account and appears in Find My. 2, far-away finding: the tag broadcasts a rotating Bluetooth identifier, a '
+    'stranger’s iPhone detects it and sends an end-to-end encrypted report that only the owner’s devices can decrypt, and the owner '
+    'sees the item on a map. 3, nearby finding: on a compatible iPhone with ultra-wideband, iPhone 11 and later but not iPhone SE, '
+    'Precision Finding shows direction and distance. A band at the bottom shows Lost Mode over NFC: a finder taps the tag to see the '
+    'owner’s contact details.',
+    'Module 5 in one picture.',
+    ['Precision Finding: “iPhone 11 and later” now adds “not iPhone SE”, which has no ultra-wideband.',
+     '“Over an encrypted connection” now says the report is end-to-end encrypted, readable only on the owner’s devices.',
+     'A footnote says the illustration is not produced by or affiliated with Apple.'])
+
+FIG_QUANTUM = _figure(
+    'fig-quantum', 'bits-to-interference-to-security.webp',
+    'Illustration: Quantum computing from bits to interference to security, in six panels. 1, classical bits and transistors. 2, waves '
+    'adding or cancelling. 3, a qubit as a superposition of 0 and 1 with complex amplitudes, measured with probabilities from their '
+    'squares. 4, the circuit H, Z, H on 0 ends in 1 because the phase flip changes the interference. 5, algorithms: Shor would break RSA '
+    'and ECC on a large fault-tolerant quantum computer, which does not yet exist; Grover, in an idealised model, halves key security, '
+    'with collision resistance different; post-quantum algorithms ML-KEM, ML-DSA and SLH-DSA were standardised by NIST in August 2024. '
+    '6, devices such as payment cards, trackers and smart-home products depend on migrating their cryptography.',
+    'Modules 8 and 9 in one picture.',
+    ['Shor: “breaks widely used public-key cryptography” is now “would break RSA and ECC on a large fault-tolerant quantum computer, which does not yet exist”.',
+     'Grover: the halving is marked as an idealised model, and collision resistance is said to differ.',
+     'Post-quantum: “being standardized by NIST” is now “standardised by NIST in August 2024” (FIPS 203, 204, 205).',
+     'A footnote says nothing quantum shown is broken today.'])
+
+
 DEMO_A = '''
 <section class="demo" id="demo-a" aria-labelledby="demo-a-h">
   <header><span class="scene-n">Interactive demo A</span><h2 id="demo-a-h">Coil powers chip</h2></header>
