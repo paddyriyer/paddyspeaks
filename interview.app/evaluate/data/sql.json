@@ -15724,6 +15724,22 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct because it uses WHEN NOT MATCHED BY SOURCE to handle closed warehouses\u2014this clause targets rows in the target table (inventory) that don't have matching rows in the source (staging). The UPDATE sets quantity to 0, not DELETE, preserving the record for audit purposes. Options A and C don't handle closed warehouses; Option D unnecessarily constructs a union and has invalid syntax."
+    },
+    {
+      "id": "sql-new-180",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-10-23",
+      "prompt": "You have a `product_inventory` table (product_id INT64, warehouse_id INT64, stock_level INT64, last_updated TIMESTAMP) and a `daily_adjustments` staging table with the same schema plus an `adjustment_reason` column. You need to merge adjustments into inventory: if a (product_id, warehouse_id) pair exists, update stock_level and last_updated; if it doesn't exist, insert it. However, you only want to process adjustments where adjustment_reason is NOT 'CANCELLED'. Which BigQuery MERGE statement is correct?",
+      "options": [
+        "MERGE INTO product_inventory t USING daily_adjustments s ON t.product_id = s.product_id AND t.warehouse_id = s.warehouse_id WHEN MATCHED THEN UPDATE SET t.stock_level = s.stock_level, t.last_updated = s.last_updated WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, stock_level, last_updated) VALUES (s.product_id, s.warehouse_id, s.stock_level, s.last_updated);",
+        "MERGE INTO product_inventory t USING (SELECT * FROM daily_adjustments WHERE adjustment_reason != 'CANCELLED') s ON t.product_id = s.product_id AND t.warehouse_id = s.warehouse_id WHEN MATCHED THEN UPDATE SET t.stock_level = s.stock_level, t.last_updated = s.last_updated WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, stock_level, last_updated) VALUES (s.product_id, s.warehouse_id, s.stock_level, s.last_updated);",
+        "MERGE INTO product_inventory t USING daily_adjustments s ON t.product_id = s.product_id AND t.warehouse_id = s.warehouse_id AND s.adjustment_reason != 'CANCELLED' WHEN MATCHED THEN UPDATE SET t.stock_level = s.stock_level, t.last_updated = s.last_updated WHEN NOT MATCHED THEN INSERT (product_id, warehouse_id, stock_level, last_updated) VALUES (s.product_id, s.warehouse_id, s.stock_level, s.last_updated);",
+        "MERGE INTO product_inventory t USING daily_adjustments s ON t.product_id = s.product_id AND t.warehouse_id = s.warehouse_id WHEN MATCHED AND s.adjustment_reason != 'CANCELLED' THEN UPDATE SET t.stock_level = s.stock_level, t.last_updated = s.last_updated WHEN NOT MATCHED AND s.adjustment_reason != 'CANCELLED' THEN INSERT (product_id, warehouse_id, stock_level, last_updated) VALUES (s.product_id, s.warehouse_id, s.stock_level, s.last_updated);"
+      ],
+      "answer": 1,
+      "explanation": "The filter on adjustment_reason should be applied in the USING clause subquery (option B), not in the ON condition (which would incorrectly treat filtered-out rows as non-matches) or in individual WHEN clauses (which is valid but option B is cleaner and filters the source earlier). Option D uses valid syntax but is overly verbose; option B is the standard best practice for conditional MERGE logic."
     }
   ]
 }

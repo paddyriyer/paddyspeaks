@@ -9134,6 +9134,22 @@
       ],
       "answer": 2,
       "explanation": "Generator-based reduction with caching the final accumulator avoids storing all intermediate objects in memory. `functools.lru_cache()` on the state accumulator combined with a `Generator` return type provides memory efficiency and proper type hints. Option 1 doesn't solve the memory issue, option 2 incorrectly uses `lru_cache()` for state management, and option 4 uses `singledispatch()` which is for polymorphic dispatch, not memory optimization."
+    },
+    {
+      "id": "py-new-179",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-23",
+      "prompt": "You're optimizing a data pipeline that reads a 50GB Parquet file with 200 columns into pandas. Most downstream operations only use 15 specific columns. Which combination of techniques would provide the best performance improvement with minimal code changes?\n\nA) Use `pd.read_parquet(file, columns=[...])` to select only needed columns, then apply `df.astype('category')` to string columns with <100 unique values\nB) Read the entire file without column selection, then call `df.drop(columns=[...])` immediately after loading to free memory\nC) Use `pd.read_parquet(file, engine='pyarrow', dtype_backend='numpy_nullable')` to reduce memory overhead\nD) Split the file into 10 smaller chunks, read each with multiprocessing, filter columns in each worker, then concatenate results",
+      "options": [
+        "Use `pd.read_parquet(file, columns=[...])` to select only needed columns, then apply `df.astype('category')` to string columns with <100 unique values",
+        "Read the entire file without column selection, then call `df.drop(columns=[...])` immediately after loading to free memory",
+        "Use `pd.read_parquet(file, engine='pyarrow', dtype_backend='numpy_nullable')` to reduce memory overhead",
+        "Split the file into 10 smaller chunks, read each with multiprocessing, filter columns in each worker, then concatenate results"
+      ],
+      "answer": 0,
+      "explanation": "Option A is optimal because column pruning at read-time (pushed down to the Parquet engine) prevents loading 185 unused columns entirely, and categorical encoding further reduces memory for low-cardinality strings. Option B wastes I/O by loading all 200 columns unnecessarily. Option C adds overhead rather than reducing it. Option D introduces multiprocessing complexity without proportional gains since the bottleneck is I/O bandwidth, not CPU."
     }
   ]
 }
