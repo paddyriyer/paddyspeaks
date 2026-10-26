@@ -15804,6 +15804,70 @@
       ],
       "answer": 1,
       "explanation": "COALESCE(phone_contact, email_contact, sms_contact) is the cleanest and most idiomatic way to return the first non-null value in order of preference. Option 0 works but is verbose. Option 2 (NVL) is older syntax and less readable. Option 3 concatenates values which is incorrect for this use case."
+    },
+    {
+      "id": "sql-new-185",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You have a `subscriptions` table with columns (subscription_id, start_date DATE, billing_cycle_days INT). You need to find all subscriptions that will have their next billing date within the next 7 days from today. Which query is most efficient in Snowflake?",
+      "options": [
+        "SELECT subscription_id FROM subscriptions WHERE DATEADD(day, billing_cycle_days, start_date) BETWEEN CURRENT_DATE() AND DATEADD(day, 7, CURRENT_DATE())",
+        "SELECT subscription_id FROM subscriptions WHERE DATE_ADD(start_date, INTERVAL billing_cycle_days DAY) <= DATE_ADD(CURRENT_DATE(), INTERVAL 7 DAY)",
+        "SELECT subscription_id FROM subscriptions WHERE start_date + billing_cycle_days <= CURRENT_DATE() + 7",
+        "SELECT subscription_id FROM subscriptions WHERE DATEDIFF(day, start_date, CURRENT_DATE()) = billing_cycle_days"
+      ],
+      "answer": 0,
+      "explanation": "Snowflake uses DATEADD(unit, value, date) syntax. Option 0 correctly adds the billing_cycle_days to start_date and checks if it falls within the next 7 days. Option 1 uses MySQL/PostgreSQL syntax (DATE_ADD), option 2 uses implicit casting that may not work reliably, and option 3 uses DATEDIFF which calculates days elapsed, not future dates."
+    },
+    {
+      "id": "sql-new-186",
+      "type": "single",
+      "topic": "partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "In BigQuery, you have a `user_activity` table (500GB, partitioned by date_hour, clustered by user_id) with columns (user_id, event_type, date_hour TIMESTAMP, value INT). You need to find the top 3 events by total value for each user, scanning only the last 30 days. Which approach minimizes query cost?",
+      "options": [
+        "SELECT user_id, event_type, SUM(value) AS total FROM user_activity WHERE date_hour >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) GROUP BY user_id, event_type ORDER BY user_id, total DESC LIMIT 3",
+        "WITH ranked AS (SELECT user_id, event_type, value, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY value DESC) AS rn FROM user_activity WHERE date_hour >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)) SELECT user_id, event_type, SUM(value) FROM ranked WHERE rn <= 3 GROUP BY user_id, event_type",
+        "SELECT user_id, event_type, SUM(value) AS total FROM user_activity WHERE date_hour >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) GROUP BY user_id, event_type QUALIFY ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY SUM(value) DESC) <= 3",
+        "SELECT DISTINCT user_id FROM user_activity WHERE date_hour >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY) CROSS JOIN LATERAL (SELECT event_type, SUM(value) AS total FROM user_activity t2 WHERE t2.user_id = user_activity.user_id ORDER BY total DESC LIMIT 3)"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 uses QUALIFY, which is the most efficient approach in BigQuery. It filters in a single pass after aggregation without requiring a subquery or CTE, reducing intermediate data. Option 0 lacks per-user ranking and returns all rows. Option 1 ranks individual rows before aggregation (incorrect logic). Option 4 uses LATERAL join unnecessarily, creating redundant scans of the same dataset."
+    },
+    {
+      "id": "sql-new-187",
+      "type": "single",
+      "topic": "lateral joins",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "In PostgreSQL, you have a `products` table (product_id, name) and a `price_history` table (product_id, effective_date DATE, price DECIMAL). You need to fetch each product with its current price and the previous price (from the most recent date before today). Using LATERAL is most appropriate when?",
+      "options": [
+        "LATERAL is appropriate here because price_history is small enough to fit in memory",
+        "LATERAL is appropriate because it lets us correlated join to price_history with two independent subqueries per product without expensive self-joins",
+        "LATERAL is not appropriate; a simple LEFT JOIN with a window function ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY effective_date DESC) is always better",
+        "LATERAL is appropriate because it reduces the number of rows in price_history before the join"
+      ],
+      "answer": 1,
+      "explanation": "LATERAL joins are ideal for correlated subqueries where the inner query references the outer table. In this case, for each product, you can use LATERAL to fetch the top 2 historical prices (current and previous) efficiently without a self-join. Option 0 is about memory, not correctness. Option 2 is incorrect\u2014window functions require more complex logic here. Option 3 misunderstands LATERAL's purpose; it doesn't inherently reduce rows before joining."
+    },
+    {
+      "id": "sql-new-188",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "In a data warehouse, you have an `events` table with `event_ts TIMESTAMP` in UTC. You need to bucket events into weekly periods starting from a fixed epoch (2024-01-01) to ensure consistency across time zones. Which expression correctly computes the week bucket?",
+      "options": [
+        "DATE_TRUNC('week', event_ts) AT TIME ZONE 'UTC'",
+        "CAST(FLOOR(EXTRACT(EPOCH FROM (event_ts - TIMESTAMP '2024-01-01')) / 604800) AS INT)",
+        "DATE_ADD(DATE '2024-01-01', INTERVAL FLOOR(DATEDIFF(day, '2024-01-01', event_ts) / 7) WEEK)",
+        "TIMESTAMP '2024-01-01' + FLOOR((event_ts - TIMESTAMP '2024-01-01') / INTERVAL '7 days') * INTERVAL '7 days'"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 correctly computes the week bucket by calculating the number of 7-day intervals since the epoch and reconstructing the bucket start timestamp. This is consistent across time zones since event_ts is in UTC. Option 0 uses DATE_TRUNC which starts weeks on Monday (ISO standard), not from the custom epoch. Option 1 works but is unnecessarily complex. Option 2 uses non-standard SQL and doesn't handle TIMESTAMP arithmetic correctly."
     }
   ]
 }

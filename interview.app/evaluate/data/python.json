@@ -9198,6 +9198,54 @@
       ],
       "answer": 1,
       "explanation": "Daemon processes are terminated when the parent exits, regardless of whether they've finished work or whether items remain in the Queue. The parent doesn't wait for daemon workers to complete unless explicitly joined. Non-daemon workers would block parent exit until finished. Setting daemon=False or using process.join() before exit ensures all queue items are processed."
+    },
+    {
+      "id": "py-new-183",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You're optimizing a data pipeline that applies a complex transformation to a 500MB DataFrame with 10 million rows. The current implementation uses `df.apply(lambda row: complex_function(row), axis=1)` and takes 45 seconds. Which approach would provide the most significant performance improvement?",
+      "options": [
+        "Switch to `df.itertuples()` with a for loop to avoid the apply overhead",
+        "Vectorize the operation using NumPy operations or pandas built-in methods, or use `numba.jit` to compile the function",
+        "Split the DataFrame into chunks and use multiprocessing.Pool.map() on each chunk",
+        "Convert to PySpark and use distributed computing with map partitions"
+      ],
+      "answer": 1,
+      "explanation": "Row-wise apply operations are inherently slow due to Python interpreter overhead per row. Vectorization eliminates this by operating on entire columns at once, typically providing 10-100x speedup. While multiprocessing and Spark have merit for larger datasets, vectorization is the first optimization every senior data engineer attempts and usually solves the problem without distributed infrastructure complexity."
+    },
+    {
+      "id": "py-new-184",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "In your async data ingestion pipeline, you have 200 concurrent API requests managed by asyncio. You notice that when one request raises an exception, the entire event loop crashes and subsequent tasks never execute. What's the best pattern to prevent this cascade failure?",
+      "options": [
+        "Wrap each coroutine in try-except blocks inside the coroutine definition itself",
+        "Use `asyncio.gather(*tasks, return_exceptions=True)` to collect both results and exceptions, then process them separately",
+        "Use `asyncio.TaskGroup` (Python 3.11+) which automatically cancels other tasks on first exception",
+        "Increase the event loop timeout with `loop.set_debug(True)` to catch exceptions earlier"
+      ],
+      "answer": 1,
+      "explanation": "`return_exceptions=True` in `gather()` allows all tasks to complete regardless of failures, returning exceptions as values in the results list rather than raising them. This is the production-standard pattern for robust concurrent pipelines. TaskGroup (option C) actually does the opposite\u2014it cancels remaining tasks on exception. Local try-except doesn't prevent the overall impact, and debug mode doesn't affect exception propagation behavior."
+    },
+    {
+      "id": "py-new-185",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "Your data validation framework requires strict type checking for a function that processes nullable columns. You write: `def transform_column(values: list[int | None]) -> list[str]: ...`. During production, a colleague passes a NumPy array instead of a list. The function runs without error but produces unexpected results. What should you do?",
+      "options": [
+        "Add an `isinstance(values, list)` runtime check at the function start to reject NumPy arrays",
+        "Use `Sequence[int | None]` from `typing` module to accept list-like objects, and document the interface with docstrings",
+        "Add a `@runtime_checkable` protocol to validate array-like behavior at runtime",
+        "Use `numpy.ndarray[Any, numpy.dtype[numpy.int64 | numpy.floating[Any]]]` to explicitly accept NumPy types"
+      ],
+      "answer": 1,
+      "explanation": "Using `Sequence` from the `typing` module accepts both lists and NumPy arrays (and other sequence types) via structural subtyping, which is more Pythonic than isinstance checks. This follows the principle of duck typing while maintaining type hint clarity. Runtime checkable protocols are overkill here, and explicitly typing NumPy dtypes is fragile. The `isinstance` check works but isn't type-hintable elegantly and reduces code reusability."
     }
   ]
 }

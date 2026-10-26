@@ -6872,6 +6872,54 @@
       ],
       "answer": 0,
       "explanation": "The combination of large Delta log (15GB metadata) and slow VACUUM points to retained transaction history beyond the retention window. Reducing logRetentionDuration (default 30 days) to 7 days and running VACUUM with matching retention cleans old log entries. OPTIMIZE ZORDER BY (date, region) consolidates small files and co-locates frequently-filtered columns, reducing query scan time. Option B changes partition strategy unnecessarily; option C confuses col-stats with the actual problem; option D's FSCK and checkpoint tuning don't address the core 90-day log accumulation issue."
+    },
+    {
+      "id": "ds-new-138",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "Your Airflow DAG writes enriched user events to a Delta table via PySpark. The task runs daily and can be retried. You notice that retries are producing duplicate records in the table. Which approach best ensures idempotency without requiring distributed transactions?",
+      "options": [
+        "Use `MERGE INTO` with a unique constraint on (user_id, event_date, event_id) to match and update existing records instead of inserting duplicates",
+        "Add a deduplication step in PySpark using `dropDuplicates()` before writing, and rely on task retries to eventually succeed",
+        "Partition the Delta table by date and use `overwrite` mode with `partitionOverwriteMode='dynamic'` to replace daily partitions atomically",
+        "Implement a Kafka consumer group offset tracking mechanism to prevent reprocessing of the same events on retry"
+      ],
+      "answer": 2,
+      "explanation": "Dynamic partition overwrite is the most practical idempotency pattern for daily batch jobs in Airflow: it atomically replaces an entire date partition, ensuring retries produce consistent results without duplicates. Option 0 (MERGE) requires matching logic and is slower; Option 1 relies on deduplication which is non-deterministic; Option 3 is overkill for a batch DAG and mixes patterns."
+    },
+    {
+      "id": "ds-new-139",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your Airflow DAG orchestrates a multi-stage ML pipeline: data prep (2 min), feature engineering (8 min), model training (45 min), and inference (10 min). The data prep and feature engineering stages are CPU-bound and occasionally fail due to OOM. You want to parallelize data prep across 4 workers and feature engineering across 8 workers, but minimize infrastructure costs. Which pattern is most appropriate?",
+      "options": [
+        "Use a single Kubernetes executor with dynamic pod scaling, map each stage to a separate task group with task_concurrency limits, and use affinity rules to co-locate dependent tasks on same nodes",
+        "Implement a branching pattern with BranchOperator that spawns 4 parallel data prep tasks and 8 parallel feature engineering tasks, each writing to separate temporary tables that are merged by a join task",
+        "Use dynamic task mapping (@task.map decorator) to spawn 4 data prep tasks and 8 feature engineering tasks, configure KubernetesPodOperator with resource requests (CPU/memory) per task, and set pool_slots to enforce concurrency limits",
+        "Deploy a custom Airflow plugin that submits data prep and feature engineering jobs to separate Spark clusters, each with fixed worker node counts, and uses external task sensors to poll for completion"
+      ],
+      "answer": 2,
+      "explanation": "Dynamic task mapping with KubernetesPodOperator and resource requests is the most modern, scalable, and cost-efficient pattern: it allows fine-grained parallelism (4 and 8 tasks), per-task resource allocation to prevent OOM, and Kubernetes auto-scaling. Option 0 lacks granular resource control; Option 1 is verbose and doesn't address resource constraints; Option 3 over-complicates with fixed clusters."
+    },
+    {
+      "id": "ds-new-140",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your organization is implementing data mesh with 8 autonomous domain teams (Payments, Marketing, Users, Inventory). The Payments domain owns a `transactions` aggregate that merges data from 3 upstream domains. After implementing Domain-Driven Design principles, your team realizes that Payments and Marketing domains have conflicting definitions of 'customer_id' encoding and transformation logic. What is the most scalable solution to resolve this?",
+      "options": [
+        "Establish a central data governance committee that defines canonical definitions for all cross-domain entities and enforce compliance via automated contract tests in CI/CD",
+        "Use a federated mesh with a lightweight contract layer: each domain defines input/output contracts (via JSON schema or Protobuf), and Payments explicitly documents its dependencies and transformation assumptions; Marketing publishes a 'marketing_customer_id' alongside 'customer_id' to avoid ambiguity",
+        "Implement a shared lookup service (identity resolution microservice) that normalizes customer IDs across domains, and have all domains query it at runtime before writing to their own data products",
+        "Create a dedicated 'Identity' domain that owns all customer_id definitions and transformations; other domains delegate identity queries to this domain via a federated SQL interface"
+      ],
+      "answer": 1,
+      "explanation": "Federated contracts with explicit dependencies and clear naming conventions best preserve domain autonomy while enabling integration: Payments documents its dependencies, and Marketing publishes unambiguous fields. Option 0 centralizes governance (defeats mesh intent); Option 2 introduces runtime latency and a synchronous dependency; Option 3 overcomplexifies by creating yet another domain and doesn't scale with multi-domain transformations."
     }
   ]
 }

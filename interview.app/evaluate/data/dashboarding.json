@@ -1757,6 +1757,38 @@
       ],
       "answer": 1,
       "explanation": "A dedicated columnar OLAP serving layer (option B) is the industry standard for this use case: it ingests raw events in real-time, supports arbitrary dimensional queries without explosion of pre-aggregated combinations, and delivers sub-second latency through columnar compression and segment-level indexing. Pre-aggregation (A) causes combinatorial explosion and limits ad-hoc queries. Warehouse caching (C) may not achieve sub-second latency at 500M events/day scale. Option D adds unnecessary cost and operational burden."
+    },
+    {
+      "id": "dash-new-055",
+      "type": "single",
+      "topic": "real-time OLAP serving layers",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your team built a real-time OLAP serving layer using Apache Druid to power a user-facing dashboard showing live transaction metrics. After 72 hours of continuous ingestion at 50k events/second, users report that drill-down queries on specific time windows suddenly take 8\u201312 seconds instead of the usual 200ms. Indexing and JVM heap appear healthy. What is the most likely cause?",
+      "options": [
+        "The segment cache in Druid's historical nodes has grown too large and evicted hot segments to disk",
+        "Zookeeper connectivity to the metadata store is degrading, slowing coordinator-to-historical communication",
+        "Segment compaction is not keeping pace with ingestion, causing excessive small segments and query planning overhead",
+        "The real-time task's in-memory buffer is full, forcing all new events into persistent storage before indexing"
+      ],
+      "answer": 2,
+      "explanation": "In high-volume Druid deployments, too many small segments created during rapid ingestion cause the query planner to explode the number of segment-level tasks, dramatically increasing coordination overhead and query latency. Segment compaction (via Druid's coordinator compaction config) merges small segments into larger ones, reducing this fan-out. Cache eviction and Zookeeper latency would cause broader slowness, and a full in-memory buffer would stall ingestion, not selective query lateness."
+    },
+    {
+      "id": "dash-new-056",
+      "type": "single",
+      "topic": "chart selection",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "A product manager asks you to visualize the relationship between user signup_date and their first purchase latency (days between signup and first purchase). The data includes ~200k users with purchase latencies ranging from 0 to 1,095 days. The distribution is heavily right-skewed (most users purchase within 30 days; a few take 1+ years). Which chart type best supports both spotting the main trend and investigating outliers without distortion?",
+      "options": [
+        "A single line chart with signup_date on the x-axis and average latency on the y-axis",
+        "A hexbin or 2D density plot with signup_date on x-axis and latency on y-axis, with a log or quantile-based color scale",
+        "A stacked area chart showing count of users by signup_date, colored by latency buckets (0\u20137, 8\u201330, 31\u201390, 90+ days)",
+        "A scatter plot with signup_date on x-axis, latency on y-axis, and point size proportional to user count"
+      ],
+      "answer": 1,
+      "explanation": "A hexbin or 2D density plot with log/quantile coloring handles the right-skew and high cardinality of both dimensions without visual clutter. It reveals the dense cluster of users purchasing within days while preserving the visibility of rare long-tail outliers. A simple line chart loses individual variation; a stacked area obscures the actual latency spread; a scatter plot becomes an unreadable overplotted blob at 200k points."
     }
   ]
 }
