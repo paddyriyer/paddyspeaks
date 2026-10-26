@@ -15740,6 +15740,70 @@
       ],
       "answer": 1,
       "explanation": "The filter on adjustment_reason should be applied in the USING clause subquery (option B), not in the ON condition (which would incorrectly treat filtered-out rows as non-matches) or in individual WHEN clauses (which is valid but option B is cleaner and filters the source earlier). Option D uses valid syntax but is overly verbose; option B is the standard best practice for conditional MERGE logic."
+    },
+    {
+      "id": "sql-new-181",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You have a `payments` table with columns `payment_id`, `amount`, `discount`, and `refund`. Some rows have 0 values for discount or refund that should be treated as NULL for reporting purposes. You need to calculate net payment as `amount - COALESCE(discount, 0) - COALESCE(refund, 0)`. However, you also want to flag rows where discount equals 0 so they're treated as NULL in a separate analysis. Which approach correctly handles both requirements?",
+      "options": [
+        "SELECT payment_id, amount - COALESCE(discount, 0) - COALESCE(refund, 0) as net_payment, NULLIF(discount, 0) as discount_for_analysis FROM payments",
+        "SELECT payment_id, amount - NULLIF(discount, 0) - NULLIF(refund, 0) as net_payment, discount as discount_for_analysis FROM payments",
+        "SELECT payment_id, amount - discount - refund as net_payment, COALESCE(discount, 0) as discount_for_analysis FROM payments",
+        "SELECT payment_id, amount - COALESCE(NULLIF(discount, 0), 0) - COALESCE(NULLIF(refund, 0), 0) as net_payment, NULLIF(discount, 0) as discount_for_analysis FROM payments"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses COALESCE for the net payment calculation (treating 0 as 0 is appropriate for arithmetic) and NULLIF to convert 0 discount values to NULL for the separate analysis column. Option 3 over-complicates with nested NULLIF/COALESCE when the original requirement doesn't need it. Option 1 would produce NULL - 0 arithmetic errors, and Option 2 ignores the requirement to treat 0 as NULL in the analysis column."
+    },
+    {
+      "id": "sql-new-182",
+      "type": "single",
+      "topic": "Transaction Isolation",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "You're running a critical inventory system on PostgreSQL. Between your READ and COMMIT, another transaction updates inventory counts. You want to prevent phantom reads but allow concurrent non-conflicting transactions. However, SERIALIZABLE isolation causes significant performance degradation. Which isolation level and approach best balances consistency and performance for this use case?",
+      "options": [
+        "Use REPEATABLE READ with explicit row-level locks (SELECT ... FOR UPDATE) on affected inventory rows",
+        "Use READ COMMITTED with optimistic locking via version columns and application-level retry logic",
+        "Use SERIALIZABLE with connection pooling to reduce lock contention",
+        "Use READ UNCOMMITTED with application-managed transaction queuing"
+      ],
+      "answer": 0,
+      "explanation": "REPEATABLE READ prevents phantom reads and dirty reads while allowing concurrent transactions. Combining it with SELECT ... FOR UPDATE on specific inventory rows provides row-level locking only where needed, avoiding full table locks. Option 1 balances safety and performance better than full SERIALIZABLE. Option 2 (optimistic locking) risks inventory oversell scenarios. Option 3 doesn't address the core isolation problem, and Option 4 is unsafe for inventory systems."
+    },
+    {
+      "id": "sql-new-183",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You receive daily product catalog updates in a `staging_products` table with 50K rows. Your `products` table (100K rows) must be synchronized: insert new products, update existing ones (price, description), but preserve internal columns like `internal_notes` and `created_at` that should never change. Which SQL approach is safest and most efficient?",
+      "options": [
+        "MERGE INTO products p USING staging_products s ON p.product_id = s.product_id WHEN MATCHED THEN UPDATE SET price = s.price, description = s.description WHEN NOT MATCHED THEN INSERT (product_id, price, description, internal_notes, created_at) VALUES (s.product_id, s.price, s.description, NULL, CURRENT_TIMESTAMP)",
+        "DELETE FROM products WHERE product_id IN (SELECT product_id FROM staging_products); INSERT INTO products SELECT * FROM staging_products",
+        "UPDATE products SET price = (SELECT price FROM staging_products s WHERE s.product_id = products.product_id), description = (SELECT description FROM staging_products s WHERE s.product_id = products.product_id) WHERE product_id IN (SELECT product_id FROM staging_products); INSERT INTO products SELECT * FROM staging_products WHERE product_id NOT IN (SELECT product_id FROM products)",
+        "MERGE INTO products p USING staging_products s ON p.product_id = s.product_id WHEN MATCHED THEN UPDATE SET p.price = s.price, p.description = s.description, p.internal_notes = p.internal_notes, p.created_at = p.created_at WHEN NOT MATCHED THEN INSERT (product_id, price, description) VALUES (s.product_id, s.price, s.description)"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 uses MERGE with MATCHED/NOT MATCHED conditions to update only price and description on existing rows, preserving internal_notes and created_at. New inserts set internal_notes and created_at appropriately. Option 2 is inefficient with multiple correlated subqueries. Option 3 unnecessarily deletes all data. Option 1 would fail because staging_products doesn't have internal_notes/created_at columns with meaningful values."
+    },
+    {
+      "id": "sql-new-184",
+      "type": "single",
+      "topic": "COALESCE",
+      "difficulty": "easy",
+      "added_date": "2026-10-26",
+      "prompt": "In your Snowflake analytics pipeline, you have a `customer_interactions` table where `phone_contact`, `email_contact`, and `sms_contact` are all nullable. You need to generate a report showing the first available contact method for each customer in order of preference: phone > email > SMS. Which query correctly retrieves this?",
+      "options": [
+        "SELECT customer_id, CASE WHEN phone_contact IS NOT NULL THEN phone_contact WHEN email_contact IS NOT NULL THEN email_contact WHEN sms_contact IS NOT NULL THEN sms_contact END as preferred_contact FROM customer_interactions",
+        "SELECT customer_id, COALESCE(phone_contact, email_contact, sms_contact) as preferred_contact FROM customer_interactions",
+        "SELECT customer_id, NVL(NVL(phone_contact, email_contact), sms_contact) as preferred_contact FROM customer_interactions",
+        "SELECT customer_id, phone_contact || email_contact || sms_contact as preferred_contact FROM customer_interactions"
+      ],
+      "answer": 1,
+      "explanation": "COALESCE(phone_contact, email_contact, sms_contact) is the cleanest and most idiomatic way to return the first non-null value in order of preference. Option 0 works but is verbose. Option 2 (NVL) is older syntax and less readable. Option 3 concatenates values which is incorrect for this use case."
     }
   ]
 }

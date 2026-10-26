@@ -1725,6 +1725,38 @@
       ],
       "answer": 1,
       "explanation": "Regulatory immutability requires a fixed, auditable snapshot. Extract-based dashboards capture data at a specific moment (9 AM), preventing any retroactive recalculation. Live queries re-execute against current data and are vulnerable to logic changes, schema updates, or late-arriving corrections\u2014all of which could alter historical P&L retroactively. Option 0 conflates freshness with auditability; option 2 ignores that live queries can change; option 3 is overly prescriptive (extracts alone suffice if stored immutably)."
+    },
+    {
+      "id": "dash-new-053",
+      "type": "single",
+      "topic": "extracts vs live connections",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "Your team maintains two versions of a revenue dashboard: one using a live connection to the data warehouse and another using an hourly extract loaded into the BI tool's in-memory cache. The live dashboard sometimes times out during peak business hours (8\u201310am), while the extract dashboard is always fast but occasionally shows revenue from yesterday. Which trade-off is most critical to escalate to stakeholders?",
+      "options": [
+        "The live dashboard's timeout risk\u2014users cannot access the dashboard when they need it most, defeating its real-time purpose.",
+        "The extract dashboard's staleness\u2014revenue data from yesterday could drive incorrect decisions if not clearly labeled with a visible refresh timestamp.",
+        "The live dashboard's performance inconsistency\u2014it requires warehouse query optimization and may not scale as the data grows.",
+        "The extract dashboard's storage cost\u2014in-memory caches consume licensing fees and should be replaced with live connections."
+      ],
+      "answer": 1,
+      "explanation": "Both trade-offs are real, but the extract dashboard's staleness poses a direct accuracy risk: users may unknowingly make decisions on stale data. This is more critical than performance\u2014a visible, clearly communicated refresh timestamp on the extract dashboard mitigates the risk. The live dashboard's timeouts should be solved via query optimization and warehouse scaling, not abandonment of real-time capability."
+    },
+    {
+      "id": "dash-new-054",
+      "type": "single",
+      "topic": "real-time OLAP serving layers",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your company ingests 500M events per day and wants to serve a real-time dashboard allowing users to slice by 12 dimensions (region, product, device, cohort, etc.) with sub-second latency. A direct query against the raw event table in your warehouse takes 8\u201312 seconds per filter change. You are considering three options: (1) pre-aggregate all 12-dimensional combinations into a materialized table, (2) deploy a columnar OLAP serving layer (e.g., Apache Druid or Clickhouse) that indexes the raw events, (3) use the warehouse's native high-performance OLAP engine with aggressive caching and result clustering. Which approach best balances latency, freshness, and operational complexity?",
+      "options": [
+        "Pre-aggregate all combinations. This guarantees sub-second queries because the results are pre-computed; freshness is limited to aggregation schedule (e.g., hourly), which is acceptable.",
+        "Deploy a columnar OLAP serving layer. It indexes raw events in real-time, supports arbitrary dimensional drill-downs without pre-aggregation, and achieves sub-second latency through columnar storage and segment caching.",
+        "Use the warehouse's native OLAP engine with caching and clustering. This avoids deploying a separate system and keeps all logic in one place, though latency may still reach 2\u20133 seconds under load.",
+        "Implement all three in parallel\u2014serve different dashboards with different approaches to find the optimal solution through A/B testing."
+      ],
+      "answer": 1,
+      "explanation": "A dedicated columnar OLAP serving layer (option B) is the industry standard for this use case: it ingests raw events in real-time, supports arbitrary dimensional queries without explosion of pre-aggregated combinations, and delivers sub-second latency through columnar compression and segment-level indexing. Pre-aggregation (A) causes combinatorial explosion and limits ad-hoc queries. Warehouse caching (C) may not achieve sub-second latency at 500M events/day scale. Option D adds unnecessary cost and operational burden."
     }
   ]
 }

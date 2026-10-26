@@ -9150,6 +9150,54 @@
       ],
       "answer": 0,
       "explanation": "Option A is optimal because column pruning at read-time (pushed down to the Parquet engine) prevents loading 185 unused columns entirely, and categorical encoding further reduces memory for low-cardinality strings. Option B wastes I/O by loading all 200 columns unnecessarily. Option C adds overhead rather than reducing it. Option D introduces multiprocessing complexity without proportional gains since the bottleneck is I/O bandwidth, not CPU."
+    },
+    {
+      "id": "py-new-180",
+      "type": "single",
+      "topic": "itertools",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You're processing a stream of sensor readings and need to find all consecutive groups where values exceed a threshold. You use `itertools.groupby()` with a key function. What happens if sensor readings are: [5, 12, 15, 3, 8, 20, 25, 2]? You call `groupby(readings, key=lambda x: x > 10)`. How many groups are created?",
+      "options": [
+        "2 groups (below threshold, above threshold)",
+        "4 groups (alternating True/False/True/False)",
+        "5 groups (each consecutive run of True or False values)",
+        "8 groups (one per reading)"
+      ],
+      "answer": 2,
+      "explanation": "itertools.groupby() groups consecutive elements with the same key value. The readings partition as: [5] (False), [12,15] (True), [3,8] (False), [20,25] (True), [2] (False) \u2014 that's 5 groups total, not 2. Wait, let me recalculate: False, True, False, True, False = 5 groups. Actually the correct answer is 5 groups, so option 2 is wrong. The sequence creates: (False: [5]), (True: [12,15]), (False: [3,8]), (True: [20,25]), (False: [2]) = 5 consecutive runs, making the answer index 2."
+    },
+    {
+      "id": "py-new-181",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your team processes a 500GB Parquet file with columns [user_id, timestamp, value]. You need to compute rolling 7-day sums per user. The current code uses `df.groupby('user_id').apply(lambda g: g.set_index('timestamp').resample('D')['value'].sum().rolling(7).sum())`. Memory usage is 180GB. What optimization would most improve performance?",
+      "options": [
+        "Convert to NumPy arrays and use bottleneck.move_sum() instead of rolling()",
+        "Use Polars lazy evaluation with `group_by('user_id').rolling()` and process in chunks",
+        "Replace Parquet with CSV to reduce I/O overhead",
+        "Add .copy() calls to prevent fragmentation in groupby operations"
+      ],
+      "answer": 1,
+      "explanation": "The current approach materializes entire groups in memory. Polars lazy evaluation processes chunked data without full materialization, and its native rolling window is optimized for time-series grouped operations. NumPy conversion loses the temporal index, CSV is slower than Parquet, and .copy() would increase memory. Polars handles this with minimal memory footprint through lazy execution and efficient windowing."
+    },
+    {
+      "id": "py-new-182",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "You have a multiprocessing pipeline with a Queue that workers write to. After processing 100K items, you notice worker processes are still running but the parent process exits without waiting. The queue contains 50K unprocessed items. What is the most likely cause?",
+      "options": [
+        "The Queue was created with maxsize=0, causing overflow",
+        "Daemon processes were used for workers; the parent exited before joining or getting all queue items",
+        "The GIL (Global Interpreter Lock) prevented workers from acquiring locks on queue writes",
+        "The multiprocessing context was 'fork' instead of 'spawn', causing child process crashes"
+      ],
+      "answer": 1,
+      "explanation": "Daemon processes are terminated when the parent exits, regardless of whether they've finished work or whether items remain in the Queue. The parent doesn't wait for daemon workers to complete unless explicitly joined. Non-daemon workers would block parent exit until finished. Setting daemon=False or using process.join() before exit ensures all queue items are processed."
     }
   ]
 }

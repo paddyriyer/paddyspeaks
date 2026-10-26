@@ -6824,6 +6824,54 @@
       ],
       "answer": 1,
       "explanation": "Snowflake clustering automatically co-locates rows with the same region value on disk, allowing queries to skip scanning irrelevant microclusters. This reduces data scanned (cost) without schema changes or application routing logic. Result caching helps but is unpredictable; separate tables add complexity; materialized views duplicate storage."
+    },
+    {
+      "id": "ds-new-135",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "Your team is implementing change data capture (CDC) on a PostgreSQL source with 50 tables into Delta Lake on Databricks. The source has high-volume transaction tables (100k rows/sec) and slower-changing dimension tables. You need to handle schema evolution, ensure exactly-once semantics, and minimize latency. Which combination of CDC pattern and merge strategy best addresses these requirements?",
+      "options": [
+        "Log-based CDC with Debezium, store raw events in Delta, use MERGE INTO with deduplication on (pk, ts) and conditional delete handling for BEFORE images",
+        "Query-based CDC polling every 5 minutes, perform UPSERT via INSERT OVERWRITE partitions daily to avoid schema drift",
+        "Trigger-based CDC with custom audit tables, batch process via Spark SQL INSERT INTO SELECT with GROUP BY on primary key to deduplicate",
+        "Snapshot-based full table scan nightly, use Delta time-travel to reconstruct changes, merge via full outer join on primary key"
+      ],
+      "answer": 0,
+      "explanation": "Log-based CDC (via Debezium) captures all changes in real-time with minimal database load, handles exactly-once semantics through offset management, and the MERGE strategy with (pk, ts) deduplication and DELETE handling correctly processes both inserts/updates and logical deletes from CDC logs. Query-based polling is too slow for 100k rows/sec, trigger-based CDC adds database overhead, and snapshot-based approaches sacrifice latency and efficiency."
+    },
+    {
+      "id": "ds-new-136",
+      "type": "single",
+      "topic": "Iceberg table format",
+      "difficulty": "hard",
+      "added_date": "2026-10-26",
+      "prompt": "You are migrating a 500GB Parquet-based fact table from Databricks to Apache Iceberg format. The table receives 10M daily inserts, requires point-in-time queries for auditing, and currently has 200+ small files per partition causing query slowdowns. During migration, you must maintain query availability and minimize storage overhead. What is the optimal migration and maintenance strategy?",
+      "options": [
+        "Use CREATE TABLE AS SELECT to copy data in one batch operation; enable aggressive compaction (target file size 128MB) post-migration; set file.target-file-size-bytes=268435456 to prevent future small files",
+        "Create Iceberg table with PARTITIONED BY (date) incrementally via daily MERGE operations from Parquet; disable compaction initially; rely on Iceberg's automatic small file handling",
+        "Shadow-write new inserts to both Parquet and Iceberg for 7 days; run batch COPY MERGE nightly to backfill Iceberg; compact only after migration completes to reduce peak storage",
+        "Use Iceberg's copy-on-write clone feature to snapshot Parquet; rewrite via Spark with repartition(50) per day; use write.merge.mode=copy-on-write and accept temporary 2x storage"
+      ],
+      "answer": 0,
+      "explanation": "Batch migration via CTAS minimizes downtime, and post-migration compaction with appropriate file size targets (128-256MB is production standard for analytics) resolves the small-file problem while Iceberg's atomic writes prevent data loss. Setting file.target-file-size-bytes prospectively prevents future fragmentation. Option B underestimates Iceberg's compaction needs; option C adds operational complexity; option D uses incorrect clone semantics and copy-on-write unnecessarily doubles storage."
+    },
+    {
+      "id": "ds-new-137",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "added_date": "2026-10-26",
+      "prompt": "Your Delta Lake pipeline writes 500GB daily to a table partitioned by (region, date). After 90 days, you observe VACUUM is running for 8+ hours and table metadata is 15GB. Query latency on date-range filters has increased 5x. What root cause and remediation best explains and solves this issue?",
+      "options": [
+        "Delta log is accumulating commit metadata; run OPTIMIZE with ZORDER BY (date, region) and decrease delta.logRetentionDuration to 7 days (instead of 30), then VACUUM with retention set to 7 days",
+        "Too many small files from daily writes; partition is too fine-grained; repartition table to region only and compact via OPTIMIZE ZORDER BY date once weekly",
+        "Table has exceeded 1000 files per partition threshold; add col-stats caching via delta.dataSkippingNumIndexedCols=10 and rewrite using INSERT OVERWRITE with coalesce(10)",
+        "Metadata bloat from log compaction; run FSCK REPAIR TABLE and enable delta.checkpointInterval=500000 to reduce checkpoint frequency and shrink the log"
+      ],
+      "answer": 0,
+      "explanation": "The combination of large Delta log (15GB metadata) and slow VACUUM points to retained transaction history beyond the retention window. Reducing logRetentionDuration (default 30 days) to 7 days and running VACUUM with matching retention cleans old log entries. OPTIMIZE ZORDER BY (date, region) consolidates small files and co-locates frequently-filtered columns, reducing query scan time. Option B changes partition strategy unnecessarily; option C confuses col-stats with the actual problem; option D's FSCK and checkpoint tuning don't address the core 90-day log accumulation issue."
     }
   ]
 }
