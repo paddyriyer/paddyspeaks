@@ -9246,6 +9246,22 @@
       ],
       "answer": 1,
       "explanation": "Using `Sequence` from the `typing` module accepts both lists and NumPy arrays (and other sequence types) via structural subtyping, which is more Pythonic than isinstance checks. This follows the principle of duck typing while maintaining type hint clarity. Runtime checkable protocols are overkill here, and explicitly typing NumPy dtypes is fragile. The `isinstance` check works but isn't type-hintable elegantly and reduces code reusability."
+    },
+    {
+      "id": "py-new-186",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-10-27",
+      "prompt": "You're building a data transformation pipeline where multiple ETL stages need to apply the same expensive computation (e.g., loading a reference lookup table) multiple times with identical arguments. You decide to use `functools.lru_cache` to optimize this. However, after running the pipeline for 2 hours, you notice memory usage has grown to 8GB and continues increasing. What is the most likely issue and how should you fix it?",
+      "options": [
+        "lru_cache has a default maxsize of 128, but your pipeline is creating more than 128 unique argument combinations. You should increase maxsize to 10000 and add a memory monitor.",
+        "The decorator is caching unhashable objects (like DataFrames or lists) in the function arguments, causing an error. You should wrap arguments with tuple() to make them hashable.",
+        "lru_cache is caching the entire pipeline state including large reference tables. You should use functools.cached_property instead to cache at the class level.",
+        "The decorated function is being called with many unique argument values (e.g., different file paths or date ranges) that never repeat, causing the cache to grow unbounded. You should either reduce maxsize, use functools.lru_cache(maxsize=1) for single-stage caching, or refactor to separate the cacheable logic from variable parameters."
+      ],
+      "answer": 3,
+      "explanation": "In data pipelines, it's common to call functions with many unique arguments that rarely repeat (different files, dates, IDs). lru_cache will cache all of these, causing memory bloat. The fix is to either limit maxsize aggressively, restructure to separate pure computation from variable inputs, or use alternative caching strategies like memoization with TTL. Options 1-3 misdiagnose the root cause or suggest incorrect remedies."
     }
   ]
 }

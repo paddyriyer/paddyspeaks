@@ -15868,6 +15868,22 @@
       ],
       "answer": 3,
       "explanation": "Option 3 correctly computes the week bucket by calculating the number of 7-day intervals since the epoch and reconstructing the bucket start timestamp. This is consistent across time zones since event_ts is in UTC. Option 0 uses DATE_TRUNC which starts weeks on Monday (ISO standard), not from the custom epoch. Option 1 works but is unnecessarily complex. Option 2 uses non-standard SQL and doesn't handle TIMESTAMP arithmetic correctly."
+    },
+    {
+      "id": "sql-new-189",
+      "type": "single",
+      "topic": "BigQuery-specific FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-10-27",
+      "prompt": "You have a BigQuery table `events(user_id INT64, event_type STRING, revenue NUMERIC, timestamp TIMESTAMP)` with 500M rows. You need to calculate total revenue and count of purchases, but only for users who had at least one 'view' event in the last 30 days. Which approach is most efficient?\n\nA) Use a CTE to filter users with 'view' events, then join back to aggregate revenue and count 'purchase' events.\nB) Use aggregate functions with FILTER clauses: SUM(revenue) FILTER (WHERE event_type='purchase') and COUNT(*) FILTER (WHERE event_type='purchase'), with a WHERE clause checking for prior 'view' events.\nC) Create two separate queries\u2014one for user qualification, one for metrics\u2014then combine results in application code.\nD) Use UNNEST to explode events, then apply GROUP BY with HAVING clause on event_type counts.",
+      "options": [
+        "Use a CTE to filter users with 'view' events, then join back to aggregate revenue and count 'purchase' events.",
+        "Use aggregate functions with FILTER clauses: SUM(revenue) FILTER (WHERE event_type='purchase') and COUNT(*) FILTER (WHERE event_type='purchase'), with a WHERE clause checking for prior 'view' events.",
+        "Create two separate queries\u2014one for user qualification, one for metrics\u2014then combine results in application code.",
+        "Use UNNEST to explode events, then apply GROUP BY with HAVING clause on event_type counts."
+      ],
+      "answer": 1,
+      "explanation": "BigQuery's FILTER clause is optimized for conditional aggregation in a single pass, avoiding expensive joins or multiple scans. It allows you to aggregate different metrics with different conditions in one query, which is more efficient than a CTE-join approach or application-level combining. The WHERE clause still qualifies users by 'view' event presence while FILTER clauses handle the 'purchase' event metrics."
     }
   ]
 }
