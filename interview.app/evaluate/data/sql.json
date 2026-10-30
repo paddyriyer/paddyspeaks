@@ -15916,6 +15916,22 @@
       ],
       "answer": 0,
       "explanation": "MERGE with conditional logic using hashing (e.g., MD5 of concatenated columns) is the most efficient approach for handling upserts in Snowflake because it minimizes unnecessary updates, reduces transaction overhead, and maintains referential integrity within a single atomic operation. Option 1 is cleaner and faster than approaches involving DELETE-then-INSERT or multiple separate statements, and it performs better than manual FULL OUTER JOIN logic when dealing with 500K+ rows."
+    },
+    {
+      "id": "sql-new-192",
+      "type": "single",
+      "topic": "BigQuery-specific window functions with partitioning",
+      "difficulty": "hard",
+      "added_date": "2026-10-30",
+      "prompt": "In BigQuery, you have a `user_events` table with columns (user_id STRING, event_timestamp TIMESTAMP, event_type STRING, value INT64) partitioned by event_date. You need to find, for each user within each day, the running sum of values and the rank of each event by timestamp within that day's partition. You want to avoid rescanning the entire table. Which approach is most efficient?\n\nA) Use a single window function with PARTITION BY user_id, DATE(event_timestamp) and ORDER BY event_timestamp, then calculate the running sum with SUM() OVER ()\n\nB) Use ROW_NUMBER() OVER (PARTITION BY user_id, DATE(event_timestamp) ORDER BY event_timestamp) for ranking, then use a separate SUM() OVER (PARTITION BY user_id, DATE(event_timestamp) ORDER BY event_timestamp ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) for running sum in the same query\n\nC) First partition the data by event_date in a staging table, then apply window functions with PARTITION BY user_id only\n\nD) Use two separate queries: one with ROW_NUMBER() and another with SUM(), then join on user_id and event_timestamp",
+      "options": [
+        "Use a single window function with PARTITION BY user_id, DATE(event_timestamp) and ORDER BY event_timestamp, then calculate the running sum with SUM() OVER ()",
+        "Use ROW_NUMBER() OVER (PARTITION BY user_id, DATE(event_timestamp) ORDER BY event_timestamp) for ranking, then use a separate SUM() OVER (PARTITION BY user_id, DATE(event_timestamp) ORDER BY event_timestamp ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) for running sum in the same query",
+        "First partition the data by event_date in a staging table, then apply window functions with PARTITION BY user_id only",
+        "Use two separate queries: one with ROW_NUMBER() and another with SUM(), then join on user_id and event_timestamp"
+      ],
+      "answer": 1,
+      "explanation": "Option B is correct because it uses multiple window functions in a single query with the same PARTITION BY and ORDER BY clauses, allowing BigQuery to compute both the ranking and running sum efficiently in a single scan. The ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW frame is essential for a true running sum. Options A, C, and D either lack proper framing for running sums, introduce unnecessary partitioning overhead, or require multiple scans which defeats the purpose of using window functions for performance."
     }
   ]
 }
