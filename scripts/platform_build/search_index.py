@@ -264,6 +264,50 @@ def rudram_docs() -> tuple[list[dict], list[dict]]:
     return anuvakas, units
 
 
+def upanishad_docs() -> tuple[list[dict], list[dict]]:
+    """The Upaniṣads study editions (upanishads/): the collection pages, each
+    edition, its studies (core) and one doc per analysed mantra (verses shard)."""
+    base = ROOT / "upanishads"
+    cp = base / "data" / "collection.json"
+    if not cp.exists():
+        return [], []
+    core = [doc("upanishads:home", "sacred", "The Upaniṣads — A Study Edition", "/upanishads/",
+                subtitle="Sacred text · Vedānta", text="The principal Upaniṣads verse by verse: verified Sanskrit, grammar, translations and the commentaries of Śaṅkara, Vedānta Deśika and Madhva, in three reading paths.",
+                tags=["Upanishads", "Upanishad", "Vedanta"], category="learn", source="upanishads/data/collection.json"),
+            doc("upanishads:intro", "sacred", "Introduction to the Upaniṣads", "/upanishads/introduction.html",
+                subtitle="Sacred text · Guide", text="What Upaniṣad means; śruti and smṛti; Saṃhitā, Brāhmaṇa, Āraṇyaka and Upaniṣad; Vedānta and the prasthānatraya; the ten principal Upaniṣads; revelation and chronology.",
+                tags=["Upanishads", "Vedanta", "Prasthanatraya", "Muktika"], category="learn", source="upanishads/data/guide/introduction.json"),
+            doc("upanishads:glossary", "sacred", "Glossary of Upaniṣadic terms", "/upanishads/glossary.html",
+                subtitle="Sacred text · Glossary", text="Brahman, ātman, jīva, jagat, Īśvara, avidyā, vidyā, karma, mokṣa and more, with the senses of Advaita, Viśiṣṭādvaita and Dvaita.",
+                tags=["Upanishads", "Sanskrit glossary"], category="learn", source="upanishads/data/glossary.json")]
+    verses = []
+    for e in json.loads(cp.read_text(encoding="utf-8"))["editions"]:
+        if e.get("status") != "available":
+            continue
+        ed = base / e["id"] / "edition"
+        text = json.loads((ed / "text.json").read_text(encoding="utf-8"))
+        name = text["title"]["en"]
+        core.append(doc(f"upanishads:{e['id']}", "sacred", f"{name} — study edition", e["path"],
+                        subtitle=f"Sacred text · {text['veda']}", text=f"All {text['count']} mantras of the {name}, with padaccheda, word-by-word grammar, translations, commentary and six special studies.",
+                        tags=["Upanishads", name, text["title"]["sa"], "Isopanishad", "Ishopanishad"], category="learn",
+                        source=f"upanishads/{e['id']}/edition/text.json"))
+        for sp in sorted((ed / "studies").glob("*.json")):
+            st = json.loads(sp.read_text(encoding="utf-8"))
+            core.append(doc(f"upanishads:{e['id']}:study:{st['id']}", "sacred", f"{name}: {st['title']}", f"{e['path']}studies/{st['id']}.html",
+                            subtitle="Sacred text · Study", text=_clip(st.get("summary", ""), 400), tags=["Upanishads", name], category="learn",
+                            source=f"upanishads/{e['id']}/edition/studies/{sp.name}"))
+        for m in text["mantras"]:
+            ap = ed / "analysis" / f"{m['n']:02d}.json"
+            if not ap.exists():
+                continue
+            a = json.loads(ap.read_text(encoding="utf-8"))
+            verses.append(doc(f"upanishads:{e['id']}:{m['n']}", "verse", f"{name} {m['n']} — {a['title']}",
+                              f"{e['path']}mantra-{m['n']:02d}.html", subtitle=f"Sacred text · {name}",
+                              text=a["translation"]["readable"], tags=[" ".join(m["lines"])], category="learn",
+                              source=f"upanishads/{e['id']}/edition/analysis/{m['n']:02d}.json"))
+    return core, verses
+
+
 def _q(s: str) -> str:
     from urllib.parse import quote
     return quote(s, safe="")
@@ -288,7 +332,8 @@ def build() -> dict[str, list[dict]]:
     chapters, verses, names = sacred_docs()
     dchapters, dverses = devi_docs()
     rchapters, rverses = rudram_docs()
-    chapters, verses = chapters + dchapters + rchapters, verses + dverses + rverses
+    uchapters, uverses = upanishad_docs()
+    chapters, verses = chapters + dchapters + rchapters + uchapters, verses + dverses + rverses + uverses
     icore, questions = interview_docs()
     core = articles() + catalog_docs(cat) + design_docs() + icore + chapters + concept_docs()
     core.sort(key=lambda d: d["id"])
