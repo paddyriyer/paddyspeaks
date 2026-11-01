@@ -15932,6 +15932,86 @@
       ],
       "answer": 1,
       "explanation": "Option B is correct because it uses multiple window functions in a single query with the same PARTITION BY and ORDER BY clauses, allowing BigQuery to compute both the ranking and running sum efficiently in a single scan. The ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW frame is essential for a true running sum. Options A, C, and D either lack proper framing for running sums, introduce unnecessary partitioning overhead, or require multiple scans which defeats the purpose of using window functions for performance."
+    },
+    {
+      "id": "sql-new-193",
+      "type": "single",
+      "topic": "Materialized Views",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "You maintain a materialized view `mv_daily_sales` in Snowflake that aggregates sales data by region and product. The underlying `transactions` table receives new data every hour. Your dashboard queries the materialized view directly. What is the primary risk with this setup, and how should you address it?",
+      "options": [
+        "The materialized view will automatically refresh and become stale; use ALTER MATERIALIZED VIEW to force refresh",
+        "The materialized view is static until explicitly refreshed; schedule a task with REFRESH MATERIALIZED VIEW on an appropriate cadence",
+        "Materialized views in Snowflake are always real-time; no action needed",
+        "The materialized view will consume double the storage; partition it by date to reduce space"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake materialized views do not auto-refresh by default\u2014they capture a snapshot and remain static until explicitly refreshed. You must schedule a task or manually run REFRESH MATERIALIZED VIEW to keep it current with new transaction data. Auto-refresh is not a native Snowflake feature for MVs, making scheduled refreshes the standard practice."
+    },
+    {
+      "id": "sql-new-194",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "In BigQuery, you have a table `events` with columns (user_id, event_name, event_value NUMERIC). You need to compute a materialized view that tracks the sum of event_value per user per day, but the underlying `events` table is append-only and can receive late-arriving data up to 48 hours after the event date. Which approach best balances freshness and correctness?",
+      "options": [
+        "Create a materialized view with PARTITION BY event_date; refresh it hourly with a query that overwrites the last 3 days of data",
+        "Use a scheduled query that inserts into a dedicated table, recalculating only the previous day's partition",
+        "Create a view (not materialized) that queries events dynamically; materialized views cannot handle late arrivals correctly",
+        "Create a materialized view partitioned by event_date and clustered by user_id; use query affinity to refresh in batches"
+      ],
+      "answer": 0,
+      "explanation": "A partitioned materialized view with hourly refresh that overwrites the last 3 days of data handles late arrivals while maintaining freshness. This approach recalculates recent partitions to account for delayed events, balancing both correctness (capturing late data) and performance (partitioning allows efficient incremental updates). Scheduled queries are less flexible for rolling-window recalculation, and materialized views can handle this pattern effectively when combined with partition overlap strategy."
+    },
+    {
+      "id": "sql-new-195",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "You have a `campaign_metrics` table with columns (campaign_id, action_type TEXT, user_count INT, date DATE). You need to compute two separate aggregations in a single query: total users and users from 'click' actions only. Which approach is most efficient and readable?",
+      "options": [
+        "SELECT campaign_id, SUM(user_count) as total_users, SUM(CASE WHEN action_type = 'click' THEN user_count ELSE 0 END) as click_users FROM campaign_metrics GROUP BY campaign_id",
+        "SELECT campaign_id, SUM(user_count) FILTER(WHERE TRUE) as total_users, SUM(user_count) FILTER(WHERE action_type = 'click') as click_users FROM campaign_metrics GROUP BY campaign_id",
+        "SELECT campaign_id, SUM(user_count) as total_users FROM campaign_metrics GROUP BY campaign_id UNION ALL SELECT campaign_id, SUM(user_count) FROM campaign_metrics WHERE action_type = 'click' GROUP BY campaign_id",
+        "SELECT campaign_id, (SELECT SUM(user_count) FROM campaign_metrics) as total_users, SUM(user_count) FROM campaign_metrics WHERE action_type = 'click' GROUP BY campaign_id"
+      ],
+      "answer": 1,
+      "explanation": "The FILTER clause provides cleaner, more expressive syntax for conditional aggregation within a single pass through the data. FILTER(WHERE action_type = 'click') is more readable than CASE statements and performs better than multiple table scans. The FILTER(WHERE TRUE) syntax is idiomatic for unconditional aggregation when using FILTER alongside conditional aggregations for consistency."
+    },
+    {
+      "id": "sql-new-196",
+      "type": "single",
+      "topic": "Materialized Views",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're designing a data pipeline in Google BigQuery where a materialized view depends on another materialized view. The downstream MV `mv_weekly_cohort` depends on `mv_daily_active`. What is the key limitation to consider, and how should you handle cross-dependencies?",
+      "options": [
+        "Downstream materialized views automatically refresh when upstream MVs refresh; no special action needed",
+        "BigQuery does not support MV-on-MV dependencies; you must refresh them in explicit dependency order using orchestration, or make the upstream MV a regular view",
+        "Materialized views in BigQuery will deadlock if chained; use snapshots instead",
+        "Cross-dependencies require manual locking with LOCK TABLE statements before refresh"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery materialized views do not have automatic cascade refresh\u2014a downstream MV will not automatically update when its upstream dependency refreshes. You must orchestrate refresh order explicitly using Cloud Composer, Cloud Scheduler, or similar tools. Alternatively, you can make the upstream dependency a regular view (incurring query cost) to ensure the downstream MV always sees fresh data. This is a critical design consideration for complex MV hierarchies."
+    },
+    {
+      "id": "sql-new-197",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "easy",
+      "added_date": "2026-11-01",
+      "prompt": "You're migrating a SQL query from PostgreSQL to BigQuery. Your original query uses FILTER clauses with window functions: `ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY timestamp DESC) FILTER (WHERE event_type = 'purchase')`. What is the correct behavior of FILTER with window functions in BigQuery?",
+      "options": [
+        "FILTER filters the window frame before applying the window function, so ROW_NUMBER restarts for each user within purchase events only",
+        "FILTER is applied after the window function; ROW_NUMBER ranks all events, then FILTER removes non-purchase events from output",
+        "BigQuery does not support FILTER with window functions; rewrite using a subquery with WHERE clause",
+        "FILTER on window functions requires explicit ROWS BETWEEN syntax to work correctly in BigQuery"
+      ],
+      "answer": 0,
+      "explanation": "FILTER with window functions in BigQuery applies the filter before the window function operates on the frame. This means `ROW_NUMBER() ... FILTER (WHERE event_type = 'purchase')` numbers only purchase events sequentially per user, restarting the count. This is different from filtering after ranking; it restricts the input to the window function itself, which is the key distinction and most powerful use case for FILTER in window contexts."
     }
   ]
 }

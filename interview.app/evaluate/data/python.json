@@ -9310,6 +9310,86 @@
       ],
       "answer": 3,
       "explanation": "In Python's descriptor protocol, when accessing a descriptor via the class (e.g., `MyClass.field`), `__get__` receives `obj=None` and `type=MyClass`. The correct pattern is to check `if obj is None: return metadata_or_self`, allowing descriptors to provide different behavior for class vs instance access. Option 2 is incorrect because `__getattribute__` would intercept all attribute access, not just descriptor behavior. Option 1 and 3 are not standard Python descriptor mechanisms."
+    },
+    {
+      "id": "py-new-190",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "You're building a data validation pipeline that needs to recursively find all .parquet files in a deeply nested directory structure, then filter for files modified in the last 24 hours. Which pathlib approach is most efficient and idiomatic?",
+      "options": [
+        "Use Path.glob('**/*.parquet') in a loop with os.path.getmtime() checks for each file",
+        "Use Path.rglob('*.parquet') and filter using file_path.stat().st_mtime for efficient file metadata access",
+        "Use os.walk() with os.path.join() to traverse directories, then filter with time.time() - os.path.getmtime()",
+        "Use Path.glob('*.parquet') with subdirectory iteration and cache the stat results in a dictionary"
+      ],
+      "answer": 1,
+      "explanation": "Path.rglob() is the idiomatic pathlib method for recursive globbing (equivalent to glob('**/*')), and Path.stat() caches metadata efficiently in a single system call. This avoids the overhead of os.walk() or repeated glob calls and is more readable than mixing pathlib with os functions."
+    },
+    {
+      "id": "py-new-191",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're refactoring a data aggregation function with complex type hints. The function accepts either a list of dictionaries OR a pandas DataFrame, and returns aggregated results. Which type hint signature correctly expresses this while maintaining type checking compatibility?",
+      "options": [
+        "def aggregate(data: list[dict] | pd.DataFrame) -> dict[str, float]:",
+        "def aggregate(data: Union[List[Dict[str, Any]], pd.DataFrame]) -> Dict[str, float]:",
+        "def aggregate(data: list | DataFrame) -> dict:",
+        "def aggregate(data: TypeVar('DataType', list, pd.DataFrame)) -> dict[str, float]:"
+      ],
+      "answer": 1,
+      "explanation": "Option B uses Union from typing module with proper List and Dict capitalizations for pre-3.10 compatibility, and correctly specifies Any for flexible dict values. While option A uses modern | syntax (3.10+), option B is more widely compatible across data engineering stacks. Option C lacks specificity, and option D misuses TypeVar which constrains generic functions, not overloads."
+    },
+    {
+      "id": "py-new-192",
+      "type": "single",
+      "topic": "functools",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "In a data pipeline, you're caching expensive transformations (e.g., ML model predictions) where results depend on both data content and a configuration version number. You need cache invalidation when config changes. Which functools approach handles this correctly?",
+      "options": [
+        "Use @functools.cache with a global config_version variable that gets checked at runtime",
+        "Use @functools.lru_cache(maxsize=128) with config_version included in the function arguments",
+        "Use @functools.cached_property on the transformation method with manual cache clearing on config update",
+        "Use functools.partial() to bind config_version and create separate cached functions per version"
+      ],
+      "answer": 1,
+      "explanation": "Including config_version as a function argument ensures that @functools.lru_cache creates separate cache entries for different versions automatically\u2014when config changes, different argument values produce cache misses. Option A requires manual checks (defeating caching benefits), option C doesn't work for functions, and option D adds unnecessary complexity compared to using arguments as natural cache keys."
+    },
+    {
+      "id": "py-new-193",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're building a generic data transformation framework where functions can chain operations, each accepting Callable inputs with varying signatures. You need to express that a transform_pipeline() function accepts a sequence of callables, where each processes output of the previous one, with full type safety. Which approach is correct?",
+      "options": [
+        "def transform_pipeline(funcs: list[Callable]) -> Callable[[Any], Any]:",
+        "def transform_pipeline(funcs: list[Callable[[T], T]]) -> Callable[[T], T]:",
+        "def transform_pipeline(funcs: Sequence[Callable[[Any], Any]]) -> Callable[[Any], Any]:",
+        "from typing import ParamSpec; P = ParamSpec('P'); def transform_pipeline(funcs: list[Callable[P, Any]]) -> Callable[P, Any]:"
+      ],
+      "answer": 2,
+      "explanation": "Option C uses Sequence (more flexible than list for type hints) and Callable[[Any], Any] which correctly expresses 'function taking one argument returning one value'. Option B's TypeVar T doesn't enforce chain compatibility. Option A lacks specificity. Option D's ParamSpec is for preserving *args/**kwargs signatures, not for sequential callable chaining\u2014it's overkill here."
+    },
+    {
+      "id": "py-new-194",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "easy",
+      "added_date": "2026-11-01",
+      "prompt": "You need to read configuration files in a data pipeline where configs might be in /etc/pipeline, ~/.pipeline, or ./pipeline/.config. Which pathlib approach is most robust for checking multiple possible config locations in order?",
+      "options": [
+        "config_paths = [Path('/etc/pipeline'), Path.home() / '.pipeline', Path('.') / 'pipeline' / '.config']; config = next((p for p in config_paths if p.exists()), None)",
+        "config = Path('/etc/pipeline') or Path.home() / '.pipeline' or Path('.') / 'pipeline' / '.config'",
+        "config_paths = ['/etc/pipeline', os.path.expanduser('~/.pipeline'), './pipeline/.config']; config = next((p for p in config_paths if os.path.exists(p)), None)",
+        "import glob; config = glob.glob('/etc/pipeline') + glob.glob('~/.pipeline') + glob.glob('./pipeline/.config')"
+      ],
+      "answer": 0,
+      "explanation": "Option A is idiomatic pathlib: it uses Path objects consistently, Path.home() for portable home directory access, and next() with a generator expression for clean fallback logic. Option B incorrectly uses 'or' (which returns the first truthy Path object regardless of existence). Option C mixes pathlib concerns with os module. Option D with glob is overkill for single file lookups."
     }
   ]
 }

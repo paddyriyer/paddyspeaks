@@ -6920,6 +6920,86 @@
       ],
       "answer": 1,
       "explanation": "Federated contracts with explicit dependencies and clear naming conventions best preserve domain autonomy while enabling integration: Payments documents its dependencies, and Marketing publishes unambiguous fields. Option 0 centralizes governance (defeats mesh intent); Option 2 introduces runtime latency and a synchronous dependency; Option 3 overcomplexifies by creating yet another domain and doesn't scale with multi-domain transformations."
+    },
+    {
+      "id": "ds-new-141",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "Your organization currently processes customer events via daily batch jobs (T+1 latency). Marketing wants to trigger personalized emails within 5 minutes of purchase. You have 200M events/day with 15% churn in inactive customers daily. Which approach best balances latency, cost, and complexity?",
+      "options": [
+        "Migrate entire pipeline to Kafka + Flink, process all events in real-time with 60-second micro-batches",
+        "Hybrid: keep batch for historical aggregates and ML features; add streaming layer via Kafka + Spark Structured Streaming only for activation events (purchases, sign-ups)",
+        "Use Lambda architecture with real-time Kafka consumer writing to Redis, batch job reconciles at end-of-day",
+        "Implement event sourcing with Kafka topic as source-of-truth, rebuild all aggregates hourly using Spark"
+      ],
+      "answer": 1,
+      "explanation": "A hybrid approach minimizes complexity and infrastructure cost by streaming only business-critical, low-volume events (purchases) while preserving batch efficiency for historical aggregates. Lambda architecture adds operational burden; full streaming is over-engineered for 200M events/day; event sourcing introduces replay complexity without clear benefit here."
+    },
+    {
+      "id": "ds-new-142",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're implementing Reverse ETL to sync customer segments from your warehouse (Snowflake) to Salesforce CRM every 6 hours. Segment membership changes frequently (50K rows/hour churn). You currently use dbt to materialize segments, then activate via Fivetran/Census. The business now requires <30min latency for high-value customer upgrades. What's the primary architectural limitation you'll face?",
+      "options": [
+        "dbt materialization is too slow; replace with Spark Streaming for 5-minute refresh",
+        "Salesforce API rate limits (1000 records/min per org) make sub-30min updates impossible for large orgs; prioritize high-value segment upserts with dead-letter queues",
+        "Snowflake fails to handle 50K writes/hour; switch to PostgreSQL as operational warehouse",
+        "Census lacks webhook support; replace with custom Kafka consumer writing directly to Salesforce via bulk API"
+      ],
+      "answer": 1,
+      "explanation": "Salesforce API throughput (not compute) is the bottleneck\u2014most Reverse ETL tools hit governor limits on large datasets. The solution is intelligent prioritization (upsert high-value records first) with proper error handling, not replacing infrastructure. dbt materialization at 6-hour cadence is sufficient; Snowflake throughput is not the constraint."
+    },
+    {
+      "id": "ds-new-143",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're migrating a star-schema warehouse to Data Vault 2.0 because business requirements change frequently (new attributes, slowly-changing dimensions). Your current `customers` dimension has 200 attributes. During modeling, you debate whether to create 1 large hub + 2 satellite tables (demographics, contact_info) or 5 hubs + 8 satellites (one per bounded context). What's the key trade-off?",
+      "options": [
+        "Fewer hubs reduce query complexity but violate DV principles; more hubs enable agility but require complex link tables and increase maintenance burden",
+        "More hubs are always better for Data Vault; fewer hubs indicate incomplete domain modeling",
+        "The choice is irrelevant; Data Vault automatically handles attribute changes via temporal views",
+        "Fewer hubs should be preferred because they align with Kimball dimensional modeling best practices"
+      ],
+      "answer": 0,
+      "explanation": "Data Vault's primary advantage is handling changing requirements via satellite-level versioning. Fine-grained hubs (one per context) maximize this flexibility but create ETL and query complexity. Consolidated hubs reduce overhead but sacrifice the agility that justified DV adoption. The trade-off depends on change frequency and domain expertise."
+    },
+    {
+      "id": "ds-new-144",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "Your fraud detection ML model requires aggregations (7-day rolling purchase sum, merchant risk score) updated hourly. These features are computed from 100M transactions/day in your warehouse. The model serves predictions in real-time to payment processors. Which architecture minimizes latency and operational complexity?",
+      "options": [
+        "Stream all transactions via Kafka into feature store (e.g., Tecton), compute rolling aggregates with Spark Streaming, serve from cache",
+        "Batch compute features hourly in Snowflake via scheduled dbt, pre-join with transaction context, serve predictions from API backed by feature cache",
+        "Implement a hybrid: stream transactions to Kafka, materialize hourly batch aggregates in warehouse, stream only high-risk transactions (flagged by rule engine) to real-time feature calculator",
+        "Use Lambda architecture: Kafka stream to real-time aggregator (Flink state), merge with batch warehouse aggregates at prediction time"
+      ],
+      "answer": 2,
+      "explanation": "The hybrid approach minimizes streaming complexity by filtering low-value transactions and leveraging batch efficiency for stable aggregates (purchase sums), while streaming only anomalies requiring immediate computation. Pure batch risks prediction delays; pure streaming over-engineers for a use case where hourly features suffice. Lambda architecture adds reconciliation complexity."
+    },
+    {
+      "id": "ds-new-145",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "Your data team built a churn prediction model (re-trained weekly) and activates predictions via Reverse ETL to your CRM (HubSpot) to assign retention teams. After 3 months, you discover model predictions diverged significantly from CRM actions taken (teams ignored predicted churners). What's the most likely root cause, and how should you redesign the pipeline?",
+      "options": [
+        "The model is stale; retrain daily instead of weekly to catch drifting patterns",
+        "Reverse ETL tool has latency issues; replace with direct API integration",
+        "Missing feedback loop: predictions aren't validated against actual churn outcomes, and teams don't see model confidence scores. Add monitoring to track prediction vs. actual, version predictions, and expose confidence/reasoning in CRM UI.",
+        "HubSpot data schema doesn't support custom fields; migrate to Salesforce which has better Reverse ETL support"
+      ],
+      "answer": 2,
+      "explanation": "Without observability (feedback loops), the model silently degrades and users lose trust. Reverse ETL is only effective when predictions are explainable, versioned, and validated against ground truth. Daily retraining without feedback is wasteful; tooling is not the blocker. The issue is organizational (feedback loop) not technical (latency/schema)."
     }
   ]
 }

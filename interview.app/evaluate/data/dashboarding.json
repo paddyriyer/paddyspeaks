@@ -1789,6 +1789,70 @@
       ],
       "answer": 1,
       "explanation": "A hexbin or 2D density plot with log/quantile coloring handles the right-skew and high cardinality of both dimensions without visual clutter. It reveals the dense cluster of users purchasing within days while preserving the visibility of rare long-tail outliers. A simple line chart loses individual variation; a stacked area obscures the actual latency spread; a scatter plot becomes an unreadable overplotted blob at 200k points."
+    },
+    {
+      "id": "dash-new-057",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "You're implementing RLS for a Snowflake-backed dashboard where sales reps must see only their assigned territories, and managers must see their direct reports' territories. The dataset has 50 million rows with territory assignments that change quarterly. Which approach minimizes query latency while maintaining correctness?",
+      "options": [
+        "Apply RLS at the BI tool layer using a stored procedure that filters visuals based on user identity before query execution",
+        "Create a masked view in Snowflake using dynamic SQL with CURRENT_USER() and territory_manager_mapping, then query the view in the BI tool without additional filters",
+        "Implement row access policies in Snowflake with territory-based predicates, combine with a materialized mapping table, and cache query results per user role for 4 hours",
+        "Store a CSV of user-to-territory mappings in the BI tool's metadata layer and join it client-side after fetching full dataset"
+      ],
+      "answer": 2,
+      "explanation": "Row access policies in Snowflake enforce RLS at the database layer (most secure), the mapping table enables manager hierarchies, and role-based caching balances latency with correctness. BI tool-layer RLS is bypassable; client-side joins don't scale; and stored procedures don't enforce true row-level access policies."
+    },
+    {
+      "id": "dash-new-058",
+      "type": "single",
+      "topic": "incremental refresh",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "Your Power BI dataset uses incremental refresh with a date partition on `transaction_date`. Late-arriving data from a payment processor means some transactions appear 5\u20137 days after the initial date. Your incremental policy refreshes the last 30 days daily. Users report missing or duplicate transaction counts on the dashboard. What is the root cause?",
+      "options": [
+        "The 30-day rolling window is too narrow; late arrivals fall outside the refresh window and are never captured in the dataset",
+        "Incremental refresh doesn't support late-arriving facts; you must switch to full refresh nightly",
+        "The payment processor is sending duplicate records that Power BI's incremental logic counts twice",
+        "The date partition should use `processing_date` instead of `transaction_date` to capture late arrivals within the window"
+      ],
+      "answer": 0,
+      "explanation": "If transactions arrive 5\u20137 days late but your refresh window only covers the last 30 days from today, transactions outside that window are never updated in the model. Extending the refresh window to 45+ days or switching to `processing_date` would capture the late arrivals; incremental refresh is designed to handle late data if the window is wide enough."
+    },
+    {
+      "id": "dash-new-059",
+      "type": "single",
+      "topic": "high-cardinality filters",
+      "difficulty": "hard",
+      "added_date": "2026-11-01",
+      "prompt": "A Tableau dashboard has a filter on `user_id` with 2.8 million distinct values. Loading the filter list takes 12 seconds; users rarely filter by exact ID and want fuzzy search. The underlying data warehouse is Snowflake. Which solution best balances UX and query cost?",
+      "options": [
+        "Remove the filter and add `user_id` as a detail field; users can drill into visuals to find users",
+        "Replace the single-select filter with a search-as-you-type filter using a Snowflake dynamic parameter that queries only matching IDs in real-time",
+        "Pre-load the top 1,000 user IDs in Tableau's filter list and provide a custom SQL filter field for users who know exact IDs",
+        "Aggregate the dataset by `user_id` at the warehouse level so only 50,000 summary rows exist, then add the filter"
+      ],
+      "answer": 1,
+      "explanation": "Search-as-you-type filters with dynamic parameters query the warehouse on-demand for matching values, avoiding loading 2.8 million rows into Tableau's filter list. This enables fuzzy search and keeps latency low. Pre-loading 1,000 IDs is restrictive; aggregation changes metrics; removing the filter hurts usability."
+    },
+    {
+      "id": "dash-new-060",
+      "type": "single",
+      "topic": "row-level security",
+      "difficulty": "medium",
+      "added_date": "2026-11-01",
+      "prompt": "Your company uses Looker with a BigQuery backend. Marketing analysts should see only their campaign's metrics, but campaigns span multiple countries and cost centers. You need to implement RLS without maintaining separate datasets per analyst. Which Looker feature most directly solves this?",
+      "options": [
+        "User Attributes combined with a BigQuery row access policy that filters rows based on a user's assigned campaign_id attribute",
+        "Looker Roles and Permissions to restrict dashboard access, then add dashboard filters that default to each user's campaign",
+        "Looker LS (Looker Scheduler) to send personalized, pre-filtered reports to each analyst daily",
+        "BigQuery column-level security to hide campaign_id from certain users, then use Looker's default filters"
+      ],
+      "answer": 0,
+      "explanation": "User Attributes in Looker + BigQuery row access policies create true row-level security enforced at the database layer. The policy dynamically filters rows based on the user's `campaign_id` attribute, ensuring campaigns are isolated even if analysts access the same dashboard. Roles restrict access; LS sends reports but doesn't enforce security; column-level security doesn't filter rows."
     }
   ]
 }
