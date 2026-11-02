@@ -78,8 +78,19 @@ also be `prose` or `mixed`.
   `bharadvaja`, `ramananda`, `gopalananda` (see `edition.json`). Rāmānuja wrote
   no commentary on this Upaniṣad — never say he did. Śaṅkara's introduction is
   `shankara` key `opening` (cite it from 1.1 only).
+- The six-commentary (Melkote) edition prints its commentators as running notes
+  inside one another's sections, marked by sigla its colophons identify: ‘आ.भा.’
+  Rāmānanda (*Ānandabhāṣya*), ‘तै. भा.’ Kauśika Govindarāja, ‘प्र.’ Raṅgarāmānuja
+  (*Prakāśikā*). The importer has already filed each passage under its commentator,
+  so quote a passage under the file it is in; never describe it as unattributed.
+  Gopālānanda is modern — say so. The text is OCR: quote only clean runs.
+- An anuvāka that only repeats an earlier one may map to it in `edition.json`
+  (1.12 → 1.1, because every commentator says so); cite the commentator's own words
+  for such a mapping.
 - The śānti of vallīs 2–3 (*saha nāvavatu*) is not a numbered unit.
 - Madhva's mūla is divided differently; its variants are collated by vallī (`near`).
+  His comment follows a passage that can straddle anuvākas, and is filed under every
+  anuvāka the passage covers — check that a quoted line is about your anuvāka.
 - Parallels: add refs to a `parallel-refs-*.json` and re-run
   `python3 scripts/upanishads/import_taittiriya.py --yajuh … --raw …`.
 - Studies: `studies/<id>.json` like the Īśā's, with `anuvakas: ["1.3", …]`

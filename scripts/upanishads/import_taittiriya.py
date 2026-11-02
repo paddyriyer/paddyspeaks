@@ -133,6 +133,7 @@ def madhva(yajuh, as_mantras):
         order = [k for k in tsh if k.startswith(f'{v}.')]
         ci = 0      # lines follow the text: never assign to an earlier anuvāka
         cur = None
+        span = []   # anuvākas of the mūla passage awaiting its comment
         for block in re.split(r'\n(?=## )', t):
             if not block.startswith('## '):
                 continue
@@ -155,8 +156,16 @@ def madhva(yajuh, as_mantras):
                     mula.setdefault(hit, []).append(clean_line(line))
                     got[hit] = got.get(hit, '') + pl
                 cur = hit
-            if cur:
-                comm[cur] = (comm.get(cur, '') + ' ' + clean_line(rest)).strip()
+                if hit not in span:
+                    span.append(hit)
+            # Madhva comments after a passage of several mūla lines, and his passages
+            # straddle the edition's anuvākas: the comment belongs to every anuvāka
+            # the passage since his previous comment covers.
+            note = clean_line(rest)
+            if note and (span or cur):
+                for k in (span or [cur]):
+                    comm[k] = (comm.get(k, '') + ' ' + note).strip()
+                span = []
     # the dvaitavedanta text prints an anuvāka's first words as a title before the
     # full line: drop a line that the next line begins with
     for k, ls in mula.items():
@@ -194,10 +203,48 @@ AUTHORS = {'कूर-नारायणः': 'kuranarayana', 'रङ्गर�
            'भारद्वाज-रामानुजः': 'bharadvaja', 'रामानन्दः': 'ramananda', 'गोपालानन्दः': 'gopalananda'}
 
 
+# The edition prints the other commentaries as running notes inside each section,
+# marked by sigla; the colophons name them: आ.भा. = Rāmānanda's Ānandabhāṣya
+# («इति भगवद्रामानन्दाचार्यविरचितं तैत्तिरीयोपनिषद्भाष्यं»), तै. भा. = Kauśika
+# Govindarāja («इति कौशिकगोविन्दराजस्य कृतौ … तैत्तिरीयोपनिषद्व्याख्याने»),
+# प्र. = Raṅgarāmānuja's Prakāśikā («श्रीमद्रङ्गरामानुजमुनिविरचिततैत्तिरीयोपनिषत्प्रकाशिका»).
+SIGLA = re.compile(r'(आ\.\s*भा\.|तै\.\s*भा\.|(?<![ऀ-ॿ])प्र\.)')
+SIGLUM = {'आ': 'ramananda', 'तै': 'govindaraja', 'प्र': 'rangaramanuja'}
+BOUNDARY = re.compile(r'(?:।।|॥|·|तैत्तिरीयोपनिषत्|वल्ली|^)[\s\-–·0-9।]*$')
+COLOPHON = re.compile(r'इति\s*[^।॥|]{0,30}?(कूरनारायणभाष्यम्|आनन्दभाष्यम्|प्रकाशिका|प्रतिपदार्थदीपिका|सुबोधिनी|तैत्तिरीयभाष्यम्)')
+COLO_WHO = {'कूरनारायणभाष्यम्': 'kuranarayana', 'आनन्दभाष्यम्': 'ramananda', 'प्रकाशिका': 'rangaramanuja',
+            'प्रतिपदार्थदीपिका': 'bharadvaja', 'सुबोधिनी': 'gopalananda', 'तैत्तिरीयभाष्यम्': 'govindaraja'}
+
+
+def route(who, text):
+    """Split one section's text into (commentator, passage): a siglum starts its
+    commentator's passage (प्र. only at a boundary, so a citation like 'ब्र.वै. प्र.'
+    is not taken for one); a colophon naming a commentator ends that commentator's
+    passage, and the text before it is his."""
+    segs, cur, pos = [], who, 0
+    for m in SIGLA.finditer(text):
+        sig = m.group(1)
+        if sig.startswith('प्र') and not BOUNDARY.search(text[max(0, m.start() - 40):m.start()]):
+            continue
+        segs.append((cur, text[pos:m.start()]))
+        cur, pos = SIGLUM[sig[:2] if sig.startswith('तै') else sig[:1] if sig.startswith('आ') else 'प्र'], m.end()
+    segs.append((cur, text[pos:]))
+    out = []
+    for a, t in segs:
+        p = 0
+        for m in COLOPHON.finditer(t):
+            c = COLO_WHO[m.group(1)]
+            out.append((c, t[p:m.end()]))
+            p = m.end()
+        out.append((a, t[p:]))
+    clean = lambda x: re.sub(r'^[\s\-–,·0-9।॥]+', '', x).strip()
+    return [(a, clean(t)) for a, t in out if clean(t)]
+
+
 def six_commentaries(yajuh):
     base = TA + 'sarva-prastutiH/05_taittirIyopaniShat/rAmAnujIyA/6-TikAH/2_TIkAH/'
     dirs = {1: '1_shixAvallI', 2: '2_AnandavallI', 3: '3_bhRguvallI'}
-    out = {k: {} for k in set(AUTHORS.values()) | {'govindaraja', 'abh'}}
+    out = {k: {} for k in set(AUTHORS.values()) | {'govindaraja'}}
     for v, d in dirs.items():
         for fn in sorted(os.listdir(os.path.join(yajuh, base + d))):
             m = re.match(r'^0*(\d+)\.md$', fn)
@@ -223,17 +270,8 @@ def six_commentaries(yajuh):
                         continue
                     if not part.strip():
                         continue
-                    # Text after an 'आ.भा.' mark is another commentary run on page by page
-                    # (most likely Rāmānanda's Ānandabhāṣya: his file lacks exactly these
-                    # anuvākas). The source never marks where the first commentator
-                    # resumes, so everything after the mark is kept apart, unattributed.
-                    own, *rest = re.split(r'आ\.\s*भा\.', part)
-                    if own.strip():
-                        out[cur][key] = (out[cur].get(key, '') + ' ' + own.strip()).strip()
-                    for r in rest:
-                        r = re.sub(r'^[\s\-–,·0-9]+', '', r).strip()
-                        if r:
-                            out['abh'][key] = (out['abh'].get(key, '') + ' ' + r).strip()
+                    for who2, txt in route(cur, part):
+                        out[who2][key] = (out[who2].get(key, '') + ' ' + txt).strip()
     return base, out
 
 
@@ -261,7 +299,7 @@ def main():
         'note': 'Assigned to anuvākas by matching each mūla line to the base text.', 'mantras': mvm})
     write('madhva.json', {'id': 'Madhva', **Y, 'path': rel,
         'label': 'Madhva (Ānandatīrtha), Taittirīyopaniṣad-bhāṣya, dvaitavedanta.in text in vishvAsa/vedAH_yajuH',
-        'note': 'By anuvāka; Madhva cites Purāṇic and other authorities by name.', 'mantras': mvc})
+        'note': 'By anuvāka. Madhva comments after a passage of several mūla lines, and his passages straddle the edition’s anuvākas, so a comment is filed under every anuvāka its passage covers. He cites Purāṇic and other authorities by name.', 'mantras': mvc})
     rel, shb, shi = shankara(a.raw)
     write('shankara.json', {'id': 'Shankara', **R, 'path': rel,
         'label': 'Śaṅkara, Taittirīyopaniṣad-bhāṣya, Advaita Sharada (Śṛṅgeri) text, mirrored in sanskrit/raw_etexts',
@@ -269,13 +307,11 @@ def main():
         'opening': shi, 'mantras': {k: {'bhashya': v, 'intro': ''} for k, v in shb.items()}})
     rel, six = six_commentaries(a.yajuh)
     names = {'kuranarayana': 'Kūranārāyaṇa', 'rangaramanuja': 'Raṅgarāmānuja', 'bharadvaja': 'Bhāradvāja-Rāmānuja (Pratipadārthadīpikā)',
-             'ramananda': 'Rāmānanda', 'gopalananda': 'Gopālānanda (modern)', 'govindaraja': 'Kauśika Govindarāja (Mitākṣarā)',
-             'abh': 'The passages marked ‘आ.भा.’ (attribution uncertain; most likely Rāmānanda’s Ānandabhāṣya)'}
+             'ramananda': 'Rāmānanda', 'gopalananda': 'Gopālānanda (modern)', 'govindaraja': 'Kauśika Govindarāja (Mitākṣarā)'}
     for who, data in six.items():
         write(f'{who}.json', {'id': who, **Y, 'path': rel,
             'label': f'{names[who]}, commentary on the Taittirīyopaniṣad, in “Taittirīyopaniṣat with six commentaries” (Melkote; archive.org item 178-taittiriyopanisad-with-six-commentaries), via vishvAsa/vedAH_yajuH',
-            'note': ('Everything printed after an ‘आ.भा.’ mark inside another commentator’s section, by anuvāka. The edition runs this commentary on page by page without an attribution line and never marks where the first commentator resumes, so these passages may include some of his text. Rāmānanda’s own file lacks exactly these anuvākas, and his commentary is called the Ānandabhāṣya; the attribution is still unconfirmed.'
-                     if who == 'abh' else 'By anuvāka, as the critical edition prints it (OCR-derived text). Viśiṣṭādvaita; text after an ‘आ.भा.’ mark is in abh.json.'), 'mantras': data})
+            'note': 'By anuvāka, as the edition prints it (OCR-derived text). Viśiṣṭādvaita. The edition runs the other commentaries on as notes marked by sigla (आ.भा. Rāmānanda, तै. भा. Govindarāja, प्र. Raṅgarāmānuja); the importer files each passage under its commentator, and text before a colophon under the commentator it names.', 'mantras': data})
 
     refs = []
     for f in sorted(os.listdir(ED)):

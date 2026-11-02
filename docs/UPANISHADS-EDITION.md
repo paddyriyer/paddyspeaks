@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (84 terms; 14 added with the Śīkṣāvallī). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (95 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -92,24 +92,32 @@ apart, shown before the vallī and never numbered.
   six Viśiṣṭādvaita commentaries of the Melkote six-commentary edition, split by
   their own “[…विरचित…]” lines: Kūranārāyaṇa, Raṅgarāmānuja,
   Bhāradvāja-Rāmānuja, Rāmānanda, Gopālānanda (modern), Kauśika Govindarāja.
-  Rāmānuja wrote none on this Upaniṣad. Text printed after an **‘आ.भा.’** mark
-  inside another commentator's section is a further commentary run on page by page
-  (most likely Rāmānanda's *Ānandabhāṣya*: his file lacks exactly those anuvākas);
-  the source never marks where the first commentator resumes, so the importer
-  files everything after the mark as `abh` — attribution uncertain, and said so
-  on every page that quotes it. Anuvāka 1.12 repeats 1.1 and every commentator
+  Rāmānuja wrote none on this Upaniṣad. The edition prints the commentators as
+  **running notes inside one another's sections, marked by sigla** that its own
+  colophons identify: **‘आ.भा.’** Rāmānanda's *Ānandabhāṣya*, **‘तै. भा.’** Kauśika
+  Govindarāja, **‘प्र.’** Raṅgarāmānuja's *Prakāśikā*. `import_taittiriya.route()`
+  files each passage under its commentator (प्र. only at a boundary, so a citation
+  ‘ब्र.वै. प्र.’ is not taken for one) and cuts at colophons («इति … कूरनारायणभाष्यम्»
+  …). Until 2026-11-02 the first two were read as part of Kūranārāyaṇa's and
+  Bhāradvāja's text. Anuvāka 1.12 repeats 1.1 and every commentator
   says so, so their 1.1 comments are mapped to 1.12 (`edition.json`).
-- **Corrections** — twelve slips of the base file (spacing in *saṃhitā*,
-  *mīmāṃsā* and *enaṃ tato*, a doubled vowel sign, प्रमा पाहि → प्र मा भाहि, च/य, a
+- **Corrections** — fourteen slips of the base file (spacing in *saṃhitā*,
+  *mīmāṃsā*, *enaṃ tato*, *puruṣavidhatām* and *nākaravam*, a doubled vowel sign, प्रमा पाहि → प्र मा भाहि, च/य, a
   dropped प, …), each confirmed by S and Mv; 109 witness differences classified.
   pāhi/bhāhi (1.4) still wants a printed Āraṇyaka: Gopālānanda and the ‘आ.भा.’
   passage read pāhi.
 - **Sandhi engine** — `suvaḥ` and `dhātaḥ` were added to the r-final words in
-  `scripts/devi_mahatmyam/sandhi.py` (shared; Devī Māhātmyam and Rudram re-proven).
+  `scripts/devi_mahatmyam/sandhi.py` (shared; Devī Māhātmyam and Rudram re-proven),
+  and *eṣaḥ* is recognised after a vowel fusion (*tenaiṣa pūrṇaḥ*).
+- **Madhva's commentary** follows a mūla passage that can straddle the edition's
+  anuvākas; a comment is filed under every anuvāka its passage covers.
 
-**Phases.** PR 1 (this release): engine, the whole verified text and collation,
-the Śīkṣāvallī analysed (12 anuvākas) with three studies. PR 2: the
-Brahmānandavallī. PR 3: the Bhṛguvallī, the concept map and closing studies.
+**Phases.** PR 1 (2026-11-02, merged): engine, the whole verified text and
+collation, the Śīkṣāvallī analysed (12 anuvākas) with three studies. PR 2
+(2026-11-02): the Brahmānandavallī (9 anuvākas; 2.8 has five units) with three
+studies (satyaṃ jñānam, the five selves, bliss), the commentary sigla and Madhva
+alignment fixed, 14 corrections in all. PR 3: the Bhṛguvallī, the concept map and
+closing studies.
 Until a vallī is listed in `edition.json` `analysed`, its pages show the verified
 text, IAST and svara with “analysis in preparation”, and check.py does not
 require its records.
