@@ -105,14 +105,18 @@ class Edition:
 
     def rec_file(self, k):
         k = str(k)
-        if '.' in k:
-            v, a = k.split('.')
-            return os.path.join(self.dir, 'analysis', f'{v}-{int(a):02d}.json')
+        if '.' in k:   # Taittirīya 1.3 → 1-03.json; Kaṭha 1.2.3 → 1-2-03.json
+            *g, a = k.split('.')
+            return os.path.join(self.dir, 'analysis', f'{"-".join(g)}-{int(a):02d}.json')
         return os.path.join(self.dir, 'analysis', f'{int(k):02d}.json')
+
+    def group(self, k):
+        """The vallī a record belongs to ('1' for Taittirīya 1.3, '1.2' for Kaṭha 1.2.3)."""
+        return str(k).rsplit('.', 1)[0]
 
     def in_scope(self, k):
         sc = self.cfg.get('analysed')
-        return sc is None or str(k).split('.')[0] in sc
+        return sc is None or self.group(k) in sc
 
     def expand(self, at):
         out = []
@@ -203,7 +207,8 @@ def check_text(ed):
         for i, u in enumerate(ed.units(k), 1):
             last = u['lines'][-1]
             m = re.search(r'॥\s*([०-९]+)\s*॥$', last)
-            want = int(k) if '.' not in k else i
+            # a mantra prints its own number; a Taittirīya unit its place in the anuvāka
+            want = int(k) if '.' not in k else (int(k.rsplit('.', 1)[1]) if ed.cfg.get('record') == 'mantra' else i)
             if not m:
                 fail(f'{ed.id} {u["id"]}: the last line must end with ॥ N ॥')
             elif dn(m.group(1)) != want:
@@ -240,8 +245,8 @@ def check_collation(ed):
             continue  # the base is proven by check_text, its differences are corrections
         if ed.cfg['witnesses'][wid].get('scope') == 'valli':
             # collated vallī by vallī: the witness divides anuvākas differently
-            for vk in sorted({k.split('.')[0] for k in ed.keys}, key=int):
-                ks = [k for k in ed.keys if k.split('.')[0] == vk]
+            for vk in dict.fromkeys(ed.group(k) for k in ed.keys):
+                ks = [k for k in ed.keys if ed.group(k) == vk]
                 mine = ' '.join(ed.mtext(k) for k in ks)
                 r = ' '.join(readings.get(k, '') for k in ks)
                 found = [(a, b) for a, b, _ in diff(mine, r)]

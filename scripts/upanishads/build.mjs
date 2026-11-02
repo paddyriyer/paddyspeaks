@@ -160,8 +160,11 @@ function loadEdition(id) {
   // A record is one page: an Īśā mantra (one unit) or a Taittirīya anuvāka (its
   // units are Bhāskara/Sāyaṇa's ॥N॥ divisions, anchored on the page).
   const VALLI = !!T.vallis;
+  // a vallī edition's record is an anuvāka (Taittirīya) or a single mantra (Kaṭha: adhyāya.vallī.mantra)
+  const VERSE = CFG.record === 'mantra';
+  const NOUN = VERSE ? 'Mantra' : 'Anuvāka', PAGE = VERSE ? 'mantra' : 'anuvaka';
   const recs = VALLI
-    ? T.vallis.flatMap((v) => v.anuvakas.map((a) => ({ key: a.id, n: a.n, valli: v, units: a.units, aid: `a${a.id.replace('.', '-')}`, file: `${v.n}-${pad2(a.n)}`, url: `/upanishads/${id}/anuvaka-${v.n}-${pad2(a.n)}.html`, label: `Anuvāka ${a.id}` })))
+    ? T.vallis.flatMap((v) => v.anuvakas.map((a) => ({ key: a.id, n: a.n, valli: v, units: a.units, aid: `a${a.id.replace(/\./g, '-')}`, file: `${String(v.n).replace(/\./g, '-')}-${pad2(a.n)}`, url: `/upanishads/${id}/${PAGE}-${String(v.n).replace(/\./g, '-')}-${pad2(a.n)}.html`, label: `${NOUN} ${a.id}` })))
     : T.mantras.map((m) => ({ key: String(m.n), n: m.n, units: [{ id: String(m.n), n: m.n, lines: m.lines }], aid: `m${m.n}`, file: pad2(m.n), url: `/upanishads/${id}/mantra-${pad2(m.n)}.html`, label: `Mantra ${m.n}` }));
   recs.forEach((r, i) => { r.i = i; r.lines = r.units.flatMap((u) => u.lines); });
   const AN = new Map();
@@ -170,8 +173,8 @@ function loadEdition(id) {
   const landing = has(`${base}/landing.json`) ? J(`${base}/landing.json`) : null;
   const map = has(`${base}/map.json`) ? J(`${base}/map.json`) : null;
   const byKey = Object.fromEntries(recs.map((r) => [r.key, r]));
-  const REC = VALLI ? 'anuvāka' : 'mantra';
-  return { id, base, T, C, CFG, W, AN, studies, landing, map, recs, byKey, VALLI, REC, RECS: VALLI ? 'anuvākas' : 'mantras', short: CFG.short || T.title.en, dir: `/upanishads/${id}/`, PAR: W['parallels.json'].passages };
+  const REC = VALLI && !VERSE ? 'anuvāka' : 'mantra';
+  return { id, base, T, C, CFG, W, AN, studies, landing, map, recs, byKey, VALLI, VERSE, NOUN, REC, RECS: VALLI && !VERSE ? 'anuvākas' : 'mantras', short: CFG.short || T.title.en, dir: `/upanishads/${id}/`, PAR: W['parallels.json'].passages };
 }
 function witnessReading(ed, wid, n) {
   const spec = ed.CFG.witnesses[wid];
@@ -184,7 +187,8 @@ function witnessReading(ed, wid, n) {
 const mUrl = (ed, n) => ed.byKey[String(n)].url;
 // the record a variant belongs to (Madhva's Taittirīya readings are collated by vallī, `near` the anuvāka)
 const vKey = (v) => String(v.near ?? v.at);
-const recWord = (ed, k) => (ed.VALLI ? `Anuvāka ${k}` : `Mantra ${k}`);
+const recWord = (ed, k) => (ed.VALLI ? `${ed.NOUN} ${k}` : `Mantra ${k}`);
+const vid = (v) => `v${String(v.n).replace(/\./g, '-')}`;
 const glossById = Object.fromEntries(GLOSS.terms.map((t) => [t.id, t]));
 
 /* ---------------- mantra page ---------------- */
@@ -210,15 +214,15 @@ function recordPage(ed, r) {
   const variants = ed.C.variants.filter((v) => vKey(v) === r.key);
   const corr = ed.C.corrections.filter((c) => String(c.at) === r.key);
   const unitLine = (u, l) => esc(iast(l.replace(/\s*॥\s*[०-९]+\s*॥\s*$/, ed.VALLI ? ` ॥ ${devNum(u.n)} ॥` : ' ॥')));
-  const where = ed.VALLI ? `${valliName(r.valli)} · Anuvāka ${r.n} of ${r.valli.anuvakas.length}` : `Mantra ${r.n} of ${N}`;
-  const allHref = ed.VALLI ? `${ed.dir}#v${r.valli.n}` : `${ed.dir}#mantras`;
+  const where = ed.VALLI ? `${valliName(r.valli)} · ${ed.NOUN} ${r.n} of ${r.valli.anuvakas.length}` : `Mantra ${r.n} of ${N}`;
+  const allHref = ed.VALLI ? `${ed.dir}#${vid(r.valli)}` : `${ed.dir}#mantras`;
   const allN = ed.VALLI ? r.valli.anuvakas.length : N;
   let h = `<article class="mantra" id="${id}" aria-labelledby="${id}-h">
 <header class="m-hero">
 <p class="kicker">${esc(ed.T.title.en)} · ${where}</p>
 <h1 id="${id}-h"><span class="h-en">${esc(e ? e.title : r.label)}</span></h1>
 ${e && e.theme ? `<p class="h-i">${rich(e.theme)}</p>` : ''}
-<nav class="m-nav" aria-label="${ed.VALLI ? 'Anuvākas' : 'Mantras'}">${prev ? `<a href="${prev.url}" rel="prev">‹ ${prev.label}</a>` : '<span></span>'}<a href="${allHref}">All ${allN}</a>${next ? `<a href="${next.url}" rel="next">${next.label} ›</a>` : '<span></span>'}</nav>
+<nav class="m-nav" aria-label="${ed.VALLI && !ed.VERSE ? 'Anuvākas' : 'Mantras'}">${prev ? `<a href="${prev.url}" rel="prev">‹ ${prev.label}</a>` : '<span></span>'}<a href="${allHref}">All ${allN}</a>${next ? `<a href="${next.url}" rel="next">${next.label} ›</a>` : '<span></span>'}</nav>
 </header>`;
   // 1. Original Sanskrit
   h += `<section class="s1" aria-labelledby="${id}-s1"><h2 class="sec-h" id="${id}-s1"><span class="sec-n">1</span> Original Sanskrit</h2>`;
@@ -310,7 +314,7 @@ ${(e.key_concepts || []).length ? `<p class="concepts" data-lvl="2"><span class=
     const un = cid === 'shankara' && (ed.W['shankara.json'].mantras[r.key] || {}).units;
     if (un) return `Advaita Sharada units ${esc(un.join(', '))}`;
     if (cid === 'mahidhara') return `on VS 40.${keys.join(', 40.')}`;
-    if (ed.VALLI) return `on ${keys.map((k) => (k === 'opening' ? 'the introduction' : `anuvāka ${k}`)).join(' and ')}`;
+    if (ed.VALLI) return `on ${keys.map((k) => (k === 'opening' ? 'the introduction' : `${ed.REC} ${k}`)).join(' and ')}`;
     return `on ${keys.length > 1 ? 'the passage ' : 'mantra '}${keys.join('–')}`;
   };
   src += `<h3>Commentaries consulted</h3><ul class="plain">${Object.entries(ed.CFG.commentaries).map(([cid, c]) => { const keys = (c.map && c.map[r.key]) || [r.key]; return `<li><b>${esc(c.name)}</b>, ${esc(c.work)} — ${where2(cid, keys)}${used.has(cid) ? '' : ' <span class="note">(consulted; not quoted on this page)</span>'}</li>`; }).join('')}</ul>`;
@@ -383,7 +387,7 @@ function editionHome(ed) {
     ? `<section class="band shanti" aria-labelledby="sh-h"><h2 id="sh-h">Before and after the recitation</h2><p class="v-sa" lang="sa">${ed.T.shanti.lines.map((l) => `<span class="ln">${esc(l)}</span>`).join('')}</p><p class="v-iast" lang="sa-Latn">${ed.T.shanti.lines.map((l) => `<span class="ln">${esc(iast(l))}</span>`).join('')}</p><p class="note">${rich(ed.T.shanti.note)} Source: ${esc(ed.T.shanti.source)}.</p></section>`
     : '';
   const list = ed.VALLI
-    ? `<section class="band" id="anuvakas" aria-labelledby="ml-h"><h2 id="ml-h">The three vallīs</h2>${ed.T.vallis.map((v) => { const rs = ed.recs.filter((r) => r.valli === v); const done = rs.filter((r) => ed.AN.has(r.key)).length; return `<section class="valli" id="v${v.n}" aria-labelledby="v${v.n}-h"><h3 id="v${v.n}-h"><span lang="sa">${esc(v.title.sa)}</span> ${esc(valliName(v))} <span class="note">· ${esc(v.title.gloss)} · ${rs.length} anuvākas · ${esc(v.location || '')}${done === rs.length ? '' : done ? ` · ${done} analysed` : ' · verified text; analysis in preparation'}</span></h3>${v.shanti ? `<details class="pre-shanti"><summary>The śānti recited before this vallī</summary><p class="v-sa" lang="sa">${v.shanti.lines.map((l) => `<span class="ln">${esc(l)}</span>`).join('')}</p><p class="v-iast" lang="sa-Latn">${v.shanti.lines.map((l) => `<span class="ln">${esc(iast(l))}</span>`).join('')}</p><p class="note">${rich(v.shanti.note)}</p></details>` : ''}<ol class="ml">${rs.map(card).join('')}</ol></section>`; }).join('')}</section>`
+    ? `<section class="band" id="anuvakas" aria-labelledby="ml-h"><h2 id="ml-h">The ${NUMWORD[ed.T.vallis.length] || ed.T.vallis.length} vallīs</h2>${ed.T.vallis.map((v) => { const rs = ed.recs.filter((r) => r.valli === v); const done = rs.filter((r) => ed.AN.has(r.key)).length; return `<section class="valli" id="${vid(v)}" aria-labelledby="${vid(v)}-h"><h3 id="${vid(v)}-h"><span lang="sa">${esc(v.title.sa)}</span> ${esc(valliName(v))} <span class="note">· ${esc(v.title.gloss)} · ${rs.length} ${ed.RECS} · ${esc(v.location || '')}${done === rs.length ? '' : done ? ` · ${done} analysed` : ' · verified text; analysis in preparation'}</span></h3>${v.shanti ? `<details class="pre-shanti"><summary>The śānti recited before this vallī</summary><p class="v-sa" lang="sa">${v.shanti.lines.map((l) => `<span class="ln">${esc(l)}</span>`).join('')}</p><p class="v-iast" lang="sa-Latn">${v.shanti.lines.map((l) => `<span class="ln">${esc(iast(l))}</span>`).join('')}</p><p class="note">${rich(v.shanti.note)}</p></details>` : ''}<ol class="ml">${rs.map(card).join('')}</ol></section>`; }).join('')}</section>`
     : `<section class="band" id="mantras" aria-labelledby="ml-h"><h2 id="ml-h">The ${N} mantras</h2><ol class="ml">${ed.recs.map(card).join('')}</ol></section>`;
   const qs = (q) => (q.mantras || q.anuvakas).map((n) => `<a href="${mUrl(ed, n)}">${n}</a>`).join(' · ');
   let b = `<div class="page home"><header class="hero"><p class="invoc" lang="sa">॥ ॐ ॥</p><h1><span class="h-sa" lang="sa">${esc(ed.CFG.hero_sa || ed.T.title.sa)}</span><span class="h-en">${esc(ed.T.title.en)}</span></h1><p class="tagline sub">${esc(L.subtitle)}</p><p class="opening">${rich(L.opening)}</p>
@@ -396,9 +400,9 @@ ${shanti}
 <section class="band" aria-labelledby="kq-h"><h2 id="kq-h">Questions the text answers</h2><ul class="kq">${L.key_questions.map((q) => `<li>${rich(q.q)} <span class="kq-m">${qs(q)}</span></li>`).join('')}</ul></section>
 ${list}
 <section class="band" aria-labelledby="st-h"><h2 id="st-h">Special philosophical studies</h2><ol class="stl">${ed.studies.map((s) => `<li><a href="${ed.dir}studies/${s.id}.html"><b>${esc(R[s.n - 1])}. ${rich(s.title)}</b></a> — ${rich(s.subtitle)} <span class="note">(${ed.RECS} ${(s.mantras || s.anuvakas).join(', ')})</span></li>`).join('')}</ol></section>
-<section class="band" aria-labelledby="more-h"><h2 id="more-h">Tools</h2><ul class="refs">${ed.map ? `<li><a href="${ed.dir}map.html">Concept map</a> — how the teachings of the ${ed.VALLI ? 'anuvākas' : 'eighteen mantras'} connect.</li>` : ''}<li><a href="${ed.dir}sources.html">Sources, Variants and Corrections</a> — the witnesses, every difference, and the verification report.</li><li><a href="/upanishads/glossary.html">Glossary</a> · <a href="/upanishads/how-to-study.html">How to Study</a></li></ul></section></div>`;
+<section class="band" aria-labelledby="more-h"><h2 id="more-h">Tools</h2><ul class="refs">${ed.map ? `<li><a href="${ed.dir}map.html">Concept map</a> — how the teachings of the ${ed.VALLI ? ed.RECS : 'eighteen mantras'} connect.</li>` : ''}<li><a href="${ed.dir}sources.html">Sources, Variants and Corrections</a> — the witnesses, every difference, and the verification report.</li><li><a href="/upanishads/glossary.html">Glossary</a> · <a href="/upanishads/how-to-study.html">How to Study</a></li></ul></section></div>`;
   const comms = Object.values(ed.CFG.commentaries).map((c) => c.name.replace(/ \(modern\)$/, ''));
-  out(`upanishads/${ed.id}/index.html`, shell({ title: `${ed.T.title.en} — ${L.subtitle}`, desc: ed.VALLI ? `The ${ed.T.title.en}, ${ed.T.vallis.length} vallīs and ${N} anuvākas: verified Sanskrit with svara, IAST, padaccheda, word-by-word grammar, translations, plain explanations, and the commentaries of ${comms.slice(0, 3).join(', ')} and others.` : `The ${ed.T.title.en}, all ${N} mantras: verified Sanskrit, IAST, padaccheda, word-by-word grammar, faithful and readable translations, plain explanations, and the commentaries of Śaṅkara, Vedānta Deśika and Madhva.`, url: ed.dir, body: b, nav: NAVE(ed, 'home'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], ['', ed.T.title.en]],
+  out(`upanishads/${ed.id}/index.html`, shell({ title: `${ed.T.title.en} — ${L.subtitle}`, desc: ed.VALLI ? `The ${ed.T.title.en}, ${ed.T.vallis.length} vallīs and ${N} ${ed.RECS}: verified Sanskrit${ed.CFG.svara ? ' with svara' : ''}, IAST, padaccheda, word-by-word grammar, translations, plain explanations, and the commentaries of ${comms.slice(0, 3).join(', ')} and others.` : `The ${ed.T.title.en}, all ${N} mantras: verified Sanskrit, IAST, padaccheda, word-by-word grammar, faithful and readable translations, plain explanations, and the commentaries of Śaṅkara, Vedānta Deśika and Madhva.`, url: ed.dir, body: b, nav: NAVE(ed, 'home'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], ['', ed.T.title.en]],
     ld: { '@context': 'https://schema.org', '@type': 'Book', name: ed.T.title.en, alternateName: ed.T.title.sa, inLanguage: ['sa', 'en'], url: `${SITE}${ed.dir}`, isPartOf: { '@type': 'CollectionPage', name: 'The Upaniṣads', url: `${SITE}/upanishads/` } } }));
 }
 function editionMantras(ed) {
@@ -410,12 +414,12 @@ function editionMantras(ed) {
   }
 }
 function editionRead(ed) {
-  const sec = (r) => { const e = ed.AN.get(r.key); const rid = ed.VALLI ? `r${r.key.replace('.', '-')}` : `r${r.n}`; return `<section class="rt-m" id="${rid}" aria-labelledby="${rid}-h"><h2 class="rt-h" id="${rid}-h"><a href="${r.url}">${r.key}</a></h2>${r.units.map((u) => `<p class="v-sa" lang="sa">${mantraLines({ lines: u.lines, n: u.n }, ed.VALLI)}</p><p class="v-iast" lang="sa-Latn">${u.lines.map((l) => `<span class="ln">${esc(iast(l.replace(/\s*॥\s*[०-९]+\s*॥\s*$/, ed.VALLI ? ` ॥ ${devNum(u.n)} ॥` : ' ॥')))}</span>`).join('')}</p>${e ? `<p class="tr-read">${rich((e.units ? e.units.find((x) => x.id === u.id) : e).translation.readable)}</p>` : ''}`).join('')}</section>`; };
+  const sec = (r) => { const e = ed.AN.get(r.key); const rid = ed.VALLI ? `r${r.key.replace(/\./g, '-')}` : `r${r.n}`; return `<section class="rt-m" id="${rid}" aria-labelledby="${rid}-h"><h2 class="rt-h" id="${rid}-h"><a href="${r.url}">${r.key}</a></h2>${r.units.map((u) => `<p class="v-sa" lang="sa">${mantraLines({ lines: u.lines, n: u.n }, ed.VALLI)}</p><p class="v-iast" lang="sa-Latn">${u.lines.map((l) => `<span class="ln">${esc(iast(l.replace(/\s*॥\s*[०-९]+\s*॥\s*$/, ed.VALLI ? ` ॥ ${devNum(u.n)} ॥` : ' ॥')))}</span>`).join('')}</p>${e ? `<p class="tr-read">${rich((e.units ? e.units.find((x) => x.id === u.id) : e).translation.readable)}</p>` : ''}`).join('')}</section>`; };
   const body = ed.VALLI
-    ? ed.T.vallis.map((v) => `<section class="rt-v" id="v${v.n}" aria-labelledby="v${v.n}-h"><h2 class="rt-vh" id="v${v.n}-h"><span lang="sa">${esc(v.title.sa)}</span> · ${esc(valliName(v))}</h2>${v.shanti ? `<p class="v-sa pre-shanti" lang="sa">${v.shanti.lines.map((l) => `<span class="ln">${esc(l)}</span>`).join('')}</p>` : ''}${ed.recs.filter((r) => r.valli === v).map(sec).join('')}</section>`).join('')
+    ? ed.T.vallis.map((v) => `<section class="rt-v" id="${vid(v)}" aria-labelledby="${vid(v)}-h"><h2 class="rt-vh" id="${vid(v)}-h"><span lang="sa">${esc(v.title.sa)}</span> · ${esc(valliName(v))}</h2>${v.shanti ? `<p class="v-sa pre-shanti" lang="sa">${v.shanti.lines.map((l) => `<span class="ln">${esc(l)}</span>`).join('')}</p>` : ''}${ed.recs.filter((r) => r.valli === v).map(sec).join('')}</section>`).join('')
     : ed.recs.map(sec).join('');
   const lead = ed.VALLI
-    ? `All ${ed.recs.length} anuvākas in three vallīs: the Sanskrit and the transliteration throughout, and the readable English rendering where the analysis is published (${[...new Set([...ed.AN.keys()].map((k) => valliName(ed.byKey[k].valli)))].join(', ')}).`
+    ? `All ${ed.recs.length} ${ed.RECS} in ${NUMWORD[ed.T.vallis.length] || ed.T.vallis.length} vallīs: the Sanskrit and the transliteration throughout, and the readable English rendering where the analysis is published (${[...new Set([...ed.AN.keys()].map((k) => valliName(ed.byKey[k].valli)))].join(', ')}).`
     : `All ${ed.T.count} mantras: the Sanskrit, the transliteration and the readable English rendering. About ten minutes.`;
   const b = `<div class="page chapter"><header class="ch-hero"><p class="kicker">${esc(ed.T.title.en)}</p><h1><span class="h-en">Read straight through</span></h1><p class="h-i">${lead}</p></header>
 <div class="rt">${body}</div><p class="note">The English here is the edition’s readable, interpretive rendering; each ${ed.REC}’s page has the literal translation and the analysis.</p></div>`;
@@ -453,7 +457,7 @@ function editionMap(ed) {
   svg += `</svg>`;
   const list = M.nodes.map((n) => `<div class="cl" id="n-${n.id}"><h3>${esc(n.label)} <span class="note">· ${n.mantras.map((x) => `<a href="${mUrl(ed, x)}">${x}</a>`).join(', ')}</span></h3><p>${rich(n.text)}</p><ul class="plain">${M.edges.filter((e) => e.from === n.id || e.to === n.id).map((e) => `<li>${e.from === n.id ? `<b>${esc(e.label)}</b> → <a href="#n-${e.to}">${esc(byId[e.to].label)}</a>` : `<a href="#n-${e.from}">${esc(byId[e.from].label)}</a> → <b>${esc(e.label)}</b>`}${e.note ? ` — ${rich(e.note)}` : ''}</li>`).join('')}</ul>${n.study ? `<p class="note">Study: <a href="${ed.dir}studies/${n.study}.html">${esc(ed.studies.find((s) => s.id === n.study)?.title || n.study)}</a></p>` : ''}</div>`).join('');
   const b = `<div class="page wide"><header class="ch-hero"><p class="kicker">${esc(ed.T.title.en)}</p><h1><span class="h-en">Concept map</span></h1><p class="h-i">${rich(M.intro)}</p></header><div class="cmap-wrap">${svg}</div><p class="note">Select a teaching to see what it connects to. The connections marked as interpretive are the commentators’ or the editor’s, not statements of the text; each says whose it is.</p><div class="clist">${list}</div></div>`;
-  out(`upanishads/${ed.id}/map.html`, shell({ title: `${ed.T.title.en} — Concept map`, desc: `An interactive map of how the teachings of the ${ed.T.title.en}'s ${ed.VALLI ? 'anuvākas' : 'eighteen mantras'} connect.`, url: `${ed.dir}map.html`, body: b, nav: NAVE(ed, 'map'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], [ed.dir, ed.T.title.en], ['', 'Concept map']] }));
+  out(`upanishads/${ed.id}/map.html`, shell({ title: `${ed.T.title.en} — Concept map`, desc: `An interactive map of how the teachings of the ${ed.T.title.en}'s ${ed.VALLI ? ed.RECS : 'eighteen mantras'} connect.`, url: `${ed.dir}map.html`, body: b, nav: NAVE(ed, 'map'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], [ed.dir, ed.T.title.en], ['', 'Concept map']] }));
 }
 function editionSources(ed) {
   const C = ed.C;
@@ -465,7 +469,7 @@ function editionSources(ed) {
   let b = `<div class="page prose-page"><header class="ch-hero"><p class="kicker">${esc(ed.T.title.en)}</p><h1><span class="h-en">Sources, Variants and Corrections</span></h1><p class="h-i">What the text was made from, what was checked, and what remains open.</p></header>
 <nav class="toc" aria-label="Contents"><ol><li><a href="#report">Verification report</a></li><li><a href="#witnesses">Textual witnesses</a></li><li><a href="#commentaries">Commentaries</a></li><li><a href="#parallels">Parallel passages and other sources</a></li><li><a href="#corrections">Corrections</a></li><li><a href="#variants">Every variant</a></li><li><a href="#open">Unresolved issues</a></li><li><a href="#rights">Provenance and copyright</a></li></ol></nav><div class="prose">
 <section id="report" aria-labelledby="report-h"><h2 id="report-h">Verification report</h2>
-<div class="stat-grid"><div><b>${ed.T.count}</b>${ed.VALLI ? `anuvākas in ${ed.T.vallis.length} vallīs (${ed.recs.reduce((a, r) => a + r.units.length, 0)} units), numbered without a gap` : `mantras, numbered 1–${ed.T.count} without a gap`}</div><div><b>${Object.keys(ed.CFG.witnesses).length}</b>witnesses collated letter by letter</div><div><b>${C.variants.length}</b>witness differences, every one classified</div><div><b>${ed.AN.size}</b>${ed.REC} records, each proven by the checker</div><div><b>${Object.keys(ed.PAR).length}</b>parallel passages, cut from their sources</div><div><b>${ed.studies.length}</b>special studies</div></div>
+<div class="stat-grid"><div><b>${ed.T.count}</b>${ed.VALLI ? `${ed.RECS} in ${ed.T.vallis.length} vallīs${ed.VERSE ? '' : ` (${ed.recs.reduce((a, r) => a + r.units.length, 0)} units)`}, numbered without a gap` : `mantras, numbered 1–${ed.T.count} without a gap`}</div><div><b>${Object.keys(ed.CFG.witnesses).length}</b>witnesses collated letter by letter</div><div><b>${C.variants.length}</b>witness differences, every one classified</div><div><b>${ed.AN.size}</b>${ed.REC} records, each proven by the checker</div><div><b>${Object.keys(ed.PAR).length}</b>parallel passages, cut from their sources</div><div><b>${ed.studies.length}</b>special studies</div></div>
 <p>Run on every pull request by <code>scripts/upanishads/check.py</code> (Validate Content). It proves that: the text equals the base witness apart from the logged corrections; every letter difference of every other witness is listed and classified below, and no entry is stale; every padaccheda rejoins by the rules of external sandhi into the ${ed.REC}, and every word table lists exactly its words; every Sanskrit phrase quoted from a commentator occurs in that commentator’s text on that ${ed.REC}; every parallel quotes a phrase found in the passage cited; every citation of Pāṇini names a real sūtra and quotes it correctly; every commentary block carries one of the labels; and every ${ed.REC} has all fourteen sections.${ed.VALLI && ed.CFG.analysed ? ` The analysis is published vallī by vallī; so far: ${ed.CFG.analysed.map((v) => valliName(ed.T.vallis[+v - 1])).join(', ')}. The text and collation of all three vallīs are proven now.` : ''}</p>
 <p>Not machine-verifiable, and therefore <b>awaiting review by a Sanskrit scholar</b>: the translations, the beginner explanations, the commentary prose and the judgements in the studies. Status of the ${ed.AN.size} records: ${[...new Set(statuses)].map((s) => `${statuses.filter((x) => x === s).length} ${s === 'machine-verified' ? 'machine-verified, editorial review pending' : s}`).join('; ')}.</p></section>
 <section id="witnesses" aria-labelledby="w-h"><h2 id="w-h">Textual witnesses</h2><p>The edited text is the base witness with the corrections logged below. ${esc(ed.CFG.svara?.sources || '')}</p><dl class="about">${Object.entries(ed.CFG.witnesses).map(([wid, spec]) => { const w = ed.W[spec.file]; return `<dt>${esc(wid)} · ${esc(spec.name)}${spec.role === 'base' ? ' — base text' : ''}</dt><dd>${esc(w.label)}. ${rich(w.note)}<br><span class="note">${esc(w.repo)} · ${esc(w.path)} · commit ${esc((w.commit || '').slice(0, 10))}</span></dd>`; }).join('')}</dl></section>

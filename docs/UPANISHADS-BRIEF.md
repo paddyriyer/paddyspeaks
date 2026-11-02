@@ -98,6 +98,28 @@ also be `prose` or `mixed`.
   or a range in `sources` (`shankara:1.1-1.12`).
 - Check: `python3 scripts/upanishads/check.py --edition taittiriya --partial --mantra 1.7`.
 
+## The Kaṭha: mantra records keyed adhyāya.vallī.mantra
+
+The Kaṭha has 2 adhyāyas × 3 vallīs (119 mantras). Each record is ONE mantra,
+`analysis/A-V-NN.json` (`1-2-23.json`), `id` `"1.2.23"`, with the per-unit fields
+inside `units: [{id: "1.2.23", …}]` (exactly one unit, the mantra) as in the
+Taittirīya records, and the rest per record. `edition.json` has `record: mantra`;
+`analysed` lists vallīs ("1.1", "1.2", …). Most mantras are anuṣṭubh or triṣṭubh:
+give the counts the checker prints when they differ from the norm.
+
+- Commentaries: `shankara` (Advaita; his introduction is key `opening`, cite it
+  from 1.1.1 only; each vallī's opening words are in `valli_intro`), `madhva`
+  (Dvaita; filed under every mantra his passage covers — check a quoted line is
+  about your mantra), `rangaramanuja` (Viśiṣṭādvaita, the Prakāśikā, 1948 edition,
+  OCR). Rāmānuja wrote no commentary on the Kaṭha — never say he did.
+- Witnesses: AS (base), G (GRETIL, after Olivelle 1998 — a modern critical text;
+  cite its readings as GRETIL's, never as Olivelle's interpretation), V (vishvAsa
+  mūla), Mv (Madhva's mūla, collated by vallī).
+- Parallels: the Kaṭha shares verses with the Gītā (e.g. 1.2.18–19 ~ BG 2.19–20)
+  and others; cite them as `BG 2.20` etc. after adding them to a
+  `parallel-refs-*.json` and running `python3 scripts/upanishads/import_katha.py`.
+- Check: `python3 scripts/upanishads/check.py --edition katha --partial --mantra 1.1.12`.
+
 ## Quoting (the checker enforces this)
 
 - **Every Devanagari phrase in « » must occur verbatim** (spaces, punctuation and

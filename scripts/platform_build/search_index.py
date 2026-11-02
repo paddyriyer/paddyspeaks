@@ -288,10 +288,14 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
         text = json.loads((ed / "text.json").read_text(encoding="utf-8"))
         name = text["title"]["en"]
         valli = "vallis" in text
-        what = (f"{len(text['vallis'])} vallīs and {text['count']} anuvākas of the {name}" if valli
+        cfg = json.loads((ed / "edition.json").read_text(encoding="utf-8"))
+        verse = cfg.get("record") == "mantra"   # Kaṭha: a vallī edition whose records are mantras
+        noun = "mantras" if verse else "anuvākas"
+        what = (f"{len(text['vallis'])} vallīs and {text['count']} {noun} of the {name}" if valli
                 else f"All {text['count']} mantras of the {name}")
         nst = len(list((ed / "studies").glob("*.json")))
-        alias = {"isha": ["Isopanishad", "Ishopanishad"], "taittiriya": ["Taittiriya", "Taittiriyopanishad", "Shiksha Valli"]}.get(e["id"], [])
+        alias = {"isha": ["Isopanishad", "Ishopanishad"], "taittiriya": ["Taittiriya", "Taittiriyopanishad", "Shiksha Valli"],
+                 "katha": ["Katha", "Kathopanishad", "Kathopanishat", "Nachiketa", "Naciketas"]}.get(e["id"], [])
         core.append(doc(f"upanishads:{e['id']}", "sacred", f"{name} — study edition", e["path"],
                         subtitle=f"Sacred text · {text['veda']}", text=f"{what}, with padaccheda, word-by-word grammar, translations, commentary and {nst} special studies.",
                         tags=["Upanishads", name, text["title"]["sa"], *alias], category="learn",
@@ -303,9 +307,9 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
                             source=f"upanishads/{e['id']}/edition/studies/{sp.name}"))
         # one doc per analysed record: an Īśā mantra, or a Taittirīya anuvāka
         if valli:
-            recs = [(a["id"], f"{v['n']}-{a['n']:02d}", [l for u in a["units"] for l in u["lines"]])
+            recs = [(a["id"], f"{str(v['n']).replace('.', '-')}-{a['n']:02d}", [l for u in a["units"] for l in u["lines"]])
                     for v in text["vallis"] for a in v["anuvakas"]]
-            page = "anuvaka-{}.html"
+            page = ("mantra-{}.html" if verse else "anuvaka-{}.html")
         else:
             recs = [(str(m["n"]), f"{m['n']:02d}", m["lines"]) for m in text["mantras"]]
             page = "mantra-{}.html"
