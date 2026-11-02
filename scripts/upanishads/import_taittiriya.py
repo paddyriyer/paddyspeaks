@@ -197,7 +197,7 @@ AUTHORS = {'कूर-नारायणः': 'kuranarayana', 'रङ्गर�
 def six_commentaries(yajuh):
     base = TA + 'sarva-prastutiH/05_taittirIyopaniShat/rAmAnujIyA/6-TikAH/2_TIkAH/'
     dirs = {1: '1_shixAvallI', 2: '2_AnandavallI', 3: '3_bhRguvallI'}
-    out = {k: {} for k in set(AUTHORS.values()) | {'govindaraja'}}
+    out = {k: {} for k in set(AUTHORS.values()) | {'govindaraja', 'abh'}}
     for v, d in dirs.items():
         for fn in sorted(os.listdir(os.path.join(yajuh, base + d))):
             m = re.match(r'^0*(\d+)\.md$', fn)
@@ -221,8 +221,19 @@ def six_commentaries(yajuh):
                         nm = re.sub(r'[\s-]', '', m.group(1))
                         cur = next((w for n, w in ATTRIB if n in nm), cur)
                         continue
-                    if part.strip():
-                        out[cur][key] = (out[cur].get(key, '') + ' ' + part.strip()).strip()
+                    if not part.strip():
+                        continue
+                    # Text after an 'आ.भा.' mark is another commentary run on page by page
+                    # (most likely Rāmānanda's Ānandabhāṣya: his file lacks exactly these
+                    # anuvākas). The source never marks where the first commentator
+                    # resumes, so everything after the mark is kept apart, unattributed.
+                    own, *rest = re.split(r'आ\.\s*भा\.', part)
+                    if own.strip():
+                        out[cur][key] = (out[cur].get(key, '') + ' ' + own.strip()).strip()
+                    for r in rest:
+                        r = re.sub(r'^[\s\-–,·0-9]+', '', r).strip()
+                        if r:
+                            out['abh'][key] = (out['abh'].get(key, '') + ' ' + r).strip()
     return base, out
 
 
@@ -258,11 +269,13 @@ def main():
         'opening': shi, 'mantras': {k: {'bhashya': v, 'intro': ''} for k, v in shb.items()}})
     rel, six = six_commentaries(a.yajuh)
     names = {'kuranarayana': 'Kūranārāyaṇa', 'rangaramanuja': 'Raṅgarāmānuja', 'bharadvaja': 'Bhāradvāja-Rāmānuja (Pratipadārthadīpikā)',
-             'ramananda': 'Rāmānanda', 'gopalananda': 'Gopālānanda (modern)', 'govindaraja': 'Kauśika Govindarāja (Mitākṣarā)'}
+             'ramananda': 'Rāmānanda', 'gopalananda': 'Gopālānanda (modern)', 'govindaraja': 'Kauśika Govindarāja (Mitākṣarā)',
+             'abh': 'The passages marked ‘आ.भा.’ (attribution uncertain; most likely Rāmānanda’s Ānandabhāṣya)'}
     for who, data in six.items():
         write(f'{who}.json', {'id': who, **Y, 'path': rel,
             'label': f'{names[who]}, commentary on the Taittirīyopaniṣad, in “Taittirīyopaniṣat with six commentaries” (Melkote; archive.org item 178-taittiriyopanisad-with-six-commentaries), via vishvAsa/vedAH_yajuH',
-            'note': 'By anuvāka, as the critical edition prints it (OCR-derived text). Viśiṣṭādvaita.', 'mantras': data})
+            'note': ('Everything printed after an ‘आ.भा.’ mark inside another commentator’s section, by anuvāka. The edition runs this commentary on page by page without an attribution line and never marks where the first commentator resumes, so these passages may include some of his text. Rāmānanda’s own file lacks exactly these anuvākas, and his commentary is called the Ānandabhāṣya; the attribution is still unconfirmed.'
+                     if who == 'abh' else 'By anuvāka, as the critical edition prints it (OCR-derived text). Viśiṣṭādvaita; text after an ‘आ.भा.’ mark is in abh.json.'), 'mantras': data})
 
     refs = []
     for f in sorted(os.listdir(ED)):

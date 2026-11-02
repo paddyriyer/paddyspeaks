@@ -11,9 +11,10 @@ clones fresh each time). CLAUDE.md points here._
   This PR: the engine generalised to vallī.anuvāka.unit (check.py, build.mjs,
   search index; Īśā output byte-identical), the whole text (31 anuvākas, 51 units)
   verified and collated — base Advaita Sharada mūla, Sāyaṇa-pāṭha with svara,
-  Madhva's mūla (collated by vallī), 10 corrections, 109 variants classified —
+  Madhva's mūla (collated by vallī), 12 corrections, 109 variants classified —
   the **Śīkṣāvallī analysed** (12 anuvākas, 14 sections each) with three studies,
-  and commentaries Śaṅkara, Madhva and six Viśiṣṭādvaita commentators. Vallīs 2–3
+  and commentaries Śaṅkara, Madhva and six Viśiṣṭādvaita commentators (plus the
+  unattributed ‘आ.भा.’ passages, filed apart as `abh`). Glossary 84 terms. Vallīs 2–3
   show verified text + "analysis in preparation". **Next:** PR 2 Brahmānandavallī
   (`analysis/2-NN.json`, add "2" to `edition.json` `analysed`, update the
   render_test 2.1 pending check); PR 3 Bhṛguvallī, `map.json` and closing studies.

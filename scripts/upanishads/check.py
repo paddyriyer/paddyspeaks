@@ -367,7 +367,8 @@ def check_unit(ed, k, u, e, where):
                 fail(f'{where}: word {w.get("w")!r} lacks {f!r}')
     ut = ' '.join(u['lines'])
     for s in e.get('sandhi', []):
-        if phon(s.get('joined', '')) not in phon(ut):
+        # a final m may be written ṃ before the next word (phon is sound-level)
+        if re.sub(r'[mṃ]$', '', phon(s.get('joined', ''))) not in phon(ut):
             fail(f"{where}: sandhi example {s.get('joined')!r} is not in the text")
         for f in ('split', 'type', 'rule'):
             if not s.get(f):

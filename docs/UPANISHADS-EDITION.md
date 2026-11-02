@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (70 terms). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (84 terms; 14 added with the Śīkṣāvallī). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -92,10 +92,20 @@ apart, shown before the vallī and never numbered.
   six Viśiṣṭādvaita commentaries of the Melkote six-commentary edition, split by
   their own “[…विरचित…]” lines: Kūranārāyaṇa, Raṅgarāmānuja,
   Bhāradvāja-Rāmānuja, Rāmānanda, Gopālānanda (modern), Kauśika Govindarāja.
-  Rāmānuja wrote none on this Upaniṣad.
-- **Corrections** — ten slips of the base file (spacing in *saṃhitā*, a doubled
-  vowel sign, प्रमा पाहि → प्र मा भाहि, च/य, a dropped प, …), each confirmed by S and Mv;
-  109 witness differences classified.
+  Rāmānuja wrote none on this Upaniṣad. Text printed after an **‘आ.भा.’** mark
+  inside another commentator's section is a further commentary run on page by page
+  (most likely Rāmānanda's *Ānandabhāṣya*: his file lacks exactly those anuvākas);
+  the source never marks where the first commentator resumes, so the importer
+  files everything after the mark as `abh` — attribution uncertain, and said so
+  on every page that quotes it. Anuvāka 1.12 repeats 1.1 and every commentator
+  says so, so their 1.1 comments are mapped to 1.12 (`edition.json`).
+- **Corrections** — twelve slips of the base file (spacing in *saṃhitā*,
+  *mīmāṃsā* and *enaṃ tato*, a doubled vowel sign, प्रमा पाहि → प्र मा भाहि, च/य, a
+  dropped प, …), each confirmed by S and Mv; 109 witness differences classified.
+  pāhi/bhāhi (1.4) still wants a printed Āraṇyaka: Gopālānanda and the ‘आ.भा.’
+  passage read pāhi.
+- **Sandhi engine** — `suvaḥ` and `dhātaḥ` were added to the r-final words in
+  `scripts/devi_mahatmyam/sandhi.py` (shared; Devī Māhātmyam and Rudram re-proven).
 
 **Phases.** PR 1 (this release): engine, the whole verified text and collation,
 the Śīkṣāvallī analysed (12 anuvākas) with three studies. PR 2: the
