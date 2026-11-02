@@ -272,7 +272,7 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
     if not cp.exists():
         return [], []
     core = [doc("upanishads:home", "sacred", "The Upaniṣads — A Study Edition", "/upanishads/",
-                subtitle="Sacred text · Vedānta", text="The principal Upaniṣads verse by verse: verified Sanskrit, grammar, translations and the commentaries of Śaṅkara, Vedānta Deśika and Madhva, in three reading paths.",
+                subtitle="Sacred text · Vedānta", text="The principal Upaniṣads verse by verse, beginning with the Īśāvāsya and the Taittirīya: verified Sanskrit, grammar, translations and the classical commentaries of Advaita, Viśiṣṭādvaita and Dvaita, in three reading paths.",
                 tags=["Upanishads", "Upanishad", "Vedanta"], category="learn", source="upanishads/data/collection.json"),
             doc("upanishads:intro", "sacred", "Introduction to the Upaniṣads", "/upanishads/introduction.html",
                 subtitle="Sacred text · Guide", text="What Upaniṣad means; śruti and smṛti; Saṃhitā, Brāhmaṇa, Āraṇyaka and Upaniṣad; Vedānta and the prasthānatraya; the ten principal Upaniṣads; revelation and chronology.",
@@ -287,24 +287,38 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
         ed = base / e["id"] / "edition"
         text = json.loads((ed / "text.json").read_text(encoding="utf-8"))
         name = text["title"]["en"]
+        valli = "vallis" in text
+        what = (f"{len(text['vallis'])} vallīs and {text['count']} anuvākas of the {name}" if valli
+                else f"All {text['count']} mantras of the {name}")
+        nst = len(list((ed / "studies").glob("*.json")))
+        alias = {"isha": ["Isopanishad", "Ishopanishad"], "taittiriya": ["Taittiriya", "Taittiriyopanishad", "Shiksha Valli"]}.get(e["id"], [])
         core.append(doc(f"upanishads:{e['id']}", "sacred", f"{name} — study edition", e["path"],
-                        subtitle=f"Sacred text · {text['veda']}", text=f"All {text['count']} mantras of the {name}, with padaccheda, word-by-word grammar, translations, commentary and six special studies.",
-                        tags=["Upanishads", name, text["title"]["sa"], "Isopanishad", "Ishopanishad"], category="learn",
+                        subtitle=f"Sacred text · {text['veda']}", text=f"{what}, with padaccheda, word-by-word grammar, translations, commentary and {nst} special studies.",
+                        tags=["Upanishads", name, text["title"]["sa"], *alias], category="learn",
                         source=f"upanishads/{e['id']}/edition/text.json"))
         for sp in sorted((ed / "studies").glob("*.json")):
             st = json.loads(sp.read_text(encoding="utf-8"))
             core.append(doc(f"upanishads:{e['id']}:study:{st['id']}", "sacred", f"{name}: {st['title']}", f"{e['path']}studies/{st['id']}.html",
                             subtitle="Sacred text · Study", text=_clip(st.get("summary", ""), 400), tags=["Upanishads", name], category="learn",
                             source=f"upanishads/{e['id']}/edition/studies/{sp.name}"))
-        for m in text["mantras"]:
-            ap = ed / "analysis" / f"{m['n']:02d}.json"
+        # one doc per analysed record: an Īśā mantra, or a Taittirīya anuvāka
+        if valli:
+            recs = [(a["id"], f"{v['n']}-{a['n']:02d}", [l for u in a["units"] for l in u["lines"]])
+                    for v in text["vallis"] for a in v["anuvakas"]]
+            page = "anuvaka-{}.html"
+        else:
+            recs = [(str(m["n"]), f"{m['n']:02d}", m["lines"]) for m in text["mantras"]]
+            page = "mantra-{}.html"
+        for key, stem, lines in recs:
+            ap = ed / "analysis" / f"{stem}.json"
             if not ap.exists():
                 continue
             a = json.loads(ap.read_text(encoding="utf-8"))
-            verses.append(doc(f"upanishads:{e['id']}:{m['n']}", "verse", f"{name} {m['n']} — {a['title']}",
-                              f"{e['path']}mantra-{m['n']:02d}.html", subtitle=f"Sacred text · {name}",
-                              text=a["translation"]["readable"], tags=[" ".join(m["lines"])], category="learn",
-                              source=f"upanishads/{e['id']}/edition/analysis/{m['n']:02d}.json"))
+            readable = " ".join(u["translation"]["readable"] for u in a.get("units", [a]))
+            verses.append(doc(f"upanishads:{e['id']}:{key}", "verse", f"{name} {key} — {a['title']}",
+                              f"{e['path']}{page.format(stem)}", subtitle=f"Sacred text · {name}",
+                              text=_clip(readable, 600) if valli else readable, tags=[" ".join(lines)[:600] if valli else " ".join(lines)], category="learn",
+                              source=f"upanishads/{e['id']}/edition/analysis/{stem}.json"))
     return core, verses
 
 

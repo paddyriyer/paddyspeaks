@@ -61,6 +61,32 @@ change it. If you believe the text is wrong, add a `flags` entry
 | `flags` | `{kind, note}` | `uncertain`, `variant`, `interpretation`, `review` |
 | `status` | `machine-verified` | (`reviewed` only after a scholar has read it) |
 
+## The Taittirīya: anuvāka records (see taittiriya/edition/analysis/1-01.json)
+
+The Taittirīya is numbered vallī.anuvāka.unit (Bhāskara/Sāyaṇa's ॥N॥ units
+inside each anuvāka). One record per anuvāka: `analysis/V-AA.json` (`1-07.json`),
+`id` `"1.7"`. The per-unit fields — `padaccheda`, `words`, `sandhi`,
+`sandhi_exceptions`, `samasa`, `morphology`, `translation` — sit inside
+`units: [{id: "1.7.1", …}]`, one entry per unit of `text.json`, in order;
+`sandhi_exceptions.after` counts words within that unit. Everything else
+(`anvaya` may be `""` for prose too long to reorder usefully, `syntax`,
+`ambiguities`, `metre`, `beginner` … `status`) is per anuvāka. `metre.name` may
+also be `prose` or `mixed`.
+
+- The commentaries are `shankara` (Advaita), `madhva` (Dvaita), and for
+  Viśiṣṭādvaita `rangaramanuja`, `kuranarayana`, `govindaraja`; also
+  `bharadvaja`, `ramananda`, `gopalananda` (see `edition.json`). Rāmānuja wrote
+  no commentary on this Upaniṣad — never say he did. Śaṅkara's introduction is
+  `shankara` key `opening` (cite it from 1.1 only).
+- The śānti of vallīs 2–3 (*saha nāvavatu*) is not a numbered unit.
+- Madhva's mūla is divided differently; its variants are collated by vallī (`near`).
+- Parallels: add refs to a `parallel-refs-*.json` and re-run
+  `python3 scripts/upanishads/import_taittiriya.py --yajuh … --raw …`.
+- Studies: `studies/<id>.json` like the Īśā's, with `anuvakas: ["1.3", …]`
+  instead of `mantras`, and each section's `mantra` an anuvāka id (`"1.3"`)
+  or a range in `sources` (`shankara:1.1-1.12`).
+- Check: `python3 scripts/upanishads/check.py --edition taittiriya --partial --mantra 1.7`.
+
 ## Quoting (the checker enforces this)
 
 - **Every Devanagari phrase in « » must occur verbatim** (spaces, punctuation and

@@ -78,6 +78,16 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   ok(s.secs.length === 14, `no-JS: ${s.secs.length} of 14 sections`);
   ok(s.open.every((l) => l <= 2) && s.closed.every((l) => l === 3), 'no-JS: Serious Student sections should be open, Scholar sections closed');
   ok(s.bar === true, 'no-JS: the reader bar should stay hidden');
+  // Taittirīya: an analysed anuvāka has its units anchored and all fourteen sections;
+  // an anuvāka of a vallī still in preparation shows its verified text and says so.
+  await p.goto(base + '/upanishads/taittiriya/anuvaka-1-01.html');
+  const t = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a1-1-s"]').length, unit: !!document.getElementById('u1-1-1') }));
+  ok(t.secs === 14 && t.unit, `no-JS Taittirīya 1.1: ${t.secs} of 14 sections, unit anchor ${t.unit}`);
+  await p.goto(base + '/upanishads/taittiriya/anuvaka-1-03.html');
+  ok(await p.$('#u1-3-4'), 'Taittirīya 1.3: unit 1.3.4 should be anchored');
+  await p.goto(base + '/upanishads/taittiriya/anuvaka-2-01.html');
+  const pend = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending'), shanti: !!document.querySelector('.pre-shanti') }));
+  ok(pend.text && pend.pending && pend.shanti, `Taittirīya 2.1 (in preparation): text ${pend.text}, pending note ${pend.pending}, śānti ${pend.shanti}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence
