@@ -324,7 +324,9 @@ Read **`docs/DEVI-MAHATMYAM-EDITION.md`** (and, to write analysis,
 Read **`docs/UPANISHADS-EDITION.md`** (and, to write analysis,
 **`docs/UPANISHADS-BRIEF.md`**) before touching `upanishads/` or
 `scripts/upanishads/`. A collection of study editions inside the Sacred Library,
-beginning with the Īśāvāsya (Kāṇva, 18 mantras, 2026-11-01).
+beginning with the Īśāvāsya (Kāṇva, 18 mantras, 2026-11-01), then the
+Taittirīya (3 vallīs, 31 anuvākas, 2026-11-02; analysis published vallī by vallī,
+Śīkṣāvallī first — `edition.json` `analysed`).
 
 - **One source per thing:** `upanishads/<id>/edition/text.json` (base witness G +
   logged corrections), `corrections.json` (every witness difference, classified),
@@ -342,6 +344,9 @@ beginning with the Īśāvāsya (Kāṇva, 18 mantras, 2026-11-01).
   are labelled; svara is shown only as the Kāṇva witness keys it.
 - Reading paths (Curious · Student · Scholar) only open or close sections; all
   content is always in the HTML. Mantra URLs and `#mN-sK` anchors never change.
+- Taittirīya records are anuvākas (`analysis/V-AA.json`, word fields per ॥N॥
+  unit); pages `anuvaka-V-AA.html` with `#uV-A-U` unit and `#aV-A-sK` section
+  anchors, which never change. Madhva's text is collated vallī by vallī.
 
 ## Śrī Rudram (`/rudramchamakam/`)
 

@@ -56,7 +56,7 @@ SAVARNA = {'a': 'a', 'ā': 'a', 'i': 'i', 'ī': 'i', 'u': 'u', 'ū': 'u', 'ṛ':
 LONG = {'a': 'ā', 'i': 'ī', 'u': 'ū', 'ṛ': 'ṝ'}
 
 # words whose visarga stands for r (they become -r before voiced sounds)
-R_FINAL = {'punaḥ', 'antaḥ', 'prātaḥ', 'svaḥ', 'ahaḥ', 'mātaḥ', 'pitaḥ', 'bhrātaḥ',
+R_FINAL = {'punaḥ', 'antaḥ', 'prātaḥ', 'svaḥ', 'suvaḥ', 'dhātaḥ', 'ahaḥ', 'mātaḥ', 'pitaḥ', 'bhrātaḥ',
            'dvāḥ', 'gīḥ', 'dhūḥ', 'pūḥ', 'nṛpaḥ_never'}
 
 
