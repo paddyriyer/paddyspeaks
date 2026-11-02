@@ -9438,6 +9438,54 @@
       ],
       "answer": 2,
       "explanation": "With `chunksize=5000`, workers process 5K records before requesting more work, creating scheduling granularity of 5K batches. If records have variable processing time (common in data pipelines), some workers finish their chunk early while others are still processing. Reducing `chunksize` to ~1000 increases the number of scheduling points, allowing the queue to redistribute work more frequently and reduce idle time. `chunksize=1` is too aggressive and adds overhead; intermediate values (1000-2000) provide better balance."
+    },
+    {
+      "id": "py-new-198",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're building a data pipeline that processes streaming events from Kafka using multiprocessing.Pool. Each worker needs to maintain a persistent database connection across multiple tasks. What is the primary issue with this approach, and how should you address it?",
+      "options": [
+        "Database connections are not picklable by default; use initializer and initargs parameters in Pool() to create per-worker connections",
+        "Multiprocessing.Pool automatically serializes all object state; you must use threading.Pool instead for database connections",
+        "Each task will attempt to use the same connection object, causing race conditions; wrap all DB calls with a threading.Lock",
+        "Database connections cannot be used across process boundaries; you must use queues to pass raw SQL strings to a single writer process"
+      ],
+      "answer": 0,
+      "explanation": "The initializer and initargs parameters allow you to run setup code once per worker process, making them ideal for creating persistent database connections that survive across multiple task invocations. This avoids the overhead of creating/destroying connections repeatedly and avoids pickling issues."
+    },
+    {
+      "id": "py-new-199",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're validating complex nested data records in a data pipeline using Python 3.10+ structural pattern matching. You need to handle cases where a record is a dict with 'type' key that determines validation rules, but also handle non-dict inputs gracefully. Which pattern correctly validates and extracts nested fields with proper fallback behavior?",
+      "options": [
+        "case {'type': 'event', 'data': {'user_id': int(uid), 'timestamp': str(ts)}} ensures type safety and extracts nested values, falling back to the default case for non-matching structures",
+        "case {'type': 'event'} | {'type': 'log'} is invalid syntax; you must use separate case statements for each type variant",
+        "case dict() as d if d.get('type') == 'event' bypasses pattern matching and requires manual extraction, defeating the purpose",
+        "case {'type': str(t), **rest} requires capturing the entire remaining dict, making it impossible to validate specific nested fields"
+      ],
+      "answer": 0,
+      "explanation": "Structural pattern matching supports nested dict patterns with type guards. The pattern `{'type': 'event', 'data': {'user_id': int(uid)}}` both validates structure AND extracts values into variables (uid, ts) in a single atomic operation, with the default case catching non-matching inputs."
+    },
+    {
+      "id": "py-new-200",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're building a data pipeline that needs to process all CSV files from a source directory, excluding files in any '.archive' subdirectories, and rename them with a timestamp suffix before writing to a destination. Using pathlib.Path, what is the most efficient approach that avoids redundant directory traversals?",
+      "options": [
+        "Use Path.rglob('*.csv') to find all CSVs, then filter with 'if \".archive\" not in str(p.parts)' to exclude archived files in one pass",
+        "Use Path.glob('**/*.csv') in a list comprehension, then Path.glob('**/.archive') separately to build an exclusion set\u2014two traversals but clearer intent",
+        "Use os.walk() to manually traverse and track visited directories, checking for '.archive' before recursing\u2014more control but loses pathlib benefits",
+        "Use Path.rglob() with nested loops checking parent directories for '.archive', which is clean but performs redundant parent lookups per file"
+      ],
+      "answer": 0,
+      "explanation": "Path.rglob() traverses the tree once efficiently, and filtering with `.parts` (which is already computed) avoids a second traversal. Checking `\".archive\" not in p.parts` elegantly excludes any file in a directory path containing '.archive' without redundant filesystem calls."
     }
   ]
 }

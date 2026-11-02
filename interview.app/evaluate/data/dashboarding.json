@@ -1885,6 +1885,38 @@
       ],
       "answer": 0,
       "explanation": "The semantic layer (Option A) is the correct abstraction: it centralizes timezone logic, allows per-user context awareness at query time, and avoids duplicating computation. Option B is wasteful (pre-computing all timezones) and inflexible if customer timezones change. Option C applies conversion after retrieval, losing filter pushdown and scalability. Option D requires client-side state management and breaks if timezones are ambiguous or change."
+    },
+    {
+      "id": "dash-new-063",
+      "type": "single",
+      "topic": "dashboard caching and cache warming",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "Your organization runs a dashboard that aggregates 12 months of daily metrics across 50 regions. The dashboard serves 200+ concurrent users during business hours (8am\u20136pm). Query execution takes 18 seconds cold, but users expect sub-2-second load times. You implement cache warming at 7:55am each morning. After two weeks, you observe that 40% of requests still hit cold cache during 8am\u20138:15am, and cache hit rate drops sharply after 3pm. Which root cause is most likely?",
+      "options": [
+        "Cache TTL is set to 4 hours, expiring during afternoon peak usage; cache warming only runs once, missing mid-day refresh cycles",
+        "The aggregation query is non-deterministic due to floating-point rounding, causing cache keys to differ between warming and user queries",
+        "Dashboard users are applying time-zone filters that create query variants not covered by the single morning warm run",
+        "Concurrent user load at 8am exceeds available memory, evicting cached results before users can access them"
+      ],
+      "answer": 0,
+      "explanation": "A single morning warm at 7:55am populates cache for one cycle, but a 4-hour TTL means cache expires at ~noon or later. The observed 3pm cliff matches afternoon expiration, and the 8am cold misses suggest users are applying filters or date ranges that weren't part of the warming query. The solution requires either longer TTL, periodic re-warming on a schedule (e.g., 7:55am and 2pm), or separate cache keys for common filter combinations."
+    },
+    {
+      "id": "dash-new-064",
+      "type": "single",
+      "topic": "metric definitions and governance",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "Your data platform hosts 250+ dashboards used by Finance, Product, and Operations teams. Over six months, three independent incidents occur: (1) Finance reports Q3 revenue as $50M; Product reports $48M; (2) two dashboards both labeled 'Active Users' diverge by 18% due to different churn cutoff rules; (3) a 'Customer Acquisition Cost' metric includes or excludes refunds depending on which dashboard loads it. Leadership demands a single source of truth. Which governance structure best prevents recurrence?",
+      "options": [
+        "Create a centralized Metrics Repository in Confluence with definitions, owners, and SLAs; enforce read-only metric views in the data warehouse that materialize each metric once",
+        "Require all dashboard builders to document metric formulas in a shared spreadsheet; conduct quarterly audits of dashboard queries",
+        "Implement a data catalog tool (e.g., Collibra, Alation) with lineage tracking; make metric definitions optional but discoverable",
+        "Establish a Metrics Committee that reviews and approves all new dashboards; store approved metric SQL in version control with owner sign-off"
+      ],
+      "answer": 1,
+      "explanation": "The most scalable solution combines a single source of truth (read-only materialized views in the warehouse, not a spreadsheet or wiki) with explicit metric ownership and governance. Materialized views ensure Finance, Product, and Operations all query the same `revenue`, `active_users`, and `cac` definitions\u2014no formula variants, no spreadsheet drift. The Metrics Repository documents *why* each definition exists, and SLAs clarify refresh cadence, so future teams inherit the contract. A spreadsheet (option B) drifts immediately; a committee (option D) throttles agility without automation; a catalog alone (option C) provides visibility but no enforcement."
     }
   ]
 }

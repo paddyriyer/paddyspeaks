@@ -7048,6 +7048,54 @@
       ],
       "answer": 2,
       "explanation": "Option 2 (XCom serialization bottleneck) is correct: XCom stores task outputs in the Airflow Metastore; with 100 large outputs, this causes Postgres contention. Using S3-backed XCom avoids DB serialization. Option 0 doesn't address root cause. Option 1 conflates task mapping with grouping. Option 3 assumes workers are saturated, but scheduler lag suggests metadata layer issues."
+    },
+    {
+      "id": "ds-new-149",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're designing an idempotent ETL pipeline that ingests order events from Kafka into a Snowflake fact table. The pipeline must handle duplicate messages and network retries without creating duplicate fact rows. Your events contain a `event_id` (globally unique), `order_id`, and `amount`. You currently use `MERGE INTO` with `event_id` as the match key, but you discover that 0.5% of messages arrive out-of-order (e.g., order_cancelled arrives before order_completed). How should you redesign this to ensure idempotency while preserving event ordering semantics?",
+      "options": [
+        "Add a `processed_at` timestamp to the MERGE match condition and reject out-of-order events to a quarantine table for manual replay",
+        "Use a separate idempotency table that stores (event_id, order_id, amount_hash) and perform a two-step process: check idempotency table first, then MERGE only if not seen before",
+        "Introduce a `sequence_number` column per order_id, deduplicate by (order_id, sequence_number) instead of event_id, and implement a state machine in dbt to enforce valid state transitions",
+        "Switch to an append-only event log design with soft deletes, then materialize the order state view using `ROW_NUMBER()` window functions partitioned by order_id ordered by event timestamp"
+      ],
+      "answer": 3,
+      "explanation": "The append-only event log with state machine materialization is the most robust approach for handling out-of-order events idempotently. It preserves all events (enabling audit trails), tolerates out-of-order arrival, and uses deterministic window functions to derive the correct state. Options 1-2 either lose events or create complex validation logic; option 3 assumes sequence numbers exist in the source system."
+    },
+    {
+      "id": "ds-new-150",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "Your dbt project has 120 models across three layers: `stg_` (30 models), `int_` (40 models), and `mart_` (50 models). Recently, a staging model `stg_customers` changed its grain from customer_id to (customer_id, effective_date), breaking 12 downstream intermediate models. You want to prevent this in the future. Which combination of dbt best practices would best catch this issue before merge?",
+      "options": [
+        "Add `constraints` (unique, not_null) in the staging model YAML, run `dbt test` in CI, and document grain expectations in the model headers",
+        "Implement custom schema tests in `tests/staging/` that assert the grain of each staging model, add them to dbt_project.yml selectors, and run them before building downstream models in CI",
+        "Create a `meta.grain` tag on each staging model documenting expected grain, use dbt Cloud API to validate downstream model contracts before allowing merges, and add a pre-commit hook to verify grain changes",
+        "Use `dbt parse` to detect column additions/deletions in staging models, trigger a full lineage analysis job that fails if downstream models have untested dependencies, and require sign-off from data owners"
+      ],
+      "answer": 1,
+      "explanation": "Custom schema tests that assert grain (e.g., 'test_unique_customer_id') are the most practical dbt-native solution. Combined with a selector in dbt_project.yml to run them first and document grain in YAML, this catches grain changes at test time before downstream models break. Option 2 uses contracts (not fully production-ready in older dbt versions); option 3 adds overhead without addressing root cause; option 4 requires external tooling."
+    },
+    {
+      "id": "ds-new-151",
+      "type": "single",
+      "topic": "data observability",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You manage a Snowflake data warehouse with 300+ tables. Last month, a dimension table `dim_products` was left in a 'dirty' state (12M rows loaded but ETL crashed before running `DELETE` statements for soft-deletes). This silently inflated a key revenue metric for 4 days. Your data observability platform currently monitors row counts and null percentages. What additional observability signal should you implement to catch incomplete transactions like this?",
+      "options": [
+        "Track table update frequency (time since last INSERT/UPDATE/DELETE) and alert if a load pattern deviates from historical baseline by >20%",
+        "Implement a `_dbt_valid_from` and `_dbt_valid_to` temporal column on all dimension tables and monitor row counts where `_dbt_valid_to IS NULL`, alerting if the cardinality diverges from expected valid-record counts",
+        "Add a `load_status` column to all tables that stores 'IN_PROGRESS' during loads and 'COMPLETED' after ETL finishes; monitor for tables stuck in 'IN_PROGRESS' for >30 minutes and alert via Slack",
+        "Deploy data profiling that computes histogram distributions on key columns (e.g., product_id) and alerts if the distribution shifts by >15% Wasserstein distance from the 7-day rolling baseline"
+      ],
+      "answer": 2,
+      "explanation": "A load_status column directly signals incomplete transactions and is a reliable pattern for catching mid-load failures. It's simpler and more direct than temporal columns or distribution shifts, and works across any ETL framework. Option 1 is too coarse (legitimate patterns may change); option 2 adds complexity and assumes dbt temporal logic is in place; option 4 detects data drift but not transaction incompleteness."
     }
   ]
 }
