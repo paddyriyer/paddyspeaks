@@ -99,6 +99,13 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/taittiriya/map.html');
   const map = await p.evaluate(() => ({ nodes: document.querySelectorAll('.cmap .cn').length, list: document.querySelectorAll('.clist .cl').length }));
   ok(map.nodes > 0 && map.nodes === map.list, `Taittirīya concept map: ${map.nodes} nodes, ${map.list} described`);
+  // Kaṭha: records are single mantras keyed adhyāya.vallī.mantra
+  await p.goto(base + '/upanishads/katha/mantra-1-1-01.html');
+  const k1 = await p.evaluate(() => document.querySelectorAll('[id^="a1-1-1-s"]').length);
+  ok(k1 === 14, `no-JS Kaṭha 1.1.1: ${k1} of 14 sections`);
+  await p.goto(base + '/upanishads/katha/mantra-1-2-01.html');
+  const k2 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
+  ok(k2.text && k2.pending, `Kaṭha 1.2.1 (in preparation): text ${k2.text}, pending note ${k2.pending}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence

@@ -124,6 +124,30 @@ Until a vallī is listed in `edition.json` `analysed`, its pages show the verifi
 text, IAST and svara with “analysis in preparation”, and check.py does not
 require its records.
 
+## The Kaṭha (2026-11-02)
+
+**Numbering.** adhyāya.vallī.mantra: 2 adhyāyas × 3 vallīs, 119 mantras (29, 25,
+17; 15, 15, 18). A vallī edition whose records are single mantras: `edition.json`
+`record: "mantra"`; records `analysis/A-V-NN.json` (`1-2-23.json`, id `"1.2.23"`,
+one unit); pages `mantra-A-V-NN.html` with `#aA-V-N-sK` section anchors; vallīs
+"1.1" … "2.3" in `analysed`. The śānti (*saha nāvavatu*), which the base prints
+as 2.3.19, is kept apart.
+
+**Sources** (`import_katha.py`): base **AS**, the Advaita Sharada mūla of
+Śaṅkara's bhāṣya (its verse marks are sometimes broken across lines, so each
+vallī is joined and split at its marks; ꣳ is read as ं); **G**, GRETIL (after
+Olivelle 1998 — a witness only); **V**, the vishvAsa mūla; **Mv**, Madhva's mūla
+(collated vallī by vallī). Commentaries: Śaṅkara, Madhva, Raṅgarāmānuja's
+*Prakāśikā* (Tirupati 1948, OCR). The modern commentaries in the same folder
+(Vaṅgīpura Vāsudeva; the 45th Ahobila yati) are not used. Three corrections to
+the base (1.1.17 निचाय्येमां, 1.3.12 त्वग्र्यया, 2.1.8 अरण्योर्निहितो); 144 witness
+differences classified. The vishvAsa checkout needs
+`kAThakam/AraNyakam/kaThopaniShat/` (sparse-checkout add).
+
+**Phases.** PR 1: the engine for mantra records, the whole verified text, the
+first vallī (Naciketas and the three boons) analysed with three studies. Then one
+PR per vallī.
+
 ## Rules
 
 - **Never edit a generated page.** CI fails on stale output and on a broken internal link.
