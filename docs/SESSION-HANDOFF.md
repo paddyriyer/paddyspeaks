@@ -1,12 +1,20 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-11-02 (Taittirīya PR 2: the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-11-02 (Taittirīya PR 3: the Bhṛguvallī — the Taittirīya is complete; before that PR 2, the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-02): Taittirīya PR 2 — the Brahmānandavallī analysed** (Paddy:
+- **NEWEST (2026-11-02): Taittirīya PR 3 — the Bhṛguvallī; the Taittirīya is complete.**
+  3.1–3.10 (3.10 in six units, with the closing sāman), studies VII–IX (Bhṛgu's
+  inquiry; food — vows and meditations, no dietary claims; the Taittirīya as one
+  teaching), the concept map (15 nodes), landing updated, 6 glossary terms (101).
+  All 31 anuvākas analysed, nine studies; no page is "in preparation". **Next:**
+  Paddy chose the **Kaṭha** as the next Upaniṣad (asked to finish the Taittirīya
+  first): phased by vallī like the Taittirīya; sources still to be located.
+
+- **(2026-11-02): Taittirīya PR 2 — the Brahmānandavallī analysed** (Paddy:
   "Start next one", after PR 966 merged). 2.1–2.9 with 14 sections each (2.8 has
   five units), studies IV–VI (satyaṃ jñānam; the five selves; bliss), landing
   updated, 11 glossary terms (95). Found and fixed while doing it: the
@@ -15,8 +23,7 @@ clones fresh each time). CLAUDE.md points here._
   the importer now routes them (Raṅgarāmānuja and Govindarāja went from 1–2 to 7
   anuvākas); Madhva's comments are filed under every anuvāka their mūla passage
   covers; the sandhi engine joins eṣaḥ after a vowel fusion; 2 more spacing
-  corrections (14). **Next:** PR 3, the Bhṛguvallī (add "3" to `analysed`, drop
-  the render_test 3.1 pending check), the concept map (`map.json`), closing studies.
+  corrections (14). (PR 3 followed the same day.)
 
 - **(2026-11-02): the Taittirīya Upaniṣad — `/upanishads/taittiriya/`**
   ("We do similar way for Taittreya Upanishad"; Paddy chose **phased by vallī**).

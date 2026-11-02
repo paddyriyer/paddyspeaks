@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (95 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (101 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -116,8 +116,10 @@ apart, shown before the vallī and never numbered.
 collation, the Śīkṣāvallī analysed (12 anuvākas) with three studies. PR 2
 (2026-11-02): the Brahmānandavallī (9 anuvākas; 2.8 has five units) with three
 studies (satyaṃ jñānam, the five selves, bliss), the commentary sigla and Madhva
-alignment fixed, 14 corrections in all. PR 3: the Bhṛguvallī, the concept map and
-closing studies.
+alignment fixed, 14 corrections in all. PR 3 (2026-11-02): the Bhṛguvallī (10 anuvākas; 3.10 has six units, with the
+closing sāman and its plutas), studies VII–IX (Bhṛgu's inquiry; food; the
+Taittirīya as one teaching) and the concept map. **The Taittirīya is complete**:
+all 31 anuvākas analysed, nine studies.
 Until a vallī is listed in `edition.json` `analysed`, its pages show the verified
 text, IAST and svara with “analysis in preparation”, and check.py does not
 require its records.

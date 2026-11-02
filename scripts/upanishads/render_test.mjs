@@ -89,9 +89,16 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/taittiriya/anuvaka-2-08.html');
   const t8 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a2-8-s"]').length, unit: !!document.getElementById('u2-8-5') }));
   ok(t8.secs === 14 && t8.unit, `no-JS Taittirīya 2.8: ${t8.secs} of 14 sections, unit 2.8.5 ${t8.unit}`);
+  // 3.1 opens a vallī: the śānti is shown before the numbered text, and every
+  // anuvāka is analysed now, so no page says "in preparation"
   await p.goto(base + '/upanishads/taittiriya/anuvaka-3-01.html');
-  const pend = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending'), shanti: !!document.querySelector('.pre-shanti') }));
-  ok(pend.text && pend.pending && pend.shanti, `Taittirīya 3.1 (in preparation): text ${pend.text}, pending note ${pend.pending}, śānti ${pend.shanti}`);
+  const t31 = await p.evaluate(() => ({ shanti: !!document.querySelector('.pre-shanti'), pending: !!document.querySelector('.pending'), secs: document.querySelectorAll('[id^="a3-1-s"]').length }));
+  ok(t31.shanti && !t31.pending && t31.secs === 14, `Taittirīya 3.1: śānti ${t31.shanti}, pending note ${t31.pending}, ${t31.secs} of 14 sections`);
+  await p.goto(base + '/upanishads/taittiriya/anuvaka-3-10.html');
+  ok(await p.$('#u3-10-6'), 'Taittirīya 3.10: unit 3.10.6 should be anchored');
+  await p.goto(base + '/upanishads/taittiriya/map.html');
+  const map = await p.evaluate(() => ({ nodes: document.querySelectorAll('.cmap .cn').length, list: document.querySelectorAll('.clist .cl').length }));
+  ok(map.nodes > 0 && map.nodes === map.list, `Taittirīya concept map: ${map.nodes} nodes, ${map.list} described`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence
