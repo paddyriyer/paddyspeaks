@@ -325,8 +325,9 @@ Read **`docs/UPANISHADS-EDITION.md`** (and, to write analysis,
 **`docs/UPANISHADS-BRIEF.md`**) before touching `upanishads/` or
 `scripts/upanishads/`. A collection of study editions inside the Sacred Library,
 beginning with the Īśāvāsya (Kāṇva, 18 mantras, 2026-11-01), then the
-Taittirīya (3 vallīs, 31 anuvākas, 2026-11-02; analysis published vallī by vallī,
-Śīkṣāvallī first — `edition.json` `analysed`).
+Taittirīya (3 vallīs, 31 anuvākas, 2026-11-02; analysis published vallī by vallī —
+Śīkṣā- and Brahmānandavallī so far, `edition.json` `analysed`; the six-commentary
+edition's sigla आ.भा./तै. भा./प्र. are routed to their authors by the importer).
 
 - **One source per thing:** `upanishads/<id>/edition/text.json` (base witness G +
   logged corrections), `corrections.json` (every witness difference, classified),

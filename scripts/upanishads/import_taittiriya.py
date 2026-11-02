@@ -299,7 +299,7 @@ def main():
         'note': 'Assigned to anuvākas by matching each mūla line to the base text.', 'mantras': mvm})
     write('madhva.json', {'id': 'Madhva', **Y, 'path': rel,
         'label': 'Madhva (Ānandatīrtha), Taittirīyopaniṣad-bhāṣya, dvaitavedanta.in text in vishvAsa/vedAH_yajuH',
-        'note': 'By anuvāka; Madhva cites Purāṇic and other authorities by name.', 'mantras': mvc})
+        'note': 'By anuvāka. Madhva comments after a passage of several mūla lines, and his passages straddle the edition’s anuvākas, so a comment is filed under every anuvāka its passage covers. He cites Purāṇic and other authorities by name.', 'mantras': mvc})
     rel, shb, shi = shankara(a.raw)
     write('shankara.json', {'id': 'Shankara', **R, 'path': rel,
         'label': 'Śaṅkara, Taittirīyopaniṣad-bhāṣya, Advaita Sharada (Śṛṅgeri) text, mirrored in sanskrit/raw_etexts',

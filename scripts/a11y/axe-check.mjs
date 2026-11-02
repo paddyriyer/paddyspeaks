@@ -36,8 +36,8 @@ const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', 
   '/upanishads/', '/upanishads/introduction.html', '/upanishads/glossary.html', '/upanishads/isha/',
   '/upanishads/isha/mantra-01.html', '/upanishads/isha/mantra-18.html', '/upanishads/isha/map.html',
   '/upanishads/isha/sources.html', '/upanishads/isha/studies/vidya-avidya.html',
-  '/upanishads/taittiriya/', '/upanishads/taittiriya/anuvaka-1-11.html', '/upanishads/taittiriya/anuvaka-2-01.html',
-  '/upanishads/taittiriya/read.html', '/upanishads/taittiriya/sources.html', '/upanishads/taittiriya/studies/convocation.html'];
+  '/upanishads/taittiriya/', '/upanishads/taittiriya/anuvaka-1-11.html', '/upanishads/taittiriya/anuvaka-2-08.html', '/upanishads/taittiriya/anuvaka-3-01.html',
+  '/upanishads/taittiriya/read.html', '/upanishads/taittiriya/sources.html', '/upanishads/taittiriya/studies/convocation.html', '/upanishads/taittiriya/studies/pancakosa.html'];
 // One representative page per journey, ratcheted against the baseline.
 const LEGACY = ['/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
   '/interview.app/', '/interview.app/evaluate/', '/jobs/', '/jobs/search/?q=data%20engineer',
