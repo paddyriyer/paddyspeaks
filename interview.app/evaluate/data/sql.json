@@ -16012,6 +16012,70 @@
       ],
       "answer": 0,
       "explanation": "FILTER with window functions in BigQuery applies the filter before the window function operates on the frame. This means `ROW_NUMBER() ... FILTER (WHERE event_type = 'purchase')` numbers only purchase events sequentially per user, restarting the count. This is different from filtering after ranking; it restricts the input to the window function itself, which is the key distinction and most powerful use case for FILTER in window contexts."
+    },
+    {
+      "id": "sql-new-198",
+      "type": "single",
+      "topic": "COALESCE and NULL handling",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You have a `customer_accounts` table with columns (account_id, primary_email, backup_email, phone, backup_phone). Many customers have incomplete contact info, and you need to return a single email and single phone for each customer, preferring primary over backup. Which query correctly handles NULL values?\n\nCONSIDER: You want the first non-NULL value for email, and if both are NULL, return 'no-email@domain.com'. For phone, if both are NULL, return '000-0000'.",
+      "options": [
+        "SELECT account_id, COALESCE(primary_email, backup_email, 'no-email@domain.com') as email, COALESCE(phone, backup_phone, '000-0000') as phone FROM customer_accounts;",
+        "SELECT account_id, NULLIF(primary_email, backup_email) as email, NULLIF(phone, backup_phone) as phone FROM customer_accounts;",
+        "SELECT account_id, primary_email OR backup_email OR 'no-email@domain.com' as email, phone OR backup_phone OR '000-0000' as phone FROM customer_accounts;",
+        "SELECT account_id, CASE WHEN primary_email IS NULL THEN backup_email ELSE primary_email END as email, CASE WHEN phone IS NOT NULL THEN phone END as phone FROM customer_accounts;"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE returns the first non-NULL argument, making it ideal for fallback logic. Option A correctly chains primary \u2192 backup \u2192 default value for both email and phone. Option B uses NULLIF incorrectly (returns NULL if values match). Options C and D use invalid SQL syntax or incomplete logic."
+    },
+    {
+      "id": "sql-new-199",
+      "type": "single",
+      "topic": "Query planning and execution",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're working with a large `orders(order_id, customer_id, order_date, total_amount, region)` table at Stripe. Your query performs a GROUP BY on region, then filters using a WHERE clause on customer_id IN (SELECT customer_id FROM high_value_customers). A colleague suggests moving the subquery filter to a JOIN instead. What is the PRIMARY advantage of this change in query execution?\n\nASSUME: Both high_value_customers and orders are unindexed, and the GROUP BY result set is small (< 1000 rows).",
+      "options": [
+        "The JOIN allows the query planner to push the filter before GROUP BY, reducing rows aggregated and enabling better selectivity.",
+        "The subquery is inherently slower because IN predicates always perform full table scans regardless of index availability.",
+        "Moving to JOIN eliminates the need for a GROUP BY operation entirely, cutting execution time in half.",
+        "A subquery approach cannot be optimized by modern query planners, while JOINs are always faster due to index utilization."
+      ],
+      "answer": 0,
+      "explanation": "Modern query optimizers (Postgres, BigQuery, Snowflake) can push filters with JOINs earlier in the execution plan, reducing the dataset before aggregation. This is called predicate pushdown. Options B and D are false: IN subqueries can be optimized, and JOINs don't eliminate GROUP BY. Option C incorrectly suggests GROUP BY becomes unnecessary."
+    },
+    {
+      "id": "sql-new-200",
+      "type": "single",
+      "topic": "Materialized views and refresh strategy",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "At Databricks, you maintain a materialized view `daily_user_engagement` that aggregates events from a 200GB `raw_events` table. The view is refreshed hourly using REFRESH MATERIALIZED VIEW. Recently, refresh times increased from 2 minutes to 15 minutes. You notice raw_events receives ~5M new rows per hour, but only ~10% are new users. What is the MOST likely cause and best optimization?\n\nCONSIDER: The MV definition uses GROUP BY user_id, event_type, and a COUNT aggregation.",
+      "options": [
+        "Add a clustered index on (user_id, event_type) in raw_events and use incremental refresh logic based on event_timestamp to avoid re-scanning old data.",
+        "Rebuild the materialized view with ROW_NUMBER() PARTITIONED BY user_id to deduplicate rows before aggregation.",
+        "Replace the materialized view with a dynamic view to avoid refresh overhead, accepting slower ad-hoc query performance.",
+        "Increase the cluster size and worker count to parallelize the full table scan during refresh."
+      ],
+      "answer": 0,
+      "explanation": "The root cause is likely full table scans during every refresh. Incremental refresh strategies that only process new data (based on event_timestamp) are far more efficient than re-scanning 200GB hourly. Indexing helps with large table scans. Option B doesn't address the refresh bottleneck. Option C trades off materialized benefits. Option D is a band-aid solution that masks the real inefficiency."
+    },
+    {
+      "id": "sql-new-201",
+      "type": "single",
+      "topic": "NULLIF for conditional logic",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "In a `financial_transactions` table, you have columns (transaction_id, amount, fee, status). Your requirement is: if status is 'cancelled', the amount should be treated as NULL in downstream analytics; otherwise, keep it as-is. Additionally, fees should be NULL if they are $0.00 (to distinguish from no-fee transactions). Which approach is most efficient and readable?",
+      "options": [
+        "SELECT transaction_id, CASE WHEN status = 'cancelled' THEN NULL ELSE amount END as amount, CASE WHEN fee = 0.00 THEN NULL ELSE fee END as fee FROM financial_transactions;",
+        "SELECT transaction_id, NULLIF(status, 'cancelled') * amount as amount, NULLIF(fee, 0.00) as fee FROM financial_transactions;",
+        "SELECT transaction_id, NULLIF(amount, CASE WHEN status = 'cancelled' THEN amount END) as amount, NULLIF(fee, 0.00) as fee FROM financial_transactions;",
+        "SELECT transaction_id, amount * (1 - CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as amount, NULLIF(fee, 0.00) as fee FROM financial_transactions;"
+      ],
+      "answer": 0,
+      "explanation": "NULLIF compares a value to a literal and returns NULL only if they match; it's designed for the fee case but not for the conditional status check. Option A uses CASE WHEN for the status logic (clear and correct) and NULLIF for the zero-fee logic (concise and idiomatic). Option B misapplies NULLIF. Options C and D are convoluted and don't correctly handle the status logic."
     }
   ]
 }

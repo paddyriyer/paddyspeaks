@@ -7000,6 +7000,102 @@
       ],
       "answer": 2,
       "explanation": "Without observability (feedback loops), the model silently degrades and users lose trust. Reverse ETL is only effective when predictions are explainable, versioned, and validated against ground truth. Daily retraining without feedback is wasteful; tooling is not the blocker. The issue is organizational (feedback loop) not technical (latency/schema)."
+    },
+    {
+      "id": "ds-new-146",
+      "type": "single",
+      "topic": "Reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're designing a reverse ETL pipeline to sync customer segments from your Snowflake warehouse back to Salesforce CRM in near-real-time. The segment definitions update every 6 hours, and you have 2M customer records. Which approach minimizes API throttling and data consistency issues?",
+      "options": [
+        "Poll all 2M customer records every 6 hours and upsert to Salesforce using batch API calls with 10K records per request",
+        "Use CDC on the segment table to capture deltas, identify moved customers, and call Salesforce bulk API with only changed records, batching by customer ID ranges",
+        "Stream segment changes via Kafka to a reverse ETL SaaS tool (e.g., Hightouch) configured with exponential backoff and idempotency keys",
+        "Write segment changes directly to Salesforce API using Airflow's Salesforce operator with dynamic task parallelization"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (CDC + bulk API) is production-grade: it reduces API volume by only syncing deltas, uses Salesforce's bulk API (higher throughput than standard API), and ensures idempotency. Option 1 causes unnecessary throttling. Option 3 is valid but adds vendor lock-in. Option 4 lacks proper batching and backoff handling."
+    },
+    {
+      "id": "ds-new-147",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're implementing CDC from a multi-region MySQL cluster (3 regions, eventual consistency) into Snowflake. Transactions occasionally arrive out-of-order across regions, and you need exactly-once semantics. How do you handle a late-arriving UPDATE for a row that hasn't arrived as an INSERT yet?",
+      "options": [
+        "Buffer all events in a staging table, sort by commit timestamp, and replay on a background job until all dependencies resolve",
+        "Use Kafka with partitioning by primary key to preserve order per key, add a watermarking layer to detect missing INSERTs, and emit an artificial INSERT if needed before applying the UPDATE",
+        "Skip late UPDATEs and rely on a full refresh job weekly to catch inconsistencies",
+        "Implement a distributed ledger approach with Debezium capturing binlog snapshots for each region and merging via three-way conflict resolution"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (Kafka partitioning + watermarking) is correct: partitioning by key guarantees order per row, watermarking detects orphaned UPDATEs, and synthetic INSERT generation ensures referential integrity. Option 0 lacks order guarantees. Option 2 is unacceptable for financial/transactional data. Option 3 is over-engineered."
+    },
+    {
+      "id": "ds-new-148",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You have an Airflow DAG with 50 downstream tasks waiting on a single MapTask that parallelizes across 100 dataset partitions. The MapTask completes in 45 minutes but you're seeing a 30-minute backlog in the Airflow scheduler. What's the most likely bottleneck and how do you fix it?",
+      "options": [
+        "The scheduler is CPU-bound. Increase parallelism and max_active_tasks_per_dag in airflow.cfg",
+        "The dynamic task mapping is creating 100 Task Group objects at parse time, bloating the DAG. Use external task sensors instead of map() to decouple dependency management",
+        "MapTask outputs are being serialized to XCom, causing Postgres contention. Use Object Storage (S3/GCS) for XCom backend and configure a custom serializer",
+        "The 100 mapped tasks are not being parallelized in Celery. Set pool_size > 100 and ensure Celery workers have enough resources"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (XCom serialization bottleneck) is correct: XCom stores task outputs in the Airflow Metastore; with 100 large outputs, this causes Postgres contention. Using S3-backed XCom avoids DB serialization. Option 0 doesn't address root cause. Option 1 conflates task mapping with grouping. Option 3 assumes workers are saturated, but scheduler lag suggests metadata layer issues."
+    },
+    {
+      "id": "ds-new-149",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're designing an idempotent ETL pipeline that ingests order events from Kafka into a Snowflake fact table. The pipeline must handle duplicate messages and network retries without creating duplicate fact rows. Your events contain a `event_id` (globally unique), `order_id`, and `amount`. You currently use `MERGE INTO` with `event_id` as the match key, but you discover that 0.5% of messages arrive out-of-order (e.g., order_cancelled arrives before order_completed). How should you redesign this to ensure idempotency while preserving event ordering semantics?",
+      "options": [
+        "Add a `processed_at` timestamp to the MERGE match condition and reject out-of-order events to a quarantine table for manual replay",
+        "Use a separate idempotency table that stores (event_id, order_id, amount_hash) and perform a two-step process: check idempotency table first, then MERGE only if not seen before",
+        "Introduce a `sequence_number` column per order_id, deduplicate by (order_id, sequence_number) instead of event_id, and implement a state machine in dbt to enforce valid state transitions",
+        "Switch to an append-only event log design with soft deletes, then materialize the order state view using `ROW_NUMBER()` window functions partitioned by order_id ordered by event timestamp"
+      ],
+      "answer": 3,
+      "explanation": "The append-only event log with state machine materialization is the most robust approach for handling out-of-order events idempotently. It preserves all events (enabling audit trails), tolerates out-of-order arrival, and uses deterministic window functions to derive the correct state. Options 1-2 either lose events or create complex validation logic; option 3 assumes sequence numbers exist in the source system."
+    },
+    {
+      "id": "ds-new-150",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "Your dbt project has 120 models across three layers: `stg_` (30 models), `int_` (40 models), and `mart_` (50 models). Recently, a staging model `stg_customers` changed its grain from customer_id to (customer_id, effective_date), breaking 12 downstream intermediate models. You want to prevent this in the future. Which combination of dbt best practices would best catch this issue before merge?",
+      "options": [
+        "Add `constraints` (unique, not_null) in the staging model YAML, run `dbt test` in CI, and document grain expectations in the model headers",
+        "Implement custom schema tests in `tests/staging/` that assert the grain of each staging model, add them to dbt_project.yml selectors, and run them before building downstream models in CI",
+        "Create a `meta.grain` tag on each staging model documenting expected grain, use dbt Cloud API to validate downstream model contracts before allowing merges, and add a pre-commit hook to verify grain changes",
+        "Use `dbt parse` to detect column additions/deletions in staging models, trigger a full lineage analysis job that fails if downstream models have untested dependencies, and require sign-off from data owners"
+      ],
+      "answer": 1,
+      "explanation": "Custom schema tests that assert grain (e.g., 'test_unique_customer_id') are the most practical dbt-native solution. Combined with a selector in dbt_project.yml to run them first and document grain in YAML, this catches grain changes at test time before downstream models break. Option 2 uses contracts (not fully production-ready in older dbt versions); option 3 adds overhead without addressing root cause; option 4 requires external tooling."
+    },
+    {
+      "id": "ds-new-151",
+      "type": "single",
+      "topic": "data observability",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You manage a Snowflake data warehouse with 300+ tables. Last month, a dimension table `dim_products` was left in a 'dirty' state (12M rows loaded but ETL crashed before running `DELETE` statements for soft-deletes). This silently inflated a key revenue metric for 4 days. Your data observability platform currently monitors row counts and null percentages. What additional observability signal should you implement to catch incomplete transactions like this?",
+      "options": [
+        "Track table update frequency (time since last INSERT/UPDATE/DELETE) and alert if a load pattern deviates from historical baseline by >20%",
+        "Implement a `_dbt_valid_from` and `_dbt_valid_to` temporal column on all dimension tables and monitor row counts where `_dbt_valid_to IS NULL`, alerting if the cardinality diverges from expected valid-record counts",
+        "Add a `load_status` column to all tables that stores 'IN_PROGRESS' during loads and 'COMPLETED' after ETL finishes; monitor for tables stuck in 'IN_PROGRESS' for >30 minutes and alert via Slack",
+        "Deploy data profiling that computes histogram distributions on key columns (e.g., product_id) and alerts if the distribution shifts by >15% Wasserstein distance from the 7-day rolling baseline"
+      ],
+      "answer": 2,
+      "explanation": "A load_status column directly signals incomplete transactions and is a reliable pattern for catching mid-load failures. It's simpler and more direct than temporal columns or distribution shifts, and works across any ETL framework. Option 1 is too coarse (legitimate patterns may change); option 2 adds complexity and assumes dbt temporal logic is in place; option 4 detects data drift but not transaction incompleteness."
     }
   ]
 }
