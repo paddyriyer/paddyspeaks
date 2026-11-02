@@ -193,8 +193,51 @@ def madhva(yajuh, base):
     mula, _ = assign(walk('01_mUlam'), False)
     for k, ls in mula.items():  # a title line that the next line begins with
         mula[k] = [x for i, x in enumerate(ls) if not (i + 1 < len(ls) and phon(ls[i + 1]).startswith(phon(x)))]
-    _, comm = assign(walk('02_TIkA_TippaNi'), True)
-    return KU + 'madhvaH/sarva-prastutiH/', mula, comm
+    return KU + 'madhvaH/sarva-prastutiH/', mula, own_bhashya(root, tsh, order, SHANTI)
+
+
+def own_bhashya(root, tsh, order, SHANTI):
+    """Madhva's bhāṣya alone (01_mUlam/madhvaH.md: his mūla and his comment, in
+    paragraphs). 02_TIkA_TippaNi is NOT used for the commentary: there each passage
+    is followed by six later sub-commentators (Vyāsatīrtha, Vāmana Paṇḍitācārya,
+    Vādirāja, Vedeśatīrtha, Varadatīrtha, Rāghavendratīrtha). A paragraph that
+    matches the base is mūla; the paragraphs after a mūla passage are Madhva's
+    comment on every mantra that passage covers."""
+    text = read(os.path.join(root, '01_mUlam/madhvaH.md')).split('+++', 2)[-1]
+    comm, ci, cur, span, commenting = {}, 0, None, [], False
+    for para in re.split(r'\n\s*\n', text):
+        para = norm(para.replace('\n', ' '))
+        if not para or para.startswith('#'):
+            continue
+        pl = phon(MARK.sub('', para))
+        if not pl or pl in SHANTI or SHANTI[:24] in pl:
+            continue
+        s_ = _shingles(pl)
+        hit = None
+        if len(s_) >= 3:
+            cands = order[ci:ci + 12]
+            # the mantras this paragraph prints: most of a mantra's own text is in it
+            # (Madhva prints 1.1.1–2 as one verse), or the paragraph is mostly one mantra
+            covered = [k for k in cands if len(tsh[k] & s_) >= 0.6 * len(tsh[k])]
+            if not covered:
+                scores = {k: len(s_ & tsh[k]) for k in cands}
+                top = max(scores.values()) if scores else 0
+                if top >= 0.6 * len(s_):
+                    covered = [next(k for k in cands if scores[k] >= 0.9 * top)]
+            if covered:
+                hit = covered[-1]
+        if hit:
+            ci = order.index(covered[0])
+            if commenting:              # a new mūla passage begins
+                span, commenting = [], False
+            cur = hit
+            span += [k for k in covered if k not in span]
+            continue
+        if span or cur:
+            for k in (span or [cur]):
+                comm[k] = (comm.get(k, '') + ' ' + para).strip()
+            commenting = True
+    return comm
 
 
 # ------------------------------------------------------------------ commentaries split at verse marks
@@ -266,9 +309,9 @@ def main():
     write('Mv-madhva.json', {'id': 'Mv', **Y, 'path': rel + '01_mUlam/',
         'label': 'The mūla of Madhva’s Kāṭhakopaniṣad-bhāṣya (dvaitavedanta.in), vishvAsa/vedAH_yajuH',
         'note': 'Assigned to mantras by matching each mūla line to the base text; Madhva groups verses differently, so it is collated vallī by vallī.', 'mantras': mvm})
-    write('madhva.json', {'id': 'Madhva', **Y, 'path': rel + '02_TIkA_TippaNi/',
+    write('madhva.json', {'id': 'Madhva', **Y, 'path': rel + '01_mUlam/madhvaH.md',
         'label': 'Madhva (Ānandatīrtha), Kāṭhakopaniṣad-bhāṣya, dvaitavedanta.in text in vishvAsa/vedAH_yajuH',
-        'note': 'By mantra. Madhva comments after a passage of several mūla lines, so a comment is filed under every mantra its passage covers. He cites Purāṇic and other authorities by name.', 'mantras': mvc})
+        'note': 'Madhva’s bhāṣya alone (01_mUlam/madhvaH.md), by mantra: he comments after a passage of several mūla verses, so a comment is filed under every mantra its passage covers. He cites Purāṇic and other authorities by name. The six later sub-commentators printed in 02_TIkA_TippaNi (Vyāsatīrtha, Vāmana Paṇḍitācārya, Vādirāja, Vedeśatīrtha, Varadatīrtha, Rāghavendratīrtha) are not imported.', 'mantras': mvc})
     rel, shb, opening, sh_intro = shankara(a.raw)
     write('shankara.json', {'id': 'Shankara', **R, 'path': rel,
         'label': 'Śaṅkara, Kaṭhopaniṣad-bhāṣya, Advaita Sharada (Śṛṅgeri) text, mirrored in sanskrit/raw_etexts',
