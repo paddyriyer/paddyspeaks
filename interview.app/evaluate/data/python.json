@@ -9390,6 +9390,54 @@
       ],
       "answer": 0,
       "explanation": "Option A is idiomatic pathlib: it uses Path objects consistently, Path.home() for portable home directory access, and next() with a generator expression for clean fallback logic. Option B incorrectly uses 'or' (which returns the first truthy Path object regardless of existence). Option C mixes pathlib concerns with os module. Option D with glob is overkill for single file lookups."
+    },
+    {
+      "id": "py-new-195",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're building a data pipeline that fetches metadata from 1000 S3 objects concurrently using asyncio. Each fetch takes ~200ms. You implement it with `asyncio.gather()` but notice memory usage spikes to 3GB. What's the most likely cause and fix?",
+      "options": [
+        "Use `asyncio.Semaphore(max_connections=50)` to limit concurrent requests and prevent connection pool exhaustion",
+        "Replace `asyncio.gather()` with `asyncio.as_completed()` to process results as they arrive instead of buffering all 1000 coroutines",
+        "Switch to `concurrent.futures.ThreadPoolExecutor` since S3 I/O is blocking despite using asyncio",
+        "Increase the event loop's buffer size with `loop.set_debug(True)` to handle more concurrent tasks efficiently"
+      ],
+      "answer": 1,
+      "explanation": "`asyncio.gather()` creates and holds all 1000 coroutine objects in memory simultaneously. Using `asyncio.as_completed()` processes results incrementally, yielding completed coroutines and allowing garbage collection. While semaphores limit concurrency, `as_completed()` is the more idiomatic solution for memory-constrained scenarios with many concurrent tasks."
+    },
+    {
+      "id": "py-new-196",
+      "type": "single",
+      "topic": "dataclasses",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're designing a dataclass to represent a data transformation config with ~50 optional parameters. You need to validate that if `enable_partitioning=True`, then `partition_key` must be non-empty. Which approach is cleanest and most maintainable?",
+      "options": [
+        "Use `@dataclass` with a custom `__post_init__` method to validate interdependent fields",
+        "Create a factory function that wraps the dataclass and performs validation before instantiation",
+        "Use `pydantic.BaseModel` instead of `@dataclass` since it has built-in validators",
+        "Add a `validate()` method to the dataclass that users must call explicitly after instantiation"
+      ],
+      "answer": 0,
+      "explanation": "The `__post_init__` method is the standard Python idiom for post-construction validation in dataclasses. It's called automatically after `__init__`, making validation transparent to users. Pydantic is a valid alternative but adds a heavy dependency; for pure dataclass validation, `__post_init__` is the Pythonic choice. Explicit validation methods are error-prone as they require user discipline."
+    },
+    {
+      "id": "py-new-197",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're processing 200M records across 16 worker processes using `multiprocessing.Pool.imap_unordered()` with `chunksize=5000`. You observe that 2-3 workers consistently finish their chunks much faster than others. What's the most likely issue and how should you fix it?",
+      "options": [
+        "Worker processes have uneven load due to record distribution skew; use dynamic chunking with `chunksize=1` to load-balance",
+        "System CPU throttling on slower cores; reduce `chunksize` to allow work stealing and better distribution across cores",
+        "Task processing time variance per record; decrease `chunksize` to ~1000 to increase scheduling granularity and reduce idle time",
+        "Some workers are processing records with outlier complexity; implement per-worker performance metrics to identify bottlenecks"
+      ],
+      "answer": 2,
+      "explanation": "With `chunksize=5000`, workers process 5K records before requesting more work, creating scheduling granularity of 5K batches. If records have variable processing time (common in data pipelines), some workers finish their chunk early while others are still processing. Reducing `chunksize` to ~1000 increases the number of scheduling points, allowing the queue to redistribute work more frequently and reduce idle time. `chunksize=1` is too aggressive and adds overhead; intermediate values (1000-2000) provide better balance."
     }
   ]
 }

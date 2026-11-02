@@ -1853,6 +1853,38 @@
       ],
       "answer": 0,
       "explanation": "User Attributes in Looker + BigQuery row access policies create true row-level security enforced at the database layer. The policy dynamically filters rows based on the user's `campaign_id` attribute, ensuring campaigns are isolated even if analysts access the same dashboard. Roles restrict access; LS sends reports but doesn't enforce security; column-level security doesn't filter rows."
+    },
+    {
+      "id": "dash-new-061",
+      "type": "single",
+      "topic": "dashboard caching and cache warming",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "Your analytics platform serves dashboards to 500 users across 8 time zones. A popular sales dashboard is accessed heavily at 9am local time in each region. Users report 12\u201315 second load times during their 9am spike. You measure that a full materialized view refresh takes 8 seconds and cache miss penalty is 4 seconds. What is the most cost-effective cache warming strategy?",
+      "options": [
+        "Pre-compute and warm the cache at 8:59am UTC for all 8 regions using a single scheduled job with region-specific materialized views",
+        "Use a time-zone-aware scheduler to trigger cache warm 1 minute before the local 9am peak in each region, querying only the filters used by those regional cohorts",
+        "Implement a predictive cache layer that learns user access patterns and automatically pre-warms 15 minutes before predicted peak usage per region",
+        "Switch to an in-memory OLAP layer (e.g., DuckDB) that keeps all dimensions resident and queries on-demand without caching"
+      ],
+      "answer": 1,
+      "explanation": "Option B balances cost and performance: timezone-aware scheduling aligns warm-up with actual user arrival times, region-specific filters reduce redundant computation, and 1-minute lead time is empirically sufficient given the 8-second refresh window. Option A creates overlap and redundant refreshes across zones. Option C adds complexity without proven ROI at this scale. Option D shifts cost to per-query latency and memory footprint."
+    },
+    {
+      "id": "dash-new-062",
+      "type": "single",
+      "topic": "date-range and time-zone handling",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "A financial dashboard displays 'Daily Revenue' for a global SaaS company. Revenue is recorded in the database with `created_at` (UTC timestamp) and `customer_timezone` (IANA string). A Tokyo user filters for 'Yesterday' and a New York user filters for 'Yesterday' on the same calendar day. The dashboard must show each user revenue from their local yesterday, not UTC yesterday. Where should timezone conversion logic live?",
+      "options": [
+        "In the BI tool's semantic layer / semantic model, so each user's filter is converted to their local timezone before querying the warehouse",
+        "In the data warehouse transformation layer, creating a pre-computed `date_local` column that converts `created_at` to `customer_timezone` at ingestion time",
+        "In the dashboard query layer, applying CONVERT_TIMEZONE() to the `created_at` column and filtering on the result set after retrieval",
+        "In the client application, converting the user's timezone preference to UTC before sending the filter to the dashboard"
+      ],
+      "answer": 0,
+      "explanation": "The semantic layer (Option A) is the correct abstraction: it centralizes timezone logic, allows per-user context awareness at query time, and avoids duplicating computation. Option B is wasteful (pre-computing all timezones) and inflexible if customer timezones change. Option C applies conversion after retrieval, losing filter pushdown and scalability. Option D requires client-side state management and breaks if timezones are ambiguous or change."
     }
   ]
 }

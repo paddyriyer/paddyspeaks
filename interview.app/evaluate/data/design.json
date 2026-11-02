@@ -7000,6 +7000,54 @@
       ],
       "answer": 2,
       "explanation": "Without observability (feedback loops), the model silently degrades and users lose trust. Reverse ETL is only effective when predictions are explainable, versioned, and validated against ground truth. Daily retraining without feedback is wasteful; tooling is not the blocker. The issue is organizational (feedback loop) not technical (latency/schema)."
+    },
+    {
+      "id": "ds-new-146",
+      "type": "single",
+      "topic": "Reverse ETL",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You're designing a reverse ETL pipeline to sync customer segments from your Snowflake warehouse back to Salesforce CRM in near-real-time. The segment definitions update every 6 hours, and you have 2M customer records. Which approach minimizes API throttling and data consistency issues?",
+      "options": [
+        "Poll all 2M customer records every 6 hours and upsert to Salesforce using batch API calls with 10K records per request",
+        "Use CDC on the segment table to capture deltas, identify moved customers, and call Salesforce bulk API with only changed records, batching by customer ID ranges",
+        "Stream segment changes via Kafka to a reverse ETL SaaS tool (e.g., Hightouch) configured with exponential backoff and idempotency keys",
+        "Write segment changes directly to Salesforce API using Airflow's Salesforce operator with dynamic task parallelization"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (CDC + bulk API) is production-grade: it reduces API volume by only syncing deltas, uses Salesforce's bulk API (higher throughput than standard API), and ensures idempotency. Option 1 causes unnecessary throttling. Option 3 is valid but adds vendor lock-in. Option 4 lacks proper batching and backoff handling."
+    },
+    {
+      "id": "ds-new-147",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-11-02",
+      "prompt": "You're implementing CDC from a multi-region MySQL cluster (3 regions, eventual consistency) into Snowflake. Transactions occasionally arrive out-of-order across regions, and you need exactly-once semantics. How do you handle a late-arriving UPDATE for a row that hasn't arrived as an INSERT yet?",
+      "options": [
+        "Buffer all events in a staging table, sort by commit timestamp, and replay on a background job until all dependencies resolve",
+        "Use Kafka with partitioning by primary key to preserve order per key, add a watermarking layer to detect missing INSERTs, and emit an artificial INSERT if needed before applying the UPDATE",
+        "Skip late UPDATEs and rely on a full refresh job weekly to catch inconsistencies",
+        "Implement a distributed ledger approach with Debezium capturing binlog snapshots for each region and merging via three-way conflict resolution"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (Kafka partitioning + watermarking) is correct: partitioning by key guarantees order per row, watermarking detects orphaned UPDATEs, and synthetic INSERT generation ensures referential integrity. Option 0 lacks order guarantees. Option 2 is unacceptable for financial/transactional data. Option 3 is over-engineered."
+    },
+    {
+      "id": "ds-new-148",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-11-02",
+      "prompt": "You have an Airflow DAG with 50 downstream tasks waiting on a single MapTask that parallelizes across 100 dataset partitions. The MapTask completes in 45 minutes but you're seeing a 30-minute backlog in the Airflow scheduler. What's the most likely bottleneck and how do you fix it?",
+      "options": [
+        "The scheduler is CPU-bound. Increase parallelism and max_active_tasks_per_dag in airflow.cfg",
+        "The dynamic task mapping is creating 100 Task Group objects at parse time, bloating the DAG. Use external task sensors instead of map() to decouple dependency management",
+        "MapTask outputs are being serialized to XCom, causing Postgres contention. Use Object Storage (S3/GCS) for XCom backend and configure a custom serializer",
+        "The 100 mapped tasks are not being parallelized in Celery. Set pool_size > 100 and ensure Celery workers have enough resources"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 (XCom serialization bottleneck) is correct: XCom stores task outputs in the Airflow Metastore; with 100 large outputs, this causes Postgres contention. Using S3-backed XCom avoids DB serialization. Option 0 doesn't address root cause. Option 1 conflates task mapping with grouping. Option 3 assumes workers are saturated, but scheduler lag suggests metadata layer issues."
     }
   ]
 }
