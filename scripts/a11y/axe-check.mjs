@@ -32,7 +32,10 @@ const BASELINE = path.join(ROOT, 'scripts', 'a11y', 'baseline.json');
 const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', '/copyright/',
   '/changelog/', '/subscribe/', '/atlas/', '/about.html', '/mentoring/',
   '/privacy-command-center/', '/privacy-command-center/v10/', '/articles/every-arrow-is-a-decision.html', '/articles/every-arrow/edition-3.html',
-  '/', '/articles/', '/sacred/', '/explore/'];
+  '/', '/articles/', '/sacred/', '/explore/',
+  '/upanishads/', '/upanishads/introduction.html', '/upanishads/glossary.html', '/upanishads/isha/',
+  '/upanishads/isha/mantra-01.html', '/upanishads/isha/mantra-18.html', '/upanishads/isha/map.html',
+  '/upanishads/isha/sources.html', '/upanishads/isha/studies/vidya-avidya.html'];
 // One representative page per journey, ratcheted against the baseline.
 const LEGACY = ['/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
   '/interview.app/', '/interview.app/evaluate/', '/jobs/', '/jobs/search/?q=data%20engineer',

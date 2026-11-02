@@ -1,10 +1,25 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-10-22 (article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-11-01 (The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
+
+- **NEWEST (2026-11-01): The Upaniṣads — `/upanishads/`, beginning with the
+  Īśāvāsya** (Paddy's master prompt "The Upanishads — From First Questions to
+  Self-Knowledge"). A collection inside the Sacred Library: introduction guide,
+  comparison of the ten principal Upaniṣads, glossary (70 terms), How to Study, and
+  the Īśāvāsya edition — all 18 mantras with 14 sections each, three reading paths,
+  six special studies, a concept map, read-straight-through, and Sources, Variants
+  and Corrections with the verification report. The text is GRETIL's Kāṇva Īśā
+  (Limaye & Vadekar 1958) collated letter by letter with five witnesses (52
+  differences classified); commentaries Śaṅkara, Vedānta Deśika, Madhva, Mahīdhara;
+  everything is proven by `scripts/upanishads/check.py` (docs/UPANISHADS-EDITION.md).
+  **Open:** all prose awaits a Sanskrit scholar's review (records are
+  `machine-verified`); a printed Kāṇva Saṃhitā and Madhva bhāṣya are needed for the
+  four `review` readings and Madhva's abridged passages. The next Upaniṣad is a new
+  data folder (doc §Adding the next Upaniṣad).
 
 - **NEWEST (2026-10-22): Paddy's four held illustrations are in the lesson, corrected** —
   `scripts/invisible_engine/held_images.py` patches nfc1, airtag, airtag1 and quantum (doc §3a)

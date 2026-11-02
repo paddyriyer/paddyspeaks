@@ -1,0 +1,112 @@
+#!/usr/bin/env node
+/**
+ * Browser test of the Upaniṣads pages (needs playwright; run locally or in the
+ * Accessibility workflow):
+ *
+ *   node scripts/upanishads/render_test.mjs
+ *
+ * - every generated page loads without a page error, and has no sideways scroll
+ *   at 390 px;
+ * - without JavaScript a mantra page reads in full: all fourteen sections are in
+ *   the HTML, the Serious Student sections are open, nothing is hidden;
+ * - the reading paths open exactly the sections of their level, and the choice
+ *   survives a reload;
+ * - the script switch hides IAST / Devanagari; the glossary search filters.
+ */
+import { createRequire } from 'node:module';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const req = createRequire(path.join(process.env.A11Y_DEPS || process.cwd(), 'noop.js'));
+let chromium;
+try { ({ chromium } = req('playwright')); } catch { ({ chromium } = await import('playwright')); }
+
+function serve() {
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
+  const server = http.createServer((q, r) => {
+    let p = decodeURIComponent(new URL(q.url, 'http://x').pathname);
+    if (p.endsWith('/')) p += 'index.html';
+    const f = path.join(ROOT, p);
+    if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); return r.end(); }
+    r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' });
+    fs.createReadStream(f).pipe(r);
+  });
+  return new Promise((res) => server.listen(0, '127.0.0.1', () => res(server)));
+}
+const pages = [];
+(function walk(d) { for (const f of fs.readdirSync(path.join(ROOT, d))) { const p = path.join(d, f); if (fs.statSync(path.join(ROOT, p)).isDirectory()) { if (!/edition|lib|data/.test(f)) walk(p); } else if (f.endsWith('.html')) pages.push('/' + p.replace(/index\.html$/, '')); } })('upanishads');
+
+const fails = [];
+const ok = (c, m) => { if (!c) fails.push(m); };
+const server = await serve();
+const base = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch();
+const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(base) ? rt.continue() : rt.abort()));
+
+// 1. every page, phone width
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await block(ctx);
+  const p = await ctx.newPage();
+  let err = null;
+  p.on('pageerror', (e) => { err = String(e); });
+  for (const u of pages) {
+    err = null;
+    await p.goto(base + u, { waitUntil: 'load' });
+    ok(!err, `${u}: page error ${err}`);
+    const sw = await p.evaluate(() => document.documentElement.scrollWidth);
+    ok(sw <= 391, `${u}: sideways scroll at 390px (${sw}px)`);
+    ok(await p.$('main h1'), `${u}: no h1 in main`);
+  }
+  await ctx.close();
+}
+// 2. no JavaScript
+{
+  const ctx = await browser.newContext({ javaScriptEnabled: false });
+  await block(ctx);
+  const p = await ctx.newPage();
+  await p.goto(base + '/upanishads/isha/mantra-06.html');
+  const s = await p.evaluate(() => ({
+    secs: [...document.querySelectorAll('[id^="m6-s"]')].map((x) => x.id),
+    open: [...document.querySelectorAll('details.sec')].filter((d) => d.open).map((d) => +d.dataset.lvl),
+    closed: [...document.querySelectorAll('details.sec')].filter((d) => !d.open).map((d) => +d.dataset.lvl),
+    bar: document.getElementById('reader-bar').hidden,
+  }));
+  ok(s.secs.length === 14, `no-JS: ${s.secs.length} of 14 sections`);
+  ok(s.open.every((l) => l <= 2) && s.closed.every((l) => l === 3), 'no-JS: Serious Student sections should be open, Scholar sections closed');
+  ok(s.bar === true, 'no-JS: the reader bar should stay hidden');
+  await ctx.close();
+}
+// 3. reading paths, script switch, persistence
+{
+  const ctx = await browser.newContext();
+  await block(ctx);
+  const p = await ctx.newPage();
+  await p.goto(base + '/upanishads/isha/mantra-09.html');
+  const state = () => p.evaluate(() => [...document.querySelectorAll('details.sec')].map((d) => [+d.dataset.lvl, d.open]));
+  for (const [path_, name] of [[1, 'Curious Reader'], [3, 'Scholar'], [2, 'Serious Student']]) {
+    await p.click(`.rb-paths [data-path="${path_}"]`);
+    const st = await state();
+    ok(st.every(([l, o]) => o === (l <= path_)), `path ${name}: sections not opened to level ${path_}`);
+  }
+  await p.click('.rb-paths [data-path="3"]');
+  await p.reload();
+  ok((await state()).every(([, o]) => o), 'the Scholar path did not survive a reload');
+  await p.click('.rb-aa');
+  await p.click('[data-script="dev"]');
+  ok(!(await p.isVisible('.v-iast')), 'Devanagari-only should hide the IAST');
+  await p.click('[data-script="iast"]');
+  ok(!(await p.isVisible('.s1 .v-sa')), 'IAST-only should hide the Devanagari');
+  await p.goto(base + '/upanishads/glossary.html');
+  await p.fill('#gq', 'avidya');
+  const vis = await p.evaluate(() => [...document.querySelectorAll('.gt')].filter((x) => !x.hidden).map((x) => x.id));
+  ok(vis.includes('avidya') && vis.length < 10, `glossary search for "avidya" shows ${vis.length} terms`);
+  await ctx.close();
+}
+await browser.close();
+server.close();
+if (fails.length) { console.error(fails.map((f) => '✗ ' + f).join('\n')); process.exit(1); }
+console.log(`✓ Upaniṣads pages: ${pages.length} pages load cleanly at 390px; no-JS, reading paths, script switch and glossary search work`);
