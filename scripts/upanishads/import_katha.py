@@ -353,8 +353,9 @@ def main():
     rel, shb, opening, sh_intro = shankara(a.raw)
     write('shankara.json', {'id': 'Shankara', **R, 'path': rel,
         'label': 'Śaṅkara, Kaṭhopaniṣad-bhāṣya, Advaita Sharada (Śṛṅgeri) text, mirrored in sanskrit/raw_etexts',
-        'url': 'https://advaitasharada.sringeri.net/', 'note': 'By mantra; his introduction is `opening`, and each later vallī’s opening words are in `valli_intro`.',
-        'opening': opening, 'valli_intro': sh_intro, 'mantras': {k: {'bhashya': v, 'intro': ''} for k, v in shb.items()}})
+        'url': 'https://advaitasharada.sringeri.net/', 'note': 'By mantra; his introduction is `opening`, and each later vallī’s opening words are in `valli_intro` and, so that they can be quoted, in the `intro` of that vallī’s first mantra (2.1.1 opens the second adhyāya).',
+        'opening': opening, 'valli_intro': sh_intro,
+        'mantras': {k: {'bhashya': v, 'intro': sh_intro.get(k[:-2], '') if k.endswith('.1') and k[:-2] != '1.1' else ''} for k, v in shb.items()}})
     rel, rrm, rr_intro = rangaramanuja(a.yajuh)
     write('rangaramanuja.json', {'id': 'rangaramanuja', **Y, 'path': rel,
         'label': 'Raṅgarāmānuja, Kaṭhopaniṣat-prakāśikā (ed. K. C. Varadachari and D. T. Tatacharya, Tirupati 1948; OCR via archive.org), via vishvAsa/vedAH_yajuH',

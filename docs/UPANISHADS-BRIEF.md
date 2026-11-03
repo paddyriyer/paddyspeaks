@@ -110,8 +110,9 @@ give the counts the checker prints when they differ from the norm.
 - Commentaries: `shankara` (Advaita; his introduction is key `opening`, cite it
   from 1.1.1 only; each vallī's opening words are in `valli_intro`), `madhva`
   (Dvaita; filed under every mantra his passage covers — check a quoted line is
-  about your mantra; where his bhāṣya has no comment, as at 1.2.22–25, 1.3.3–9 and
-  1.3.14–17, there is no dvaita block with basis `commentary`), `rangaramanuja` (Viśiṣṭādvaita, the Prakāśikā, 1948 edition,
+  about your mantra; where his bhāṣya has no comment, as at 1.2.22–25, 1.3.3–9,
+  1.3.14–17, 2.1.9 and 2.1.12–13, there is no dvaita block with basis `commentary`;
+  his 2.1.2–3 entry glosses 2.2.6, and his 2.1.15 entry opens with his colophon), `rangaramanuja` (Viśiṣṭādvaita, the Prakāśikā, 1948 edition,
   OCR; each of his entries ends with the next verse's mūla — never quote that as
   his). Rāmānuja wrote no commentary on the Kaṭha — never say he did.
 - Witnesses: AS (base), G (GRETIL, after Olivelle 1998 — a modern critical text;

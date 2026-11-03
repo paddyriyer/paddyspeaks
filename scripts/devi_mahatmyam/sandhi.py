@@ -115,6 +115,18 @@ def join_pair(w1, w2):
         if y == 'ch':
             return [R(w1 + ' ', 'c' + w2), R(w1 + ' ', w2)]
         return [R(w1 + ' ', w2)]
+    if x == 'ḥ' and is_vowel(y):
+        # the visarga kept before a vowel, the words left apart as printed
+        # (sūryaḥ astam, Kaṭha 2.1.9): a hiatus that must be declared
+        return _visarga(w1, w2, t1, t2) + [R(w1 + ' ', w2, True)]
+    return _visarga(w1, w2, t1, t2)
+
+
+def _visarga(w1, w2, t1, t2):
+    x, y = t1[-1], t2[0]
+    s, rest2 = ''.join(t1[:-1]), ''.join(t2[1:])
+    v = t1[-2] if len(t1) > 1 else ''
+    R = lambda left, right, h=False: (left, right, h)
     if x == 'ḥ':
         # eṣaḥ fused with a preceding a/ā reaches here as aiṣaḥ (tenaiṣa pūrṇaḥ)
         if w1 in ('saḥ', 'eṣaḥ', 'aiṣaḥ') and not is_vowel(y):
