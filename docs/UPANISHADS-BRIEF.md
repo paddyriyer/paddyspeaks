@@ -112,7 +112,8 @@ give the counts the checker prints when they differ from the norm.
   (Dvaita; filed under every mantra his passage covers — check a quoted line is
   about your mantra; where his bhāṣya has no comment, as at 1.2.22–25, 1.3.3–9,
   1.3.14–17, 2.1.9 and 2.1.12–13, there is no dvaita block with basis `commentary`;
-  his 2.1.2–3 entry glosses 2.2.6, and his 2.1.15 entry opens with his colophon), `rangaramanuja` (Viśiṣṭādvaita, the Prakāśikā, 1948 edition,
+  his 2.1.2–3 entry glosses 2.2.6–2.2.8 — cite it as `madhva:2.1.2` — and his 2.1.15
+  entry opens with his colophon; his verse marks in 2.2 are a running count), `rangaramanuja` (Viśiṣṭādvaita, the Prakāśikā, 1948 edition,
   OCR; each of his entries ends with the next verse's mūla — never quote that as
   his). Rāmānuja wrote no commentary on the Kaṭha — never say he did.
 - Witnesses: AS (base), G (GRETIL, after Olivelle 1998 — a modern critical text;
@@ -122,6 +123,27 @@ give the counts the checker prints when they differ from the norm.
   and others; cite them as `BG 2.20` etc. after adding them to a
   `parallel-refs-*.json` and running `python3 scripts/upanishads/import_katha.py`.
 - Check: `python3 scripts/upanishads/check.py --edition katha --partial --mantra 1.1.12`.
+
+## The Mahānārāyaṇa: anuvāka records of Taittirīya Āraṇyaka 10
+
+Records are anuvākas `10.A` (`analysis/10-AA.json`, id `"10.30"`), with the per-unit
+fields inside `units: [{id: "10.30.48", …}]` exactly as in the Taittirīya; a unit's id
+ends with the running unit number (1–101) that the text prints. Much of the text is
+prose (homa and japa formulas, vyāhṛti lists): `metre.name` may be `prose` or `mixed`,
+and `anvaya` may be `""`.
+
+- Text conventions you will meet: the Taittirīya recitation doubles a sibilant after a
+  visarga (अद्भ्यस्सम्भूतः) and writes ग्श्/ग्ं for the anusvāra (पशूग्श्च); the text is
+  kept as the base prints it, so the padaccheda must rejoin to it (declare what the
+  sandhi engine cannot, or flag it `review`). Pratīka references («… इत्यष्टौ») are
+  part of the recited text: give them their words, and say which passage they cite.
+- Commentaries: `anon` (on this anuvāka; say “the anonymous commentator”, never
+  Sāyaṇa), `sayana` and `bhaskara` (through the computed `map`; check that a quoted
+  line concerns your anuvāka, and cite another of their anuvākas explicitly, e.g.
+  `sayana:24`, when the map misses). No Raṅgarāmānuja, no Śaṅkara on this text.
+- Variants: the sources page classes many differences ‘verification required’; discuss
+  those of your anuvāka in `flags` (`review`) rather than resolving them.
+- Check: `python3 scripts/upanishads/check.py --edition mahanarayana --partial --mantra 10.30`.
 
 ## Quoting (the checker enforces this)
 

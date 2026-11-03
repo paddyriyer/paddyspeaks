@@ -118,6 +118,10 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/katha/mantra-2-3-01.html');
   const k6 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
   ok(k6.text && k6.pending, `Kaṭha 2.3.1 (in preparation): text ${k6.text}, pending note ${k6.pending}`);
+  // Mahānārāyaṇa: anuvāka records with units keyed by the running TA number (10.A.U)
+  await p.goto(base + '/upanishads/mahanarayana/anuvaka-10-30.html');
+  const mn = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
+  ok(mn.text && mn.pending, `Mahānārāyaṇa 10.30 (in preparation): text ${mn.text}, pending note ${mn.pending}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence
