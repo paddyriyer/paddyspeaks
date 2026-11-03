@@ -474,7 +474,10 @@ def check_analysis(ed, n, glossary):
                 fail(f'{where}: school {s}: basis commentary but no quotation from it')
         quotes_ok(ed, k, x.get('text', ''), src, f'{where} school {s}')
     if not any(sch.get(s) for s in SCHOOLS):
-        fail(f'{where}: no school position at all')
+        # an edition whose commentaries are ritual, not Vedānta (the Mahānārāyaṇa:
+        # an anonymous bhāṣya, Sāyaṇa, Bhaṭṭa Bhāskara) may give none, but must say why
+        if not (ed.cfg.get('schools_optional') and sch.get('disagreement')):
+            fail(f'{where}: no school position at all')
     for i, pr in enumerate(e.get('parallels', [])):
         ref = pr.get('ref')
         if pr.get('kind') not in PAR_KINDS:

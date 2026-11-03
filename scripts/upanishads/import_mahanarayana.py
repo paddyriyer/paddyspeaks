@@ -461,8 +461,14 @@ def main():
 
     sd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10', interleaved={1})
     S = {}
-    for fn, v in sd.items():
+    for fn, v in sorted(sd.items()):
+        if not v['mula'] and v['comm'].strip() in ('MISSING', ''):
+            continue                # a placeholder file, not Sāyaṇa's text
         n = v['n'] or fn
+        # a misprinted colophon must not overwrite an anuvāka already read: file 27
+        # prints «… सप्तविंशोऽनुवाकः॥ २६॥» (its heading says 27), so it takes 27
+        while str(n) in S:
+            n += 1
         S[str(n)] = v
     smap = concord(base, {k: v['mula'] for k, v in S.items() if v['mula']})
     write('sayana.json', {'id': 'sayana', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10/',
