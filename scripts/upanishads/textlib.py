@@ -38,7 +38,7 @@ def letters(s):
     s = s.replace('ओं', 'ओम्').replace('ॐ', 'ओम्')
     s = re.sub(r'[\s।॥ऽ\'’‘\-—*_()|.,;:?!\\]', '', s)
     s = fuse(s)
-    s = s.replace('ँ', 'ं')                 # candrabindu = anusvāra for collation
+    s = s.replace('ँ', 'ं').replace('ꣳ', 'ं')  # candrabindu, the Vedic anusvāra sign = anusvāra
     for nas, cls in CLASS_NASAL.items():     # class nasal before its class = anusvāra
         s = re.sub(nas + VIRAMA + '([' + cls + '])', r'ं\1', s)
     return s
