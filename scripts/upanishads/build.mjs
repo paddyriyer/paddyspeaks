@@ -147,7 +147,21 @@ const READER = `<div class="reader-bar" id="reader-bar" hidden>
 
 /* ---------------- output ---------------- */
 const written = new Map();
-function out(rel, html) { written.set(rel, html); }
+// A value missing from the data must never reach a page as the literal word
+// "undefined" or "NaN" in the markup (studies VIII+ once showed 'undefined.' because
+// the numeral list stopped at VII). The English word in running prose is fine.
+const LEAK = /(?:>|="|Study |Mantra |Anuvāka )(?:undefined|NaN)\b/;
+function out(rel, html) {
+  const m = LEAK.exec(html);
+  if (m) throw new Error(`${rel}: a missing value reached the page (“…${html.slice(Math.max(0, m.index - 60), m.index + 30)}…”)`);
+  written.set(rel, html);
+}
+// Roman numerals for study numbers, for any count
+function roman(n) {
+  let s = '';
+  for (const [v, r] of [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]) while (n >= v) { s += r; n -= v; }
+  return s;
+}
 
 /* ---------------- edition model ---------------- */
 function loadEdition(id) {
@@ -380,7 +394,6 @@ function glossaryPage(eds) {
 function editionHome(ed) {
   const L = ed.landing;
   const N = ed.T.count;
-  const R = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   const card = (r) => `<li><a class="ml-card" href="${r.url}"><span class="ch-no" lang="sa">${devNum(r.n)}</span><span class="ch-txt"><span class="ch-sa" lang="sa">${esc(r.lines[0].replace(/\s*।\s*$/, ''))}</span><span class="ch-en">${esc(ed.AN.get(r.key)?.title || (ed.VALLI ? 'Verified text · analysis in preparation' : ''))}</span></span><span class="ch-go" aria-hidden="true">›</span></a></li>`;
   const first = ed.recs[0];
   const shanti = ed.T.shanti
@@ -399,7 +412,7 @@ ${shanti}
 <section class="band" aria-labelledby="rg-h"><h2 id="rg-h">A beginner’s reading guide</h2><ol class="rg">${L.reading_guide.map((r) => `<li><b>${rich(r.title)}</b> ${rich(r.text)}</li>`).join('')}</ol></section>
 <section class="band" aria-labelledby="kq-h"><h2 id="kq-h">Questions the text answers</h2><ul class="kq">${L.key_questions.map((q) => `<li>${rich(q.q)} <span class="kq-m">${qs(q)}</span></li>`).join('')}</ul></section>
 ${list}
-<section class="band" aria-labelledby="st-h"><h2 id="st-h">Special philosophical studies</h2>${ed.studies.length ? '' : '<p class="note">The studies follow with the analysis.</p>'}<ol class="stl">${ed.studies.map((s) => `<li><a href="${ed.dir}studies/${s.id}.html"><b>${esc(R[s.n - 1])}. ${rich(s.title)}</b></a> — ${rich(s.subtitle)} <span class="note">(${ed.RECS} ${(s.mantras || s.anuvakas).join(', ')})</span></li>`).join('')}</ol></section>
+<section class="band" aria-labelledby="st-h"><h2 id="st-h">Special philosophical studies</h2>${ed.studies.length ? '' : '<p class="note">The studies follow with the analysis.</p>'}<ol class="stl">${ed.studies.map((s) => `<li><a href="${ed.dir}studies/${s.id}.html"><b>${esc(roman(s.n))}. ${rich(s.title)}</b></a> — ${rich(s.subtitle)} <span class="note">(${ed.RECS} ${(s.mantras || s.anuvakas).join(', ')})</span></li>`).join('')}</ol></section>
 <section class="band" aria-labelledby="more-h"><h2 id="more-h">Tools</h2><ul class="refs">${ed.map ? `<li><a href="${ed.dir}map.html">Concept map</a> — how the teachings of the ${ed.VALLI ? ed.RECS : 'eighteen mantras'} connect.</li>` : ''}<li><a href="${ed.dir}sources.html">Sources, Variants and Corrections</a> — the witnesses, every difference, and the verification report.</li><li><a href="/upanishads/glossary.html">Glossary</a> · <a href="/upanishads/how-to-study.html">How to Study</a></li></ul></section></div>`;
   const comms = Object.values(ed.CFG.commentaries).map((c) => c.name.replace(/ \(modern\)$/, ''));
   out(`upanishads/${ed.id}/index.html`, shell({ title: `${ed.T.title.en} — ${L.subtitle}`, desc: ed.VALLI ? `The ${ed.T.title.en}, ${ed.DIV ? `${ed.T.location}, ${N} ${ed.RECS}` : `${ed.T.vallis.length} vallīs and ${N} ${ed.RECS}`}: verified Sanskrit${ed.CFG.svara ? ' with svara' : ''}, IAST, padaccheda, word-by-word grammar, translations, plain explanations, and the commentaries of ${comms.slice(0, 3).join(', ')} and others.` : `The ${ed.T.title.en}, all ${N} mantras: verified Sanskrit, IAST, padaccheda, word-by-word grammar, faithful and readable translations, plain explanations, and the commentaries of Śaṅkara, Vedānta Deśika and Madhva.`, url: ed.dir, body: b, nav: NAVE(ed, 'home'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], ['', ed.T.title.en]],
@@ -428,12 +441,11 @@ function editionRead(ed) {
   out(`upanishads/${ed.id}/read.html`, shell({ title: `${ed.T.title.en} — Read straight through`, desc: `The whole ${ed.T.title.en} in Sanskrit, IAST and readable English on one page.`, url: `${ed.dir}read.html`, body: b, nav: NAVE(ed, 'read'), reader: true, crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], [ed.dir, ed.T.title.en], ['', 'Read straight through']] }));
 }
 function editionStudies(ed) {
-  const R = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-  let idx = `<div class="page prose-page"><header class="ch-hero"><p class="kicker">${esc(ed.T.title.en)}</p><h1><span class="h-en">Special philosophical studies</span></h1><p class="h-i">The central interpretive problems of the Upaniṣad, each with the Sanskrit, the commentators in their own words, and the open questions.</p></header><ol class="stl big">${ed.studies.map((s) => `<li><a href="${ed.dir}studies/${s.id}.html"><b>${R[s.n - 1]}. ${rich(s.title)}</b></a><p>${rich(s.subtitle)}</p><p class="note">${rich(s.summary)}</p></li>`).join('')}</ol></div>`;
+  let idx = `<div class="page prose-page"><header class="ch-hero"><p class="kicker">${esc(ed.T.title.en)}</p><h1><span class="h-en">Special philosophical studies</span></h1><p class="h-i">The central interpretive problems of the Upaniṣad, each with the Sanskrit, the commentators in their own words, and the open questions.</p></header><ol class="stl big">${ed.studies.map((s) => `<li><a href="${ed.dir}studies/${s.id}.html"><b>${roman(s.n)}. ${rich(s.title)}</b></a><p>${rich(s.subtitle)}</p><p class="note">${rich(s.summary)}</p></li>`).join('')}</ol></div>`;
   out(`upanishads/${ed.id}/studies/index.html`, shell({ title: `${ed.T.title.en} — Special studies`, desc: `${cap(NUMWORD[ed.studies.length] || String(ed.studies.length))} studies of the central problems of the ${ed.T.title.en}.`, url: `${ed.dir}studies/`, body: idx, nav: NAVE(ed, 'studies'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], [ed.dir, ed.T.title.en], ['', 'Studies']] }));
   ed.studies.forEach((s, i) => {
     const prev = ed.studies[i - 1], next = ed.studies[i + 1];
-    const b = `<div class="page prose-page"><header class="ch-hero"><p class="kicker">Study ${R[s.n - 1]} · ${esc(ed.T.title.en)}</p><h1><span class="h-en">${rich(s.title)}</span></h1><p class="h-i">${rich(s.subtitle)}</p><p class="h-meta">${ed.VALLI ? 'Anuvākas' : 'Mantras'} ${(s.mantras || s.anuvakas).map((n) => `<a href="${mUrl(ed, n)}">${n}</a>`).join(', ')}</p></header><p class="ov-lead">${rich(s.summary)}</p>${toc(s)}<div class="prose">${essayBody(s)}</div>${(s.open_questions || []).length ? `<section class="es oq" aria-labelledby="oq-h"><h2 id="oq-h">Open questions</h2><ul>${s.open_questions.map((q) => `<li>${rich(q)}</li>`).join('')}</ul></section>` : ''}<nav class="pager" aria-label="Studies">${prev ? `<a href="${ed.dir}studies/${prev.id}.html" rel="prev"><span class="pg-k">Previous study</span><span class="pg-en">${rich(prev.title)}</span></a>` : '<span></span>'}${next ? `<a class="pg-next" href="${ed.dir}studies/${next.id}.html" rel="next"><span class="pg-k">Next study</span><span class="pg-en">${rich(next.title)}</span></a>` : '<span></span>'}</nav></div>`;
+    const b = `<div class="page prose-page"><header class="ch-hero"><p class="kicker">Study ${roman(s.n)} · ${esc(ed.T.title.en)}</p><h1><span class="h-en">${rich(s.title)}</span></h1><p class="h-i">${rich(s.subtitle)}</p><p class="h-meta">${ed.VALLI ? 'Anuvākas' : 'Mantras'} ${(s.mantras || s.anuvakas).map((n) => `<a href="${mUrl(ed, n)}">${n}</a>`).join(', ')}</p></header><p class="ov-lead">${rich(s.summary)}</p>${toc(s)}<div class="prose">${essayBody(s)}</div>${(s.open_questions || []).length ? `<section class="es oq" aria-labelledby="oq-h"><h2 id="oq-h">Open questions</h2><ul>${s.open_questions.map((q) => `<li>${rich(q)}</li>`).join('')}</ul></section>` : ''}<nav class="pager" aria-label="Studies">${prev ? `<a href="${ed.dir}studies/${prev.id}.html" rel="prev"><span class="pg-k">Previous study</span><span class="pg-en">${rich(prev.title)}</span></a>` : '<span></span>'}${next ? `<a class="pg-next" href="${ed.dir}studies/${next.id}.html" rel="next"><span class="pg-k">Next study</span><span class="pg-en">${rich(next.title)}</span></a>` : '<span></span>'}</nav></div>`;
     out(`upanishads/${ed.id}/studies/${s.id}.html`, shell({ title: `${s.title} — ${ed.T.title.en}`, desc: s.summary.slice(0, 300), url: `${ed.dir}studies/${s.id}.html`, body: b, nav: NAVE(ed, 'studies'), crumbs: [['/sacred/', 'Sacred Library'], ['/upanishads/', 'The Upaniṣads'], [ed.dir, ed.T.title.en], [`${ed.dir}studies/`, 'Studies'], ['', s.title]] }));
   });
 }
