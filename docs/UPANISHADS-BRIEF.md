@@ -124,6 +124,27 @@ give the counts the checker prints when they differ from the norm.
   `parallel-refs-*.json` and running `python3 scripts/upanishads/import_katha.py`.
 - Check: `python3 scripts/upanishads/check.py --edition katha --partial --mantra 1.1.12`.
 
+## The Mahānārāyaṇa: anuvāka records of Taittirīya Āraṇyaka 10
+
+Records are anuvākas `10.A` (`analysis/10-AA.json`, id `"10.30"`), with the per-unit
+fields inside `units: [{id: "10.30.48", …}]` exactly as in the Taittirīya; a unit's id
+ends with the running unit number (1–101) that the text prints. Much of the text is
+prose (homa and japa formulas, vyāhṛti lists): `metre.name` may be `prose` or `mixed`,
+and `anvaya` may be `""`.
+
+- Text conventions you will meet: the Taittirīya recitation doubles a sibilant after a
+  visarga (अद्भ्यस्सम्भूतः) and writes ग्श्/ग्ं for the anusvāra (पशूग्श्च); the text is
+  kept as the base prints it, so the padaccheda must rejoin to it (declare what the
+  sandhi engine cannot, or flag it `review`). Pratīka references («… इत्यष्टौ») are
+  part of the recited text: give them their words, and say which passage they cite.
+- Commentaries: `anon` (on this anuvāka; say “the anonymous commentator”, never
+  Sāyaṇa), `sayana` and `bhaskara` (through the computed `map`; check that a quoted
+  line concerns your anuvāka, and cite another of their anuvākas explicitly, e.g.
+  `sayana:24`, when the map misses). No Raṅgarāmānuja, no Śaṅkara on this text.
+- Variants: the sources page classes many differences ‘verification required’; discuss
+  those of your anuvāka in `flags` (`review`) rather than resolving them.
+- Check: `python3 scripts/upanishads/check.py --edition mahanarayana --partial --mantra 10.30`.
+
 ## Quoting (the checker enforces this)
 
 - **Every Devanagari phrase in « » must occur verbatim** (spaces, punctuation and

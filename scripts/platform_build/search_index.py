@@ -291,11 +291,14 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
         cfg = json.loads((ed / "edition.json").read_text(encoding="utf-8"))
         verse = cfg.get("record") == "mantra"   # Kaṭha: a vallī edition whose records are mantras
         noun = "mantras" if verse else "anuvākas"
-        what = (f"{len(text['vallis'])} vallīs and {text['count']} {noun} of the {name}" if valli
+        div = cfg.get("division")        # Mahānārāyaṇa: one prapāṭhaka of the Taittirīya Āraṇyaka
+        what = (f"All {text['count']} {noun} of the {name} ({text['location']})" if div
+                else f"{len(text['vallis'])} vallīs and {text['count']} {noun} of the {name}" if valli
                 else f"All {text['count']} mantras of the {name}")
         nst = len(list((ed / "studies").glob("*.json")))
         alias = {"isha": ["Isopanishad", "Ishopanishad"], "taittiriya": ["Taittiriya", "Taittiriyopanishad", "Shiksha Valli"],
-                 "katha": ["Katha", "Kathopanishad", "Kathopanishat", "Nachiketa", "Naciketas"]}.get(e["id"], [])
+                 "katha": ["Katha", "Kathopanishad", "Kathopanishat", "Nachiketa", "Naciketas"],
+                 "mahanarayana": ["Mahanarayana", "Mahanarayanopanishad", "Yajniki Upanishad", "Narayana Upanishad", "Sandhyavandanam"]}.get(e["id"], [])
         core.append(doc(f"upanishads:{e['id']}", "sacred", f"{name} — study edition", e["path"],
                         subtitle=f"Sacred text · {text['veda']}", text=f"{what}, with padaccheda, word-by-word grammar, translations, commentary and {nst} special studies.",
                         tags=["Upanishads", name, text["title"]["sa"], *alias], category="learn",

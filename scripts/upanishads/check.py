@@ -116,7 +116,8 @@ class Edition:
 
     def in_scope(self, k):
         sc = self.cfg.get('analysed')
-        return sc is None or self.group(k) in sc
+        # a vallī ('1.2'), or — where the analysis is published anuvāka by anuvāka — the record itself ('10.30')
+        return sc is None or self.group(k) in sc or str(k) in sc
 
     def expand(self, at):
         out = []
@@ -209,6 +210,8 @@ def check_text(ed):
             m = re.search(r'॥\s*([०-९]+)\s*॥$', last)
             # a mantra prints its own number; a Taittirīya unit its place in the anuvāka
             want = int(k) if '.' not in k else (int(k.rsplit('.', 1)[1]) if ed.cfg.get('record') == 'mantra' else i)
+            if ed.cfg.get('unit_numbers') == 'running':   # TA 10.A.U: the unit prints its running number U
+                want = int(u['id'].rsplit('.', 1)[1])
             if not m:
                 fail(f'{ed.id} {u["id"]}: the last line must end with ॥ N ॥')
             elif dn(m.group(1)) != want:

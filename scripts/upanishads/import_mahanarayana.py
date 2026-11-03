@@ -186,7 +186,7 @@ DEBRIS = [
     re.compile(r'^\[\[\d+\]\]$'),                          # page numbers
     re.compile(r'^_+$'),
     re.compile(r'^\[प्रपा॰.*\]'), re.compile(r'तैत्तिरीयारण्यकम्।$'),   # running heads
-    re.compile(r'^परिशिष्टत्वेन संगृहीतः'),
+    re.compile(r'^परिशिष्टत्वेन संगृहीतः'), re.compile(r'^\[अनु०.*\]'), re.compile(r'सभाष्यो दशमप्रपाठकः'),
     re.compile(r'^\*'), re.compile(r'^[०-९]+\s+\S{1,3}\.'),          # footnotes «* ख. झ. …», «१ घ. ४७।»
     re.compile(r'^\+\+\+|^title ='),
 ]
@@ -340,7 +340,12 @@ def excerpt(raw, la, j1, j2, pad=6):
     return want
 
 
+def cut(x, n=60):
+    return (x[:n] + '…') if len(x) > n else (x or '—')
+
+
 def classify(at, wid, base_txt, wit_raw, other_id, other_raw, names):
+    W = names[wid][0].upper() + names[wid][1:]
     a, b, ops = opcodes(base_txt, wit_raw)
     lo = letters(other_raw) if other_raw else ''
     out = []
@@ -359,18 +364,18 @@ def classify(at, wid, base_txt, wit_raw, other_id, other_raw, names):
         long_ = len(fa) + len(fb) > 6
         if lo and bw in lo and ww not in lo:
             if long_:
-                what = f'adds «{fb[:60]}{"…" if len(fb) > 60 else ""}»' if not fa else f'omits «{fa[:60]}{"…" if len(fa) > 60 else ""}»' if not fb else f'reads «{fb[:60]}» for «{fa[:60]}»'
+                what = f'adds «{cut(fb)}»' if not fa else f'omits «{cut(fa)}»' if not fb else f'reads «{cut(fb)}» for «{cut(fa)}»'
                 out.append({'at': at, 'witness': wid, 'base': fa, 'reading_letters': fb, 'class': 'variant', 'reading': rd,
-                            'note': f'{names[wid]} {what} (letters as collated); the base and {names[other_id]} agree against it.'})
+                            'note': f'{W} {what} (letters as collated); the base and {names[other_id]} agree against it.'})
             else:
                 out.append({'at': at, 'witness': wid, 'base': fa, 'reading_letters': fb, 'class': 'witness-error', 'reading': rd,
-                            'note': f'{names[wid]} alone reads «{fb or "—"}» for «{fa or "—"}»; the base and {names[other_id]} agree.'})
+                            'note': f'{W} alone reads «{cut(fb)}» for «{cut(fa)}»; the base and {names[other_id]} agree.'})
         elif lo and ww in lo and bw not in lo:
             out.append({'at': at, 'witness': wid, 'base': fa, 'reading_letters': fb, 'class': 'review', 'reading': rd,
-                        'note': f'{names[wid]} and {names[other_id]} agree on «{fb or "—"}» where the base reads «{fa or "—"}»: to be checked against the printed sources before the text is changed.'})
+                        'note': f'{W} and {names[other_id]} agree on «{cut(fb)}» where the base reads «{cut(fa)}»: to be checked against the printed sources before the text is changed.'})
         else:
             out.append({'at': at, 'witness': wid, 'base': fa, 'reading_letters': fb, 'class': 'review', 'reading': rd,
-                        'note': f'{names[wid]} reads «{fb or "—"}» for «{fa or "—"}»; the other witness does not settle it (letters as collated).'})
+                        'note': f'{W} reads «{cut(fb)}» for «{cut(fa)}»; the other witness does not settle it (letters as collated).'})
     return out
 
 
@@ -430,7 +435,7 @@ def main():
         'mantras': {k: [strip_accents(x).replace('ँ', 'ं') for x in v] for k, v in md.items()},
         'units': {k: [v] for k, v in units.items()}, 'anukramani': anukr, 'shanti': shanti})
 
-    base = {k: ' '.join(strip_accents(x) for x in v) for k, v in md.items()}
+    base = {k: ' '.join(strip_accents(x).replace('ँ', 'ं') for x in v) for k, v in md.items()}
     apd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam')
     AP = {f'10.{k}': v['mula'] for k, v in apd.items()}
     write('AP-anandasrama.json', {'id': 'AP', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam/',
@@ -471,7 +476,7 @@ def main():
         'note': 'Keyed by Bhāskara’s own (Drāviḍa) anuvāka number; his anuvākas 39–42 are not in this file. Reached through the concordance in edition.json, computed from the words of the base he quotes (he gives no continuous mūla).',
         'mantras': bh})
 
-    names = {'T': 'The Tirupati e-text', 'AP': 'The Ānandāśrama pariśiṣṭa text'}
+    names = {'T': 'the Tirupati e-text', 'AP': 'the Ānandāśrama pariśiṣṭa text'}
     variants = []
     for k in base:
         variants += classify(k, 'AP', base[k], AP.get(k, ''), 'T', T[k][0], names)
