@@ -202,9 +202,30 @@ def own_bhashya(root, tsh, order, SHANTI):
     is followed by six later sub-commentators (Vyāsatīrtha, Vāmana Paṇḍitācārya,
     Vādirāja, Vedeśatīrtha, Varadatīrtha, Rāghavendratīrtha). A paragraph that
     matches the base is mūla; the paragraphs after a mūla passage are Madhva's
-    comment on every mantra that passage covers."""
+    comment on every mantra that passage covers — unless the comment closes on a
+    range of verse numbers shorter than that passage (॥ १०-१२ ॥ after the
+    uncommented chariot verses 1.3.3–11), which names the mantras it is about."""
     text = read(os.path.join(root, '01_mUlam/madhvaH.md')).split('+++', 2)[-1]
-    comm, ci, cur, span, commenting = {}, 0, None, [], False
+    comm, ci, cur, span, commenting, buf = {}, 0, None, [], False, []
+
+    def flush():
+        if not buf:
+            return
+        keys = span or [cur]
+        rng = re.search(r'॥\s*([०-९]+)\s*-\s*([०-९]+)\s*॥\s*$', buf[-1])
+        # his numbers can run one off ours (he prints 1.1.1–2 as one verse), so a
+        # range is trusted only to narrow a longer run of uncommented verses
+        if rng and dnum(rng.group(2)) - dnum(rng.group(1)) + 1 < len(keys):
+            a, b = dnum(rng.group(1)), dnum(rng.group(2))
+            named = [k for k in keys if a <= int(k.rsplit('.', 1)[1]) <= b]
+            # a comment follows the verses it discusses: the range must reach the
+            # last verse before it (2.3.6–8 is marked ॥ ६-७ ॥, one off, and is not narrowed)
+            if named and named[-1] == keys[-1]:
+                keys = named
+        for k in keys:
+            comm[k] = (comm.get(k, '') + ' ' + ' '.join(buf)).strip()
+        buf.clear()
+
     for para in re.split(r'\n\s*\n', text):
         para = norm(para.replace('\n', ' '))
         if not para or para.startswith('#'):
@@ -237,6 +258,7 @@ def own_bhashya(root, tsh, order, SHANTI):
             if k_ in order[ci:ci + 3] and len(s_ & tsh[k_]) >= 0.3 * max(len(s_), 1):
                 covered, hit = [k_], k_
         if hit:
+            flush()
             ci = order.index(covered[0])
             if commenting or (span and span[0].rsplit('.', 1)[0] != hit.rsplit('.', 1)[0]):
                 span, commenting = [], False    # a new mūla passage, or a new vallī, begins
@@ -244,9 +266,9 @@ def own_bhashya(root, tsh, order, SHANTI):
             span += [k for k in covered if k not in span]
             continue
         if span or cur:
-            for k in (span or [cur]):
-                comm[k] = (comm.get(k, '') + ' ' + para).strip()
+            buf.append(para)
             commenting = True
+    flush()
     return comm
 
 
