@@ -115,13 +115,17 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/katha/mantra-2-2-15.html');
   const k215 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a2-2-15-s"]').length, pending: !!document.querySelector('.pending') }));
   ok(k215.secs === 14 && !k215.pending, `no-JS Kaṭha 2.2.15: ${k215.secs} of 14 sections, pending note ${k215.pending}`);
-  await p.goto(base + '/upanishads/katha/mantra-2-3-01.html');
-  const k6 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
-  ok(k6.text && k6.pending, `Kaṭha 2.3.1 (in preparation): text ${k6.text}, pending note ${k6.pending}`);
+  // the whole Kaṭha is analysed: its last mantra has every section and no page is pending
+  await p.goto(base + '/upanishads/katha/mantra-2-3-18.html');
+  const k6 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a2-3-18-s"]').length, pending: !!document.querySelector('.pending') }));
+  ok(k6.secs === 14 && !k6.pending, `no-JS Kaṭha 2.3.18: ${k6.secs} of 14 sections, pending note ${k6.pending}`);
+  await p.goto(base + '/upanishads/katha/map.html');
+  const kmap = await p.evaluate(() => ({ nodes: document.querySelectorAll('.cmap .cn').length, list: document.querySelectorAll('.clist .cl').length }));
+  ok(kmap.nodes > 0 && kmap.nodes === kmap.list, `Kaṭha concept map: ${kmap.nodes} nodes, ${kmap.list} described`);
   // Mahānārāyaṇa: anuvāka records with units keyed by the running TA number (10.A.U)
   await p.goto(base + '/upanishads/mahanarayana/anuvaka-10-30.html');
-  const mn = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
-  ok(mn.text && mn.pending, `Mahānārāyaṇa 10.30 (in preparation): text ${mn.text}, pending note ${mn.pending}`);
+  const mn = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a10-30-s"]').length, pending: !!document.querySelector('.pending'), unit: !!document.getElementById('u10-30-48') }));
+  ok(mn.secs === 14 && !mn.pending && mn.unit, `no-JS Mahānārāyaṇa 10.30: ${mn.secs} of 14 sections, pending note ${mn.pending}, unit 10.30.48 ${mn.unit}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence

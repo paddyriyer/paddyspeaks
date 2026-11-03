@@ -182,7 +182,11 @@ function loadEdition(id) {
     : T.mantras.map((m) => ({ key: String(m.n), n: m.n, units: [{ id: String(m.n), n: m.n, lines: m.lines }], aid: `m${m.n}`, file: pad2(m.n), url: `/upanishads/${id}/mantra-${pad2(m.n)}.html`, label: `Mantra ${m.n}` }));
   recs.forEach((r, i) => { r.i = i; r.lines = r.units.flatMap((u) => u.lines); });
   const AN = new Map();
-  for (const r of recs) { const p = `${base}/analysis/${r.file}.json`; if (has(p)) AN.set(r.key, J(p)); }
+  // only what edition.json lists as analysed is published (a vallī, or a single anuvāka): a
+  // record still being written must not reach a page because its file exists (check.py's in_scope)
+  const scope = CFG.analysed ? new Set(CFG.analysed.map(String)) : null;
+  const inScope = (r) => !scope || scope.has(r.key) || (r.valli && scope.has(String(r.valli.n)));
+  for (const r of recs) { const p = `${base}/analysis/${r.file}.json`; if (has(p) && inScope(r)) AN.set(r.key, J(p)); }
   const studies = has(`${base}/studies`) ? fs.readdirSync(A(`${base}/studies`)).filter((f) => f.endsWith('.json')).map((f) => J(`${base}/studies/${f}`)).sort((a, b) => a.n - b.n) : [];
   const landing = has(`${base}/landing.json`) ? J(`${base}/landing.json`) : null;
   const map = has(`${base}/map.json`) ? J(`${base}/map.json`) : null;

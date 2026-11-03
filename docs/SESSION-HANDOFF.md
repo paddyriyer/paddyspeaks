@@ -1,12 +1,26 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-11-03 (Kaṭha vallī 2.2 + the Mahānārāyaṇa Upaniṣad begun — verified text; before that Kaṭha PR 4 — vallī 2.1; before that Kaṭha PR 3 — vallī 1.3, the first adhyāya complete; before that Kaṭha PR 2 — vallī 1.2; before that 2026-11-02 the Kaṭha Upaniṣad begun — first vallī; before that Taittirīya PR 3: the Bhṛguvallī — the Taittirīya is complete; before that PR 2, the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-11-04 (the Kaṭha complete; Mahānārāyaṇa 10.30–10.36 analysed, the rest in progress; before that Kaṭha vallī 2.2 + the Mahānārāyaṇa Upaniṣad begun — verified text; before that Kaṭha PR 4 — vallī 2.1; before that Kaṭha PR 3 — vallī 1.3, the first adhyāya complete; before that Kaṭha PR 2 — vallī 1.2; before that 2026-11-02 the Kaṭha Upaniṣad begun — first vallī; before that Taittirīya PR 3: the Bhṛguvallī — the Taittirīya is complete; before that PR 2, the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-03): Kaṭha vallī 2.2 + the Mahānārāyaṇa begun.** Paddy asked
+- **NEWEST (2026-11-04): the Kaṭha complete; Mahānārāyaṇa analysis begun.**
+  Kaṭha 2.3.1–2.3.18 analysed (all 119 mantras), studies XVI–XIX (the aśvattha; the
+  firm holding of the senses; the knots of the heart; the Kaṭha as one teaching) and
+  a concept map (18 nodes). Mahānārāyaṇa 10.30–10.36 (the Sandhyāvandanam mantras)
+  analysed. Paddy objected (rightly) that the Mahānārāyaṇa had gone live as bare
+  text — "No english translation. No break of words." — so the other 73 anuvākas are
+  being written by nine forks at once (brief: scratch `work/mn-brief.md`). Fixed on
+  the way: study numerals stopped at VII ("undefined", #975, incident logged);
+  `build.mjs` published any analysis file present — it now publishes only what
+  `analysed` lists; the Mahānārāyaṇa gets `schools_optional` (no forced school
+  positions); Sāyaṇa's misnumbered colophon 27 no longer overwrites his 26.
+  **Next:** integrate the 73 Mahānārāyaṇa records as they land (set `analysed`),
+  then the Sandhyāvandanam edition and the Navagraha page.
+
+- **(2026-11-03): Kaṭha vallī 2.2 + the Mahānārāyaṇa begun.** Paddy asked
   which Upaniṣad carries the Sandhyāvandanam mantras (the Mahānārāyaṇa, TA 10) and
   chose: a complete Mahānārāyaṇa edition, a Sandhyāvandanam edition and a Navagraha
   mantras page, started now, with the Kaṭha continued in parallel.
@@ -20,8 +34,7 @@ clones fresh each time). CLAUDE.md points here._
     recensions, via concordance maps). Raṅgarāmānuja's Mahānārāyaṇa commentary is
     NOT in the sources. Sandhyāvandanam mantras: anuvākas 30–36. Survey:
     scratch `work/mnu-survey.md` (rewrite as needed; sources listed in the doc).
-  - **Next:** Kaṭha 2.3 and the concept map; Mahānārāyaṇa records anuvāka by
-    anuvāka (30–36 first, for the Sandhyāvandanam); then the Sandhyāvandanam
+  - (Kaṭha 2.3 and the first Mahānārāyaṇa records followed.) Then the Sandhyāvandanam
     edition (needs the Taittirīya Saṃhitā — sparse-add it — and the full Ṛgveda in
     the raw mirror) and the Navagraha page. Also importable now: the Śvetāśvatara
     with Raṅgarāmānuja (ŚU 3.20, 6.13–14 parallels for the Kaṭha).
