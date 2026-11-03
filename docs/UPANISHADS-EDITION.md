@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (121 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (126 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third, 5 with vallī 2.1). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -163,7 +163,14 @@ IV–VI. PR 3 (2026-11-03): vallī 1.3 (the two in the cave; the chariot; the
 ladder), studies VII–IX — the first adhyāya complete. Raṅgarāmānuja comments on
 1.3.5–6, 7–8 and 10–11 together (`edition.json` maps the first of each pair). The
 sandhi engine elides an initial ā after -o (गूढोऽत्मा, 1.3.12, in every witness).
-Then one PR per vallī of the second adhyāya.
+PR 4 (2026-11-03): vallī 2.1 (the openings turned outward; *etad vai tat*; what
+is here is there), studies X–XII. Śaṅkara's introduction to the second adhyāya
+(`valli_intro`) is also the `intro` of 2.1.1, so it can be quoted. The sandhi engine
+allows a visarga kept before a vowel with the words apart (सूर्यः अस्तं, 2.1.9), as
+a hiatus the record must declare. Madhva's single-number marks are not trusted to
+narrow a passage (his comment closing ॥ १७ ॥ glosses 1.2.16 as well); where a
+comment concerns one verse of its passage (2.1.9–10, 2.1.12–14) the records say so.
+Then 2.2 and 2.3.
 
 ## Rules
 
