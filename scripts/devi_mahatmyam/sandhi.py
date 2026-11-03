@@ -118,7 +118,12 @@ def join_pair(w1, w2):
     if x == 'ḥ' and is_vowel(y):
         # the visarga kept before a vowel, the words left apart as printed
         # (sūryaḥ astam, Kaṭha 2.1.9): a hiatus that must be declared
-        return _visarga(w1, w2, t1, t2) + [R(w1 + ' ', w2, True)]
+        extra = [R(w1 + ' ', w2, True)]
+        # Vedic -aḥ + a/ā written -o a/ā with no elision (no abhayam, saṃvatsaro
+        # ajāyata, Mahānārāyaṇa 10.1): a hiatus that must be declared
+        if v == 'a' and y in ('a', 'ā'):
+            extra.append(R(s[:-1] + 'o ', w2, True))
+        return _visarga(w1, w2, t1, t2) + extra
     return _visarga(w1, w2, t1, t2)
 
 
@@ -166,6 +171,8 @@ def _visarga(w1, w2, t1, t2):
     if x == 'm':
         if is_vowel(y):
             return [R(w1, w2)]
+        if y == 'ś':        # the Taittirīya writes -m ś- as -ñ ch- (durādharṣañ chame, Mahānārāyaṇa 10.79)
+            return [R(s + 'ṃ ', w2), R(w1 + ' ', w2), R(s + 'ñ', 'ch' + w2[1:])]
         return [R(s + 'ṃ ', w2), R(w1 + ' ', w2)]
     if x in ('t', 'd'):
         if is_vowel(y):
@@ -173,7 +180,9 @@ def _visarga(w1, w2, t1, t2):
         if y in ('c', 'ch'):
             return [R(s + 'c', w2)]
         if y in ('j', 'jh'):
-            return [R(s + 'j', w2)]
+            # the base sometimes leaves -d j- unassimilated (variṣṭhād jñātvā,
+            # Mahānārāyaṇa 10.79); P. 8.4.40 gives -j j-
+            return [R(s + 'j', w2), R(s + 'd', w2)]
         if y in ('ṭ', 'ṭh'):
             return [R(s + 'ṭ', w2)]
         if y in ('ḍ', 'ḍh'):
@@ -191,21 +200,29 @@ def _visarga(w1, w2, t1, t2):
         return [R(s + 't', w2), R(s + 't ', w2)]
     if x == 'n':
         if is_vowel(y):
-            return ([R(s + 'nn', w2)] if v in SHORT else []) + [R(w1, w2)]
+            # Vedic: -n after a long vowel before a vowel becomes -ṃ (mahāṃ indraḥ)
+            # or -ṃr (śatrūṃr apa), P. 8.3.9 (दीर्घादटि समानपादे), Mahānārāyaṇa 10.1
+            ved = [R(s + 'ṃ ', w2), R(s + 'ṃr', w2)] if v in ('ā', 'ī', 'ū', 'ṝ') else []
+            return ([R(s + 'nn', w2)] if v in SHORT else []) + [R(w1, w2)] + ved
         if y in ('c', 'ch'):
             return [R(s + 'ṃś', w2)]
         if y in ('ṭ', 'ṭh'):
             return [R(s + 'ṃṣ', w2)]
         if y in ('t', 'th'):
-            return [R(s + 'ṃs', w2)]
+            # -n t- unchanged is the Taittirīya recitation's usual form (āyan tapasā,
+            # Mahānārāyaṇa 10.79); the -ṃs t- of P. 8.3.7 is the other
+            return [R(s + 'ṃs', w2), R(w1, w2), R(w1 + ' ', w2)]
         if y in ('j', 'jh'):
             return [R(s + 'ñ', w2), R(w1 + ' ', w2)]
         if y in ('ḍ', 'ḍh'):
             return [R(s + 'ṇ', w2)]
         if y == 'l':
-            return [R(s + 'ṃl', w2), R(s + 'm̐l', w2), R(s + 'l', w2)]
+            # or left pausal, as the Taittirīya recitation text prints (इमान् लोकान्, Mahānārāyaṇa 10.1)
+            return [R(s + 'ṃl', w2), R(s + 'm̐l', w2), R(s + 'l', w2), R(w1 + ' ', w2)]
         if y == 'ś':
-            return [R(s + 'ñ', 'ch' + rest2), R(s + 'ñ', w2), R(w1 + ' ', w2)]
+            return [R(s + 'ñ', 'ch' + rest2), R(s + 'ñc', 'ch' + rest2), R(s + 'ñ', w2), R(w1 + ' ', w2)]
+        if y == 's':        # -n s- with an inserted t (P. 8.3.30 नश्च): dadant sarvāṇi, Mahānārāyaṇa 10.79
+            return [R(w1 + ' ', w2), R(w1, w2), R(w1 + 't', w2)]
         return [R(w1 + ' ', w2), R(w1, w2)]
     if x in ('k', 'g'):
         if y in NASALS:
@@ -237,8 +254,10 @@ def _visarga(w1, w2, t1, t2):
 def norm(s):
     """Spelling-neutral comparison form: no spaces, dandas, avagraha or hyphens;
     every nasal before a consonant written as anusvāra."""
-    s = s.replace('m̐', 'ṃ').replace('·', '')
-    s = re.sub(r"[\s|'’\-0-9]", '', s)
+    s = s.replace('m̐', 'ṃ').replace('·', '').replace('ऱ्', 'r').replace('ऱ', 'r')
+    s = re.sub(r"[\s|'’,\-0-9()]", '', s)   # a comma: the base prints «विद्वान्,» at Mahānārāyaṇa 10.1.3
+    # the Taittirīya recitation writes the anusvāra before a sibilant as ग् (पशूग्श्च, Mahānārāyaṇa 10.1)
+    s = re.sub(r'(?<=[aāiīuūṛeo])g(?=[śṣs])', 'ṃ', s)   # brackets: the base prints «(इत्युपनिषत्)» at Mahānārāyaṇa 10.80
     s = re.sub(r'[ṅñṇnm](?=(?:k|g|c|j|ṭ|ḍ|t|d|p|b|y|r|l|v|ś|ṣ|s|h|n|m))', 'ṃ', s)
     return s
 
