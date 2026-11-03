@@ -292,6 +292,12 @@ def rangaramanuja(yajuh):
         intro = by_marks(norm(t.replace('\n', ' ')), v, out)
         if intro:
             intros[v] = intro
+    # a few verses carry the vishvAsa page's own <details> blocks (its mūla, set out
+    # again): they are not Raṅgarāmānuja's words, so they are dropped with the tags
+    for k, c in out.items():
+        c = re.sub(r'<details[^>]*>.*?</details>', ' ', c)
+        c = re.sub(r'<details[^>]*>.*$', ' ', c)
+        out[k] = clean_line(re.sub(r'</?(details|summary)[^>]*>', ' ', c))
     return KU + 'rangarAmAnujaH/', out, intros
 
 
