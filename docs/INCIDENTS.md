@@ -60,6 +60,16 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
 
 ## 4. Log
 
+### 2026-11-03 — Upaniṣad studies VIII and above showed "undefined" instead of their numeral
+- Impact:        Display only, no data affected. On the Taittirīya and Kaṭha study pages, every study numbered VIII or higher showed its number as "undefined": "undefined. Food …" on the studies index and the edition's landing page, and "Study undefined · …" in each such study's header. That was 2 Taittirīya studies (VIII, IX) and 8 Kaṭha studies (VIII–XV).
+- Window:        Taittirīya from the merge of #968 (2026-11-02, its studies VIII–IX); Kaṭha from #971 (2026-11-03, its study VIII), growing with #972 and #974; until this fix.
+- Detected by:   a Claude session's sub-agent building the Kaṭha concept map, 2026-11-03, reading the generated studies index. About a day after it started; no reader report.
+- Cause:         Claude session `session_015t5xng2fAc55FSooxPk5Ls`. `scripts/upanishads/build.mjs` numbered studies from a hard-coded list `['I', … 'VII']`, written when the Īśā had six studies; `R[s.n - 1]` is `undefined` from study 8 on, and the template printed it.
+- Why it wasn't caught: `build.mjs --check` only proves the committed pages are fresh, not that they are right; `render_test.mjs` checks that pages load, have an h1 and do not scroll sideways, not their wording; nobody read a study page past VII.
+- Fix:           this PR. Study numerals come from a `roman()` function that works for any count; the 15 affected pages are regenerated, and nothing else changes.
+- Guardrails added: this PR. `out()` in `build.mjs` refuses to write any page where a missing value reaches the markup as `undefined` or `NaN` after a tag, an attribute or a label ("Study ", "Mantra ", "Anuvāka "). The English word in prose ("the defined and the undefined") is untouched. Proven against the live pages: it catches both forms of this bug and passes the prose.
+- Follow-ups:    none.
+
 ### 2026-10-05 — Privacy Command Center: each click redrew twice as often as the last; pop-ups opened off the screen
 - Impact:        Every view added in #917 and #918 (Products, Every layer, Sensors, Future, AI / agents, Reviews, Everyday arrows, Evidence) slowed down with use: the *n*th click on a control redrew the page 2^(n−1) times. Measured locally on Paddy's reported URL (`#sensors?…&sf=network`): 1, 2, 4 … 512 redraws per click, about 2 s per click by the tenth, and the tab soon froze. Separately, the *Views* menu opened off the left edge of the window whenever the header wrapped (every width below ~1150px; at 390px its left edge was −30px), and the *concerns* pop-up could push the page wider than the window (at 1100px the page became 1230px wide). No data was lost; the page is static.
 - Window:        redraws from the #917 merge (2026-10-04 06:15 UTC) to this fix; the pop-up placement since v1 shipped (#893, 2026-09-30 20:41 UTC).
