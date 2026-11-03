@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (104 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (114 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -144,9 +144,19 @@ the base (1.1.17 निचाय्येमां, 1.3.12 त्वग्र्
 differences classified. The vishvAsa checkout needs
 `kAThakam/AraNyakam/kaThopaniShat/` (sparse-checkout add).
 
+**Madhva and Raṅgarāmānuja in the importer.** Madhva's mūla prints a verse as two
+one-line paragraphs; a half-line he reads differently (1.2.24 नाशान्तमनसो …
+प्रज्ञानेनैवमाप्नुयात्) is still mūla when it closes on its own number, and the
+colophons are not comment. A comment covers the passage before it and never runs
+into the next vallī. His bhāṣya has no comment on 1.2.22–25 or 1.3.14–17, and the
+records say so. Raṅgarāmānuja's file carries, at a few verses, the vishvAsa page's
+own `<details>` blocks (the mūla set out again); they are dropped. Each of his
+entries still ends with the next verse's mūla, which is never quoted as his.
+
 **Phases.** PR 1: the engine for mantra records, the whole verified text, the
-first vallī (Naciketas and the three boons) analysed with three studies. Then one
-PR per vallī.
+first vallī (Naciketas and the three boons) analysed with three studies. PR 2
+(2026-11-03): vallī 1.2 (the good and the pleasant; Om; the unborn self), studies
+IV–VI. Then one PR per vallī.
 
 ## Rules
 
