@@ -112,9 +112,12 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/katha/mantra-2-1-10.html');
   const k210 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a2-1-10-s"]').length, pending: !!document.querySelector('.pending') }));
   ok(k210.secs === 14 && !k210.pending, `no-JS Kaṭha 2.1.10: ${k210.secs} of 14 sections, pending note ${k210.pending}`);
-  await p.goto(base + '/upanishads/katha/mantra-2-2-01.html');
-  const k5 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
-  ok(k5.text && k5.pending, `Kaṭha 2.2.1 (in preparation): text ${k5.text}, pending note ${k5.pending}`);
+  await p.goto(base + '/upanishads/katha/mantra-2-2-15.html');
+  const k215 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a2-2-15-s"]').length, pending: !!document.querySelector('.pending') }));
+  ok(k215.secs === 14 && !k215.pending, `no-JS Kaṭha 2.2.15: ${k215.secs} of 14 sections, pending note ${k215.pending}`);
+  await p.goto(base + '/upanishads/katha/mantra-2-3-01.html');
+  const k6 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
+  ok(k6.text && k6.pending, `Kaṭha 2.3.1 (in preparation): text ${k6.text}, pending note ${k6.pending}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence
