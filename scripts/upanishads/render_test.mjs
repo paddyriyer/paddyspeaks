@@ -103,9 +103,12 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/katha/mantra-1-1-01.html');
   const k1 = await p.evaluate(() => document.querySelectorAll('[id^="a1-1-1-s"]').length);
   ok(k1 === 14, `no-JS Kaṭha 1.1.1: ${k1} of 14 sections`);
-  await p.goto(base + '/upanishads/katha/mantra-1-2-01.html');
-  const k2 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
-  ok(k2.text && k2.pending, `Kaṭha 1.2.1 (in preparation): text ${k2.text}, pending note ${k2.pending}`);
+  await p.goto(base + '/upanishads/katha/mantra-1-2-23.html');
+  const k23 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a1-2-23-s"]').length, pending: !!document.querySelector('.pending') }));
+  ok(k23.secs === 14 && !k23.pending, `no-JS Kaṭha 1.2.23: ${k23.secs} of 14 sections, pending note ${k23.pending}`);
+  await p.goto(base + '/upanishads/katha/mantra-1-3-01.html');
+  const k3 = await p.evaluate(() => ({ text: !!document.querySelector('.s1 .v-sa'), pending: !!document.querySelector('.pending') }));
+  ok(k3.text && k3.pending, `Kaṭha 1.3.1 (in preparation): text ${k3.text}, pending note ${k3.pending}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence
