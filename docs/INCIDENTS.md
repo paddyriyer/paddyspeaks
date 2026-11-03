@@ -68,6 +68,7 @@ the primary tables. Example: `analytics/queries/estimate-gap-sessions.sql`.
 - Why it wasn't caught: `build.mjs --check` only proves the committed pages are fresh, not that they are right; `render_test.mjs` checks that pages load, have an h1 and do not scroll sideways, not their wording; nobody read a study page past VII.
 - Fix:           this PR. Study numerals come from a `roman()` function that works for any count; the 15 affected pages are regenerated, and nothing else changes.
 - Guardrails added: this PR. `out()` in `build.mjs` refuses to write any page where a missing value reaches the markup as `undefined` or `NaN` after a tag, an attribute or a label ("Study ", "Mantra ", "Anuvāka "). The English word in prose ("the defined and the undefined") is untouched. Proven against the live pages: it catches both forms of this bug and passes the prose.
+- Verified:      the GitHub Pages deploy of the merge (c16718ac) succeeded at 22:22 UTC; `main` reads ‘VIII. The chariot’ and ‘Study VIII’, and no page under `upanishads/` carries the leak. The live site could not be fetched from the session’s container.
 - Follow-ups:    none.
 
 ### 2026-10-05 — Privacy Command Center: each click redrew twice as often as the last; pop-ups opened off the screen

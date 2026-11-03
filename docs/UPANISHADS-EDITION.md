@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (130 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third, 5 with vallī 2.1, 4 with vallī 2.2). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (138 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third, 5 with vallī 2.1, 4 with vallī 2.2, 5 with vallī 2.3, 3 with the Mahānārāyaṇa's Sandhyāvandanam anuvākas). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |

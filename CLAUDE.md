@@ -329,13 +329,16 @@ Taittirīya (3 vallīs, 31 anuvākas, 2026-11-02; complete — all three vallīs
 (published vallī by vallī, `edition.json` `analysed`), nine studies, concept map; the six-commentary
 edition's sigla आ.भा./तै. भा./प्र. are routed to their authors by the importer), then the
 Kaṭha (2 adhyāyas × 3 vallīs, 119 mantras, 2026-11-02; records are single mantras
-keyed adhyāya.vallī.mantra, `record: "mantra"`; published vallī by vallī — all but 2.3 so far).
+keyed adhyāya.vallī.mantra, `record: "mantra"`; complete — all six vallīs analysed, nineteen studies, concept map).
 Then the **Mahānārāyaṇa** (Taittirīya Āraṇyaka 10, 2026-11-03): base the
 80-anuvāka recitation text, records are anuvākas `10.A` with units `10.A.U` (U the
 running TA number); commentaries `anon` (an anonymous bhāṣya — never call it
 Sāyaṇa), `sayana` and `bhaskara` (64-anuvāka recensions, via concordance maps);
 Raṅgarāmānuja's commentary on it is not in the sources. The Sandhyāvandanam
-mantras are anuvākas 30–36.
+mantras are anuvākas 30–36 (the first analysed). `analysed` may list single anuvākas, and
+`build.mjs` publishes only what it lists — a record still being written never reaches a page.
+The edition sets `schools_optional`: its commentaries are ritual, not Vedānta, so a record
+gives a school position only where a commentary states one, and says why otherwise.
 
 - **One source per thing:** `upanishads/<id>/edition/text.json` (base witness G +
   logged corrections), `corrections.json` (every witness difference, classified),

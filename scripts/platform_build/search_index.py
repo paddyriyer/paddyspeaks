@@ -316,9 +316,13 @@ def upanishad_docs() -> tuple[list[dict], list[dict]]:
         else:
             recs = [(str(m["n"]), f"{m['n']:02d}", m["lines"]) for m in text["mantras"]]
             page = "mantra-{}.html"
+        # only what edition.json lists as analysed (a vallī or a single record) is
+        # published, as in build.mjs: a record still being written is not searchable
+        scope = json.loads((ed / "edition.json").read_text(encoding="utf-8")).get("analysed")
+        scope = set(map(str, scope)) if scope is not None else None
         for key, stem, lines in recs:
             ap = ed / "analysis" / f"{stem}.json"
-            if not ap.exists():
+            if not ap.exists() or (scope is not None and key not in scope and key.rsplit(".", 1)[0] not in scope):
                 continue
             a = json.loads(ap.read_text(encoding="utf-8"))
             readable = " ".join(u["translation"]["readable"] for u in a.get("units", [a]))
