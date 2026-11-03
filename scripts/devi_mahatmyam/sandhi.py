@@ -136,6 +136,8 @@ def join_pair(w1, w2):
         if v == 'a':
             if y == 'a':
                 return [R(s[:-1] + 'o', "'" + rest2)]
+            if y == 'ā':     # Vedic: initial ā elided after -o (gūḍho 'tmā, Kaṭha 1.3.12)
+                return [R(s + ' ', w2), R(s[:-1] + 'o', "'" + rest2)]
             if is_vowel(y):
                 return [R(s + ' ', w2)]
             if y in VOICED:

@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (114 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (121 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -148,15 +148,22 @@ differences classified. The vishvAsa checkout needs
 one-line paragraphs; a half-line he reads differently (1.2.24 नाशान्तमनसो …
 प्रज्ञानेनैवमाप्नुयात्) is still mūla when it closes on its own number, and the
 colophons are not comment. A comment covers the passage before it and never runs
-into the next vallī. His bhāṣya has no comment on 1.2.22–25 or 1.3.14–17, and the
-records say so. Raṅgarāmānuja's file carries, at a few verses, the vishvAsa page's
+into the next vallī. A comment that closes on a range of verse numbers shorter
+than the run of verses before it, and reaching the last of them, is filed only
+under that range (॥ १०-१२ ॥ after the chariot verses: 1.3.10–11, not 1.3.3–11); his
+numbers can run one off ours (1.1, 2.3.6–8), so nothing else is narrowed. His
+bhāṣya has no comment on 1.2.22–25, 1.3.3–9 or 1.3.14–17, and the records say so. Raṅgarāmānuja's file carries, at a few verses, the vishvAsa page's
 own `<details>` blocks (the mūla set out again); they are dropped. Each of his
 entries still ends with the next verse's mūla, which is never quoted as his.
 
 **Phases.** PR 1: the engine for mantra records, the whole verified text, the
 first vallī (Naciketas and the three boons) analysed with three studies. PR 2
 (2026-11-03): vallī 1.2 (the good and the pleasant; Om; the unborn self), studies
-IV–VI. Then one PR per vallī.
+IV–VI. PR 3 (2026-11-03): vallī 1.3 (the two in the cave; the chariot; the
+ladder), studies VII–IX — the first adhyāya complete. Raṅgarāmānuja comments on
+1.3.5–6, 7–8 and 10–11 together (`edition.json` maps the first of each pair). The
+sandhi engine elides an initial ā after -o (गूढोऽत्मा, 1.3.12, in every witness).
+Then one PR per vallī of the second adhyāya.
 
 ## Rules
 

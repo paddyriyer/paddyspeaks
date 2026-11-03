@@ -1,12 +1,24 @@
 # Session Handoff — where we left off
 
-_Last updated: 2026-11-03 (Kaṭha PR 2 — vallī 1.2; before that 2026-11-02 the Kaṭha Upaniṣad begun — first vallī; before that Taittirīya PR 3: the Bhṛguvallī — the Taittirīya is complete; before that PR 2, the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
+_Last updated: 2026-11-03 (Kaṭha PR 3 — vallī 1.3, the first adhyāya complete; before that Kaṭha PR 2 — vallī 1.2; before that 2026-11-02 the Kaṭha Upaniṣad begun — first vallī; before that Taittirīya PR 3: the Bhṛguvallī — the Taittirīya is complete; before that PR 2, the Brahmānandavallī; before that PR 1, the Taittirīya Upaniṣad study edition, `/upanishads/taittiriya/`, Śīkṣāvallī first; before that 2026-11-01 The Upaniṣads, `/upanishads/`, beginning with the Īśāvāsya study edition; before that 2026-10-22 article "From Tap to Trace"; before that 2026-10-14 Company Interview Loops, `/interview.app/company-loops/`; before that the Five-Round Loop, `/interview.app/loop/`; before that Śrī Rudram verified study edition; before that the Devī Māhātmyam reading redesign; before that 2026-10-12 Śrī Devī Māhātmyam study edition, all 13 chapters; before that the Lalitā Sahasranāma rebuilt as a chanting and learning book; before that 2026-10-11 the corrected study edition; before that 2026-10-07 Interview Intelligence discovery engine; before that 2026-10-06 item trackers; before that 2026-10-05 ambient computing: the data subject may not be the user; before that 2026-10-04 the essay and the Command Center became one privacy model; before that 2026-10-03 Privacy Command Center v1 Events layer; before that 2026-09-30 Every Arrow edition 4 — four lenses; Privacy Command Center v1; before that 2026-09-29 Every Arrow edition 3 — the house is a data system; Command Center Connected Life; before that 2026-09-28 Privacy Command Center rebuilt as a promise → decision → proof operating model; Every Arrow edition 2; FlightDeck became multi-persona; before that 2026-09-27 homepage became a map; before that 2026-09-26 Privacy Command Center + privacy essay; before that 2026-09-24 homepage UI evolution; DE interview handbook 2026 upgrade; before that 2026-09-21 JobSignal search relevance + visual redesign). This
 file is the running memory between Claude Code sessions (the web container
 clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-03): Kaṭha PR 2 — vallī 1.2 analysed** (Paddy: "Start next
+- **NEWEST (2026-11-03): Kaṭha PR 3 — vallī 1.3; the first adhyāya complete**
+  (Paddy: "Start next one", after #970 merged). 1.3.1–1.3.17 (the two in the cave,
+  the bridge, the chariot, the ladder to the puruṣa, uttiṣṭhata jāgrata, aśabdam,
+  the phalaśruti), studies VII–IX (two in the cave; the chariot; the ladder and the
+  razor's edge), landing updated (nine studies), 7 glossary terms (121). Found on
+  the way: Madhva's one comment after the chariot verses (॥ १०-१२ ॥) was filed under
+  1.3.3–11 — now 1.3.10–11 only; Raṅgarāmānuja's joint comments (1.3.5–6, 7–8,
+  10–11) are mapped; the sandhi engine elides initial ā after -o (गूढोऽत्मा, 1.3.12;
+  Devī Māhātmyam and Rudram re-proven); parallel passages wrap on phones. **Next:**
+  the second adhyāya, 2.1 (the self-born pierced the openings outward), 2.2, 2.3,
+  then the concept map.
+
+- **(2026-11-03): Kaṭha PR 2 — vallī 1.2 analysed** (Paddy: "Start next
   one", after #969 merged). 1.2.1–1.2.25 (the good and the pleasant; the Nāciketa
   fire and Om; the unborn self, *nāyam ātmā pravacanena labhyaḥ*), studies IV–VI
   (śreyas and preyas; Om; the unborn self and "whom he chooses"), landing updated,
@@ -14,8 +26,7 @@ clones fresh each time). CLAUDE.md points here._
   half-lines and the colophons were being filed as his comment (his bhāṣya has none
   on 1.2.22–25, 1.3.14–17), a comment span could run into the next vallī, and
   Raṅgarāmānuja's text carried the vishvAsa page's `<details>` mūla blocks. Long
-  compounds in « » quotations now wrap on phones. **Next:** 1.3 (the chariot),
-  then 2.1–2.3, then the concept map. Open: Śvetāśvatara 3.20 (which Raṅgarāmānuja
+  compounds in « » quotations now wrap on phones. (PR 3 followed.) Open: Śvetāśvatara 3.20 (which Raṅgarāmānuja
   cites on 1.2.20) is not yet importable as a parallel.
 
 - **(2026-11-02): the Kaṭha Upaniṣad — `/upanishads/katha/`, first vallī.**
