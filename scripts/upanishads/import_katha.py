@@ -212,6 +212,8 @@ def own_bhashya(root, tsh, order, SHANTI):
         pl = phon(MARK.sub('', para))
         if not pl or pl in SHANTI or SHANTI[:24] in pl:
             continue
+        if re.match(r'इति \S*ध्याय', para):    # a vallī's or adhyāya's colophon
+            continue
         s_ = _shingles(pl)
         hit = None
         if len(s_) >= 3:
@@ -226,10 +228,18 @@ def own_bhashya(root, tsh, order, SHANTI):
                     covered = [next(k for k in cands if scores[k] >= 0.9 * top)]
             if covered:
                 hit = covered[-1]
+        # a verse Madhva reads differently (1.2.24 नाशान्तमनसो … प्रज्ञानेनैवम्) still
+        # closes on its own number: a half-line ending ॥ N ॥ that shares a third of
+        # its words with mantra N is mūla, not comment
+        mk = re.search(r'॥\s*([०-९]+)\s*॥\s*$', para)
+        if not hit and mk and 'इति' not in para and order[ci:ci + 3]:
+            k_ = f"{order[ci].rsplit('.', 1)[0]}.{dnum(mk.group(1))}"
+            if k_ in order[ci:ci + 3] and len(s_ & tsh[k_]) >= 0.3 * max(len(s_), 1):
+                covered, hit = [k_], k_
         if hit:
             ci = order.index(covered[0])
-            if commenting:              # a new mūla passage begins
-                span, commenting = [], False
+            if commenting or (span and span[0].rsplit('.', 1)[0] != hit.rsplit('.', 1)[0]):
+                span, commenting = [], False    # a new mūla passage, or a new vallī, begins
             cur = hit
             span += [k for k in covered if k not in span]
             continue
@@ -282,6 +292,12 @@ def rangaramanuja(yajuh):
         intro = by_marks(norm(t.replace('\n', ' ')), v, out)
         if intro:
             intros[v] = intro
+    # a few verses carry the vishvAsa page's own <details> blocks (its mūla, set out
+    # again): they are not Raṅgarāmānuja's words, so they are dropped with the tags
+    for k, c in out.items():
+        c = re.sub(r'<details[^>]*>.*?</details>', ' ', c)
+        c = re.sub(r'<details[^>]*>.*$', ' ', c)
+        out[k] = clean_line(re.sub(r'</?(details|summary)[^>]*>', ' ', c))
     return KU + 'rangarAmAnujaH/', out, intros
 
 

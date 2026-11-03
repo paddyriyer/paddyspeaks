@@ -329,7 +329,7 @@ Taittirīya (3 vallīs, 31 anuvākas, 2026-11-02; complete — all three vallīs
 (published vallī by vallī, `edition.json` `analysed`), nine studies, concept map; the six-commentary
 edition's sigla आ.भा./तै. भा./प्र. are routed to their authors by the importer), then the
 Kaṭha (2 adhyāyas × 3 vallīs, 119 mantras, 2026-11-02; records are single mantras
-keyed adhyāya.vallī.mantra, `record: "mantra"`; published vallī by vallī).
+keyed adhyāya.vallī.mantra, `record: "mantra"`; published vallī by vallī — 1.1 and 1.2 so far).
 
 - **One source per thing:** `upanishads/<id>/edition/text.json` (base witness G +
   logged corrections), `corrections.json` (every witness difference, classified),
