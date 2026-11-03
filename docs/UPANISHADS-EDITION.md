@@ -17,7 +17,7 @@ interface.
 | Path | What it is |
 |---|---|
 | `upanishads/data/collection.json` | Which editions exist (`status: available` only when `check.py` passes on all of it). |
-| `upanishads/data/glossary.json` | The glossary (126 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third, 5 with vallī 2.1). IAST generated; `stems` let the build list where a term occurs. |
+| `upanishads/data/glossary.json` | The glossary (130 terms; 14 added with the Śīkṣāvallī, 11 with the Brahmānandavallī, 6 with the Bhṛguvallī, 3 with the Kaṭha's first vallī, 10 with its second, 7 with its third, 5 with vallī 2.1, 4 with vallī 2.2). IAST generated; `stems` let the build list where a term occurs. |
 | `upanishads/data/principal.json` | The ten principal Upaniṣads for the comparison table; every quotation checked. |
 | `upanishads/data/guide/*.json` | Introduction to the Upaniṣads; How to Study. Labelled sections. |
 | `upanishads/data/sutras.json` | Pāṇini's sūtras by number (github.com/sanskrit/ashtadhyayi) — every `P. a.b.c (sūtra)` is checked against it. |
@@ -170,7 +170,11 @@ allows a visarga kept before a vowel with the words apart (सूर्यः �
 a hiatus the record must declare. Madhva's single-number marks are not trusted to
 narrow a passage (his comment closing ॥ १७ ॥ glosses 1.2.16 as well); where a
 comment concerns one verse of its passage (2.1.9–10, 2.1.12–14) the records say so.
-Then 2.2 and 2.3.
+PR 5 (2026-11-03): vallī 2.2 (the city of eleven gates; what becomes of the self;
+the light by which all shines), studies XIII–XV. Madhva's source prints his gloss
+on 2.2.6–2.2.8 inside vallī 2.1, after 2.1.3, so `madhva.json` files it there; the
+records cite it as `madhva:2.1.2` and say why. His lines on 2.2.10 are filed with
+2.2.9; he has no comment of his own on 2.2.15. Then 2.3.
 
 ## Rules
 
