@@ -311,7 +311,7 @@ def check_analysis(ed, seen_t, seen_v, partial, only):
             t = ed.T['texts'][key]
             if ed.RT[key]['kind'] not in KINDS:
                 fail(f'{key}: kind {ed.RT[key]["kind"]!r}')
-            lines = lines_of(t['text'], commas=True)
+            lines = lines_of(strip_accents(t['text']), commas=True)
             ru = (rec.get('units') or [{}])[0]
             if ru.get('lines'):
                 # the record may mark further pauses where the prayoga keeps words
