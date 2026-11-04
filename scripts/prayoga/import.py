@@ -44,7 +44,7 @@ from spelling import plain_ts  # noqa: E402
 TSP = 'yajuH/taittirIyam/sArasvata-vibhAgaH/'
 DIG = str.maketrans('०१२३४५६७८९', '0123456789')
 # GRETIL keys a few verses wrongly; the fix is recorded with the parallel.
-GRETIL_FIX = {'5.85.8': ('०५।०८५।००', 'GRETIL keys RV 5.85.8 as र्व्_०५।०८५।००।८१/८२ (verse number 00, line numbers 81/82); taken here as 5.85.8.')}
+GRETIL_FIX = {'5.85.8': ('०५।०८५।००', 'GRETIL keys every verse of RV 5.85 as verse 00 (र्व्_०५।०८५।००।…), the verse number moved into the line number; 5.85.8 is the lines numbered ८१/८२.', '८')}
 COMM_TITLES = {
     'सायण-टीका': 'sayana', 'सायण-भाष्यम्': 'sayana-rv', 'भट्टभास्कर-टीका': 'bhaskara',
     'सायणोक्त-विनियोगः': 'sayana-viniyoga', 'भास्करोक्त-विनियोगः': 'bhaskara-viniyoga',
@@ -142,9 +142,9 @@ def rv_verse(src, ref):
         key = fix[0]
     lines = []
     for line in open(p, encoding='utf-8'):
-        mm = re.match(r'र्व्_([०-९]+।[०-९]+।[०-९]+)।[०-९]+(?:\{[०-९]+\})?\s*(.*)', line.strip())
-        if mm and mm.group(1) == key:
-            lines.append(join_gretil(mm.group(2).strip()))
+        mm = re.match(r'र्व्_([०-९]+।[०-९]+।[०-९]+)।([०-९]+)(?:\{[०-९]+\})?\s*(.*)', line.strip())
+        if mm and mm.group(1) == key and (not fix or mm.group(2).startswith(fix[2])):
+            lines.append(join_gretil(mm.group(3).strip()))
     if not lines:
         raise SystemExit(f'RV {ref} not found')
     out = {'text': ' । '.join(lines), 'lines': lines, 'source': f'GRETIL rgveda_{m}.md, RV {ref}'}

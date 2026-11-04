@@ -81,9 +81,11 @@ def sk_diff(a, b):
     return out
 
 
-def lines_of(text):
-    """A unit's lines: the text cut at its dandas."""
-    return [x.strip() for x in re.split(r'\s*[।॥]+\s*', text) if x.strip() and not re.fullmatch(r'[०-९\d\s]+', x.strip())]
+def lines_of(text, commas=False):
+    """A unit's lines: the text cut at its dandas (and, in the texts of the rite,
+    at the commas with which the prayogas mark a pause)."""
+    pat = r'\s*[।॥,]+\s*' if commas else r'\s*[।॥]+\s*'
+    return [x.strip() for x in re.split(pat, text) if x.strip() and not re.fullmatch(r'[०-९\d\s]+', x.strip())]
 
 
 class Edition:
@@ -309,7 +311,17 @@ def check_analysis(ed, seen_t, seen_v, partial, only):
             t = ed.T['texts'][key]
             if ed.RT[key]['kind'] not in KINDS:
                 fail(f'{key}: kind {ed.RT[key]["kind"]!r}')
-            units = [{'id': key, 'lines': lines_of(t['text'])}]
+            lines = lines_of(t['text'], commas=True)
+            ru = (rec.get('units') or [{}])[0]
+            if ru.get('lines'):
+                # the record may mark further pauses where the prayoga keeps words
+                # unjoined (around a blank, a formula's parts): same letters, a note
+                if letters(''.join(ru['lines'])) != letters(''.join(lines)):
+                    fail(f'{key}: the lines of the record are not the text')
+                if not ru.get('pause_note'):
+                    fail(f'{key}: lines given without a pause_note')
+                lines = ru['lines']
+            units = [{'id': key, 'lines': lines}]
             sources_of = {}
             if key == 'drupadad-iva':
                 who = {b['who'] for b in ed.CM.get(key, {}).get('blocks', [])}
