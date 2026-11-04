@@ -155,6 +155,8 @@ def _visarga(w1, w2, t1, t2):
                 return [R(s[:-1] + 'o', "'" + rest2)]
             if y == 'ā':     # Vedic: initial ā elided after -o (gūḍho 'tmā, Kaṭha 1.3.12)
                 return [R(s + ' ', w2), R(s[:-1] + 'o', "'" + rest2)]
+            if w2.startswith('om'):   # -aḥ + om → -om (sadāśivom, Mahānārāyaṇa 10.21; P. 6.1.95 ओमाङोश्च)
+                return [R(s + ' ', w2), R(s[:-1], w2)]
             if is_vowel(y):
                 return [R(s + ' ', w2)]
             if y in VOICED:
