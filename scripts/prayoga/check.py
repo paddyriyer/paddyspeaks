@@ -306,6 +306,15 @@ def check_analysis(ed, seen_t, seen_v, partial, only):
         if kind == 'v':
             m = ed.mantras[key]
             units = [{'id': u['id'], 'lines': lines_of(u['plain'])} for u in m['units']]
+            # a record may mark a pause the witness keeps but writes no danda for
+            # (स नः ॥ मृडाती° in W2): same letters, with a note
+            for ru, uu in zip(rec.get('units', []), units):
+                if ru.get('lines'):
+                    if letters(''.join(ru['lines'])) != letters(''.join(uu['lines'])):
+                        fail(f'{key}: the lines of the record are not the text of {uu["id"]}')
+                    if not ru.get('pause_note'):
+                        fail(f'{key}: lines given without a pause_note')
+                    uu['lines'] = ru['lines']
             who = {b['who'] for b in ed.CM.get(key, {}).get('blocks', [])}
             sources_of = {w: key for w in who}
         else:
