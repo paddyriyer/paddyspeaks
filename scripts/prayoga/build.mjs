@@ -193,7 +193,7 @@ function item(it) {
   const rec = mnuRec(it.mnu);
   const ui = rec ? rec.units.findIndex((x) => x.id === it.mnu) : -1;
   const ue = ui >= 0 ? rec.units[ui] : null;
-  return { kind: 'mnu', id: `mnu-${it.mnu.replace(/\./g, '-')}`, key: it.mnu, title: rec ? rec.title : `Mahānārāyaṇa ${it.mnu}`, tag: `Vedic · Mahānārāyaṇa ${it.mnu} (TA 10)`,
+  return { kind: 'mnu', id: `mnu-${it.mnu.replace(/\./g, '-')}`, key: it.mnu, title: it.title || (rec ? rec.title : `Mahānārāyaṇa ${it.mnu}`), tag: `Vedic · Mahānārāyaṇa ${it.mnu} (TA 10)`,
     units: [{ id: it.mnu, sa: text, plain: text }], part, mnu: it.mnu, mnuE: ue, mnuRec: rec, url: mnuUrl(it.mnu) };
 }
 const only = (it) => (it.only ? it.only : R.services.map((s) => s.id));
