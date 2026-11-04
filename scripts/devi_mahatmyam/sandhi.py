@@ -147,7 +147,9 @@ def _visarga(w1, w2, t1, t2):
         if y in ('t', 'th'):
             return [R(s + 's', w2)]
         if y in ('ś', 'ṣ', 's'):
-            return [R(w1 + ' ', w2), R(s + y, w2)]
+            # the visarga lost before a sibilant, as printed (tilā śāntim,
+            # Mahānārāyaṇa 10.64): allowed only when declared
+            return [R(w1 + ' ', w2), R(s + y, w2), R(s + ' ', w2, True)]
         if y in ('k', 'kh', 'p', 'ph'):
             return [R(w1 + ' ', w2)]
         if v == 'a':
