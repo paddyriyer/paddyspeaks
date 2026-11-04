@@ -207,7 +207,33 @@ def ananda_file(path, interleaved=False):
     commentary in turn (`interleaved`, Sāyaṇa's long first anuvāka) is split
     line by line instead: accented lines are mūla. Page numbers, running heads,
     footnotes, colophons and the opening śānti are print matter and left out."""
+    return ananda_text(read(path), interleaved)
+
+
+def ananda_split(path, interleaved=False):
+    """A file that prints several anuvākas, each closed by its own numbered colophon
+    (Sāyaṇa's file 36 holds his 36, 37 and 38), split after the last line naming each
+    number; a file whose numbers are all the same is one anuvāka."""
     t = read(path)
+    lines = t.split('\n')
+    nums = [(i, dnum(m.group(1))) for i, ln in enumerate(lines) for m in [re.search(r'नुवाकः\s*॥\s*([०-९]+)\s*॥', ln)] if m]
+    last = {}
+    for i, n in nums:
+        last[n] = i
+    order = sorted(last, key=last.get)
+    # only a run of consecutive numbers is several anuvākas (36, 37, 38); a file whose
+    # numbers disagree otherwise carries a misprint (file 27 prints its colophon «२६»)
+    if len(order) < 2 or any(b != a + 1 for a, b in zip(order, order[1:])):
+        return [ananda_text(t, interleaved)]
+    cuts = sorted(last.values())
+    segs, start = [], 0
+    for c in cuts:
+        segs.append('\n'.join(lines[start:c + 1]))
+        start = c + 1
+    return [ananda_text(sg, interleaved) for sg in segs]
+
+
+def ananda_text(t, interleaved=False):
     nums = re.findall(r'नुवाकः\s*॥\s*([०-९]+)\s*॥', t)
     mula, comm, notes, cont, after = [], [], [], False, False
     for ln in t.split('\n'):
@@ -235,13 +261,18 @@ def ananda_file(path, interleaved=False):
     return {'n': dnum(nums[-1]) if nums else None, 'mula': ws(' '.join(mula)), 'comm': ws(' '.join(comm)), 'notes': notes}
 
 
-def ananda_dir(yajuh, rel, interleaved=()):
+def ananda_dir(yajuh, rel, interleaved=(), split=False):
     out = {}
     d = os.path.join(yajuh, rel)
     for fn in sorted(os.listdir(d)):
         m = re.match(r'^(\d+)\.md$', fn)
         if m:
-            out[int(m.group(1))] = ananda_file(os.path.join(d, fn), int(m.group(1)) in interleaved)
+            k = int(m.group(1))
+            if split:
+                for i, v in enumerate(ananda_split(os.path.join(d, fn), k in interleaved)):
+                    out[k + i / 10] = v       # file 36's second and third anuvākas sort after it
+            else:
+                out[k] = ananda_file(os.path.join(d, fn), k in interleaved)
     return out
 
 
@@ -490,6 +521,8 @@ def main():
         'note': 'Mostly without svara. Its anuvāka headings are incomplete (no heading for anuvāka 2; two headings each read ‘tenth’ and ‘sixty-first’; none for the seventieth), so the importer cuts it where each anuvāka of the base begins. Left out as not text: its headings and hymn titles, the śānti it prints at the beginning and end, its colophon, and its bracketed note of variant gāyatrīs («पाठभेदः»). It writes out in full several passages the base cites by their opening words.',
         'mantras': T})
 
+    # file 36 prints his anuvākas 36–38 together and does not keep each comment beside
+    # its own mūla, so it is not split: all three stand under his 38 (see the note)
     sd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10', interleaved={1})
     S = {}
     for fn, v in sorted(sd.items()):
@@ -504,7 +537,7 @@ def main():
     smap = concord(base, {k: v['mula'] for k, v in S.items() if v['mula']})
     write('sayana.json', {'id': 'sayana', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10/',
         'label': 'Sāyaṇa, Vedārthaprakāśa on Taittirīya Āraṇyaka 10 (Ānandāśrama edition, ASS 36, 1927), via vishvAsa/vedAH_yajuH',
-        'note': 'Keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
+        'note': 'His anuvākas 36–38 are printed together in one file, which does not keep each comment beside its own mūla; they stand together under 38 (36 and 37 are empty). Keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
         'mantras': {k: v['comm'] for k, v in S.items()},
         'mula': {k: v['mula'] for k, v in S.items()}})
     brel, bh = bhaskara(a.yajuh)

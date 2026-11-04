@@ -161,7 +161,8 @@ def _visarga(w1, w2, t1, t2):
             # Mahānārāyaṇa 10.64): allowed only when declared
             return [R(w1 + ' ', w2), R(s + y, w2), R(s + ' ', w2, True)]
         if y in ('k', 'kh', 'p', 'ph'):
-            return [R(w1 + ' ', w2)]
+            # Vedic: the visarga written s before p/k (aśmanas pari, Mahānārāyaṇa 10.76)
+            return [R(w1 + ' ', w2), R(s + 's', w2)]
         if v == 'a':
             if y == 'a':
                 return [R(s[:-1] + 'o', "'" + rest2)]
