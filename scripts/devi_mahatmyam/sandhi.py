@@ -56,7 +56,7 @@ SAVARNA = {'a': 'a', 'ā': 'a', 'i': 'i', 'ī': 'i', 'u': 'u', 'ū': 'u', 'ṛ':
 LONG = {'a': 'ā', 'i': 'ī', 'u': 'ū', 'ṛ': 'ṝ'}
 
 # words whose visarga stands for r (they become -r before voiced sounds)
-R_FINAL = {'punaḥ', 'antaḥ', 'prātaḥ', 'svaḥ', 'suvaḥ', 'dhātaḥ', 'ahaḥ', 'mātaḥ', 'pitaḥ', 'bhrātaḥ',
+R_FINAL = {'punaḥ', 'antaḥ', 'prātaḥ', 'svaḥ', 'suvaḥ', 'dhātaḥ', 'ahaḥ', 'mātaḥ', 'pitaḥ', 'bhrātaḥ', 'savitaḥ',
            'dvāḥ', 'gīḥ', 'dhūḥ', 'pūḥ', 'nṛpaḥ_never'}
 
 
@@ -119,6 +119,12 @@ def join_pair(w1, w2):
         # the visarga kept before a vowel, the words left apart as printed
         # (sūryaḥ astam, Kaṭha 2.1.9): a hiatus that must be declared
         extra = [R(w1 + ' ', w2, True)]
+        if w1 in ('saḥ', 'eṣaḥ') and y != 'a':
+            # P. 6.1.134 (सोऽचि लोपे चेत्‌ पादपूरणम्): the visarga of saḥ dropped and its a
+            # joined to the next vowel (sa indraḥ → sendraḥ, Mahānārāyaṇa 10.13.30)
+            for tail, mark in vowel_join('a', y):
+                if not mark and ' ' not in tail:
+                    extra.append(R(s[:-1], tail + rest2))
         # Vedic -aḥ + a/ā written -o a/ā with no elision (no abhayam, saṃvatsaro
         # ajāyata, Mahānārāyaṇa 10.1): a hiatus that must be declared
         if v == 'a' and y in ('a', 'ā'):
@@ -137,7 +143,11 @@ def _visarga(w1, w2, t1, t2):
         if w1 in ('saḥ', 'eṣaḥ', 'aiṣaḥ') and not is_vowel(y):
             return [R(s + ' ', w2)] + ([R(s + ' ', 'c' + w2)] if y == 'ch' else [])
         if w1 in R_FINAL and (is_vowel(y) or y in VOICED):
-            return [R(s + 'r' + ('' if is_vowel(y) else ' '), w2)]
+            r = [R(s + 'r' + ('' if is_vowel(y) else ' '), w2)]
+            if w1 != 'svaḥ':
+                return r
+            # svaḥ is also sva 'own', an a-stem (yas te sva itaraḥ, Mahānārāyaṇa 10.46)
+            return r + ([R(s + ' ', w2)] if is_vowel(y) and y != 'a' else [R(s[:-1] + 'o ', w2)] if y in VOICED else [])
         if w1 == 'bhoḥ' and (is_vowel(y) or y in VOICED):
             return [R(s + ' ', w2)]
         if y in ('c', 'ch'):
@@ -260,8 +270,9 @@ def norm(s):
     every nasal before a consonant written as anusvāra."""
     s = s.replace('m̐', 'ṃ').replace('·', '').replace('ऱ्', 'r').replace('ऱ', 'r')
     s = re.sub(r"[\s|'’,\-0-9()]", '', s)   # a comma: the base prints «विद्वान्,» at Mahānārāyaṇa 10.1.3
-    # the Taittirīya recitation writes the anusvāra before a sibilant as ग् (पशूग्श्च, Mahānārāyaṇa 10.1)
-    s = re.sub(r'(?<=[aāiīuūṛeo])g(?=[śṣs])', 'ṃ', s)   # brackets: the base prints «(इत्युपनिषत्)» at Mahānārāyaṇa 10.80
+    # the Taittirīya recitation writes the anusvāra before a sibilant as ग् or ग्ग्
+    # (पशूग्श्च, Mahānārāyaṇa 10.1; सर्वलिङ्गग्ग् स्थापयति, 10.16)
+    s = re.sub(r'(?<=[aāiīuūṛeo])gg?(?=[śṣs])', 'ṃ', s)   # brackets: the base prints «(इत्युपनिषत्)» at Mahānārāyaṇa 10.80
     s = re.sub(r'[ṅñṇnm](?=(?:k|g|c|j|ṭ|ḍ|t|d|p|b|y|r|l|v|ś|ṣ|s|h|n|m))', 'ṃ', s)
     return s
 
