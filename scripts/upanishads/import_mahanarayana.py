@@ -438,19 +438,37 @@ def main():
     base = {k: ' '.join(strip_accents(x).replace('ँ', 'ं') for x in v) for k, v in md.items()}
     apd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam')
     AP = {f'10.{k}': v['mula'] for k, v in apd.items()}
-    # Files 65 and 66 of this folder are pages vishvAsa assembled, formula by formula:
-    # an edited text, the mūla, and blocks it labels «सायण-टीका» (one closes with
-    # Sāyaṇa's own colophon «… भाष्ये …»; others only link elsewhere). They carry no
-    # comment of the anonymous commentator. Their Sāyaṇa blocks are filed under
-    # Sāyaṇa as «10.65» / «10.66», and nothing of theirs under `anon`.
+    # Files 65 and 66 of this folder are pages vishvAsa assembled formula by formula:
+    # its edited text («विश्वास-प्रस्तुतिः»), the mūla, and the commentary — some of it in
+    # blocks vishvAsa labels «सायण-टीका», some unlabelled between them. The commentary
+    # is the pariśiṣṭa's anonymous bhāṣya, not Sāyaṇa's: it closes with the pariśiṣṭa's
+    # own colophon («… याज्ञिक्यामुपनिषदि भाष्ये षट्षष्टितमोऽनुवाकः» — Sāyaṇa's read
+    # «… सायणाचार्यविरचिते माधवीये वेदार्थप्रकाशे …»), it numbers the anuvākas 65–66,
+    # and its wording differs from Sāyaṇa's own comments on these formulas (his 58–60).
+    # So all of it is filed under `anon`; the edited text, the mūla and the link stubs
+    # («टीकाः [अन्यत्र]») are left out.
     assembled = {}
     pdir = os.path.join(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam')
     for k in apd:
         fp = os.path.join(pdir, f'{k:02d}.md')
         rawp = read(fp) if os.path.exists(fp) else ''
-        if '<summary>सायण-टीका' in rawp:
-            blocks = re.findall(r'<summary>सायण-टीका</summary>(.*?)</details>', rawp, re.S)
-            assembled[k] = ws(' '.join(re.sub(r'\[\[\d+\]\]', ' ', b) for b in blocks if 'अन्यत्र' not in b))
+        if '<summary>सायण-टीका' not in rawp:
+            continue
+        body = rawp.split('+++', 2)[-1]
+        body = re.sub(r'<details[^>]*>\s*<summary>(?:विश्वास-प्रस्तुतिः|मूलम्|विस्तारः[^<]*)</summary>.*?</details>', ' ', body, flags=re.S)
+        body = re.sub(r'<details[^>]*>\s*<summary>सायण-टीका</summary>(.*?)</details>',
+                      lambda m: '' if 'अन्यत्र' in m.group(1) else m.group(1), body, flags=re.S)
+        keep = []
+        for ln in body.split('\n'):
+            t_ = ln.strip()
+            if not t_ or t_.startswith('_') or t_.startswith('*') or debris(t_) or re.match(r'^(?:\[\[\d+\]\]|१\s*[क-ह]\.|\[अनु॰|अथ\s.*नुवाकः|परिशिष्टत्वेन)', t_):
+                continue
+            if re.match(r'^इति कृष्णयजुर्वेदीय', t_) or 'नुवाकः' in t_ and re.search(r'॥\s*[०-९]+\s*॥', t_):
+                continue                      # the colophon
+            if SVARA.search(t_):
+                continue                      # a line of the mūla
+            keep.append(re.sub(r'\[\[\d+\]\]', ' ', t_))
+        assembled[k] = ws(' '.join(keep))
     write('AP-anandasrama.json', {'id': 'AP', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam/',
         'label': 'The 80-anuvāka text printed with the anonymous bhāṣya in the pariśiṣṭa of the Ānandāśrama edition of the Taittirīya Āraṇyaka (ASS 36, 1927), with svara, via vishvAsa/vedAH_yajuH',
         'note': 'Keyed by the file’s anuvāka (the colophons of files 7 and 37 print 6 and 67, and file 12 has none; their text is that of anuvākas 7, 37 and 12). The mūla is the accented text before each file’s first colophon. Left out as print matter, not text: page numbers, running heads, footnotes, the editor’s queries «(?)», the «, इति» with which the print closes each mantra, and the lines it prints after «इति» (its anukramaṇī, and passages the base cites by their opening words, set out in full) — kept here under `notes`.',
@@ -460,7 +478,7 @@ def main():
     write('anon.json', {'id': 'anon', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam/',
         'label': 'Anonymous bhāṣya on the 80-anuvāka text, printed as a pariśiṣṭa in the Ānandāśrama edition (ASS 36, 1927), via vishvAsa/vedAH_yajuH',
         'note': 'By anuvāka, the commentator’s introductory sentence included. The Ānandāśrama editor says that the author of this bhāṣya is not known and that it largely follows Sāyaṇa; it is cited here as anonymous, never as Sāyaṇa’s. OCR-derived text with print matter removed.',
-        'mantras': {f'10.{k}': ('' if k in assembled else v['comm']) for k, v in apd.items()}})
+        'mantras': {f'10.{k}': (assembled[k] if k in assembled else v['comm']) for k, v in apd.items()}})
 
     tl = t_lines(a.raw)
     tseg, tmiss = align(tl, {k: base[k] for k in base})
@@ -486,8 +504,8 @@ def main():
     smap = concord(base, {k: v['mula'] for k, v in S.items() if v['mula']})
     write('sayana.json', {'id': 'sayana', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10/',
         'label': 'Sāyaṇa, Vedārthaprakāśa on Taittirīya Āraṇyaka 10 (Ānandāśrama edition, ASS 36, 1927), via vishvAsa/vedAH_yajuH',
-        'note': 'Keys «10.65» and «10.66» are the Sāyaṇa blocks of vishvAsa’s assembled pages for those anuvākas (in the pariśiṣṭa folder). Otherwise keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
-        'mantras': {**{k: v['comm'] for k, v in S.items()}, **{f'10.{k}': v for k, v in assembled.items() if v}},
+        'note': 'Keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
+        'mantras': {k: v['comm'] for k, v in S.items()},
         'mula': {k: v['mula'] for k, v in S.items()}})
     brel, bh = bhaskara(a.yajuh)
     bmap = concord_comm(base, bh)
