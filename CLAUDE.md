@@ -335,7 +335,7 @@ Then the **Mahānārāyaṇa** (Taittirīya Āraṇyaka 10, 2026-11-03): base th
 running TA number); commentaries `anon` (an anonymous bhāṣya — never call it
 Sāyaṇa), `sayana` and `bhaskara` (64-anuvāka recensions, via concordance maps);
 Raṅgarāmānuja's commentary on it is not in the sources. The Sandhyāvandanam
-mantras are anuvākas 30–36 (the first analysed). `analysed` may list single anuvākas, and
+mantras are anuvākas 30–36. All eighty anuvākas are analysed (2026-11-04). `analysed` may list single anuvākas, and
 `build.mjs` publishes only what it lists — a record still being written never reaches a page.
 The edition sets `schools_optional`: its commentaries are ritual, not Vedānta, so a record
 gives a school position only where a commentary states one, and says why otherwise.

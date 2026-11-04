@@ -207,7 +207,33 @@ def ananda_file(path, interleaved=False):
     commentary in turn (`interleaved`, Sāyaṇa's long first anuvāka) is split
     line by line instead: accented lines are mūla. Page numbers, running heads,
     footnotes, colophons and the opening śānti are print matter and left out."""
+    return ananda_text(read(path), interleaved)
+
+
+def ananda_split(path, interleaved=False):
+    """A file that prints several anuvākas, each closed by its own numbered colophon
+    (Sāyaṇa's file 36 holds his 36, 37 and 38), split after the last line naming each
+    number; a file whose numbers are all the same is one anuvāka."""
     t = read(path)
+    lines = t.split('\n')
+    nums = [(i, dnum(m.group(1))) for i, ln in enumerate(lines) for m in [re.search(r'नुवाकः\s*॥\s*([०-९]+)\s*॥', ln)] if m]
+    last = {}
+    for i, n in nums:
+        last[n] = i
+    order = sorted(last, key=last.get)
+    # only a run of consecutive numbers is several anuvākas (36, 37, 38); a file whose
+    # numbers disagree otherwise carries a misprint (file 27 prints its colophon «२६»)
+    if len(order) < 2 or any(b != a + 1 for a, b in zip(order, order[1:])):
+        return [ananda_text(t, interleaved)]
+    cuts = sorted(last.values())
+    segs, start = [], 0
+    for c in cuts:
+        segs.append('\n'.join(lines[start:c + 1]))
+        start = c + 1
+    return [ananda_text(sg, interleaved) for sg in segs]
+
+
+def ananda_text(t, interleaved=False):
     nums = re.findall(r'नुवाकः\s*॥\s*([०-९]+)\s*॥', t)
     mula, comm, notes, cont, after = [], [], [], False, False
     for ln in t.split('\n'):
@@ -235,13 +261,18 @@ def ananda_file(path, interleaved=False):
     return {'n': dnum(nums[-1]) if nums else None, 'mula': ws(' '.join(mula)), 'comm': ws(' '.join(comm)), 'notes': notes}
 
 
-def ananda_dir(yajuh, rel, interleaved=()):
+def ananda_dir(yajuh, rel, interleaved=(), split=False):
     out = {}
     d = os.path.join(yajuh, rel)
     for fn in sorted(os.listdir(d)):
         m = re.match(r'^(\d+)\.md$', fn)
         if m:
-            out[int(m.group(1))] = ananda_file(os.path.join(d, fn), int(m.group(1)) in interleaved)
+            k = int(m.group(1))
+            if split:
+                for i, v in enumerate(ananda_split(os.path.join(d, fn), k in interleaved)):
+                    out[k + i / 10] = v       # file 36's second and third anuvākas sort after it
+            else:
+                out[k] = ananda_file(os.path.join(d, fn), k in interleaved)
     return out
 
 
@@ -259,6 +290,19 @@ def bhaskara(yajuh):
         body = re.sub(r'(?m)^\d+', '', body)          # the source's line numbers
         out[str(dnum(m.group(1)))] = ws(body)
     return rel, out
+
+
+# Concordance corrections made by reading the passages (2026-11-04)
+MAP_FIX = {
+    'sayana': {'10.2': ['1'], '10.37': ['15'], '10.65': ['60'], '10.66': ['58', '59'],
+               '10.71': ['38'], '10.74': ['38']},
+    'bhaskara': {'10.1': ['1'], '10.2': ['1'], '10.3': ['3'], '10.4': ['2'], '10.5': ['4'], '10.6': ['5'],
+                 '10.10': ['8'], '10.12': ['10'], '10.20': ['46', '1'], '10.24': [], '10.27': ['20'],
+                 '10.28': ['21'], '10.29': ['22'], '10.31': ['24'], '10.32': ['25'], '10.34': ['26'],
+                 '10.35': ['26', '27'], '10.37': ['15'], '10.65': ['51', '52', '53', '54', '60'],
+                 '10.66': ['55', '56', '57', '58', '59'], '10.67': [], '10.68': ['29', '31'],
+                 '10.69': ['32', '33', '34', '35'], '10.70': ['36'], '10.74': ['37']},
+}
 
 
 # ------------------------------------------------------------- concordance
@@ -438,6 +482,37 @@ def main():
     base = {k: ' '.join(strip_accents(x).replace('ँ', 'ं') for x in v) for k, v in md.items()}
     apd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam')
     AP = {f'10.{k}': v['mula'] for k, v in apd.items()}
+    # Files 65 and 66 of this folder are pages vishvAsa assembled formula by formula:
+    # its edited text («विश्वास-प्रस्तुतिः»), the mūla, and the commentary — some of it in
+    # blocks vishvAsa labels «सायण-टीका», some unlabelled between them. The commentary
+    # is the pariśiṣṭa's anonymous bhāṣya, not Sāyaṇa's: it closes with the pariśiṣṭa's
+    # own colophon («… याज्ञिक्यामुपनिषदि भाष्ये षट्षष्टितमोऽनुवाकः» — Sāyaṇa's read
+    # «… सायणाचार्यविरचिते माधवीये वेदार्थप्रकाशे …»), it numbers the anuvākas 65–66,
+    # and its wording differs from Sāyaṇa's own comments on these formulas (his 58–60).
+    # So all of it is filed under `anon`; the edited text, the mūla and the link stubs
+    # («टीकाः [अन्यत्र]») are left out.
+    assembled = {}
+    pdir = os.path.join(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam')
+    for k in apd:
+        fp = os.path.join(pdir, f'{k:02d}.md')
+        rawp = read(fp) if os.path.exists(fp) else ''
+        if '<summary>सायण-टीका' not in rawp:
+            continue
+        body = rawp.split('+++', 2)[-1]
+        body = re.sub(r'<details[^>]*>\s*<summary>(?:विश्वास-प्रस्तुतिः|मूलम्|विस्तारः[^<]*)</summary>.*?</details>', ' ', body, flags=re.S)
+        body = re.sub(r'<details[^>]*>\s*<summary>सायण-टीका</summary>(.*?)</details>',
+                      lambda m: '' if 'अन्यत्र' in m.group(1) else m.group(1), body, flags=re.S)
+        keep = []
+        for ln in body.split('\n'):
+            t_ = ln.strip()
+            if not t_ or t_.startswith('_') or t_.startswith('*') or debris(t_) or re.match(r'^(?:\[\[\d+\]\]|१\s*[क-ह]\.|\[अनु॰|अथ\s.*नुवाकः|परिशिष्टत्वेन)', t_):
+                continue
+            if re.match(r'^इति कृष्णयजुर्वेदीय', t_) or 'नुवाकः' in t_ and re.search(r'॥\s*[०-९]+\s*॥', t_):
+                continue                      # the colophon
+            if SVARA.search(t_):
+                continue                      # a line of the mūla
+            keep.append(re.sub(r'\[\[\d+\]\]', ' ', t_))
+        assembled[k] = ws(' '.join(keep))
     write('AP-anandasrama.json', {'id': 'AP', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam/',
         'label': 'The 80-anuvāka text printed with the anonymous bhāṣya in the pariśiṣṭa of the Ānandāśrama edition of the Taittirīya Āraṇyaka (ASS 36, 1927), with svara, via vishvAsa/vedAH_yajuH',
         'note': 'Keyed by the file’s anuvāka (the colophons of files 7 and 37 print 6 and 67, and file 12 has none; their text is that of anuvākas 7, 37 and 12). The mūla is the accented text before each file’s first colophon. Left out as print matter, not text: page numbers, running heads, footnotes, the editor’s queries «(?)», the «, इति» with which the print closes each mantra, and the lines it prints after «इति» (its anukramaṇī, and passages the base cites by their opening words, set out in full) — kept here under `notes`.',
@@ -447,7 +522,7 @@ def main():
     write('anon.json', {'id': 'anon', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/10_parishiShTam_sa-bhAShyam/',
         'label': 'Anonymous bhāṣya on the 80-anuvāka text, printed as a pariśiṣṭa in the Ānandāśrama edition (ASS 36, 1927), via vishvAsa/vedAH_yajuH',
         'note': 'By anuvāka, the commentator’s introductory sentence included. The Ānandāśrama editor says that the author of this bhāṣya is not known and that it largely follows Sāyaṇa; it is cited here as anonymous, never as Sāyaṇa’s. OCR-derived text with print matter removed.',
-        'mantras': {f'10.{k}': v['comm'] for k, v in apd.items()}})
+        'mantras': {f'10.{k}': (assembled[k] if k in assembled else v['comm']) for k, v in apd.items()}})
 
     tl = t_lines(a.raw)
     tseg, tmiss = align(tl, {k: base[k] for k in base})
@@ -459,6 +534,8 @@ def main():
         'note': 'Mostly without svara. Its anuvāka headings are incomplete (no heading for anuvāka 2; two headings each read ‘tenth’ and ‘sixty-first’; none for the seventieth), so the importer cuts it where each anuvāka of the base begins. Left out as not text: its headings and hymn titles, the śānti it prints at the beginning and end, its colophon, and its bracketed note of variant gāyatrīs («पाठभेदः»). It writes out in full several passages the base cites by their opening words.',
         'mantras': T})
 
+    # file 36 prints his anuvākas 36–38 together and does not keep each comment beside
+    # its own mūla, so it is not split: all three stand under his 38 (see the note)
     sd = ananda_dir(a.yajuh, MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10', interleaved={1})
     S = {}
     for fn, v in sorted(sd.items()):
@@ -473,8 +550,9 @@ def main():
     smap = concord(base, {k: v['mula'] for k, v in S.items() if v['mula']})
     write('sayana.json', {'id': 'sayana', **Y, 'path': MNU + 'sAyaNa-pATha-yogaH/sAyaNaH/10/',
         'label': 'Sāyaṇa, Vedārthaprakāśa on Taittirīya Āraṇyaka 10 (Ānandāśrama edition, ASS 36, 1927), via vishvAsa/vedAH_yajuH',
-        'note': 'Keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
-        'mantras': {k: v['comm'] for k, v in S.items()}, 'mula': {k: v['mula'] for k, v in S.items()}})
+        'note': 'His anuvākas 36–38 are printed together in one file, which does not keep each comment beside its own mūla; they stand together under 38 (36 and 37 are empty). Keyed by Sāyaṇa’s own anuvāka number (from each file’s colophon; the vishvAsa file names drift from it after 36), on his 64-anuvāka text. His anuvākas 2, 11, 12 and 52–57 have no file here. `mula` keeps the text he comments on. Reached from the edition’s anuvākas through the concordance in edition.json, computed from the shared wording of his text and the base.',
+        'mantras': {k: v['comm'] for k, v in S.items()},
+        'mula': {k: v['mula'] for k, v in S.items()}})
     brel, bh = bhaskara(a.yajuh)
     bmap = concord_comm(base, bh)
     write('bhaskara.json', {'id': 'bhaskara', **Y, 'path': brel,
@@ -499,6 +577,11 @@ def main():
     cfg = json.load(open(cfg_p, encoding='utf-8'))
     cfg['commentaries']['sayana']['map'] = {k: v for k, v in smap.items()}
     cfg['commentaries']['bhaskara']['map'] = {k: bmap.get(k, []) for k in base}
+    # The computed concordance is a first guess from shared wording. Where the record
+    # writers read the passages and found it wrong or empty (2026-11-04), their reading
+    # stands: Sāyaṇa and Bhāskara by their own anuvāka numbers.
+    for who, fix in MAP_FIX.items():
+        cfg['commentaries'][who]['map'].update(fix)
     with open(cfg_p, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=1)
         f.write('\n')

@@ -126,6 +126,13 @@ const block = (ctx) => ctx.route('**/*', (rt) => (rt.request().url().startsWith(
   await p.goto(base + '/upanishads/mahanarayana/anuvaka-10-30.html');
   const mn = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a10-30-s"]').length, pending: !!document.querySelector('.pending'), unit: !!document.getElementById('u10-30-48') }));
   ok(mn.secs === 14 && !mn.pending && mn.unit, `no-JS Mahānārāyaṇa 10.30: ${mn.secs} of 14 sections, pending note ${mn.pending}, unit 10.30.48 ${mn.unit}`);
+  // every anuvāka is analysed; 10.1 has fifteen units, anchored by their running TA numbers
+  await p.goto(base + '/upanishads/mahanarayana/anuvaka-10-01.html');
+  const mn1 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a10-1-s"]').length, pending: !!document.querySelector('.pending'), first: !!document.getElementById('u10-1-1'), last: !!document.getElementById('u10-1-15') }));
+  ok(mn1.secs === 14 && !mn1.pending && mn1.first && mn1.last, `no-JS Mahānārāyaṇa 10.1: ${mn1.secs} of 14 sections, pending ${mn1.pending}, units 10.1.1 ${mn1.first} and 10.1.15 ${mn1.last}`);
+  await p.goto(base + '/upanishads/mahanarayana/anuvaka-10-80.html');
+  const mn80 = await p.evaluate(() => ({ secs: document.querySelectorAll('[id^="a10-80-s"]').length, pending: !!document.querySelector('.pending') }));
+  ok(mn80.secs === 14 && !mn80.pending, `no-JS Mahānārāyaṇa 10.80: ${mn80.secs} of 14 sections, pending ${mn80.pending}`);
   await ctx.close();
 }
 // 3. reading paths, script switch, persistence

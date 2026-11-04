@@ -370,6 +370,11 @@ def rv(raw, num):
             'note': 'GRETIL’s Devanagari renders the Ṛgveda’s namaüktim (hiatus inside the compound) as नमौक्तिं.'}
 
 
+# Readings of the source data corrected against the Aṣṭādhyāyī (logged in sutras.json)
+SUTRA_FIXES = {'8.3.9': 'दीर्घादटि समानपादे'}
+SUTRA_FIX_NOTES = {'8.3.9': 'The source reads समानपदे; the sūtra is दीर्घादटि समानपादे (“within the same pāda” of a verse), as the Mahānārāyaṇa’s anonymous commentator also quotes it.'}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--yajuh', required=True)
@@ -382,7 +387,8 @@ def main():
         with open(out, 'w', encoding='utf-8') as f:
             json.dump({'$comment': 'The sūtras of Pāṇini’s Aṣṭādhyāyī by number, from github.com/sanskrit/ashtadhyayi data/sutrANi.tsv. check.py requires every “P. a.b.c (sūtra)” citation in the Upaniṣad editions to name a sūtra that exists and to quote it as it reads here.',
                        'repo': 'https://github.com/sanskrit/ashtadhyayi', 'commit': head(a.ashta), 'path': 'data/sutrANi.tsv',
-                       'sutras': {k.strip(): v.strip() for k, v in rows}}, f, ensure_ascii=False, indent=0)
+                       'sutras': {**{k.strip(): v.strip() for k, v in rows}, **SUTRA_FIXES},
+                       'corrections': SUTRA_FIX_NOTES}, f, ensure_ascii=False, indent=0)
             f.write('\n')
         print('wrote', os.path.relpath(out, ROOT))
     hy, hr = head(a.yajuh), head(a.raw)
