@@ -5,7 +5,7 @@
  *
  *   node scripts/upanishads/render_test.mjs
  *
- * - every generated page (and every page of the Sandhyāvandanam edition) loads
+ * - every generated page (and every page of the Sandhyāvandanam and Navagraha editions) loads
  *   without a page error, and has no sideways scroll at 390 px;
  * - without JavaScript a mantra page reads in full: all fourteen sections are in
  *   the HTML, the Serious Student sections are open, nothing is hidden;
@@ -39,7 +39,7 @@ function serve() {
 const pages = [];
 (function walk(d) { for (const f of fs.readdirSync(path.join(ROOT, d))) { const p = path.join(d, f); if (fs.statSync(path.join(ROOT, p)).isDirectory()) { if (!/edition|lib|data/.test(f)) walk(p); } else if (f.endsWith('.html')) pages.push('/' + p.replace(/index\.html$/, '')); } })('upanishads');
 // the Sandhyāvandanam edition (scripts/prayoga/) shares the stylesheet and reader: its pages get the phone-width check too
-for (const f of fs.readdirSync(path.join(ROOT, 'sandhyavandanam/edition'))) if (f.endsWith('.html')) pages.push('/sandhyavandanam/edition/' + f.replace(/index\.html$/, ''));
+for (const ed of ['sandhyavandanam', 'navagraha']) for (const f of fs.readdirSync(path.join(ROOT, ed, 'edition'))) if (f.endsWith('.html')) pages.push(`/${ed}/edition/` + f.replace(/index\.html$/, ''));
 
 const fails = [];
 const ok = (c, m) => { if (!c) fails.push(m); };

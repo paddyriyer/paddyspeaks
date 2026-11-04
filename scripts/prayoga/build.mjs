@@ -45,7 +45,10 @@ const T = J(`${ED}/text.json`);
 const RT = Object.fromEntries(J(`${ED}/rite-texts.json`).texts.map((x) => [x.id, x]));
 const SRC = J(`${ED}/sources.json`);
 const C = has(`${ED}/corrections.json`) ? J(`${ED}/corrections.json`) : { text: [], collation: [] };
-const W = Object.fromEntries(['W1', 'W2', 'RV', 'M', 'S'].map((w) => [w, J(`${ED}/witnesses/${w}.json`)]));
+const E = J(`${ED}/edition.json`);
+const W = Object.fromEntries(['W1', 'W2', 'RV', 'M', 'S'].filter((w) => has(`${ED}/witnesses/${w}.json`)).map((w) => [w, J(`${ED}/witnesses/${w}.json`)]));
+const tpl = (t, s) => t.replace('{s}', s.en.toLowerCase()).replace('{S}', s.en);
+const OTHER = { M: 'S', S: 'M' };
 const L = J(`${ED}/landing.json`);
 const AN = (id) => (has(`${ED}/analysis/${id}.json`) ? J(`${ED}/analysis/${id}.json`) : null);
 const MANTRA = Object.fromEntries(T.mantras.map((m) => [m.id, m]));
@@ -86,7 +89,7 @@ const words = (s) => String(s).split(/\s+/).filter(Boolean).length;
 
 /* ---------------- shell ---------------- */
 const FONTS = 'https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Noto+Serif+Devanagari:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap';
-const NAV = (cur) => [[DIR, 'The edition', cur === 'home'], ...R.services.map((s) => [svcUrl(s.id), s.en, cur === s.id]), [`${DIR}sources.html`, 'Sources', cur === 'sources'], [`/${EID}/`, 'Questions & answers', false]];
+const NAV = (cur) => [[DIR, 'The edition', cur === 'home'], ...R.services.map((s) => [svcUrl(s.id), s.en, cur === s.id]), [`${DIR}sources.html`, 'Sources', cur === 'sources'], ...(E.nav_extra || []).map(([h, l]) => [h, l, false])];
 function shell({ title, desc, url, body, cur = '', crumbs = [], reader = false, ld = null }) {
   const navHTML = NAV(cur).map(([h, l, c]) => `<a href="${h}"${c ? ' aria-current="page"' : ''}>${l}</a>`).join('');
   const crumb = crumbs.length ? `<nav class="crumbs" aria-label="Breadcrumb"><ol>${crumbs.map(([h, l], i) => (i === crumbs.length - 1 ? `<li aria-current="page">${l}</li>` : `<li><a href="${h}">${l}</a></li>`)).join('')}</ol></nav>` : '';
@@ -119,16 +122,16 @@ ${ld ? `<script type="application/ld+json">${JSON.stringify(ld)}</script>\n` : '
 <body class="up">
 <a class="skip-link" href="#main">Skip to the content</a>
 <header class="site-bar">
-<a class="brand" href="${DIR}"><span class="brand-dev" lang="sa">सन्ध्यावन्दनम्</span><span class="brand-en">Sandhyāvandanam</span></a>
-<nav class="site-nav" aria-label="Sandhyāvandanam">${navHTML}<a class="to-sacred" href="/sacred/">Sacred Library</a></nav>
+<a class="brand" href="${DIR}"><span class="brand-dev" lang="sa">${E.name_sa}</span><span class="brand-en">${E.name}</span></a>
+<nav class="site-nav" aria-label="${E.name}">${navHTML}<a class="to-sacred" href="/sacred/">Sacred Library</a></nav>
 </header>
 ${reader ? READER : ''}<main id="main">
 ${crumb}${body}
 </main>
 <footer class="site-foot">
 ${ORN}
-<p><span lang="sa">तत्सवितुर्वरेण्यं भर्गो देवस्य धीमहि । धियो यो नः प्रचोदयात् ॥</span></p>
-<p>Sandhyāvandanam · A study edition in the PaddySpeaks Sacred Library · Sanskrit verified against declared witnesses; analysis machine-checked and awaiting scholarly review</p>
+<p><span lang="sa">${E.footer_sa}</span></p>
+<p>${E.name} · A study edition in the PaddySpeaks Sacred Library · Sanskrit verified against declared witnesses; analysis machine-checked and awaiting scholarly review</p>
 <p><a href="${DIR}">The edition</a> · <a href="${DIR}sources.html">Sources</a> · <a href="/upanishads/mahanarayana/">The Mahānārāyaṇa</a> · <a href="/sacred/">Sacred Library</a> · <a href="${SITE}/">PaddySpeaks</a></p>
 </footer>
 <script defer src="${JS}"></script>
@@ -249,7 +252,8 @@ function sourceBlock(x) {
     const rv = x.units.filter((u) => u.rv && W.RV.units[u.id]);
     if (rv.length) h += `<p class="c-tag">The Ṛgveda (Śākala recension, GRETIL, no svara)</p>${rv.map((u) => `<p class="v-sa acc" lang="sa">${esc(W.RV.units[u.id].text)} <span class="note">— ${esc(u.rv)}</span></p>`).join('')}`;
   } else if (x.kind !== 'mnu') {
-    h += `<p>Base witness: <b>${x.base === 'S' ? 'S (stotrasamhita)' : 'M (the Mylapore prayoga)'}</b>${W[x.base === 'S' ? 'M' : 'S'].texts[x.key] ? `; collated with ${x.base === 'S' ? 'M' : 'S'}` : '; the other witness does not have this text'}.</p>`;
+    const b = x.base || 'M', o = OTHER[b];
+    h += `<p>Base witness: <b>${E.witnesses[b].short}</b>${W[o] ? (W[o].texts[x.key] ? `; collated with ${o}` : '; the other witness does not have this text') : ''}.</p>`;
     if (x.note) h += `<p>${rich(x.note)}</p>`;
     if (x.mnuRef) h += `<p>See ${x.mnuRef.map((u) => `<a href="${mnuUrl(u)}">Mahānārāyaṇa ${esc(u)}</a>`).join(' and ')}.</p>`;
   }
@@ -275,17 +279,17 @@ ${details(`${x.id}-src`, 3, 'Source and witnesses', sourceBlock(x))}
 function stepPage(st, i) {
   const prev = R.steps[i - 1], next = R.steps[i + 1];
   let h = `<article class="mantra rite" aria-labelledby="st-h">
-<header class="m-hero"><p class="kicker">Sandhyāvandanam · Step ${i + 1} of ${R.steps.length}</p>
+<header class="m-hero"><p class="kicker">${E.name} · Step ${i + 1} of ${R.steps.length}</p>
 <h1 id="st-h"><span class="h-en">${esc(st.en)}</span> <span class="h-sa" lang="sa">${esc(st.sa)}</span></h1>
 <p class="h-i">${rich(st.what)}</p>
 <nav class="m-nav" aria-label="Steps">${prev ? `<a href="${stepUrl(prev)}" rel="prev">‹ ${esc(prev.en)}</a>` : '<span></span>'}<a href="${DIR}#steps">All ${R.steps.length} steps</a>${next ? `<a href="${stepUrl(next)}" rel="next">${esc(next.en)} ›</a>` : '<span></span>'}</nav></header>`;
   h += st.items.map((it, k) => itemBlock(item(it), it, k + 1)).join('\n');
   h += `<nav class="pager" aria-label="Previous and next step">${prev ? `<a href="${stepUrl(prev)}" rel="prev"><span class="pg-k">Previous</span><span class="pg-sa" lang="sa">${esc(prev.sa)}</span><span class="pg-en">${esc(prev.en)}</span></a>` : '<span></span>'}${next ? `<a class="pg-next" href="${stepUrl(next)}" rel="next"><span class="pg-k">Next</span><span class="pg-sa" lang="sa">${esc(next.sa)}</span><span class="pg-en">${esc(next.en)}</span></a>` : `<a class="pg-next" href="${DIR}sources.html"><span class="pg-k">Continue</span><span class="pg-en">Sources, variants and corrections</span></a>`}</nav>`;
-  h += `<p class="cite note">Cite this step: <i>Sandhyāvandanam</i>, ${esc(st.en)}, PaddySpeaks study edition, ${SITE}${stepUrl(st)}</p></article>`;
-  out(stepUrl(st).slice(1), shell({ title: `${st.en} (${iast(st.sa)}) — Sandhyāvandanam`, desc: `${st.what} The Sanskrit verified against its sources, with IAST, word-by-word analysis and English.`, url: stepUrl(st), body: h, reader: true, crumbs: [['/sacred/', 'Sacred Library'], [DIR, 'Sandhyāvandanam'], ['', esc(st.en)]] }));
+  h += `<p class="cite note">Cite this step: <i>${E.name}</i>, ${esc(st.en)}, PaddySpeaks study edition, ${SITE}${stepUrl(st)}</p></article>`;
+  out(stepUrl(st).slice(1), shell({ title: `${st.en} (${iast(st.sa)}) — ${E.name}`, desc: `${st.what} The Sanskrit verified against its sources, with IAST, word-by-word analysis and English.`, url: stepUrl(st), body: h, reader: true, crumbs: [['/sacred/', 'Sacred Library'], [DIR, E.name], ['', esc(st.en)]] }));
 }
 function servicePage(s) {
-  let h = `<div class="page"><header class="ch-hero"><p class="kicker">Sandhyāvandanam · read straight through</p><h1><span class="h-en">The ${esc(s.en.toLowerCase())} Sandhyā</span> <span class="h-sa" lang="sa">${esc(s.sa)}</span></h1><p class="h-i">Every text of the ${esc(s.en.toLowerCase())} service in order: Sanskrit, IAST and readable English. Each step links to its full analysis.</p></header>`;
+  let h = `<div class="page"><header class="ch-hero"><p class="kicker">${E.name} · read straight through</p><h1><span class="h-en">${esc(tpl(E.service_name, s))}</span> <span class="h-sa" lang="sa">${esc(s.sa)}</span></h1><p class="h-i">Every text of the ${esc(s.en.toLowerCase())} service in order: Sanskrit, IAST and readable English. Each step links to its full analysis.</p></header>`;
   R.steps.forEach((st, i) => {
     const its = st.items.filter((it) => only(it).includes(s.id));
     if (!its.length) return;
@@ -294,30 +298,30 @@ function servicePage(s) {
     h += `</section>`;
   });
   h += `</div>`;
-  out(svcUrl(s.id).slice(1), shell({ title: `The ${s.en.toLowerCase()} Sandhyāvandanam — read straight through`, desc: `The whole ${s.en.toLowerCase()} Sandhyāvandanam (Kṛṣṇa Yajurveda, Āpastamba) on one page: verified Sanskrit, IAST and readable English.`, url: svcUrl(s.id), body: h, cur: s.id, reader: true, crumbs: [['/sacred/', 'Sacred Library'], [DIR, 'Sandhyāvandanam'], ['', `${esc(s.en)} service`]] }));
+  out(svcUrl(s.id).slice(1), shell({ title: tpl(E.service_title, s), desc: tpl(E.service_desc, s), url: svcUrl(s.id), body: h, cur: s.id, reader: true, crumbs: [['/sacred/', 'Sacred Library'], [DIR, E.name], ['', esc(tpl(E.service_crumb, s))]] }));
 }
 function landing() {
-  const basis = MANTRA[R.basis];
+  const basis = R.basis ? MANTRA[R.basis] : null;
   const cell = (st, s) => { const its = st.items.filter((it) => only(it).includes(s)); return its.length ? its.map((it) => esc(item(it).title)).join('<br>') : '—'; };
   const vedic = R.steps.flatMap((st) => st.items.filter((it) => it.v || it.mnu)).length;
-  let h = `<div class="page"><header class="ch-hero"><p class="kicker">A study edition · Kṛṣṇa Yajurveda · Āpastamba</p><h1><span class="h-sa" lang="sa">सन्ध्यावन्दनम्</span><span class="h-en">Sandhyāvandanam</span></h1><p class="h-i">${rich(L.subtitle)}</p></header>
+  let h = `<div class="page"><header class="ch-hero"><p class="kicker">${E.kicker}</p><h1><span class="h-sa" lang="sa">${E.name_sa}</span><span class="h-en">${E.name}</span></h1><p class="h-i">${rich(L.subtitle)}</p></header>
 <p class="ov-lead">${rich(L.lead)}</p>
-<section class="band" aria-labelledby="read-h"><h2 id="read-h">Read the rite</h2><ul class="refs">${R.services.map((s) => `<li><a href="${svcUrl(s.id)}">The ${esc(s.en.toLowerCase())} Sandhyā</a> <span lang="sa">${esc(s.sa)}</span> — every text in order, Sanskrit, IAST and English on one page.</li>`).join('')}</ul></section>
-<section class="band" aria-labelledby="basis-h"><h2 id="basis-h">${esc(L.basis.title)}</h2>${(L.basis.paras || []).map((p) => `<p>${rich(p)}</p>`).join('')}<div class="v-text"><p class="v-sa" lang="sa">${jm(basis.units[0].samhita)}</p></div><p class="v-iast" lang="sa-Latn">${esc(iast(basis.units[0].plain))}</p><p class="note">${esc(basis.units[0].cite)}, cut from the muralīdhara Āraṇyaka with svara as it keys it. ${esc(L.basis.note || '')}</p></section>
-<section class="band" aria-labelledby="steps-h" id="steps"><h2 id="steps-h">The ${R.steps.length} steps</h2><p>${rich(L.steps)}</p><div class="tw" tabindex="0"><table class="cmp"><caption class="sr">The steps of the rite and what each service recites at them</caption><thead><tr><th scope="col">Step</th>${R.services.map((s) => `<th scope="col">${esc(s.en)}</th>`).join('')}</tr></thead><tbody>${R.steps.map((st, i) => `<tr><th scope="row"><a href="${stepUrl(st)}">${i + 1}. ${esc(st.en)}</a> <span lang="sa">${esc(st.sa)}</span></th>${R.services.map((s) => `<td>${cell(st, s.id)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
+<section class="band" aria-labelledby="read-h"><h2 id="read-h">${E.read_title}</h2><ul class="refs">${R.services.map((s) => `<li><a href="${svcUrl(s.id)}">${esc(tpl(E.service_name, s))}</a> <span lang="sa">${esc(s.sa)}</span> — every text in order, Sanskrit, IAST and English on one page.</li>`).join('')}</ul></section>
+${basis ? `<section class="band" aria-labelledby="basis-h"><h2 id="basis-h">${esc(L.basis.title)}</h2>${(L.basis.paras || []).map((p) => `<p>${rich(p)}</p>`).join('')}<div class="v-text"><p class="v-sa" lang="sa">${jm(basis.units[0].samhita)}</p></div><p class="v-iast" lang="sa-Latn">${esc(iast(basis.units[0].plain))}</p><p class="note">${esc(basis.units[0].cite)}, cut from the muralīdhara Āraṇyaka with svara as it keys it. ${esc(L.basis.note || '')}</p></section>` : ''}${(L.extra || []).map((b) => `<section class="band" aria-labelledby="${b.id}-h"><h2 id="${b.id}-h">${esc(b.title)}</h2>${(b.paras || []).map((p) => `<p>${rich(p)}</p>`).join('')}${b.table ? `<div class="tw" tabindex="0"><table class="cmp"><thead><tr>${b.table.head.map((c) => `<th scope="col">${rich(c)}</th>`).join('')}</tr></thead><tbody>${b.table.rows.map((r) => `<tr>${r.map((c, i) => (i ? `<td>${rich(c)}</td>` : `<th scope="row">${rich(c)}</th>`)).join('')}</tr>`).join('')}</tbody></table></div>` : ''}</section>`).join('')}
+<section class="band" aria-labelledby="steps-h" id="steps"><h2 id="steps-h">The ${R.steps.length} steps</h2><p>${rich(L.steps)}</p><div class="tw" tabindex="0"><table class="cmp"><caption class="sr">${E.steps_caption}</caption><thead><tr><th scope="col">Step</th>${R.services.map((s) => `<th scope="col">${esc(s.en)}</th>`).join('')}</tr></thead><tbody>${R.steps.map((st, i) => `<tr><th scope="row"><a href="${stepUrl(st)}">${i + 1}. ${esc(st.en)}</a> <span lang="sa">${esc(st.sa)}</span></th>${R.services.map((s) => `<td>${cell(st, s.id)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></section>
 <section class="band" aria-labelledby="how-h"><h2 id="how-h">How the text was established</h2>${(L.method || []).map((p) => `<p>${rich(p)}</p>`).join('')}<p><a href="${DIR}sources.html">Sources, variants and corrections</a> — every witness and every difference.</p></section>
-<section class="band" aria-labelledby="more-h"><h2 id="more-h">Elsewhere on PaddySpeaks</h2><ul class="refs"><li><a href="/upanishads/mahanarayana/">The Mahānārāyaṇa Upaniṣad</a> — the Āraṇyaka that holds ${vedic ? 'many of' : ''} the Sandhyā mantras, analysed in full.</li><li><a href="/${EID}/">Sandhyāvandanam: questions and answers</a> — fifty questions on the practice.</li></ul></section></div>`;
-  out(DIR.slice(1) + 'index.html', shell({ title: 'Sandhyāvandanam — A Study Edition', desc: L.desc, url: DIR, body: h, cur: 'home', crumbs: [['/sacred/', 'Sacred Library'], ['', 'Sandhyāvandanam']],
-    ld: { '@context': 'https://schema.org', '@type': 'Book', name: 'Sandhyāvandanam — A Study Edition', alternateName: 'सन्ध्यावन्दनम्', inLanguage: ['sa', 'en'], url: `${SITE}${DIR}`, isPartOf: { '@type': 'CollectionPage', name: 'The Sacred Library', url: `${SITE}/sacred/` } } }));
+<section class="band" aria-labelledby="more-h"><h2 id="more-h">Elsewhere on PaddySpeaks</h2><ul class="refs">${(E.more || []).map(([h, t, d]) => `<li><a href="${h}">${esc(t)}</a> — ${rich(d)}</li>`).join('')}</ul></section></div>`;
+  out(DIR.slice(1) + 'index.html', shell({ title: `${E.name} — A Study Edition`, desc: L.desc, url: DIR, body: h, cur: 'home', crumbs: [['/sacred/', 'Sacred Library'], ['', E.name]],
+    ld: { '@context': 'https://schema.org', '@type': 'Book', name: `${E.name} — A Study Edition`, alternateName: E.name_sa, inLanguage: ['sa', 'en'], url: `${SITE}${DIR}`, isPartOf: { '@type': 'CollectionPage', name: 'The Sacred Library', url: `${SITE}/sacred/` } } }));
 }
 function sourcesPage() {
   const wit = (k, d) => `<li><b>${k}</b> — ${rich(d.label)}${d.commit ? ` <span class="note">(commit ${esc(String(d.commit).slice(0, 10))})</span>` : ''}</li>`;
-  let h = `<div class="page"><header class="ch-hero"><p class="kicker">Sandhyāvandanam</p><h1><span class="h-en">Sources, Variants and Corrections</span></h1></header>
-<section class="band" aria-labelledby="w-h"><h2 id="w-h">The witnesses</h2><ul class="refs">${wit('W1', W.W1)}${wit('W2', W.W2)}${wit('RV', W.RV)}${wit('M', W.M)}${wit('S', W.S)}<li><b>Commentaries</b> — Sāyaṇa and Bhaṭṭa Bhāskara on the Taittirīya Saṃhitā, Brāhmaṇa and Āraṇyaka, as the vishvAsa corpus labels them (witnesses/comm.json).</li><li><b>The Mahānārāyaṇa</b> — its units are proven in <a href="/upanishads/mahanarayana/sources.html">its own edition</a>.</li></ul>${(L.sources || []).map((p) => `<p>${rich(p)}</p>`).join('')}</section>
+  let h = `<div class="page"><header class="ch-hero"><p class="kicker">${E.name}</p><h1><span class="h-en">Sources, Variants and Corrections</span></h1></header>
+<section class="band" aria-labelledby="w-h"><h2 id="w-h">The witnesses</h2><ul class="refs">${['W1', 'W2', 'RV', 'M', 'S'].filter((k) => W[k]).map((k) => wit(k, W[k])).join('')}<li><b>Commentaries</b> — Sāyaṇa and Bhaṭṭa Bhāskara on the Taittirīya Saṃhitā, Brāhmaṇa and Āraṇyaka, as the vishvAsa corpus labels them (witnesses/comm.json).</li><li><b>The Mahānārāyaṇa</b> — its units are proven in <a href="/upanishads/mahanarayana/sources.html">its own edition</a>.</li></ul>${(L.sources || []).map((p) => `<p>${rich(p)}</p>`).join('')}</section>
 <section class="band" aria-labelledby="c-h"><h2 id="c-h">Corrections to a base witness</h2>${C.text.length ? `<ul class="plain">${C.text.map((c) => `<li><b>${esc(c.at)}</b> <span lang="sa">${esc(c.base)}</span> → <span lang="sa">${esc(c.edition)}</span>: ${rich(c.why)}</li>`).join('')}</ul>` : '<p class="none">None.</p>'}</section>
 <section class="band" aria-labelledby="v-h" id="variants"><h2 id="v-h">Every difference of the other witness (${C.collation.length})</h2><div class="tw" tabindex="0"><table class="cmp"><thead><tr><th scope="col">At</th><th scope="col">Witness</th><th scope="col">Class</th><th scope="col">Note</th></tr></thead><tbody>${C.collation.map((c) => `<tr><th scope="row">${esc(c.at)}</th><td>${esc(c.wit)}</td><td>${esc(VCLASS[c.class])}</td><td>${rich(c.note)}</td></tr>`).join('')}</tbody></table></div></section>
 <section class="band" aria-labelledby="ver-h"><h2 id="ver-h">Verification</h2><p>Run on every pull request by <code>scripts/prayoga/check.py</code> (Validate Content). It proves that every Vedic unit equals its source in the Taittirīya Saṃhitā, Brāhmaṇa or Āraṇyaka apart from the logged corrections; that every text of the rite equals its base witness; that every difference of the other witness is listed and classified here; that every item of the rite exists, including the Mahānārāyaṇa units it recites; that every padaccheda rejoins by sandhi into the text and every word table lists exactly those words; and that every Sanskrit phrase quoted from a commentator occurs in that commentator’s text on the passage.</p></section></div>`;
-  out(DIR.slice(1) + 'sources.html', shell({ title: 'Sandhyāvandanam — Sources, Variants and Corrections', desc: 'The witnesses of the Sandhyāvandanam study edition, every correction and every variant classified, and the verification report.', url: `${DIR}sources.html`, body: h, cur: 'sources', crumbs: [['/sacred/', 'Sacred Library'], [DIR, 'Sandhyāvandanam'], ['', 'Sources']] }));
+  out(DIR.slice(1) + 'sources.html', shell({ title: `${E.name} — Sources, Variants and Corrections`, desc: `The witnesses of the ${E.name} study edition, every correction and every variant classified, and the verification report.`, url: `${DIR}sources.html`, body: h, cur: 'sources', crumbs: [['/sacred/', 'Sacred Library'], [DIR, E.name], ['', 'Sources']] }));
 }
 
 landing();

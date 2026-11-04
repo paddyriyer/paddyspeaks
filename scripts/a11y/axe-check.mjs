@@ -40,7 +40,8 @@ const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', 
   '/upanishads/taittiriya/read.html', '/upanishads/taittiriya/sources.html', '/upanishads/taittiriya/studies/convocation.html', '/upanishads/taittiriya/studies/pancakosa.html',
   '/upanishads/katha/', '/upanishads/katha/mantra-1-1-01.html', '/upanishads/katha/mantra-2-2-15.html', '/upanishads/katha/map.html', '/upanishads/katha/studies/knots-of-the-heart.html',
   '/upanishads/mahanarayana/', '/upanishads/mahanarayana/anuvaka-10-30.html', '/upanishads/mahanarayana/anuvaka-10-01.html',
-  '/sandhyavandanam/edition/', '/sandhyavandanam/edition/surya-upasthana.html', '/sandhyavandanam/edition/pratah.html', '/sandhyavandanam/edition/sources.html'];
+  '/sandhyavandanam/edition/', '/sandhyavandanam/edition/surya-upasthana.html', '/sandhyavandanam/edition/pratah.html', '/sandhyavandanam/edition/sources.html',
+  '/navagraha/edition/', '/navagraha/edition/soma.html'];
 // One representative page per journey, ratcheted against the baseline.
 const LEGACY = ['/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
   '/interview.app/', '/interview.app/evaluate/', '/jobs/', '/jobs/search/?q=data%20engineer',

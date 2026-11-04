@@ -81,7 +81,7 @@ def is_mark(w):
 def skel(s):
     """The collation skeleton, with doubled consonants made single on both sides
     (the Taittirīya writes द॒धि॒क्राव्ण्णो, ब्र॑ह्म्म …); used only to locate a unit."""
-    s = re.sub(r't(?=c)', 'c', skeleton(strip_accents(re.sub(r'[-–+,;:]', ' ', s))))  # यत् चिद्धि ≡ यच्चिद्धि
+    s = re.sub(r't(?=c)', 'c', skeleton(strip_accents(re.sub(r'[-–+,;:]', ' ', s)))).replace('śñ', 'śn')  # यत् चिद्धि ≡ यच्चिद्धि
     return re.sub(r'(kh|gh|ch|jh|ṭh|ḍh|th|dh|ph|bh|[kgcjṭḍṇtdnpbmyrlvśṣs])\1+', r'\1', s)
 
 
@@ -197,7 +197,8 @@ def tex_plain(t):
     t = re.sub(r'(?m)^\s*%.*$', '', t)
     t = re.sub(r'\{\\scriptsize[^{}]*\}', ' ', t)
     t = t.replace('\\mbox{}', '')
-    t = re.sub(r'\\(sect|dnsub|chapt|centerline)\*?\{[^{}]*\}', ' ॥ ', t)
+    t = re.sub(r'\\centerline\{([^{}]*)\}', r' ॥ \1 ॥ ', t)
+    t = re.sub(r'\\(sect|dnsub|chapt)\*?\{[^{}]*\}', ' ॥ ', t)
     t = re.sub(r'\\makebox\[[^\]]*\]\[[^\]]*\]\{([^{}]*)\}', r'\1', t)
     t = re.sub(r'\\(two|four)line[a-z]*shloka\*?', ' ', t)
     t = re.sub(r'\\(textbf|blank|mbox|hfill)\{([^{}]*)\}', r' \2 ', t)
@@ -207,27 +208,26 @@ def tex_plain(t):
     return re.sub(r'\s+', ' ', t)
 
 
-RITE_M = 'yajuH/taittirIyam/sUtram/ApastambaH/gRhyam/paddhatiH/mailApura-vedAdhyayana-sabhA/sandhyAvandanam.md'
-RITE_S = 'ext/svm/Sandhyavandanam.tex'
-S_COMMIT = '097c82834d0ddd7ec094c84869f9f4828a252ef8'   # stotrasamhita/vedamantra-book HEAD when fetched (2026-11-04)
-
-
 def rite(ed, src):
-    """Cut every non-Vedic text of the rite from M and S (rite-texts.json)."""
+    """Cut every non-Vedic text of the rite from the witnesses that edition.json
+    names (rite-texts.json gives each text's incipit and explicit in each)."""
+    E = json.load(open(os.path.join(ed, 'edition.json'), encoding='utf-8'))
     R = json.load(open(os.path.join(ed, 'rite-texts.json'), encoding='utf-8'))
-    mt = tokens(re.sub(r'\s+', ' ', body(os.path.join(src, RITE_M))))
-    st = tokens(tex_plain(open(os.path.join(src, RITE_S), encoding='utf-8').read()))
-    out = {'M': {}, 'S': {}}
+    toks = {}
+    for wit, w in E['witnesses'].items():
+        raw = open(os.path.join(src, w['path']), encoding='utf-8').read()
+        toks[wit] = tokens(tex_plain(raw) if w.get('tex') else re.sub(r'\s+', ' ', body(os.path.join(src, w['path']))))
+    out = {wit: {} for wit in E['witnesses']}
     for x in R['texts']:
-        for wit, toks in (('M', mt), ('S', st)):
+        for wit, t in toks.items():
             spec = x.get(wit)
             if not spec:
                 continue
-            r = find(toks, spec['inc'], spec['exp'], 0, spec.get('nth', 1))
+            r = find(t, spec['inc'], spec['exp'], 0, spec.get('nth', 1))
             if not r:
                 raise SystemExit(f"{x['id']}: {wit} {spec['inc']!r} … {spec['exp']!r} not found")
-            out[wit][x['id']] = clean(toks[r[0]:r[1]])
-    return out
+            out[wit][x['id']] = clean(t[r[0]:r[1]])
+    return E, out
 
 
 def main():
@@ -239,26 +239,24 @@ def main():
     a = ap.parse_args()
     ed = os.path.join(ROOT, a.edition, 'edition')
     if a.rite:
-        w = rite(ed, a.src)
-        heads = {'yajuH': git_head(os.path.join(a.src, 'yajuH'))}
+        E, w = rite(ed, a.src)
         os.makedirs(os.path.join(ed, 'witnesses'), exist_ok=True)
-        for wit, label, commit in (
-                ('M', 'M — the Sandhyāvandana prayoga of the Mylapore Veda Adhyayana Sabhā (publisher A. Subbaraman, Mylapore; English by Sundararajan Subramanian), as transcribed in vishvAsa/vedAH_yajuH, ' + RITE_M.split('/', 1)[1], heads['yajuH']),
-                ('S', 'S — Sandhyavandanam.tex of github.com/stotrasamhita/vedamantra-book (mantras/), the Smārta Āpastamba Sandhyāvandanam for the three times', S_COMMIT)):
+        for wit, spec in E['witnesses'].items():
+            commit = spec.get('commit') or git_head(os.path.join(a.src, spec['repo'])) if spec.get('repo') or spec.get('commit') else None
             with open(os.path.join(ed, 'witnesses', f'{wit}.json'), 'w', encoding='utf-8') as fh:
-                json.dump({'label': label, 'commit': commit, 'texts': w[wit]}, fh, ensure_ascii=False, indent=1)
+                json.dump({'label': spec['label'], 'commit': commit, 'texts': w[wit]}, fh, ensure_ascii=False, indent=1)
                 fh.write('\n')
-        print(f"M: {len(w['M'])} texts, S: {len(w['S'])} texts")
+        print(', '.join(f'{k}: {len(v)} texts' for k, v in w.items()))
         if a.text:
             tp = os.path.join(ed, 'text.json')
-            T = json.load(open(tp, encoding='utf-8'))
+            T = json.load(open(tp, encoding='utf-8')) if os.path.exists(tp) else {'mantras': []}
             if T.get('texts'):
                 raise SystemExit('text.json already has the texts of the rite (hand-maintained): not overwritten')
             # S is the base where it has the text (it writes the sandhi joined); M otherwise
             T['texts'] = {}
             for x in json.load(open(os.path.join(ed, 'rite-texts.json'), encoding='utf-8'))['texts']:
                 k = x['id']
-                T['texts'][k] = {'text': w['S'][k], 'base': 'S'} if k in w['S'] else {'text': w['M'][k], 'base': 'M'}
+                T['texts'][k] = {'text': w['S'][k], 'base': 'S'} if k in w.get('S', {}) else {'text': w['M'][k], 'base': 'M'}
             with open(tp, 'w', encoding='utf-8') as fh:
                 json.dump(T, fh, ensure_ascii=False, indent=1)
                 fh.write('\n')
@@ -276,7 +274,11 @@ def main():
                 sub = 'vAkya-kramaH' if second else 'panchAti-kramaH'
                 p = os.path.join(src, TSP, 'saMhitA/mUlam', sub, file + '.md')
             elif work == 'TB':
-                p = os.path.join(src, TSP, 'brAhmaNam/mUlam', 'muralIdharaH.md' if second else f'drAviDam/{file}.md')
+                # a prapāṭhaka of the Drāviḍa text (k/p), or a whole-text file by name
+                if '/' in file:
+                    p = os.path.join(src, TSP, 'brAhmaNam/mUlam', 'muralIdharaH.md' if second else f'drAviDam/{file}.md')
+                else:
+                    p = os.path.join(src, TSP, 'brAhmaNam/mUlam', 'drAviDam/gaNeshvara-pAThaH.md' if second else f'{file}.md')
             else:
                 p = os.path.join(src, TSP, 'AraNyakam/mUlam', ('gaNeshvara-pAThaH' if second else file) + '.md')
             cache[k] = (p, tokens(re.sub(r'\s+', ' ', body(p))))
@@ -284,10 +286,22 @@ def main():
 
     for m in S['mantras']:
         w, f = m['src']['work'], m['src']['file']
-        p1, t1 = toks_of(w, f)
-        p2, t2 = toks_of(w, f, second=True)
+        if w != 'RV':
+            p1, t1 = toks_of(w, f)
+            p2, t2 = toks_of(w, f, second=True)
         units = []
         pos1 = pos2 = 0
+        if w == 'RV':
+            # a mantra the rite takes from the Ṛgveda itself: GRETIL is the base (no svara)
+            for n, u in enumerate(m['units'], 1):
+                uid = f"{m['id']}.{n}"
+                v = rv_verse(src, u['rv'])
+                W1[uid] = {'text': v['text'], 'marks': [], 'cite': u['cite'], 'source': v['source']}
+                RV[uid] = dict(v, ref=f"RV {u['rv']}")
+                units.append({'id': uid, 'n': n, 'cite': u['cite'], 'samhita': v['text'], 'plain': plain_ts(v['text']), 'rv': f"RV {u['rv']}"})
+            TXT.append({'id': m['id'], 'work': w, 'units': units})
+            print(f"{m['id']:14} {len(units)} unit(s)  (Ṛgveda base)")
+            continue
         for n, u in enumerate(m['units'], 1):
             if u.get('file'):        # a unit from another prapāṭhaka of the same work
                 p1, t1 = toks_of(w, u['file'])
@@ -332,8 +346,8 @@ def main():
                 hits = [os.path.join(src, TSP, 'AraNyakam/bhaTTa-bhAskara-bhAShyam', say + '.md')]
             if not hits:
                 raise SystemExit(f"{m['id']}: no commentary file for {say}")
-            blocks = comm_blocks(hits[0]) if w == 'TS' else [{'who': 'bhaskara', 'text': re.sub(r'\s+', ' ', ta_comm(hits[0], m['units'][0]['inc']))}]
-            CM[m['id']] = {'source': os.path.relpath(hits[0], src), 'blocks': blocks}
+            blocks = [b for h in hits for b in comm_blocks(h)] if w == 'TS' else [{'who': 'bhaskara', 'text': re.sub(r'\s+', ' ', ta_comm(hits[0], m['units'][0]['inc']))}]
+            CM[m['id']] = {'source': ', '.join(os.path.relpath(h, src) for h in hits), 'blocks': blocks}
         TXT.append({'id': m['id'], 'work': w, 'units': units})
         print(f"{m['id']:14} {len(units)} unit(s)  W2 {'ok' if all(W2[x['id']]['text'] for x in units) else 'MISSING'}  comm {len(CM.get(m['id'], {}).get('blocks', []))} block(s)")
 
