@@ -292,6 +292,19 @@ def bhaskara(yajuh):
     return rel, out
 
 
+# Concordance corrections made by reading the passages (2026-11-04)
+MAP_FIX = {
+    'sayana': {'10.2': ['1'], '10.37': ['15'], '10.65': ['60'], '10.66': ['58', '59'],
+               '10.71': ['38'], '10.74': ['38']},
+    'bhaskara': {'10.1': ['1'], '10.2': ['1'], '10.3': ['3'], '10.4': ['2'], '10.5': ['4'], '10.6': ['5'],
+                 '10.10': ['8'], '10.12': ['10'], '10.20': ['46', '1'], '10.24': [], '10.27': ['20'],
+                 '10.28': ['21'], '10.29': ['22'], '10.31': ['24'], '10.32': ['25'], '10.34': ['26'],
+                 '10.35': ['26', '27'], '10.37': ['15'], '10.65': ['51', '52', '53', '54', '60'],
+                 '10.66': ['55', '56', '57', '58', '59'], '10.67': [], '10.68': ['29', '31'],
+                 '10.69': ['32', '33', '34', '35'], '10.70': ['36'], '10.74': ['37']},
+}
+
+
 # ------------------------------------------------------------- concordance
 def shingles(s, n=8):
     p = phon(s)
@@ -564,6 +577,11 @@ def main():
     cfg = json.load(open(cfg_p, encoding='utf-8'))
     cfg['commentaries']['sayana']['map'] = {k: v for k, v in smap.items()}
     cfg['commentaries']['bhaskara']['map'] = {k: bmap.get(k, []) for k in base}
+    # The computed concordance is a first guess from shared wording. Where the record
+    # writers read the passages and found it wrong or empty (2026-11-04), their reading
+    # stands: Sāyaṇa and Bhāskara by their own anuvāka numbers.
+    for who, fix in MAP_FIX.items():
+        cfg['commentaries'][who]['map'].update(fix)
     with open(cfg_p, 'w', encoding='utf-8') as f:
         json.dump(cfg, f, ensure_ascii=False, indent=1)
         f.write('\n')
