@@ -12,7 +12,7 @@ clones fresh each time). CLAUDE.md points here._
   TA (muralīdhara) and TB with a second witness each, Ṛgveda parallels, and Sāyaṇa /
   Bhaṭṭa Bhāskara; the Mahānārāyaṇa mantras point at that edition. The other texts of the
   rite from two prayogas, M (Mylapore Veda Adhyayana Sabhā, via vishvAsa) and S
-  (stotrasamhita), every difference classified (73). TA 2.2, the Sandhyā brāhmaṇa, is on
+  (stotrasamhita), every difference classified (69), 17 logged corrections to a base witness. TA 2.2, the Sandhyā brāhmaṇa, is on
   the landing page (summary; full analysis still to write). Every item analysed (word
   division proven, translations). **Next:** the Navagraha mantras page on the same
   engine (`/navagraha/edition/`; the graha, adhidevatā and pratyadhidevatā mantras are in
