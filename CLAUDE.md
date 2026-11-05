@@ -378,6 +378,15 @@ only links to it.
   `node scripts/prayoga/build.mjs sandhyavandanam` (CI `--check`), proven by
   `python3 scripts/prayoga/check.py sandhyavandanam` (Validate Content).
 
+## Navagraha Sūktam (`/navagraha/edition/`)
+
+Read **`docs/NAVAGRAHA-EDITION.md`** before touching `navagraha/edition/`. The same
+engine as the Sandhyāvandanam (`scripts/prayoga/`, `edition.json` per edition): 27 Vedic
+mantras for the nine grahas in the order of witness S, each cut from the TS / TB (one
+from the Ṛgveda), proven, analysed. `/navagraha/` (the hand-made ślokas page) only links
+to it. Never say which extra mantra is the adhidevatā or the pratyadhidevatā (the witness
+names them together), never invent why a verse was chosen for a graha, no astrology.
+
 ## Śrī Rudram (`/rudramchamakam/`)
 
 Read **`docs/SRI-RUDRAM-EDITION.md`** (and, to write analysis,
