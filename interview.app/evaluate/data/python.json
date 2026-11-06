@@ -9534,6 +9534,22 @@
       ],
       "answer": 2,
       "explanation": "While dask (option 3) is valid for distributed processing, the most practical solution for a single-machine scenario is chunked processing (option 2) combined with dtype optimization. This approach bounds memory usage, allows for iterative processing, and categorical/nullable dtypes significantly reduce memory consumption. Option 0 has issues with apply() still creating large intermediate objects, and option 1's itertools.groupby() requires pre-sorting and loses pandas efficiency."
+    },
+    {
+      "id": "py-new-204",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "hard",
+      "added_date": "2026-11-06",
+      "prompt": "You're processing a 2GB pandas DataFrame with 50 million rows. You need to apply a complex transformation to specific columns conditionally and then aggregate the results. Your current code uses .apply() with a lambda function which takes 45 minutes. Which combination of optimizations would provide the most significant performance improvement?\n\nCurrent approach:\n```python\ndf['new_col'] = df.apply(lambda row: complex_transform(row['a'], row['b']) if row['c'] > 100 else 0, axis=1)\nresult = df.groupby('category').agg({'new_col': 'sum'})\n```",
+      "options": [
+        "Replace .apply() with .iterrows() and use numba JIT compilation on the complex_transform function",
+        "Use vectorized operations with numpy where(): df.loc[df['c'] > 100, 'new_col'] = vectorized_complex_transform(df.loc[df['c'] > 100, ['a', 'b']]), and use category dtype for the groupby key",
+        "Convert the DataFrame to Dask, distribute across 8 partitions, then use .apply() with n_partitions optimization",
+        "Split the DataFrame into chunks of 1M rows, apply multiprocessing.Pool to process chunks in parallel, then concatenate results"
+      ],
+      "answer": 1,
+      "explanation": "Vectorized operations with numpy where() eliminate the row-by-row iteration overhead of apply(), providing 50-100x speedup. Using category dtype for groupby reduces memory and computation time significantly. While multiprocessing (option 3) helps with CPU-bound tasks, the GIL and serialization overhead often underperforms compared to vectorization. Dask is useful for out-of-core data but adds overhead for in-memory operations. Numba JIT (option 0) helps with complex functions but doesn't eliminate the apply() iteration penalty."
     }
   ]
 }

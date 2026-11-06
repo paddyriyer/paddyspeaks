@@ -16124,6 +16124,22 @@
       ],
       "answer": 1,
       "explanation": "Snowflake DYNAMIC_TABLEs have configurable refresh intervals (AUTO or manual SCHEDULE), and staleness occurs when the refresh frequency doesn't match data arrival patterns. The DYNAMIC_TABLE_REFRESH_INTERVAL parameter controls how often Snowflake refreshes the materialization, and if it's set higher than the 5-minute data cadence, you'll see lag. Query result caching is a separate concern from materialization freshness, and clustering keys don't directly cause stale data in dynamic tables."
+    },
+    {
+      "id": "sql-new-205",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-11-06",
+      "prompt": "In Snowflake, you have a `transactions` table with columns (transaction_id, account_id, amount, status). Many rows have NULL amounts due to failed processing. You need to compute total revenue per account, treating NULL amounts as 0, but you also want to track how many transactions had missing amounts. Which approach is most efficient in Snowflake's query engine?",
+      "options": [
+        "SELECT account_id, SUM(COALESCE(amount, 0)) as revenue, COUNT(CASE WHEN amount IS NULL THEN 1 END) as null_count FROM transactions GROUP BY account_id",
+        "SELECT account_id, SUM(NULLIF(amount, NULL)) as revenue, COUNT(*) - COUNT(amount) as null_count FROM transactions GROUP BY account_id",
+        "SELECT account_id, SUM(amount) as revenue, SUM(CASE WHEN amount IS NULL THEN 1 ELSE 0 END) as null_count FROM transactions GROUP BY account_id",
+        "SELECT account_id, SUM(NVL(amount, 0)) as revenue, (COUNT(*) - COUNT(amount)) as null_count FROM transactions GROUP BY account_id"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses COALESCE to replace NULL amounts with 0 for the SUM aggregation, and COUNT(CASE WHEN amount IS NULL THEN 1 END) efficiently counts only NULL values. Option 3 works but NVL is legacy syntax; COALESCE is Snowflake-preferred. Option 1's NULLIF(amount, NULL) has no effect. Option 2's SUM(amount) still returns NULL when NULLs are present, not 0."
     }
   ]
 }
