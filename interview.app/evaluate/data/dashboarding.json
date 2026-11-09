@@ -1949,6 +1949,38 @@
       ],
       "answer": 2,
       "explanation": "Percentile Rank is an order-dependent, non-additive measure that cannot be correctly computed from pre-aggregated data. Average Deal Size is also non-additive, but if you store deal counts and sums in the extract, you can recompute the true average (sum \u00f7 count). Percentile Rank requires the original ranked dataset and cannot be reconstructed from regional aggregates; storing row-level deal data in the extract sidesteps this, or you must compute percentiles in Snowflake before extraction."
+    },
+    {
+      "id": "dash-new-067",
+      "type": "single",
+      "topic": "Tableau order of operations and LOD expressions",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "A Tableau dashboard filters orders by Region='West'. A calculated field uses `{FIXED [Customer ID]: SUM([Revenue])}` to show revenue per customer, then a second calculated field divides this by `COUNTDISTINCT([Order ID])` to estimate revenue per order within each customer. After applying a date filter to show only Q4 orders, a user reports the metric appears inconsistent across different customer rows. Which statement best explains the root cause?",
+      "options": [
+        "FIXED LOD expressions ignore context filters (Region, Date), so each customer's revenue includes all quarters, while the order count only reflects Q4, causing a mismatch.",
+        "Tableau's order of operations applies filters before LOD calculation, so the inconsistency is actually correct and reflects expected behavior.",
+        "The COUNTDISTINCT on Order ID cannot operate alongside FIXED expressions; Tableau requires EXCLUDE or INCLUDE instead.",
+        "The dashboard is missing a data density optimization; adding ATTR([Order Date]) would resolve the calculation conflict."
+      ],
+      "answer": 0,
+      "explanation": "FIXED LOD expressions compute at the grain specified (Customer ID) independent of dashboard filters, so revenue includes all regions and dates. Meanwhile, COUNTDISTINCT([Order ID]) respects the Q4 date filter, creating a numerator-denominator mismatch. This is a classic LOD pitfall: FIXED ignores context filters unless explicitly handled via INCLUDE or EXCLUDE variations."
+    },
+    {
+      "id": "dash-new-068",
+      "type": "single",
+      "topic": "real-time OLAP serving layers",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "A financial services firm streams trade events to Kafka at ~50k msgs/sec. They want a real-time OLAP dashboard showing P&L by trader, desk, and product with sub-second query latency and a 5-minute eventual consistency window. Which architecture best balances latency, consistency, and query flexibility?",
+      "options": [
+        "Write all events to ClickHouse with ReplacingMergeTree, query directly for real-time results, and accept that late-arriving corrections take up to 10 minutes to reflect in dashboards.",
+        "Ingest Kafka into an in-memory columnar store (e.g., DuckDB or Druid) with a 5-minute compaction window; trade off strict consistency for sub-second aggregations across all dimensions.",
+        "Fan out events to both a real-time KV store (Redis) for single-metric lookups and a data warehouse for complex multi-dimensional queries; route simple queries to Redis and dimensional drills to warehouse.",
+        "Buffer events in a distributed queue (Pulsar), compute aggregates in Flink every 10 seconds, and push pre-aggregated cubes to an OLAP engine; accept that the dashboard refreshes no faster than 10 seconds."
+      ],
+      "answer": 1,
+      "explanation": "Druid or in-memory columnar systems excel at real-time OLAP by ingesting streaming data with low-latency indexing, supporting arbitrary dimension/metric combinations in sub-second time, and using a segmentation/compaction window (matching the 5-min SLA) to merge newer segments into historical ones. This avoids the single-metric bottleneck of KV stores and the architectural complexity of fanning out dual systems, while meeting both latency and eventual consistency requirements."
     }
   ]
 }

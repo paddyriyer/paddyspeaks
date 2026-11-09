@@ -9598,6 +9598,54 @@
       ],
       "answer": 2,
       "explanation": "Option C combines automatic registration with enforcement of the `transform()` method requirement at class definition time (in `__new__`). It raises a TypeError immediately if a subclass doesn't implement `transform()`, preventing silent failures. Option A registers but doesn't enforce the method requirement. Option B checks at `__init__` which is later and less ideal. Option D registers instances rather than classes, which is incorrect for a class registry pattern."
+    },
+    {
+      "id": "py-new-208",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "You're processing structured log events in a data pipeline using Python 3.10+ pattern matching. Each event is a dict with 'type', 'severity', and 'data' keys. You need to extract metrics only from 'error' type events with 'critical' severity, and aggregate them differently than other events. Which pattern matching approach correctly handles this without multiple nested if-statements?",
+      "options": [
+        "match event: case {'type': 'error', 'severity': 'critical', 'data': data}: aggregate_critical(data)",
+        "match event: case {'type': 'error'} | {'severity': 'critical'}: aggregate_critical(event['data'])",
+        "match event: case type='error' and severity='critical': aggregate_critical(event['data'])",
+        "if event['type'] == 'error' and event['severity'] == 'critical': aggregate_critical(event['data'])"
+      ],
+      "answer": 0,
+      "explanation": "Structural pattern matching with the `case` statement allows matching specific dict keys and values simultaneously. Option 0 correctly uses the dictionary pattern to match both 'type' and 'severity' at once and binds 'data' in a single expression. Option 1 uses an OR pattern which would match either condition. Option 2 has invalid syntax. Option 3 is traditional if-logic and doesn't leverage pattern matching benefits."
+    },
+    {
+      "id": "py-new-209",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "In a feature store, you're implementing a `FeatureColumn` descriptor that validates and caches computed feature values. The descriptor must prevent direct assignment to instances and track access patterns. You implement `__set_name__`, `__get__`, and `__set__`. When a user tries `column.feature = 100`, what happens and why?",
+      "options": [
+        "The assignment succeeds; descriptors only intercept reads, not writes unless `__set__` is explicitly defined to raise an exception",
+        "AttributeError is raised because `__set__` is defined, making it a data descriptor that intercepts writes",
+        "The value is cached in the descriptor's shared state across all instances",
+        "The assignment creates an instance attribute that shadows the descriptor"
+      ],
+      "answer": 1,
+      "explanation": "Defining `__set__` on a descriptor makes it a data descriptor, which has higher priority than instance `__dict__`. When `__set__` is defined (even without explicit logic), any assignment attempt calls it. If it raises an exception or performs validation, the write is intercepted. Option 0 is incorrect because data descriptors intercept writes. Option 3 would be true for non-data descriptors (those without `__set__`). Option 2 doesn't reflect descriptor semantics."
+    },
+    {
+      "id": "py-new-210",
+      "type": "single",
+      "topic": "context managers",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "You're building a data export utility that acquires database and file locks, transforms data, and releases resources. You implement a nested context manager using `with lock_db() as db, lock_file() as f:`. If an exception occurs during transformation, which cleanup order is guaranteed by Python?",
+      "options": [
+        "Both contexts exit simultaneously; cleanup order is undefined",
+        "Contexts exit in reverse order of acquisition: `lock_file.__exit__` then `lock_db.__exit__`",
+        "The outermost context exits first: `lock_db.__exit__` then `lock_file.__exit__`",
+        "The context that raised the exception exits first; others exit in acquisition order"
+      ],
+      "answer": 1,
+      "explanation": "Python's context manager protocol guarantees that nested contexts (using comma syntax) are exited in LIFO (last-in-first-out) order, equivalent to writing `with lock_db() as db: with lock_file() as f:`. This ensures `lock_file.__exit__` is called before `lock_db.__exit__`, matching standard resource cleanup patterns where the most recently acquired resource is released first. Option 2 is backwards, and options 0 and 3 don't reflect Python's deterministic behavior."
     }
   ]
 }

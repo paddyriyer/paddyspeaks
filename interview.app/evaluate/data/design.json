@@ -7144,6 +7144,54 @@
       ],
       "answer": 0,
       "explanation": "Option 0 (federated dbt projects with packages) best enables autonomous domain ownership while reducing blast radius. Each domain owns its models and testing, dbt packages enforce clear public contracts, and cross-domain dependencies are explicit and versioned. Option 1 (monorepo + tests) doesn't prevent the scale problem. Option 2 (Semantic Layer migration) is architectural and doesn't address immediate organizational structure issues. Option 3 (Slim CI with contracts macros) helps but doesn't enable true domain autonomy."
+    },
+    {
+      "id": "ds-new-155",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "You're designing a Delta Lake architecture for a financial transactions table (2B events/day, 10TB/day ingestion). The table is partitioned by `date` and uses `MERGE INTO` for deduplication. Your current Z-order clustering on `customer_id` and `transaction_type` causes OPTIMIZE jobs to run for 8+ hours daily, consuming $2000/day in compute. What's your primary cost optimization strategy?",
+      "options": [
+        "Switch to Iceberg with sort-based clustering; Iceberg's metadata handling reduces OPTIMIZE overhead by 60-70%",
+        "Reduce Z-order granularity by clustering only on `customer_id`; run OPTIMIZE weekly instead of daily with a separate deduplication layer using `ROW_NUMBER()` window functions",
+        "Partition by `date` and `customer_id_prefix` (first 3 digits); use liquid clustering on remaining hot columns; OPTIMIZE only on partition sub-ranges",
+        "Disable OPTIMIZE and use Delta's Auto Optimize feature with smaller file targets (128MB instead of 1GB); accept higher query latency"
+      ],
+      "answer": 2,
+      "explanation": "Liquid clustering + partitioning by both date and a customer prefix reduces the data scanned during OPTIMIZE and eliminates the need to re-cluster the entire table daily. Targeting sub-ranges via OPTIMIZE jobs significantly cuts compute costs while maintaining query performance. Option 1 introduces operational complexity; Option 2 adds complexity without addressing clustering costs; Option 4 hurts query performance."
+    },
+    {
+      "id": "ds-new-156",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "Your Kafka \u2192 Delta Lake pipeline processes payment events with exactly-once semantics using idempotent `MERGE INTO` with `checkpointLocation`. You discover that after a Spark job failure and recovery, 2% of events are duplicated in Delta (despite Kafka delivery guarantees and unique event IDs). Root cause: your `MERGE INTO` condition matches on `event_id`, but the same event sometimes arrives with slightly different `timestamp` values (clock skew). How should you fix this?",
+      "options": [
+        "Add `timestamp` as a secondary condition in MERGE ON clause; reject rows where timestamp differs by >5 seconds",
+        "Use a separate idempotency table indexed by `event_id`; perform a lookup join before MERGE to skip duplicates",
+        "Include `timestamp` in the unique constraint but normalize it to 1-second buckets before the MERGE operation",
+        "Modify the MERGE condition to match only on `event_id`; add a deduplication step using `ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY processing_time DESC)` before MERGE to keep only the latest arrival"
+      ],
+      "answer": 3,
+      "explanation": "The core idempotency key is `event_id` alone; timestamp variance is a side effect of clock skew and shouldn't affect idempotency. Option 3 correctly uses row numbering to keep only one version per event ID before MERGE, preserving exactly-once semantics. Option 1 breaks idempotency by treating the same event differently based on timestamp. Option 2 adds complexity without addressing the root cause. Option 3 is the cleanest idempotent approach."
+    },
+    {
+      "id": "ds-new-157",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "Your data warehouse stores 500 Parquet tables in S3 (4PB total). Query costs are $50k/month; 60% of queries scan only 10% of tables (mostly recent marketing data). You're evaluating options to reduce query costs without changing application code. Which approach offers the best cost/complexity trade-off?",
+      "options": [
+        "Migrate hot tables (marketing, product) to Snowflake native tables; keep cold tables in S3 Parquet with federated queries",
+        "Convert all Parquet to Parquet with Snappy compression and row-group pruning; partition hot tables by month instead of year",
+        "Implement S3 Select to push filtering to S3; add a caching layer (Redis) for frequently accessed datasets",
+        "Copy hot tables to Delta Lake on local Spark cluster; use Delta's statistics for query planning; keep S3 Parquet for archive"
+      ],
+      "answer": 1,
+      "explanation": "Moving hot tables to native Snowflake storage eliminates S3 scan overhead (typically 70-90% of costs) while keeping query logic unchanged. Federated queries allow querying cold S3 data on-demand. Option 2 helps marginally but doesn't address the fundamental I/O cost. Option 3 adds latency and complexity. Option 4 introduces operational overhead without reducing cloud costs."
     }
   ]
 }

@@ -16140,6 +16140,70 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses COALESCE to replace NULL amounts with 0 for the SUM aggregation, and COUNT(CASE WHEN amount IS NULL THEN 1 END) efficiently counts only NULL values. Option 3 works but NVL is legacy syntax; COALESCE is Snowflake-preferred. Option 1's NULLIF(amount, NULL) has no effect. Option 2's SUM(amount) still returns NULL when NULLs are present, not 0."
+    },
+    {
+      "id": "sql-new-206",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "You have a `subscriptions` table with columns (subscription_id INT, start_date DATE, billing_cycle_days INT). You need to find all subscriptions that will have their next billing date within the next 7 days from today. Which query is correct?",
+      "options": [
+        "SELECT subscription_id FROM subscriptions WHERE start_date + INTERVAL billing_cycle_days DAY <= CURRENT_DATE + 7",
+        "SELECT subscription_id FROM subscriptions WHERE start_date + (billing_cycle_days || ' days')::INTERVAL <= CURRENT_DATE + INTERVAL '7 days'",
+        "SELECT subscription_id FROM subscriptions WHERE DATE_ADD(start_date, INTERVAL billing_cycle_days DAY) BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'",
+        "SELECT subscription_id FROM subscriptions WHERE start_date + billing_cycle_days <= CURRENT_DATE + 7"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 correctly uses DATE_ADD with INTERVAL syntax and BETWEEN to check if the next billing date falls within the 7-day window. Option 0 has incorrect interval syntax, option 1 mixes PostgreSQL and MySQL syntax, and option 3 doesn't properly add days to a date."
+    },
+    {
+      "id": "sql-new-207",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "In a `transactions` table (transaction_id INT, user_id INT, amount NUMERIC, transaction_type TEXT, created_at TIMESTAMP), you need to compute for each user: total revenue, count of all transactions, and count of refund transactions only. Which query uses FILTER correctly?",
+      "options": [
+        "SELECT user_id, SUM(amount) as revenue, COUNT(*) as total_txns, COUNT(*) FILTER (WHERE transaction_type = 'refund') as refund_count FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) as revenue, COUNT(*) as total_txns, COUNT(CASE WHEN transaction_type = 'refund' THEN 1 END) as refund_count FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) FILTER (WHERE transaction_type != 'refund') as revenue, COUNT(*) as total_txns, COUNT(*) FILTER (WHERE transaction_type = 'refund') as refund_count FROM transactions GROUP BY user_id",
+        "SELECT user_id, SUM(amount) as revenue, COUNT(*) FILTER (WHERE transaction_type IN ('refund', 'chargeback')) as total_txns, COUNT(*) FILTER (WHERE transaction_type = 'refund') as refund_count FROM transactions GROUP BY user_id"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly applies FILTER only to the refund count and leaves revenue/total transactions unfiltered. Option 2 incorrectly filters SUM(amount), excluding refunds from revenue. Option 3 incorrectly defines total_txns as only refunds and chargebacks. Option 1 uses CASE which works but doesn't demonstrate FILTER clause usage."
+    },
+    {
+      "id": "sql-new-208",
+      "type": "single",
+      "topic": "materialized views",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "You maintain a materialized view `agg_daily_metrics_mv` in PostgreSQL that aggregates millions of events. Refresh takes 15 minutes. You're receiving complaints that the view is stale. Which approach BEST balances freshness and performance?",
+      "options": [
+        "Refresh the materialized view every hour using a cron job; query it normally for all analytics",
+        "Create a regular (non-materialized) view for real-time analytics; keep materialized view for historical dashboards; union results when needed",
+        "Use incremental materialized view refresh by storing max(event_id) from last refresh, then CONCURRENTLY refresh only new rows",
+        "Partition the materialized view by date and refresh only the current day's partition daily; keep older partitions static"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 provides an excellent balance: refreshing only the current/recent partition reduces refresh time, maintaining historical data in older static partitions, and improving query performance through partition pruning. Option 0 is too infrequent (1-hour stale data). Option 1 risks query complexity and inconsistency. Option 2 assumes PostgreSQL supports incremental MV refresh, which it doesn't natively."
+    },
+    {
+      "id": "sql-new-209",
+      "type": "single",
+      "topic": "date arithmetic",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "In Snowflake, you have a `project_timesheets` table (employee_id INT, project_id INT, hours_logged NUMERIC, log_date DATE). You need to find employees who logged MORE than 40 hours in ANY rolling 7-day window during Q3 2024. Which approach is correct?",
+      "options": [
+        "SELECT DISTINCT employee_id FROM project_timesheets WHERE log_date BETWEEN '2024-07-01' AND '2024-09-30' AND SUM(hours_logged) OVER (PARTITION BY employee_id ORDER BY log_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) > 40",
+        "SELECT DISTINCT employee_id FROM (SELECT employee_id, SUM(hours_logged) OVER (PARTITION BY employee_id ORDER BY log_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) as rolling_hours FROM project_timesheets WHERE log_date BETWEEN '2024-07-01' AND '2024-09-30') WHERE rolling_hours > 40",
+        "SELECT DISTINCT employee_id FROM project_timesheets WHERE log_date >= '2024-07-01' AND log_date <= '2024-09-30' GROUP BY employee_id HAVING SUM(hours_logged) > 40",
+        "SELECT DISTINCT employee_id FROM project_timesheets WHERE log_date BETWEEN DATE_SUB(CURRENT_DATE(), 7) AND CURRENT_DATE() AND hours_logged > 40 AND QUARTER(log_date) = 3 AND YEAR(log_date) = 2024"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 correctly uses a subquery to compute rolling 7-day sums with a window function, then filters for values > 40 in the outer query, ensuring we find ANY window exceeding the threshold. Option 0 tries to use WHERE with an aggregate which is invalid SQL. Option 2 groups by employee and sums total Q3 hours, not rolling windows. Option 3 filters by last 7 days and individual record value, missing the rolling window requirement."
     }
   ]
 }
