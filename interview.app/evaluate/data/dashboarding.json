@@ -1917,6 +1917,38 @@
       ],
       "answer": 1,
       "explanation": "The most scalable solution combines a single source of truth (read-only materialized views in the warehouse, not a spreadsheet or wiki) with explicit metric ownership and governance. Materialized views ensure Finance, Product, and Operations all query the same `revenue`, `active_users`, and `cac` definitions\u2014no formula variants, no spreadsheet drift. The Metrics Repository documents *why* each definition exists, and SLAs clarify refresh cadence, so future teams inherit the contract. A spreadsheet (option B) drifts immediately; a committee (option D) throttles agility without automation; a catalog alone (option C) provides visibility but no enforcement."
+    },
+    {
+      "id": "dash-new-065",
+      "type": "single",
+      "topic": "Tableau order of operations and LOD expressions",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "In Tableau, you have a bar chart showing Revenue by Region, with a filter on Date = 'Last 90 days'. You add a FIXED LOD expression: {FIXED [Region]: SUM([Revenue])}. Below the bars, you place a reference line using AVG(SUM([Revenue])). How many data points does the reference line average across?",
+      "options": [
+        "All regions in the entire dataset, regardless of the Date filter",
+        "Only regions present in the Last 90 days, but summed at the FIXED grain (one value per region)",
+        "Only the marks currently visible on the chart after all filters and LOD evaluation",
+        "The region-level totals from the FIXED LOD, then averaged across those retained after the Date filter applies"
+      ],
+      "answer": 3,
+      "explanation": "The FIXED LOD computes one revenue value per region independent of the Date filter's row context, but the Date filter still eliminates entire regions from the visualization. The reference line then averages the LOD results for only the regions that survive the filter\u2014in this case, regions with activity in the last 90 days. This combines LOD grain independence with filter context elimination."
+    },
+    {
+      "id": "dash-new-066",
+      "type": "single",
+      "topic": "Extracts vs live connections and non-additive measures",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "A sales dashboard displays Total Revenue, Average Deal Size, and Percentile Rank of deals by region. Data is currently on a live connection to a Snowflake warehouse with 50 million rows. Query times are slow. You plan to switch to an extract, but are concerned about non-additive measures. Which measure will be most problematic if you simply aggregate the extract at region-level granularity?",
+      "options": [
+        "Total Revenue, because summing region revenues requires re-reading raw transactions",
+        "Average Deal Size, because averaging pre-aggregated regional averages violates arithmetic correctness",
+        "Percentile Rank, because it must be recalculated on the full dataset, not on pre-aggregated regions",
+        "All three equally, since extracts do not support any aggregate functions on non-additive measures"
+      ],
+      "answer": 2,
+      "explanation": "Percentile Rank is an order-dependent, non-additive measure that cannot be correctly computed from pre-aggregated data. Average Deal Size is also non-additive, but if you store deal counts and sums in the extract, you can recompute the true average (sum \u00f7 count). Percentile Rank requires the original ranked dataset and cannot be reconstructed from regional aggregates; storing row-level deal data in the extract sidesteps this, or you must compute percentiles in Snowflake before extraction."
     }
   ]
 }

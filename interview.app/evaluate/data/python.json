@@ -9550,6 +9550,54 @@
       ],
       "answer": 1,
       "explanation": "Vectorized operations with numpy where() eliminate the row-by-row iteration overhead of apply(), providing 50-100x speedup. Using category dtype for groupby reduces memory and computation time significantly. While multiprocessing (option 3) helps with CPU-bound tasks, the GIL and serialization overhead often underperforms compared to vectorization. Dask is useful for out-of-core data but adds overhead for in-memory operations. Numba JIT (option 0) helps with complex functions but doesn't eliminate the apply() iteration penalty."
+    },
+    {
+      "id": "py-new-205",
+      "type": "single",
+      "topic": "walrus operator",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "You're processing a large CSV file where you need to load chunks and validate each chunk before transformation. Which implementation correctly uses the walrus operator to assign and check chunk validity in a single expression?\n\nGiven: `def is_valid_chunk(chunk): return len(chunk) > 0 and chunk['id'].nunique() > 0`",
+      "options": [
+        "while chunk = reader.read_chunk():\n    if is_valid_chunk(chunk):\n        process(chunk)",
+        "while (chunk := reader.read_chunk()) and is_valid_chunk(chunk):\n    process(chunk)",
+        "chunk = reader.read_chunk()\nwhile chunk and is_valid_chunk(chunk := reader.read_chunk()):\n    process(chunk)",
+        "for chunk in (chunk := reader.read_chunk()):\n    if is_valid_chunk(chunk):\n        process(chunk)"
+      ],
+      "answer": 1,
+      "explanation": "Option B correctly uses the walrus operator `:=` to assign `reader.read_chunk()` to `chunk` and evaluate it in the while condition simultaneously. This avoids reading an extra chunk or needing to initialize before the loop. Option A has invalid syntax, Option C performs an extra read, and Option D misuses walrus in a for loop context."
+    },
+    {
+      "id": "py-new-206",
+      "type": "single",
+      "topic": "pathlib",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "You need to build a data pipeline that reads all `.parquet` files from a complex directory structure, including nested subdirectories, and needs to handle both absolute and relative paths safely. Which pathlib approach is most robust and Pythonic?\n\nAssuming: root_dir is either a string or Path object",
+      "options": [
+        "import os\nfor root, dirs, files in os.walk(root_dir):\n    for f in files:\n        if f.endswith('.parquet'):\n            process(os.path.join(root, f))",
+        "from pathlib import Path\nfor pf in Path(root_dir).rglob('*.parquet'):\n    process(str(pf))",
+        "from pathlib import Path\nfor pf in Path(root_dir).glob('**/*.parquet'):\n    process(pf)",
+        "from pathlib import Path\nfor pf in Path(root_dir).iterdir():\n    if pf.suffix == '.parquet':\n        process(pf)"
+      ],
+      "answer": 2,
+      "explanation": "Option C uses `glob('**/*.parquet')` with the `**` pattern, which recursively finds all `.parquet` files at any depth and returns Path objects (better for further operations). Option B uses `rglob()` which is equivalent but less explicit about the pattern matching. Option D only searches one level deep, and Option A requires string manipulation and doesn't leverage Path objects' advantages."
+    },
+    {
+      "id": "py-new-207",
+      "type": "single",
+      "topic": "metaclasses",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "You're building a data transformation library where all Transformer subclasses must implement a `transform()` method and automatically register themselves in a global registry. Which metaclass implementation correctly enforces this while avoiding conflicts with multiple inheritance?\n\nRequirement: Registry should be accessible as `TransformerRegistry.get('TransformerName')`",
+      "options": [
+        "class TransformerMeta(type):\n    registry = {}\n    def __new__(mcs, name, bases, dct):\n        cls = super().__new__(mcs, name, bases, dct)\n        if name != 'Transformer':\n            mcs.registry[name] = cls\n        return cls\n\nclass Transformer(metaclass=TransformerMeta):\n    pass",
+        "class TransformerMeta(type):\n    def __init__(cls, name, bases, dct):\n        if not hasattr(cls, 'registry'):\n            cls.registry = {}\n        if name != 'Transformer' and hasattr(cls, 'transform'):\n            cls.registry[name] = cls\n        super().__init__(name, bases, dct)\n\nclass Transformer(metaclass=TransformerMeta):\n    pass",
+        "class TransformerMeta(type):\n    registry = {}\n    def __new__(mcs, name, bases, dct):\n        if 'transform' not in dct and name != 'Transformer':\n            raise TypeError(f'{name} must implement transform()')\n        cls = super().__new__(mcs, name, bases, dct)\n        if name != 'Transformer':\n            mcs.registry[name] = cls\n        return cls\n\nclass Transformer(metaclass=TransformerMeta):\n    pass",
+        "class TransformerMeta(type):\n    registry = {}\n    def __call__(cls, *args, **kwargs):\n        instance = super().__call__(*args, **kwargs)\n        TransformerMeta.registry[cls.__name__] = instance\n        return instance\n\nclass Transformer(metaclass=TransformerMeta):\n    pass"
+      ],
+      "answer": 2,
+      "explanation": "Option C combines automatic registration with enforcement of the `transform()` method requirement at class definition time (in `__new__`). It raises a TypeError immediately if a subclass doesn't implement `transform()`, preventing silent failures. Option A registers but doesn't enforce the method requirement. Option B checks at `__init__` which is later and less ideal. Option D registers instances rather than classes, which is incorrect for a class registry pattern."
     }
   ]
 }

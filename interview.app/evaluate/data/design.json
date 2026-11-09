@@ -7096,6 +7096,54 @@
       ],
       "answer": 2,
       "explanation": "A load_status column directly signals incomplete transactions and is a reliable pattern for catching mid-load failures. It's simpler and more direct than temporal columns or distribution shifts, and works across any ETL framework. Option 1 is too coarse (legitimate patterns may change); option 2 adds complexity and assumes dbt temporal logic is in place; option 4 detects data drift but not transaction incompleteness."
+    },
+    {
+      "id": "ds-new-152",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "You're designing a reverse ETL system to sync customer segments from your Snowflake warehouse to Salesforce, HubSpot, and Segment in real-time. The segment definitions change frequently, and you need to handle late-arriving updates from upstream fact tables with a 2-hour SLA. Which approach minimizes infrastructure complexity while meeting the SLA?",
+      "options": [
+        "Use Kafka topics per destination (3 topics) with Snowflake Connector for Kafka (KCU) consuming change events, apply custom transformation logic in separate microservices, and batch writes to each destination every 5 minutes",
+        "Query Snowflake every 30 minutes with a row-level change timestamp, compute segment membership deltas in Spark, and write only changed segments to each destination's REST API via a single orchestrator DAG",
+        "Set up Fivetran reverse ETL connectors for each destination with polling every 15 minutes on a materialized segment table, configure incremental sync based on `updated_at`, and rely on destination deduplication",
+        "Stream segment changes via Snowflake Iceberg tables to a managed reverse ETL platform (e.g., Census, Hightouch), configure destination mappings declaratively, and let the platform handle retry logic, deduplication, and SLA monitoring"
+      ],
+      "answer": 3,
+      "explanation": "Option 3 is optimal because managed reverse ETL platforms handle the operational burden of retry logic, idempotency, and multi-destination orchestration declaratively. Options 1 and 2 require significant custom engineering and monitoring; Option 1's microservices add complexity and latency. Option 2's 30-minute polling exceeds the 2-hour SLA requirement and doesn't capture real-time changes effectively."
+    },
+    {
+      "id": "ds-new-153",
+      "type": "single",
+      "topic": "cost optimization",
+      "difficulty": "medium",
+      "added_date": "2026-11-09",
+      "prompt": "Your Snowflake warehouse stores 50TB of historical transaction data across 24 months. Analytics queries consume ~70% compute, while ETL jobs consume ~30%. You observe that 80% of query volume targets the last 3 months of data. Which cost optimization strategy provides the best ROI without sacrificing query latency for hot data?",
+      "options": [
+        "Partition all tables by date, set up Time Travel retention to 1 month, and use Snowflake's automatic clustering on the date column",
+        "Create a live 3-month hot table in Standard edition and archive older data to an Iceberg table in a separate Capacity Commitment cluster; route queries via application logic",
+        "Use Snowflake table cloning to create a read-only snapshot of the last 3 months, store it in a separate warehouse with a smaller credit pool, and set up query routing rules",
+        "Implement table expirations to purge data older than 90 days, compress recent data with Zstandard compression, and scale down the warehouse for off-peak hours"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 (partitioning + automatic clustering + Time Travel optimization) provides the best ROI by leveraging Snowflake's native pruning and clustering features to reduce full table scans on hot data while maintaining query simplicity and keeping all data accessible. Option 2 requires complex application-level routing. Option 3's table cloning adds operational overhead. Option 4 destroys historical data, which risks compliance and archival requirements."
+    },
+    {
+      "id": "ds-new-154",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "hard",
+      "added_date": "2026-11-09",
+      "prompt": "Your dbt project has 1,200 models across 15 domains with heavy interdependencies. Model refresh time is 6 hours, and you observe that 60% of downstream failures are caused by upstream schema changes that break contracts. How should you restructure your dbt project and CI/CD to minimize blast radius and support autonomous domain ownership?",
+      "options": [
+        "Split dbt into 15 independent projects (one per domain), each with its own repository and CI/CD, define dbt packages for cross-domain dependencies, and publish semantic layer definitions via `metrics` framework",
+        "Keep a monorepo, reorganize models by layer (staging, intermediate, marts), add dbt tests for every upstream dependency, require PRs to include documentation of breaking changes, and fail CI if any contract test fails",
+        "Create a single dbt project with strict naming conventions (model_domain_type), implement dbt exposures for each domain's public interface, enforce columns as contracts via `dbt_contracts` macros, and use dbt Slim CI with state comparison",
+        "Migrate to dbt Semantic Layer for all domain communication, replace direct model dependencies with semantic metrics, implement a centralized data catalog as the source of truth, and enforce schema versioning at the database level"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 (federated dbt projects with packages) best enables autonomous domain ownership while reducing blast radius. Each domain owns its models and testing, dbt packages enforce clear public contracts, and cross-domain dependencies are explicit and versioned. Option 1 (monorepo + tests) doesn't prevent the scale problem. Option 2 (Semantic Layer migration) is architectural and doesn't address immediate organizational structure issues. Option 3 (Slim CI with contracts macros) helps but doesn't enable true domain autonomy."
     }
   ]
 }
