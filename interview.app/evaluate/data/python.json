@@ -9646,6 +9646,22 @@
       ],
       "answer": 1,
       "explanation": "Python's context manager protocol guarantees that nested contexts (using comma syntax) are exited in LIFO (last-in-first-out) order, equivalent to writing `with lock_db() as db: with lock_file() as f:`. This ensures `lock_file.__exit__` is called before `lock_db.__exit__`, matching standard resource cleanup patterns where the most recently acquired resource is released first. Option 2 is backwards, and options 0 and 3 don't reflect Python's deterministic behavior."
+    },
+    {
+      "id": "py-new-211",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-11-10",
+      "prompt": "You're building a data validation library where numeric columns must be type-checked at assignment. You implement a descriptor that validates values are floats and tracks access patterns for monitoring. When you create a dataclass with this descriptor and instantiate it, you notice the descriptor's __get__ is called, but __set__ never fires on assignment. What's the most likely cause and best fix?\n\n```python\nclass ValidatedFloat:\n    def __init__(self, name):\n        self.name = name\n    def __get__(self, obj, objtype=None):\n        if obj is None: return self\n        return obj.__dict__.get(self.name, 0.0)\n    def __set__(self, obj, value):\n        if not isinstance(value, float):\n            raise TypeError(f\"{self.name} must be float\")\n        obj.__dict__[self.name] = value\n\n@dataclass\nclass MetricColumn:\n    value: float = ValidatedFloat('value')\n```",
+      "options": [
+        "Dataclass decorators overwrite descriptors with their generated __init__. Use field(default_factory=...) instead.",
+        "Descriptors require __slots__ to work properly with dataclasses; add __slots__ = ['value'] to fix it.",
+        "The descriptor is shadowed by the dataclass field annotation. Remove the type hint and only use the descriptor.",
+        "Python dataclasses auto-generate __setattr__, bypassing descriptors. Use __post_init__ to manually assign via the descriptor."
+      ],
+      "answer": 0,
+      "explanation": "When @dataclass processes MetricColumn, it generates an __init__ method that directly assigns to obj.__dict__['value'], bypassing the descriptor's __set__ method. The field default value (the descriptor instance) gets overwritten. The fix is to use field(default_factory=...) or field(init=False) to prevent the dataclass from shadowing the descriptor. Option 1 correctly identifies this dataclass-specific behavior, while options 2, 3, and 4 propose incorrect solutions that don't address the actual mechanism."
     }
   ]
 }
