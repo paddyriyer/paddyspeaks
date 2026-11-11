@@ -9662,6 +9662,22 @@
       ],
       "answer": 0,
       "explanation": "When @dataclass processes MetricColumn, it generates an __init__ method that directly assigns to obj.__dict__['value'], bypassing the descriptor's __set__ method. The field default value (the descriptor instance) gets overwritten. The fix is to use field(default_factory=...) or field(init=False) to prevent the dataclass from shadowing the descriptor. Option 1 correctly identifies this dataclass-specific behavior, while options 2, 3, and 4 propose incorrect solutions that don't address the actual mechanism."
+    },
+    {
+      "id": "py-new-212",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-11-11",
+      "prompt": "You're building a data validation framework where numeric columns must be cached after first access but revalidated if the underlying data changes. You implement a descriptor that tracks data mutations. Which approach correctly implements a descriptor that stores computed values per instance while detecting external modifications?\n\nConsider this scenario: A DataFrame column descriptor should cache min/max statistics but invalidate the cache if the underlying Series is reassigned. What's the correct implementation pattern?",
+      "options": [
+        "Use __get__ to return a cached value from instance.__dict__ and __set__ to clear the cache, storing metadata in a WeakKeyDictionary to avoid memory leaks",
+        "Use __get__ and __set__ on the class, storing all state in the descriptor instance itself with a dictionary keyed by id(instance)",
+        "Use __get__ to compute and cache in instance.__dict__['_cache'], then override __setattr__ at the class level to invalidate all descriptor caches when any attribute changes",
+        "Use a property decorator combined with functools.cached_property since descriptors cannot reliably track external mutations to mutable objects"
+      ],
+      "answer": 0,
+      "explanation": "The correct approach uses __get__ and __set__ descriptor methods with a WeakKeyDictionary to map instances to their cached values. This pattern avoids memory leaks (WeakKeyDictionary releases entries when instances are garbage collected) and allows __set__ to intercept direct attribute assignments to invalidate cached state. Option 1 correctly identifies that storing state in the descriptor instance keyed by id() causes false sharing, option 2 fails because __setattr__ at class level is called for ALL attributes (performance killer), and option 3 is wrong because cached_property is immutable and can't track external mutations."
     }
   ]
 }
