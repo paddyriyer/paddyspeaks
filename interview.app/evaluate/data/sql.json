@@ -16230,6 +16230,22 @@
       "prompt": "You have a `transactions(transaction_id INT, order_id INT, refund_id INT, amount DECIMAL, status VARCHAR)` table where order_id and refund_id are mutually exclusive (one is NULL, the other is not). You need to create a query that returns a single transaction_reference column combining both, and you want the query optimizer to use an index on (order_id) or (refund_id) efficiently. Which approach is most optimizer-friendly?\n\nA) SELECT COALESCE(order_id, refund_id) AS transaction_reference FROM transactions WHERE status = 'completed'\n\nB) SELECT CASE WHEN order_id IS NOT NULL THEN order_id ELSE refund_id END AS transaction_reference FROM transactions WHERE status = 'completed'\n\nC) SELECT NULLIF(COALESCE(order_id, refund_id), 0) AS transaction_reference FROM transactions WHERE status = 'completed'\n\nD) SELECT order_id + refund_id AS transaction_reference FROM transactions WHERE status = 'completed'",
       "answer": 1,
       "explanation": "Option B (explicit CASE WHEN) is most optimizer-friendly because query planners can better recognize the conditional logic and push index predicates for either order_id or refund_id into the execution plan. COALESCE (option A) and NULLIF (option C) are often treated as black-box functions that prevent index selectivity optimization. Option D fails because adding NULL values produces NULL results. Modern optimizers have improved, but explicit CASE is still preferred for complex conditions."
+    },
+    {
+      "id": "sql-new-212",
+      "type": "single",
+      "topic": "FILTER clause",
+      "difficulty": "medium",
+      "added_date": "2026-11-12",
+      "prompt": "You have a `transactions` table with columns `user_id INT, transaction_type VARCHAR, amount DECIMAL, created_at TIMESTAMP`. You need to calculate the count of all transactions and the count of 'purchase' transactions separately in one query. Which approach using FILTER is most efficient?\n\nGiven data:\n- user_id: 1, transaction_type: 'purchase', amount: 100\n- user_id: 1, transaction_type: 'refund', amount: -50\n- user_id: 2, transaction_type: 'purchase', amount: 200\n\nWhat is the correct query?",
+      "options": [
+        "SELECT COUNT(*) FILTER (WHERE transaction_type = 'purchase') as purchase_count, COUNT(*) as total_count FROM transactions",
+        "SELECT COUNT(*) as total_count, COUNT(*) WHERE transaction_type = 'purchase' as purchase_count FROM transactions",
+        "SELECT COUNT(CASE WHEN transaction_type = 'purchase' THEN 1 END) as purchase_count, COUNT(*) as total_count FROM transactions",
+        "SELECT COUNT(transaction_type) FILTER (WHERE transaction_type = 'purchase') as purchase_count FROM transactions"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is the standard SQL syntax for conditional aggregation and is more readable and performant than CASE expressions. Option 0 correctly uses `COUNT(*) FILTER (WHERE condition)` to count only rows matching the condition, while still allowing `COUNT(*)` without FILTER for the total count in the same query."
     }
   ]
 }

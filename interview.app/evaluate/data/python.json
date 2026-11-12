@@ -9678,6 +9678,22 @@
       ],
       "answer": 0,
       "explanation": "The correct approach uses __get__ and __set__ descriptor methods with a WeakKeyDictionary to map instances to their cached values. This pattern avoids memory leaks (WeakKeyDictionary releases entries when instances are garbage collected) and allows __set__ to intercept direct attribute assignments to invalidate cached state. Option 1 correctly identifies that storing state in the descriptor instance keyed by id() causes false sharing, option 2 fails because __setattr__ at class level is called for ALL attributes (performance killer), and option 3 is wrong because cached_property is immutable and can't track external mutations."
+    },
+    {
+      "id": "py-new-213",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-11-12",
+      "prompt": "You're processing a Polars DataFrame with 500M rows containing user events. You need to compute the cumulative sum of a 'value' column within each 'user_id' partition, then filter to keep only rows where the cumulative sum exceeds 100. Which approach is most efficient and why?\n\nDataFrame structure:\n- user_id (Int32)\n- timestamp (Date)\n- value (Float32)\n\nConsider memory usage and computation time.",
+      "options": [
+        "Use df.groupby('user_id').apply(lambda g: g.with_columns(pl.col('value').cum_sum().alias('cum_value'))).filter(pl.col('cum_value') > 100)",
+        "Use df.with_columns(pl.col('value').cum_sum().over('user_id').alias('cum_value')).filter(pl.col('cum_value') > 100)",
+        "Convert to pandas, groupby user_id, apply cumsum, filter, then convert back to Polars",
+        "Use df.groupby('user_id').agg(pl.col('value').cum_sum()) and manually join results"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 uses `.apply()` which is slower and less memory-efficient than window functions. Option 2 uses `.over()` (Polars' window function), which is compiled to efficient operations and processes the entire operation in one pass without materializing intermediate DataFrames. Option 3 adds unnecessary conversion overhead. Option 4 loses row-level data through aggregation. The `.over()` approach is the idiomatic and performant Polars pattern for this use case."
     }
   ]
 }
