@@ -7240,6 +7240,54 @@
       ],
       "answer": 1,
       "explanation": "This approach cleanly separates concerns: batch pipeline handles historical analytics and BI unchanged, while streaming pipeline focuses solely on feature enrichment for real-time fraud scoring. It minimizes rewrites, reduces operational risk, and allows independent scaling. Option 0 risks losing historical analytics; option 2 couples real-time and batch unnecessarily; option 3 adds complexity without clear benefits."
+    },
+    {
+      "id": "ds-new-161",
+      "type": "single",
+      "topic": "data mesh",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "Your organization is implementing a data mesh with 8 domain teams. Each team owns a data product and publishes to a central discovery catalog. Team A's product depends on Team B's output, which depends on Team C's. How should you handle SLA enforcement and lineage tracking to prevent cascading failures when Team C misses a deadline?",
+      "options": [
+        "Implement a centralized Airflow orchestrator that monitors all three teams' SLAs and automatically retries failed upstream tasks",
+        "Use a contract-based approach where each team declares input/output SLAs and freshness guarantees; implement async observability with event-driven alerts and circuit breakers at consumption points",
+        "Require Team A to implement a 24-hour buffer and re-fetch data from Team B every 6 hours to handle lateness gracefully",
+        "Have Team A, B, and C agree on a shared retry policy and batch window, synchronized via a master scheduler"
+      ],
+      "answer": 1,
+      "explanation": "Data mesh decouples teams through contracts and observability, not centralized orchestration. Each team should independently declare SLAs; consumers implement resilience patterns (circuit breakers, async processing) to handle upstream delays without breaking the mesh autonomy principle. Centralized orchestration defeats data mesh's federated model."
+    },
+    {
+      "id": "ds-new-162",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "You're designing an Airflow DAG for a critical nightly batch job that processes 500 million rows across 10 sequential stages. Each stage takes 2-3 hours. Stage 5 occasionally fails due to external API rate limits. Currently, you retry the whole DAG, losing 8 hours of work. What pattern best minimizes blast radius and recovery time?",
+      "options": [
+        "Split the DAG into 10 separate daily DAGs and use Airflow cross-DAG dependencies with ExternalTaskSensor to chain them",
+        "Use SubDAGs for each stage with individual retry logic (3 retries, exponential backoff) and implement checkpointing via intermediate Iceberg/Delta tables so Stage 6+ can resume without re-running Stages 1-4",
+        "Increase the task timeout and add more Airflow workers to parallelize all 10 stages simultaneously",
+        "Implement a custom PythonOperator that wraps all 10 stages and handles retries with try-catch blocks"
+      ],
+      "answer": 1,
+      "explanation": "SubDAGs (or TaskGroups in modern Airflow) with idempotent checkpointing are the standard pattern for multi-stage pipelines. Storing intermediate outputs in Iceberg/Delta allows Stage 6+ to skip prior stages on retry. This minimizes re-computation blast radius. ExternalTaskSensor adds unnecessary complexity; monolithic retry blocks lack granularity."
+    },
+    {
+      "id": "ds-new-163",
+      "type": "single",
+      "topic": "data vault",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You're building a Data Vault 2.0 for a retail company ingesting POS, inventory, and customer data from 5 source systems. The same customer can appear in multiple sources with inconsistent ID schemes. How should you handle the Hub_Customer to ensure a single source of truth while preserving auditability?",
+      "options": [
+        "Create a Hub_Customer with a surrogate key (DV_CUSTOMER_ID) and a Satellite_Customer_Details that tracks all source IDs and a matching algorithm's confidence score for each relationship",
+        "Merge all source customer IDs into a single ID in a staging layer before loading the Hub, then track lineage in a separate metadata table",
+        "Create separate Hubs for each source system (Hub_Customer_POS, Hub_Customer_Inventory) and join them in the Business Vault layer using fuzzy matching",
+        "Use the first source system's ID as the natural key in Hub_Customer and store all other IDs in a Satellite with effective dating"
+      ],
+      "answer": 0,
+      "explanation": "Data Vault 2.0 best practice uses a surrogate key in the Hub and stores source identifiers and matching metadata in a Satellite. This preserves auditability (you can trace which source IDs map to which customer), handles schema evolution, and allows updating match confidence without altering the Hub. Option 1 is the standard pattern."
     }
   ]
 }

@@ -2013,6 +2013,38 @@
       ],
       "answer": 1,
       "explanation": "ALL(Sales) removes all filters from the Sales table in the CALCULATE context, including filters from slicers like Region. This creates an \"unfiltered\" denominator that represents total sales across all regions, allowing the measure to show each category's sales as a percentage of the genuine grand total, not just the grand total of the filtered region. This is the standard pattern for computing percentages against a true denominator rather than a filtered one."
+    },
+    {
+      "id": "dash-new-071",
+      "type": "single",
+      "topic": "Tableau order of operations and LOD expressions",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "In Tableau, you need to show each customer's revenue as a percentage of their region's total revenue, but the view is filtered by product category. You write: `SUM([Revenue]) / {FIXED [Region]: SUM([Revenue])}`. After applying a category filter, the denominator becomes incorrect\u2014it now reflects only the filtered categories. Which LOD expression fixes this?",
+      "options": [
+        "`SUM([Revenue]) / {FIXED [Region]: SUM([Revenue])}` with the LOD moved to a data source filter",
+        "`SUM([Revenue]) / {FIXED [Region], [Product Category]: SUM([Revenue])}`",
+        "`SUM([Revenue]) / {EXCLUDE [Product Category]: FIXED [Region]: SUM([Revenue])}`",
+        "`SUM([Revenue]) / WINDOW_SUM(SUM([Revenue])) PARTITION BY [Region]`"
+      ],
+      "answer": 2,
+      "explanation": "EXCLUDE removes the Product Category dimension from the filtering context before the FIXED calculation, ensuring the region total includes all categories regardless of dashboard filters. FIXED expressions are computed at data source time and are affected by dimension filters; EXCLUDE allows you to override specific dimensions while respecting the LOD's scope."
+    },
+    {
+      "id": "dash-new-072",
+      "type": "single",
+      "topic": "Real-time OLAP serving layers and semantic layer",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "Your company ingests events into a Kafka topic and serves real-time dashboards via a semantic layer (Cube.dev, Zeppelin, or similar). Dashboards query the semantic layer instead of raw tables. During a data warehouse outage, all dashboards remain operational because the semantic layer reads from a local in-memory cache. However, three weeks later, users discover that YoY comparisons are off by exactly the same amount across all dashboards. What is the most likely root cause?",
+      "options": [
+        "The in-memory cache's TTL expired and refreshed from stale data before the outage was detected.",
+        "The semantic layer's pre-aggregation logic was not invalidated; it is serving year-old cached aggregates that never refreshed post-outage.",
+        "The warehouse outage corrupted one specific fact table; the semantic layer never re-validated cache contents against the corrupted table.",
+        "Kafka consumer lag in the real-time ingest pipeline caused events to be dropped; YoY logic depends on row counts, not aggregates."
+      ],
+      "answer": 1,
+      "explanation": "Pre-aggregated caches in semantic layers can become stale if invalidation rules depend on the warehouse being available. If the warehouse was unreachable during the outage, pre-computed YoY aggregates may not have been refreshed. After the warehouse came back online, the semantic layer would need explicit cache invalidation; without it, it continues serving the old aggregates. This explains why all dashboards are uniformly wrong and why the error is consistent (a fixed offset) rather than sporadic."
     }
   ]
 }

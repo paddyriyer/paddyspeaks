@@ -16326,6 +16326,70 @@
       ],
       "answer": 0,
       "explanation": "Option A correctly builds a top-down recursive CTE: start with managers and their direct reports (anchor), then recursively find their subordinates' reports. This captures the full hierarchy depth and allows aggregating total salary budget per manager. Option B traverses bottom-up which doesn't naturally accumulate budgets. Option C misses indirect reports entirely. Option D's approach is inefficient and unclear."
+    },
+    {
+      "id": "sql-new-218",
+      "type": "single",
+      "topic": "NULLIF / COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You have a `transactions` table with columns `transaction_id INT, amount DECIMAL, discount DECIMAL, final_amount DECIMAL`. Some rows have `discount = 0` stored explicitly, while others have `discount = NULL`. You need to calculate total revenue, treating explicit zeros and NULLs identically (both should contribute the full amount). Which query correctly handles this?",
+      "options": [
+        "SELECT SUM(amount - COALESCE(discount, 0)) FROM transactions;",
+        "SELECT SUM(amount - NULLIF(discount, 0)) FROM transactions;",
+        "SELECT SUM(amount) - SUM(COALESCE(discount, 0)) FROM transactions;",
+        "SELECT SUM(amount) - SUM(NULLIF(discount, 0)) FROM transactions;"
+      ],
+      "answer": 0,
+      "explanation": "COALESCE(discount, 0) correctly treats both NULL and 0 as 0, so the full amount is counted in revenue. Option 1 uses SUM(amount - COALESCE(...)), which properly subtracts discounts. Option 3 is functionally equivalent but slightly less efficient. NULLIF would convert 0 to NULL, defeating the goal."
+    },
+    {
+      "id": "sql-new-219",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "You have a `departments` table with `dept_id INT, parent_dept_id INT, dept_name VARCHAR`. You need to find all descendants of department 5 (including itself) using a recursive CTE, then join with an `employees` table to count employees per department in the hierarchy. The recursive CTE should not reevaluate the employees join on each iteration. Which approach is most efficient?",
+      "options": [
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id FROM departments WHERE dept_id = 5 UNION ALL SELECT d.dept_id FROM departments d JOIN dept_tree dt ON d.parent_dept_id = dt.dept_id) SELECT dt.dept_id, COUNT(e.employee_id) FROM dept_tree dt LEFT JOIN employees e ON dt.dept_id = e.dept_id GROUP BY dt.dept_id;",
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id FROM departments WHERE parent_dept_id = 5 UNION ALL SELECT d.dept_id FROM departments d JOIN dept_tree dt ON d.parent_dept_id = dt.dept_id) SELECT dt.dept_id, COUNT(e.employee_id) FROM dept_tree dt LEFT JOIN employees e ON dt.dept_id = e.dept_id GROUP BY dt.dept_id;",
+        "SELECT d.dept_id, COUNT(e.employee_id) FROM departments d LEFT JOIN employees e ON d.dept_id = e.dept_id WHERE d.dept_id IN (WITH RECURSIVE dept_tree AS (...) SELECT dept_id FROM dept_tree) GROUP BY d.dept_id;",
+        "WITH dept_tree AS (SELECT dept_id FROM departments WHERE dept_id = 5), emp_counts AS (SELECT dept_id, COUNT(*) FROM employees GROUP BY dept_id) SELECT dt.dept_id, COALESCE(ec.COUNT, 0) FROM dept_tree dt LEFT JOIN emp_counts ec ON dt.dept_id = ec.dept_id;"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly builds the recursive CTE starting from dept_id = 5 (the department itself), then joins only once after the CTE is fully materialized, making it efficient. Option 1 starts from children of 5, missing the parent. Option 3 doesn't use recursion and misses descendants. Option 2 nests the CTE awkwardly in a subquery."
+    },
+    {
+      "id": "sql-new-220",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "In a Databricks Delta Lake environment, you are upserting a `customer_scores` table with new data from a staging table. The table has columns `customer_id INT, score DECIMAL, last_updated TIMESTAMP`. You want to insert new customers and update existing ones only if the new score is higher. Which MERGE statement is correct?",
+      "options": [
+        "MERGE INTO customer_scores t USING staging s ON t.customer_id = s.customer_id WHEN MATCHED AND s.score > t.score THEN UPDATE SET score = s.score, last_updated = CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (customer_id, score, last_updated) VALUES (s.customer_id, s.score, CURRENT_TIMESTAMP);",
+        "MERGE INTO customer_scores t USING staging s ON t.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET score = s.score, last_updated = CURRENT_TIMESTAMP WHEN NOT MATCHED THEN INSERT (customer_id, score, last_updated) VALUES (s.customer_id, s.score, CURRENT_TIMESTAMP);",
+        "MERGE INTO customer_scores t USING staging s ON t.customer_id = s.customer_id WHEN MATCHED AND s.score > t.score THEN INSERT (customer_id, score, last_updated) VALUES (s.customer_id, s.score, CURRENT_TIMESTAMP) WHEN NOT MATCHED THEN UPDATE SET score = s.score;",
+        "MERGE INTO customer_scores t USING staging s ON t.customer_id = s.customer_id WHEN MATCHED AND s.score > t.score THEN DELETE WHEN NOT MATCHED THEN INSERT (customer_id, score, last_updated) VALUES (s.customer_id, s.score, CURRENT_TIMESTAMP);"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses WHEN MATCHED with a condition (s.score > t.score) for the UPDATE clause and WHEN NOT MATCHED for INSERT. Option 1 lacks the score comparison condition, updating all matched rows. Option 3 incorrectly deletes matched rows. Option 2 swaps INSERT and UPDATE clauses incorrectly."
+    },
+    {
+      "id": "sql-new-221",
+      "type": "single",
+      "topic": "COALESCE",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "In a data warehouse, you have `order_history` with columns `order_id INT, customer_name VARCHAR, billing_address VARCHAR, shipping_address VARCHAR, phone_number VARCHAR`. Many rows have NULL values in various address and phone columns. You need to populate a `contact_info` column preferring: shipping_address > billing_address > phone_number > 'No contact info'. Which expression is correct?",
+      "options": [
+        "COALESCE(shipping_address, billing_address, phone_number, 'No contact info')",
+        "IFNULL(IFNULL(IFNULL(shipping_address, billing_address), phone_number), 'No contact info')",
+        "CASE WHEN shipping_address IS NOT NULL THEN shipping_address WHEN billing_address IS NOT NULL THEN billing_address WHEN phone_number IS NOT NULL THEN phone_number ELSE 'No contact info' END",
+        "All of the above are equally correct and efficient"
+      ],
+      "answer": 3,
+      "explanation": "All three expressions are functionally equivalent and return the first non-NULL value in the specified order. COALESCE (option 0) is the most concise and readable. IFNULL chains (option 1) work but are verbose. CASE (option 2) is explicit but longer. All are correct; modern SQL optimizers typically handle them similarly, though COALESCE is preferred for readability."
     }
   ]
 }
