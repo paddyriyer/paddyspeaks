@@ -9710,6 +9710,54 @@
       ],
       "answer": 2,
       "explanation": "functools.lru_cache requires hashable arguments, so for unhashable types like lists/dicts, a custom decorator using functools.wraps can convert them to tuples or frozensets before caching. This maintains the decorator pattern, allows memoization, and works with the existing function signatures. cached_property is for class attributes, reduce is for iterative operations, and modifying __hash__ on user objects violates the principle of least surprise."
+    },
+    {
+      "id": "py-new-215",
+      "type": "single",
+      "topic": "GIL",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You're optimizing a CPU-bound data transformation pipeline that processes 10GB of data. You've profiled the code and found that a custom NumPy aggregation function is the bottleneck, running serially across chunks. When you wrap this in a ThreadPoolExecutor with 8 threads, performance doesn't improve. What's the most likely reason, and how would you fix it?",
+      "options": [
+        "NumPy releases the GIL during vectorized operations, so the issue is memory bandwidth\u2014use memory-mapped files instead",
+        "The GIL is preventing true parallelism for CPU-bound work; switch to ProcessPoolExecutor or use Numba's @jit decorator to avoid Python bytecode interpretation",
+        "Thread contention on the aggregation function is causing context switches; reduce threads to 2 to minimize overhead",
+        "NumPy's thread pool is conflicting with ThreadPoolExecutor; set OMP_NUM_THREADS=1 environment variable"
+      ],
+      "answer": 1,
+      "explanation": "The GIL prevents true parallelism in CPU-bound Python code with threads. While NumPy operations release the GIL during vectorized calls, a custom aggregation function in Python will re-acquire it. ProcessPoolExecutor bypasses the GIL by using separate processes, or Numba's @jit compiles to machine code that doesn't use the GIL. Memory-mapped files don't solve the fundamental GIL issue, reducing threads masks the problem, and OMP_NUM_THREADS is irrelevant without explicit OpenMP calls."
+    },
+    {
+      "id": "py-new-216",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "You're building a data validation library where functions must accept either a pandas DataFrame, Polars DataFrame, or a list of dicts, and return the same type. You need to use type hints to enforce this constraint across 50+ functions without code duplication. Which approach best balances type safety and maintainability?",
+      "options": [
+        "Use Union[pd.DataFrame, pl.DataFrame, List[Dict]] as the parameter type and add runtime isinstance checks in each function",
+        "Define a TypeVar bound to a Protocol that all three types inherit from, use @overload decorators for each type combination, and leverage typing.Generic for the return type",
+        "Create a discriminated union using Literal types that tags each input type, then use a single type hint Union[Literal['pandas'], Literal['polars'], Literal['list']]",
+        "Use ABC (abstract base class) with __subclasshook__ to treat all three types as a single abstract type, then use cast() to handle return types"
+      ],
+      "answer": 1,
+      "explanation": "Using a Protocol and @overload is the standard pattern for this use case. A Protocol allows structural typing to unify the three types without modifying their source code. @overload provides precise type information to type checkers (mypy/pyright) for each input-output pair, ensuring the return type matches the input type. Unions alone don't express the constraint that return type matches input type. Literal types are for discriminated unions but don't enforce the structural contract. ABCs with cast() work at runtime but provide no static type checking."
+    },
+    {
+      "id": "py-new-217",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You're processing heterogeneous event data from a Kafka stream where events have a 'type' field and optional nested payloads. You need to extract and transform specific fields based on event type (e.g., 'user_login' has a 'user_id' and 'timestamp', while 'transaction' has 'amount', 'currency', 'merchant'). Using Python 3.10+ pattern matching, which code correctly handles missing nested fields without raising KeyError?",
+      "options": [
+        "match event:\n    case {'type': 'user_login', 'payload': {'user_id': uid, 'timestamp': ts}}:\n        process_login(uid, ts)\n    case {'type': 'transaction', 'payload': {'amount': amt, 'currency': curr, 'merchant': m}}:\n        process_transaction(amt, curr, m)",
+        "match event:\n    case {'type': 'user_login', 'payload': {'user_id': uid, 'timestamp': ts, **rest}}:\n        process_login(uid, ts)\n    case {'type': 'transaction', 'payload': {'amount': amt, 'currency': curr, 'merchant': m, **rest}}:\n        process_transaction(amt, curr, m)",
+        "match event:\n    case {'type': type_val, 'payload': payload} if type_val == 'user_login' and 'user_id' in payload:\n        process_login(payload['user_id'], payload.get('timestamp'))\n    case {'type': type_val, 'payload': payload} if type_val == 'transaction':\n        process_transaction(payload.get('amount'), payload.get('currency'), payload.get('merchant'))",
+        "match event:\n    case {'type': 'user_login', 'payload': payload} as p if 'user_id' in payload and 'timestamp' in payload:\n        process_login(p['payload']['user_id'], p['payload']['timestamp'])"
+      ],
+      "answer": 2,
+      "explanation": "Pattern matching in Python 3.10 requires exact structural matches; patterns without guards will raise an error if keys are missing. Using guards with `in` checks and `.get()` methods for optional fields is the correct approach. Option 0 and 1 will fail on missing 'payload' keys or missing nested fields. Option 3 uses redundant nesting. Option 2 combines guard conditions to safely handle missing fields before extraction, which is the idiomatic Python 3.10+ pattern matching approach."
     }
   ]
 }

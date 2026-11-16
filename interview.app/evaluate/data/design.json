@@ -7192,6 +7192,54 @@
       ],
       "answer": 1,
       "explanation": "Moving hot tables to native Snowflake storage eliminates S3 scan overhead (typically 70-90% of costs) while keeping query logic unchanged. Federated queries allow querying cold S3 data on-demand. Option 2 helps marginally but doesn't address the fundamental I/O cost. Option 3 adds latency and complexity. Option 4 introduces operational overhead without reducing cloud costs."
+    },
+    {
+      "id": "ds-new-158",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You're refactoring a dbt project with 200+ models where intermediate staging tables are queried directly by 15 downstream BI tools. Your staging layer has no contracts or documentation. What's the best approach to enforce governance without breaking existing dashboards?",
+      "options": [
+        "Create dbt contracts on staging models immediately and version them, requiring all BI tools to update queries within 2 weeks",
+        "Introduce a new 'marts' layer with dbt contracts and data contracts, gradually migrate BI tools, and add deprecation warnings to staging models with timelines",
+        "Move all staging tables to a separate schema with stricter access controls and require all consumers to rewrite queries against a new semantic layer",
+        "Document all staging table dependencies in a lineage tool and leave the architecture unchanged until a larger refactor project is approved"
+      ],
+      "answer": 1,
+      "explanation": "The best practice is to introduce a new governed layer (marts) with explicit contracts, migrate consumers gradually with communication, and add deprecation warnings. This balances governance improvements with operational stability and prevents breaking existing analytics. Options 0 and 2 risk production disruptions; option 3 defers the problem indefinitely."
+    },
+    {
+      "id": "ds-new-159",
+      "type": "single",
+      "topic": "reverse ETL",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "You're implementing reverse ETL to sync customer segments from your Snowflake warehouse to Salesforce CRM (5M accounts, segment changes 2x daily). The requirement is <1min latency for segment updates. Your current approach uses nightly batch jobs. What's the most practical design to meet latency without overloading the Salesforce API (rate limit: 10K requests/min)?",
+      "options": [
+        "Use Kafka CDC from Snowflake, trigger Salesforce API calls for every segment change, batch calls into 500-record groups with exponential backoff",
+        "Create a Snowflake Stream on the segments table, run a task every 5 mins to identify changes, batch upserts into Salesforce in 1K-record chunks with rate-limit aware throttling",
+        "Deploy a Fivetran reverse ETL connector with real-time change detection, configured to respect Salesforce's bulk API rate limits and retry with jitter",
+        "Build a Delta Live Tables pipeline that materializes segment changes incrementally, then use a Python UDF to call Salesforce's bulk job API with 10K-record batches"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake Streams + Tasks provide native change detection with <5min latency while batching respects API limits (1K records/batch = ~10 calls/min worst-case). Option 0 risks API throttling; option 2 adds vendor lock-in; option 3 adds unnecessary complexity. This design is production-proven at scale."
+    },
+    {
+      "id": "ds-new-160",
+      "type": "single",
+      "topic": "streaming vs batch",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "Your company ingests transaction logs from 50 POS systems (100K events/min). Currently, you batch these hourly into a data warehouse for BI. A new fraud detection use case requires real-time decisions (<500ms latency) on individual transactions. Which hybrid approach minimizes complexity while meeting both requirements?",
+      "options": [
+        "Replace the batch pipeline entirely with Kafka \u2192 Flink \u2192 Redis, stream all events to both a cache and S3, then run hourly analytics on S3 data",
+        "Keep the hourly batch pipeline unchanged; add a parallel Kafka \u2192 Spark Structured Streaming pipeline that materializes transaction features to Redis, re-join in real-time for fraud scoring",
+        "Implement a micro-batching Spark Streaming layer (micro-batches every 10s) that serves both real-time Redis cache updates and also writes to Delta Lake for batch analytics",
+        "Use Kafka as the system-of-record, replay all events hourly into the warehouse using KsqlDB, and query Kafka streams directly for fraud detection via REST API"
+      ],
+      "answer": 1,
+      "explanation": "This approach cleanly separates concerns: batch pipeline handles historical analytics and BI unchanged, while streaming pipeline focuses solely on feature enrichment for real-time fraud scoring. It minimizes rewrites, reduces operational risk, and allows independent scaling. Option 0 risks losing historical analytics; option 2 couples real-time and batch unnecessarily; option 3 adds complexity without clear benefits."
     }
   ]
 }

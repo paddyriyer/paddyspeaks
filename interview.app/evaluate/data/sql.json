@@ -16262,6 +16262,70 @@
       ],
       "answer": 2,
       "explanation": "Option 2 (CTE with window function) is most efficient because it calculates the percentile threshold in a single pass using the window function, avoids redundant self-joins, and allows filtering in the WHERE clause without re-computing percentiles. Option 1 uses HAVING incorrectly (HAVING cannot reference window functions directly). Options 3 and 4 introduce unnecessary table scans and intermediate storage."
+    },
+    {
+      "id": "sql-new-214",
+      "type": "single",
+      "topic": "CTEs - Window Functions",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You have a `transactions` table with columns `user_id INT, transaction_date DATE, amount DECIMAL`. You need to find users whose average transaction amount in the current month exceeds their average from the previous month by at least 20%. Which CTE structure best accomplishes this?\n\nA) Single CTE with ROW_NUMBER() partitioned by MONTH(transaction_date)\nB) Two CTEs: one for current month averages, one for previous month averages, joined on user_id\nC) Single CTE using LAG() window function to compare consecutive month averages\nD) Three CTEs with recursive logic to iterate through months",
+      "options": [
+        "Single CTE with ROW_NUMBER() partitioned by MONTH(transaction_date)",
+        "Two CTEs: one for current month averages, one for previous month averages, joined on user_id",
+        "Single CTE using LAG() window function to compare consecutive month averages",
+        "Three CTEs with recursive logic to iterate through months"
+      ],
+      "answer": 1,
+      "explanation": "Two separate CTEs allow you to independently calculate aggregates for current and previous months by explicitly filtering on date ranges, then join them on user_id to compare values. Using LAG() in a single CTE would require pre-aggregating and ordering by month, adding unnecessary complexity. ROW_NUMBER() alone doesn't help with month-over-month comparison logic."
+    },
+    {
+      "id": "sql-new-215",
+      "type": "single",
+      "topic": "Snowflake-specific - QUALIFY Clause",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "In Snowflake, you have a `customer_orders` table (customer_id INT, order_date TIMESTAMP, total_amount DECIMAL). You want to retrieve only the top 3 orders by total_amount for each customer. You write:\n\n```\nSELECT customer_id, order_date, total_amount,\n       ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY total_amount DESC) as rn\nFROM customer_orders\nQUALIFY rn <= 3;\n```\n\nWhat is the advantage of using QUALIFY instead of a subquery or CTE approach?",
+      "options": [
+        "QUALIFY is faster because it filters before the window function is computed",
+        "QUALIFY is Snowflake syntax that filters rows AFTER window function computation, reducing code verbosity without subqueries",
+        "QUALIFY can only be used with ROW_NUMBER() and not other window functions",
+        "QUALIFY automatically partitions data by customer_id without explicit PARTITION BY clause"
+      ],
+      "answer": 1,
+      "explanation": "QUALIFY is Snowflake's proprietary clause that filters rows based on window function results, eliminating the need for wrapping queries in CTEs or subqueries. It executes after window function computation and provides cleaner, more readable syntax for this common pattern."
+    },
+    {
+      "id": "sql-new-216",
+      "type": "single",
+      "topic": "FILTER Clause - Aggregate Functions",
+      "difficulty": "medium",
+      "added_date": "2026-11-16",
+      "prompt": "You have a `sales_transactions` table (transaction_id INT, amount DECIMAL, status VARCHAR, category VARCHAR). You need to report total revenue, count of successful transactions, and count of failed transactions in a single row. Which query is most efficient?\n\nA) Three separate queries UNION'd together\nB) `SELECT SUM(amount) as revenue, COUNT(*) FILTER (WHERE status='success') as success_count, COUNT(*) FILTER (WHERE status='failed') as fail_count FROM sales_transactions`\nC) Single query with CASE statements in aggregate functions\nD) GROUP BY status with subsequent PIVOT operation",
+      "options": [
+        "Three separate queries UNION'd together",
+        "SELECT SUM(amount) as revenue, COUNT(*) FILTER (WHERE status='success') as success_count, COUNT(*) FILTER (WHERE status='failed') as fail_count FROM sales_transactions",
+        "Single query with CASE statements in aggregate functions",
+        "GROUP BY status with subsequent PIVOT operation"
+      ],
+      "answer": 1,
+      "explanation": "The FILTER clause is the most efficient and readable approach for conditional aggregation, requiring only a single table scan and avoiding complex CASE logic. It directly applies WHERE logic to aggregate functions and is supported in PostgreSQL, Snowflake, BigQuery, and other modern databases."
+    },
+    {
+      "id": "sql-new-217",
+      "type": "single",
+      "topic": "CTEs - Hierarchical Data",
+      "difficulty": "hard",
+      "added_date": "2026-11-16",
+      "prompt": "You have an `org_structure` table (employee_id INT, manager_id INT, department VARCHAR, salary DECIMAL). You need to find the total salary budget for each manager, including all direct and indirect reports, and identify which manager has the highest total budget responsibility. What recursive CTE pattern best solves this?\n\nA) Anchor: direct reports per manager; Recursive: join to find reports of reports; Final: SUM(salary) grouped by top manager\nB) Anchor: leaf employees (manager_id IS NULL); Recursive: traverse upward to find their managers; Aggregate by manager_id\nC) Single non-recursive CTE with GROUP BY manager_id and SUM(salary), then find MAX\nD) Anchor: all employees; Recursive: self-join on manager_id; Final: aggregate using HAVING clause",
+      "options": [
+        "Anchor: direct reports per manager; Recursive: join to find reports of reports; Final: SUM(salary) grouped by top manager",
+        "Anchor: leaf employees (manager_id IS NULL); Recursive: traverse upward to find their managers; Aggregate by manager_id",
+        "Single non-recursive CTE with GROUP BY manager_id and SUM(salary), then find MAX",
+        "Anchor: all employees; Recursive: self-join on manager_id; Final: aggregate using HAVING clause"
+      ],
+      "answer": 0,
+      "explanation": "Option A correctly builds a top-down recursive CTE: start with managers and their direct reports (anchor), then recursively find their subordinates' reports. This captures the full hierarchy depth and allows aggregating total salary budget per manager. Option B traverses bottom-up which doesn't naturally accumulate budgets. Option C misses indirect reports entirely. Option D's approach is inefficient and unclear."
     }
   ]
 }
