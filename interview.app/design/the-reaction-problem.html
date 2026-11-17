@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<title>The Reaction Problem — 25 Million Viewers, Two Seconds, One Live Mood | Interview Studio</title>
+<meta name="description" content="Design the live emoji mood for a cricket match with 25 million concurrent viewers, shown within two seconds. What “real-time” actually promises, media time versus wall time, the schema, idempotent ingest SQL, edge pre-aggregation in Python, Flink SQL, latest-only fan-out, bot integrity, the SLO query, a double-entry ledger for contrast, guardrails for AI agents, and the failure ladder. Every SQL and Python block was executed.">
+<meta name="keywords" content="real-time system design, live reactions, emoji aggregation, streaming design interview, Kafka, Flink SQL, WebSocket fan-out, hot partition, idempotency, event time, media time, latency SLO, bot detection, double-entry ledger, graceful degradation, system design interview">
+<meta name="author" content="Padmanabhan Iyer">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://paddyspeaks.com/interview.app/design/the-reaction-problem.html">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/the-reaction-problem.html">
+<meta property="og:title" content="The Reaction Problem — 25 Million Viewers, Two Seconds, One Live Mood">
+<meta property="og:description" content="What does real-time actually mean? A full whiteboard design with executed SQL and Python: media time, idempotent ingest, edge pre-aggregation, latest-only fan-out, integrity, the SLO, and the payment ledger it must never be confused with.">
+<meta property="og:image" content="https://paddyspeaks.com/images/articles/what-does-real-time-actually-mean/share-card.jpg">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Reaction Problem — 25 Million Viewers, Two Seconds, One Live Mood">
+<meta name="twitter:description" content="What does real-time actually mean? A full whiteboard design with executed SQL and Python.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/articles/what-does-real-time-actually-mean/share-card.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap">
+<link rel="stylesheet" href="whiteboard.css">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<noscript><style>.reveal{opacity:1;transform:none}</style></noscript>
+<style>
+:root{--ink-mute:#625b4e}  /* the series grey is 4.0:1 on bone; this page uses a darker one */
+@media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none;transition:none}}
+.codeblock .cl{color:#a39a85}
+.codeblock:focus-visible,.result:focus-visible{outline:2px solid #b07a1e;outline-offset:2px}
+.result{background:#fffdf8;border:1px solid #cfc5ac;border-left:4px solid #6f7d5c;font-family:'DM Mono',monospace;font-size:12.6px;line-height:1.55;padding:18px 20px;margin:30px 0;overflow-x:auto;white-space:pre;color:#23201a}
+.reslabel{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#4f5c3e;margin:30px 0 -22px;display:flex;align-items:center;gap:12px}
+.reslabel::after{content:"";flex:1;height:1px;background:#e3dccb}
+.prov{display:inline-block;font-family:'DM Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;padding:2px 8px;border:1px solid currentColor;border-radius:3px;margin-right:8px;vertical-align:2px}
+.prov.hist{color:#8a5d12}.prov.illus{color:#a4502e}.prov.ran{color:#4f5c3e}.prov.notrun{color:#5f584b}
+.spec{background:#fffdf8;border:1px solid #cfc5ac;border-top:4px solid #a4502e;padding:24px 28px;margin:34px 0}
+.spec h4{font-family:'DM Mono',monospace;font-size:11.5px;letter-spacing:.2em;text-transform:uppercase;color:#a4502e;margin-bottom:12px}
+.spec ol{margin:0 0 0 20px}.spec li{margin-bottom:8px;font-size:17px}
+.tblwrap{overflow-x:auto;margin:30px 0}.tblwrap table{margin:0;min-width:560px}
+.tldr-wrap{background:#fbf8f1;border-top:1px solid #e9e2d0;border-bottom:1px solid #e9e2d0}
+.tldr{margin:0 auto;padding:28px 0 30px}
+.tldr-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.tldr-eyebrow{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#0a6b5e}
+.tldr-sub{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.06em;color:#6f6754}
+.tldr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.tldr-cell{background:#fffdf8;border:1px solid #e9e2d0;border-top:3px solid #a8b58a;border-radius:8px;padding:14px 16px}
+.tldr-cell.tldr-move{border-top-color:#0a8070}.tldr-cell.tldr-trap{border-top-color:#d98e63}
+.tldr-cell h4{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:#3a352b;margin:0 0 8px}
+.tldr-cell p,.tldr-cell li{font-family:'Newsreader',Georgia,serif;font-size:14.5px;line-height:1.5;color:#3a352b;margin:0}
+.tldr-cell ul{margin:0;padding-left:15px}.tldr-cell li{margin:0 0 5px}
+.tldr-cell code{font-family:'DM Mono',monospace;font-size:12px;background:#f1ece0;padding:1px 4px;border-radius:3px;color:#0a5a50}
+@media(max-width:820px){.tldr-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.tldr-grid{grid-template-columns:1fr}}
+.anchor-nav{position:sticky;top:0;z-index:100;background:#faf8f4;border-bottom:1px solid #e8e0d0;display:flex;overflow-x:auto;padding:0 18px}
+.anchor-nav a{padding:10px 12px;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6f6754;text-decoration:none;white-space:nowrap}
+.anchor-nav a:hover{color:#0a6b5e}
+.ladder td:first-child{font-family:'DM Mono',monospace;white-space:nowrap}
+.mistake{border-left:3px solid #a4502e;background:#fffdf8;padding:12px 18px;margin:10px 0;font-size:17px}
+.mistake strong{color:#a4502e}
+.dash .tile .tl{color:#b8ad93}
+.dash-sub{color:#b8ad93 !important}
+.back-home{position:fixed;bottom:28px;left:24px;z-index:999;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.back-home a{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#1a1208;color:#d8a44a;border-radius:20px;text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.scroll-btns{position:fixed;bottom:28px;right:24px;display:flex;flex-direction:column;gap:8px;z-index:999}
+.scroll-btns a{display:flex;align-items:center;justify-content:center;width:40px;height:40px;background:#0a6b5e;color:#fff;border-radius:50%;text-decoration:none;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+@media(max-width:640px){.back-home{display:none}}
+</style>
+<meta name="ps:continue" content="interview">
+</head>
+<body id="top">
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker reveal">PaddySpeaks · Systems at the Whiteboard · Nº 41</div>
+    <h1 class="reveal">The <em>Reaction</em> Problem</h1>
+    <p class="deck reveal">India needs eleven off the last over. Twenty-five million people are watching, every one of them can tap an emoji, and the product has promised the collective mood on every screen within two seconds. Everyone reaches for Kafka, Flink, Redis and WebSockets in the first ninety seconds. This walk-through starts with the question that comes before any technology — what exactly are we promising, and what happens when that promise breaks — and then builds the whole thing: the clocks, the schema, the ingest, the aggregation, the fan-out, the integrity checks, the SLO, the failure ladder, and the payment ledger it must never be mistaken for.</p>
+    <div class="byline reveal">
+      <span>WORDS · <b>PaddySpeaks Editorial</b></span>
+      <span>FIELD · <b>Live streaming</b></span>
+      <span>READING · <b>~45 min</b></span>
+      <span>CODE · <b>executed</b></span>
+    </div>
+  </div>
+</header>
+
+<nav class="anchor-nav" aria-label="Sections">
+  <a href="#question">Question</a><a href="#clocks">Two seconds</a><a href="#dataflow">Data flow</a><a href="#model">Model</a><a href="#ingest">Ingest</a><a href="#aggregate">Aggregate</a><a href="#fanout">Fan-out</a><a href="#integrity">Integrity</a><a href="#analytics">SQL</a><a href="#money">Money</a><a href="#agents">AI agents</a><a href="#failure">Failure</a><a href="#dashboard">Dashboard</a><a href="#closing">Rubric</a><a href="#sources">Sources</a>
+</nav>
+
+<section class="tldr-wrap" aria-label="At a glance">
+  <div class="wrap">
+    <div class="tldr">
+      <div class="tldr-head">
+        <span class="tldr-eyebrow">◆ At a glance</span>
+        <span class="tldr-sub">the 20-second version — full walk-through below</span>
+      </div>
+      <div class="tldr-grid">
+        <div class="tldr-cell tldr-move">
+          <h4>The senior move</h4>
+          <p>Key the mood on <strong>media time</strong> — where in the broadcast each viewer was — not on the wall clock. Then a second's mood is a <strong>revision</strong> that fills in as viewers further behind reach it, and nobody is ever shown a moment they have not seen.</p>
+        </div>
+        <div class="tldr-cell">
+          <h4>Grains</h4>
+          <ul>
+            <li><strong>Batch</strong> — one per session per media second, idempotent on <code>(session_id, batch_seq)</code>.</li>
+            <li><strong>Voice</strong> — one per person per second; taps are intensity, not headcount.</li>
+            <li><strong>Snapshot revision</strong> — what was known about a second, as of a time.</li>
+          </ul>
+        </div>
+        <div class="tldr-cell">
+          <h4>Key code</h4>
+          <ul>
+            <li><code>ON CONFLICT DO NOTHING</code> ingest</li>
+            <li>Edge pre-aggregation: additive deltas</li>
+            <li>Latest-only fan-out slot per socket</li>
+            <li><code>percentile_cont</code> SLO with a spoiler count</li>
+          </ul>
+        </div>
+        <div class="tldr-cell tldr-trap">
+          <h4>The trap</h4>
+          <p>Measuring "two seconds" on the wall clock. Live streams run many seconds behind the stadium, unevenly, so a wall-clock-fresh mood spoils the six for everyone who has not seen it yet.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="question">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 01 — THE QUESTION</span>Twenty-five million thumbs and one number</h2>
+    <p class="lede reveal">The ball disappears over long-on. In Mumbai a software engineer hammers 🔥 eleven times. In Coimbatore a retired schoolteacher who has watched India lose from this exact position before taps 🙏 once and keeps her eyes shut. In a hostel in Kanpur a student who backed the other side in a group-chat bet throws the remote at the wall and taps nothing. He is still part of the audience. The system's job is to turn all of that into one picture of the crowd, on every screen, almost at once.</p>
+
+    <div class="qcard reveal">
+      <span class="tag">Interview Prompt</span>
+      <p class="qtext">"A live cricket stream has 25 million concurrent viewers. Each can react with one of six emojis. Show the collective mood on every screen within two seconds. Design it."</p>
+      <div class="qmeta"><span>LEVEL · SENIOR / STAFF</span><span>DURATION · 45–60 MIN</span><span>FORMAT · WHITEBOARD</span></div>
+    </div>
+
+    <p class="dropcap reveal">The prompt reads like a throughput question, and the predictable answer is a throughput answer: Kafka for ingest, Spark or Flink for windows, Redis for the latest state, WebSockets for the push. None of that is wrong. It is early. It answers <em>how</em> before anyone has asked <strong>what exactly are we promising, to whom, measured how, and what happens when the promise breaks?</strong> Technology selection is the last interesting question in this problem. The interviewer is listening for whether you notice the three hidden ones: which clock "two seconds" is measured on, what a single tap is worth, and how wrong the number is allowed to be.</p>
+
+    <p class="reveal"><span class="prov hist">Historical</span>The scale is not invented. Hotstar reported a peak of 25.3 million concurrent viewers during the India–New Zealand World Cup semi-final on 10 July 2019, verified by its CDN, Akamai, according to its year-end report; Disney reported 59 million concurrent viewers for the 2023 World Cup final. Hotstar's engineers also published how their 2019 emoji feature worked: a Go service writing reactions to Kafka asynchronously, Spark Streaming aggregating in two-second micro-batches, and results pushed through an in-house, MQTT-based PubSub their engineers presented as built for 50 million concurrent connections. The write-up reports about five billion emojis from 55.8 million users across that World Cup. Everything below is a hypothetical design for today, not a description of anyone's current system.</p>
+
+    <h3 class="reveal">Scoping out loud</h3>
+    <p class="reveal">Out of scope, said explicitly: video encoding and the CDN, the player, authentication, and the emoji picker's UI. In scope: how a tap becomes a counted voice, how the mood is aggregated and pushed to 25 million sockets, which clock the two seconds are measured on, what the system refuses to count, how it degrades, and how we prove it is working. Then the envelope, volunteered rather than extracted.</p>
+
+    <div class="tblwrap reveal" tabindex="0">
+    <table>
+      <tr><th>Quantity</th><th>Estimate <span class="prov illus">Illustrative</span></th><th>Consequence</th></tr>
+      <tr><td>Concurrent viewers</td><td class="mono">25 M</td><td>The fan-out population: every one gets every update</td></tr>
+      <tr><td>Reactors after a six</td><td class="mono">≈ 20% within 5 s</td><td>5 M people, ~4 taps each: 20 M taps, a 4 M taps/s spike</td></tr>
+      <tr><td>Client batching</td><td class="mono">1 message / s / reactor</td><td>Ingest falls to ~1–2 M messages/s: batching buys 2–4×</td></tr>
+      <tr><td>Edge pre-aggregation</td><td class="mono">1,000 nodes × 4 flushes/s</td><td>The aggregator sees ~4,000 records/s, not millions</td></tr>
+      <tr><td><strong>Fan-out</strong></td><td class="mono"><strong>25 M × 0.5 / s</strong></td><td><strong>12.5 M messages/s; at 200 B each, ~2.5 GB/s of payload before protocol overhead</strong></td></tr>
+      <tr><td>Aggregate state</td><td class="mono">6 emojis × regions × seconds</td><td>Kilobytes. The computation is trivial; the timing is not</td></tr>
+    </table>
+    </div>
+
+    <p class="reveal">Read the table for the row that does the architectural work. It is not ingest. Batching on the phone and pre-aggregation at the edge shrink twenty million taps to a few thousand records a second. The load that cannot be shrunk is the one going <em>out</em>: twelve and a half million messages a second to people who each need the same few hundred bytes. The aggregate itself is absurdly small — six counters per region per second. This is a fan-out problem and a timing problem wearing a big-data costume.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="clocks">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 02 — WHAT “TWO SECONDS” MEANS</span>Five questions wearing a stopwatch</h2>
+    <p class="lede reveal">"Within two seconds" sounds like a requirement. It is five unanswered questions: two seconds from what, to what, for whom, at what percentile, and measured on whose clock. Each answer produces a different system.</p>
+
+    <dl class="reveal">
+      <div class="defrow"><dt>FROM WHAT</dt><dd>The tap, the edge receiving it, the window closing, the publish, or the pixels changing? Each is a different SLI. Batching on the phone saves the backend and spends the user's time; a two-second window spends the whole budget by itself.</dd></div>
+      <div class="defrow"><dt>FOR WHOM</dt><dd>The median viewer, p95, p99, or everyone? Averages hide the people having the worst time, which is why serious latency objectives are written as percentiles — and why fanning out to more machines makes the tail worse, not better.</dd></div>
+      <div class="defrow"><dt>ON WHICH CLOCK</dt><dd>The one most candidates never ask about. The video itself is not live. A stream can run many seconds behind the stadium, and different viewers sit at different points behind it: cable and app, Wi-Fi and 4G. A mood that is fresh against the wall clock shows the celebration of a six to someone whose stream has not yet shown the ball being bowled. You have built a spoiler engine with excellent p99 latency.</dd></div>
+    </dl>
+
+    <p class="reveal">So the promise has to be restated on the viewer's own clock. Players already know where they are in the broadcast: HLS playlists can carry <span class="m">EXT-X-PROGRAM-DATE-TIME</span>, which ties a segment's first sample to an absolute date and time. Every reaction carries that position — its <strong>media time</strong> — and the mood is keyed to it. Each screen shows the mood for the moment it is showing.</p>
+
+    <div class="spec reveal">
+      <h4>The promise, written so it can be tested</h4>
+      <ol>
+        <li><strong>Never spoil.</strong> A screen never shows a mood for a media second it has not finished playing. Target: zero, not a percentile.</li>
+        <li><strong>Freshness.</strong> At p95, the mood shown describes a media second that ended at most 2,000 ms earlier <em>on that viewer's own timeline</em>.</li>
+        <li><strong>Honesty.</strong> A mood older than 5 s on the viewer's timeline is shown as "catching up", never as live.</li>
+        <li><strong>Accuracy.</strong> The settled mood counts one voice per person per second, from sessions that passed integrity; loss below 1% is acceptable and measured.</li>
+      </ol>
+    </div>
+
+    <h3 class="reveal">The consequence nobody draws: who gets to see the crowd</h3>
+    <p class="reveal">Keying on media time has a strange and important consequence. A viewer two seconds behind live watches the six before almost everyone else has. When they get there, the only reactions that exist are from viewers even closer to live — few or none. A viewer thirty seconds behind sees the whole crowd's answer. The mood for a given second is therefore not a value; it is a <em>series of revisions</em>, growing as viewers further behind reach that moment. This query measures it on the synthetic match: the six is bowled at media second 125, and each cohort is shown second 129 with a two-second hold-back.</p>
+
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — WHO SEES HOW MUCH OF THE CROWD</div>
+    <div class="codeblock" tabindex="0" data-src="sql/41_who_sees_the_crowd.sql"><span class="cl">-- Who gets to see the crowd? A viewer D seconds behind live watches media</span>
+<span class="cl">-- second 129 at starts_at + 129 + D. Shown with a 2-second hold-back, the mood</span>
+<span class="cl">-- they can see is whatever had reached the edge by then. The viewers closest</span>
+<span class="cl">-- to live can only ever see the reactions of viewers even closer: few or none.</span>
+<span class="ck">WITH</span> settled <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="cf">count</span>(*) <span class="ck">AS</span> voices
+    <span class="ck">FROM</span> reaction_voice
+    <span class="ck">WHERE</span> match_id = 1 <span class="ck">AND</span> media_sec <span class="ck">BETWEEN</span> 125 <span class="ck">AND</span> 129
+), cohort <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="cf">unnest</span>(ARRAY[2, 5, 10, 20, 30]) <span class="ck">AS</span> behind_live_s
+)
+<span class="ck">SELECT</span> c.behind_live_s,
+       <span class="cf">count</span>(v.session_id)                                       <span class="ck">AS</span> voices_visible,
+       <span class="cf">round</span>(100.0 * <span class="cf">count</span>(v.session_id) / s.voices, 1)          <span class="ck">AS</span> pct_of_settled
+<span class="ck">FROM</span> cohort c
+<span class="ck">CROSS</span> <span class="ck">JOIN</span> settled s
+<span class="ck">CROSS</span> <span class="ck">JOIN</span> dim_match m
+<span class="ck">LEFT</span> <span class="ck">JOIN</span> reaction_voice v
+       <span class="ck">ON</span> v.match_id = 1
+      <span class="ck">AND</span> v.media_sec <span class="ck">BETWEEN</span> 125 <span class="ck">AND</span> 129
+      <span class="ck">AND</span> v.edge_received_at &lt;= m.starts_at
+                                + <span class="cf">make_interval</span>(secs =&gt; 129 + c.behind_live_s + 2)
+<span class="ck">WHERE</span> m.match_id = 1
+<span class="ck">GROUP</span> <span class="ck">BY</span> c.behind_live_s, s.voices
+<span class="ck">ORDER</span> <span class="ck">BY</span> c.behind_live_s;</div>
+    <div class="reslabel">Result · synthetic match</div>
+    <pre class="result" tabindex="0" data-src="results/41_who_sees_the_crowd.txt"> behind_live_s | voices_visible | pct_of_settled 
+---------------+----------------+----------------
+             2 |            318 |            5.1
+             5 |            988 |           15.7
+            10 |           2246 |           35.8
+            20 |           4643 |           74.0
+            30 |           6277 |          100.0</pre>
+
+    <p class="reveal">That table changes the product, not just the pipeline. The viewers closest to live — often the most engaged, on the best connections — see a mood built from about one twentieth of the crowd. A design that ignores this shows them a noisy, thin number and calls it real-time. A design that understands it either sets a minimum voice count before showing anything, holds the mood a little further back for the fastest cohort, or labels the early number for what it is. Those are product decisions, and they belong on the whiteboard before any technology does.</p>
+
+    <div class="tblwrap reveal" tabindex="0">
+    <table>
+      <tr><th>Stage</th><th>Budget <span class="prov illus">Illustrative</span></th><th>What it costs</th></tr>
+      <tr><td>Client batching</td><td class="mono">0–1,000 ms</td><td>Saves the backend; spends the user's time</td></tr>
+      <tr><td>Network to edge</td><td class="mono">50–300 ms</td><td>Mobile networks own the tail</td></tr>
+      <tr><td>Edge pre-aggregation flush</td><td class="mono">0–250 ms</td><td>Buys a thousandfold reduction downstream</td></tr>
+      <tr><td>Aggregate + publish</td><td class="mono">50–200 ms</td><td>Cheap, because the state is tiny</td></tr>
+      <tr><td>Fan-out to sockets</td><td class="mono">100–800 ms</td><td>Twenty-five million sends are not instantaneous</td></tr>
+      <tr><td>Render</td><td class="mono">16–100 ms</td><td>The only stage the viewer sees</td></tr>
+    </table>
+    </div>
+    <p class="reveal">Add the upper bounds and the budget is gone before any window is chosen — which is why the design below has no aggregation window on the hot path at all. The two-second window in the obvious answer would spend the whole promise on its own.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dataflow">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 03 — DATA FLOW</span>Following a tap through the building</h2>
+    <p class="lede reveal">Two tempos. The live path turns taps into voices at the edge, sums tiny deltas, and pushes snapshots down millions of sockets in well under a second. The analytics path keeps every batch, recomputes the settled mood, and measures the promise. Integrity sits between the edge and the sum, because once a fake voice has been summed it cannot be taken out again.</p>
+  </div>
+  <div class="wrap-wide">
+    <div class="diagram reveal">
+      <svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg" font-family="DM Mono, monospace" role="img" aria-labelledby="f1t f1d">
+        <title id="f1t">End-to-end data flow for the live reaction mood</title>
+        <desc id="f1d">Live path: client app batches taps by media second and sends at most once a second to an edge gateway that admits, deduplicates and turns batches into voices, then pre-aggregates them into additive deltas. The deltas go to a small aggregator that sums them per media second and emits snapshot revisions to regional fan-out hubs, each holding millions of sockets with one latest-only slot per connection, which deliver to screens that render only moments their player has passed. Analytics path: the raw batch log feeds a warehouse with the batch, tap and voice tables, an integrity job whose verdicts feed back to the edge, the settled mood and the SLO from render receipts.</desc>
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8a5d12"/></marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a4502e"/></marker>
+        </defs>
+        <text x="20" y="28" font-size="11" letter-spacing="2.5" fill="#a4502e">LIVE PATH · TAP → VOICE → DELTA → REVISION → SCREEN · &lt; 1 S</text>
+        <text x="20" y="338" font-size="11" letter-spacing="2.5" fill="#56633f">ANALYTICS PATH · EVERY BATCH KEPT · SETTLED MOOD · THE PROMISE, MEASURED</text>
+        <line x1="20" y1="306" x2="960" y2="306" stroke="#e3dccb" stroke-dasharray="4 6"/>
+
+        <rect x="20" y="56" width="150" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="95" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">CLIENT APP</text>
+        <text x="95" y="101" font-size="10.5" text-anchor="middle" fill="#5f584b">taps by MEDIA second</text>
+        <text x="95" y="117" font-size="10.5" text-anchor="middle" fill="#5f584b">≤ 1 batch / s</text>
+        <text x="95" y="133" font-size="10.5" text-anchor="middle" fill="#5f584b">retry keeps batch_seq</text>
+
+        <rect x="214" y="48" width="180" height="102" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="304" y="74" font-size="12.5" text-anchor="middle" fill="#23201a">EDGE GATEWAY</text>
+        <text x="304" y="93" font-size="10.5" text-anchor="middle" fill="#5f584b">admit · token buckets</text>
+        <text x="304" y="109" font-size="10.5" text-anchor="middle" fill="#5f584b">dedup (session, seq)</text>
+        <text x="304" y="125" font-size="10.5" text-anchor="middle" fill="#5f584b">1 voice / person / s</text>
+        <text x="304" y="141" font-size="10.5" text-anchor="middle" fill="#a4502e">deltas every 250 ms</text>
+
+        <rect x="438" y="56" width="160" height="86" fill="#27241d"/>
+        <text x="518" y="84" font-size="12.5" text-anchor="middle" fill="#e9e2d0">MOOD AGGREGATOR</text>
+        <text x="518" y="103" font-size="10.5" text-anchor="middle" fill="#cfc5ac">Σ deltas per second</text>
+        <text x="518" y="119" font-size="10.5" text-anchor="middle" fill="#cfc5ac">emit revisions</text>
+
+        <rect x="642" y="56" width="150" height="86" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="717" y="82" font-size="12.5" text-anchor="middle" fill="#a4502e">REGIONAL HUBS</text>
+        <text x="717" y="101" font-size="10.5" text-anchor="middle" fill="#5f584b">millions of sockets</text>
+        <text x="717" y="117" font-size="10.5" text-anchor="middle" fill="#5f584b">latest-only slot</text>
+        <text x="717" y="133" font-size="10.5" text-anchor="middle" fill="#5f584b">never a queue</text>
+
+        <rect x="830" y="56" width="130" height="86" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="895" y="82" font-size="12.5" text-anchor="middle" fill="#23201a">SCREEN</text>
+        <text x="895" y="101" font-size="10.5" text-anchor="middle" fill="#5f584b">own media clock</text>
+        <text x="895" y="117" font-size="10.5" text-anchor="middle" fill="#5f584b">hold·show·stale</text>
+
+        <line x1="170" y1="99" x2="210" y2="99" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="394" y1="99" x2="434" y2="99" stroke="#a4502e" stroke-width="1.8" marker-end="url(#a2)"/>
+        <line x1="598" y1="99" x2="638" y2="99" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="792" y1="99" x2="826" y2="99" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+
+        <text x="258" y="180" font-size="10.5" text-anchor="end" fill="#5f584b">every batch</text>
+        <rect x="160" y="196" width="180" height="56" fill="#27241d"/>
+        <text x="250" y="221" font-size="12" text-anchor="middle" fill="#e9e2d0">BATCH LOG (KAFKA)</text>
+        <text x="250" y="239" font-size="10.5" text-anchor="middle" fill="#cfc5ac">key: session · replayable</text>
+        <line x1="266" y1="150" x2="266" y2="192" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+
+        <rect x="20" y="364" width="200" height="84" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="120" y="390" font-size="12.5" text-anchor="middle" fill="#23201a">WAREHOUSE</text>
+        <text x="120" y="409" font-size="10.5" text-anchor="middle" fill="#5f584b">reaction_batch · tap</text>
+        <text x="120" y="425" font-size="10.5" text-anchor="middle" fill="#5f584b">reaction_voice</text>
+
+        <rect x="262" y="364" width="200" height="84" fill="#fbf8f1" stroke="#56633f" stroke-width="2"/>
+        <text x="362" y="390" font-size="12.5" text-anchor="middle" fill="#56633f">INTEGRITY JOB</text>
+        <text x="362" y="409" font-size="10.5" text-anchor="middle" fill="#5f584b">cadence · shared device</text>
+        <text x="362" y="425" font-size="10.5" text-anchor="middle" fill="#5f584b">new account · 2 of 3</text>
+
+        <rect x="504" y="364" width="200" height="84" fill="#fbf8f1" stroke="#23201a" stroke-width="1.5"/>
+        <text x="604" y="390" font-size="12.5" text-anchor="middle" fill="#23201a">SETTLED MOOD</text>
+        <text x="604" y="409" font-size="10.5" text-anchor="middle" fill="#5f584b">counted_voice</text>
+        <text x="604" y="425" font-size="10.5" text-anchor="middle" fill="#5f584b">per ball · per second</text>
+
+        <rect x="746" y="364" width="214" height="84" fill="#fbf8f1" stroke="#a4502e" stroke-width="2"/>
+        <text x="853" y="390" font-size="12.5" text-anchor="middle" fill="#a4502e">THE PROMISE, MEASURED</text>
+        <text x="853" y="409" font-size="10.5" text-anchor="middle" fill="#5f584b">render receipts (1%)</text>
+        <text x="853" y="425" font-size="10.5" text-anchor="middle" fill="#5f584b">p95 lag · spoilers = 0</text>
+
+        <path d="M 200 252 C 180 300, 140 320, 120 360" fill="none" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="220" y1="406" x2="258" y2="406" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+        <line x1="462" y1="406" x2="500" y2="406" stroke="#8a5d12" stroke-width="1.5" marker-end="url(#a1)"/>
+        <path d="M 895 142 C 900 250, 880 300, 860 360" fill="none" stroke="#a4502e" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#a2)"/>
+        <text x="908" y="262" font-size="10.5" fill="#a4502e">receipts</text>
+        <path d="M 420 364 C 430 290, 400 210, 372 154" fill="none" stroke="#56633f" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#a1)"/>
+        <text x="436" y="262" font-size="10.5" fill="#56633f">integrity verdicts</text>
+        <text x="436" y="277" font-size="10.5" fill="#56633f">back to the edge</text>
+
+        <text x="20" y="520" font-size="10.5" fill="#5f584b">SOLID — the live and batch flows · DASHED — feedback: integrity verdicts to the edge, render receipts to the SLO.</text>
+        <text x="20" y="540" font-size="10.5" fill="#5f584b">No aggregation window on the live path: a window would hold the mood until its slowest viewer arrived.</text>
+      </svg>
+      <div class="caption">FIG. 1 — The live path never waits for completeness: it sums deltas and publishes revisions. The log keeps every batch, so anything summed on the live path can be recounted.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <p class="reveal">Three properties of this picture carry the interview. <strong>First,</strong> the expensive reductions happen as early as possible: the phone turns a flurry of taps into one batch per second, and the edge turns batches into voices and voices into deltas, so the component everyone draws in the middle — the stream processor — has almost nothing to do. <strong>Second,</strong> there is no window on the live path. The mood for a second is never "final"; the aggregator emits a new revision whenever its count changes, and screens show the latest revision for the moment they are showing. <strong>Third,</strong> integrity verdicts flow <em>back</em> to the edge, because the only place a fake voice can be cheaply refused is before it is summed.</p>
+
+    <div class="tblwrap reveal" tabindex="0">
+    <table>
+      <tr><th>Component</th><th>Essential?</th><th>Why</th></tr>
+      <tr><td>Client batching by media second</td><td>Yes</td><td>The single biggest reduction, and the only place the media clock is known</td></tr>
+      <tr><td>Edge admission + dedup</td><td>Yes</td><td>Retries and scripts must be refused before anything is counted</td></tr>
+      <tr><td>Fan-out tier for tens of millions of sockets</td><td>Yes</td><td>The real load; it is where the money and the outages are</td></tr>
+      <tr><td>Freshness metadata on every snapshot</td><td>Yes</td><td>Without it, a screen cannot tell stale from live</td></tr>
+      <tr><td>Durable batch log (Kafka or similar)</td><td>A choice</td><td>Buys replay and recount. Optional for a toy; essential the day you must remove a bot cluster from history</td></tr>
+      <tr><td>Distributed stream processor</td><td>A choice</td><td>Summing additive deltas needs discipline about time, not a distributed state machine; use one if you already run it well</td></tr>
+      <tr><td>Redis for the latest snapshot</td><td>A choice</td><td>Handy for late joiners and REST fallbacks; the hubs can also hold the latest revision in memory</td></tr>
+    </table>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="model">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 04 — DATA MODEL</span>Two clocks on every row</h2>
+    <p class="lede reveal">The schema falls out of the grain question. The batch is what arrives. The tap row is what it contained. The voice — one per person per media second — is what counts. The snapshot is a revision: what was known about a second, as of a time. Every fact carries both clocks, media time for meaning and wall time for operations.</p>
+
+    <h3 class="reveal">Dimensions, with the ball-by-ball on the media clock</h3>
+    <p class="reveal">The delivery dimension is aligned to the broadcast's media clock, not to the stadium's. That single choice is what lets analytics ask "how did the crowd answer this ball?" with a range join instead of a guess about stream delay.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — DIMENSIONS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/10_dims.sql"><span class="cl">-- The Reaction Problem — schema. PostgreSQL 16.</span>
+<span class="cl">-- Two clocks on every row: MEDIA time (where in the broadcast the viewer was)</span>
+<span class="cl">-- and WALL time (when a machine saw it). The mood is keyed on media time.</span>
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">dim_match</span> (
+    match_id        <span class="ck">INT</span>          <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    title           <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    starts_at       <span class="ck">TIMESTAMPTZ</span>  <span class="ck">NOT</span> <span class="ck">NULL</span>
+);
+
+<span class="cl">-- Ball-by-ball, already aligned to the broadcast's media clock.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">dim_delivery</span> (
+    match_id        <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">REFERENCES</span> dim_match,
+    over_no         <span class="ck">SMALLINT</span>     <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    ball_no         <span class="ck">SMALLINT</span>     <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    media_sec       <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,          <span class="cl">-- when the ball is bowled, in media time</span>
+    outcome         <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>
+                    <span class="ck">CHECK</span> (outcome <span class="ck">IN</span> (<span class="cs">'dot'</span>,<span class="cs">'run'</span>,<span class="cs">'four'</span>,<span class="cs">'six'</span>,<span class="cs">'wicket'</span>,<span class="cs">'wide'</span>)),
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (match_id, over_no, ball_no)
+);
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">dim_account</span> (
+    account_id      <span class="ck">BIGINT</span>       <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    created_at      <span class="ck">TIMESTAMPTZ</span>  <span class="ck">NOT</span> <span class="ck">NULL</span>
+);</div>
+
+    <h3 class="reveal">The facts — a batch and what it held</h3>
+    <p class="reveal">One row per client batch: one session's taps for one media second. The primary key is the idempotency key. The <span class="m">admission</span> verdict is stored, not filtered, because the funnel of what was refused is itself a metric. Device fingerprint and network ride along because integrity needs them later and cannot get them back.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — BATCH AND TAP FACTS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/11_facts.sql"><span class="cl">-- One row per client batch: a session's taps for ONE media second.</span>
+<span class="cl">-- (session_id, batch_seq) is the idempotency key: a retried batch is a no-op.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">reaction_batch</span> (
+    session_id       <span class="ck">UUID</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    batch_seq        <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    account_id       <span class="ck">BIGINT</span>       <span class="ck">REFERENCES</span> dim_account,   <span class="cl">-- NULL = anonymous</span>
+    device_fp        <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,                 <span class="cl">-- coarse device fingerprint</span>
+    asn              <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,                 <span class="cl">-- network the batch came from</span>
+    region           <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    match_id         <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">REFERENCES</span> dim_match,
+    media_sec        <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,                 <span class="cl">-- ★ the second the viewer was WATCHING</span>
+    client_sent_at   <span class="ck">TIMESTAMPTZ</span>  <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    edge_received_at <span class="ck">TIMESTAMPTZ</span>  <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    admission        <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>
+                     <span class="ck">CHECK</span> (admission <span class="ck">IN</span> (<span class="cs">'admitted'</span>,<span class="cs">'throttled'</span>,<span class="cs">'unauthenticated'</span>)),
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (session_id, batch_seq)
+);
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">reaction_tap</span> (
+    session_id      <span class="ck">UUID</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    batch_seq       <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    emoji           <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (emoji <span class="ck">IN</span> (<span class="cs">'fire'</span>,<span class="cs">'clap'</span>,<span class="cs">'pray'</span>,<span class="cs">'shock'</span>,<span class="cs">'sad'</span>,<span class="cs">'angry'</span>)),
+    taps            <span class="ck">SMALLINT</span>     <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (taps <span class="ck">BETWEEN</span> 1 <span class="ck">AND</span> 50),
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (session_id, batch_seq, emoji),
+    <span class="ck">FOREIGN</span> <span class="ck">KEY</span> (session_id, batch_seq) <span class="ck">REFERENCES</span> reaction_batch
+);</div>
+
+    <h3 class="reveal">What we serve, and what we measure</h3>
+    <p class="reveal">The snapshot is keyed by revision because the same media second is published many times as it fills in. The render receipt is the SLO's raw material: a 1% sample of clients reporting which second's mood they showed and where their own player was at that instant.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — SNAPSHOTS AND RECEIPTS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/12_serving.sql"><span class="cl">-- What we actually broadcast. A media second's mood keeps growing as viewers</span>
+<span class="cl">-- further behind reach it, so a snapshot is a REVISION: what was known about</span>
+<span class="cl">-- second media_sec as of published_at. Screens never render a stale one.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">mood_snapshot</span> (
+    match_id        <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">REFERENCES</span> dim_match,
+    region          <span class="ck">TEXT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,                  <span class="cl">-- 'ALL' for the merged view</span>
+    media_sec       <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    revision        <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    published_at    <span class="ck">TIMESTAMPTZ</span>  <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    voices          <span class="ck">INT</span>          <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (voices &gt;= 0),
+    is_partial      <span class="ck">BOOLEAN</span>      <span class="ck">NOT</span> <span class="ck">NULL</span>,                  <span class="cl">-- a region missing from the merge</span>
+    shares          <span class="ck">JSONB</span>        <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (match_id, region, media_sec, revision)
+);
+
+<span class="cl">-- 1% of clients report what they rendered and where their player was.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">render_receipt</span> (
+    session_id       <span class="ck">UUID</span>        <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    match_id         <span class="ck">INT</span>         <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    snapshot_media_sec <span class="ck">INT</span>       <span class="ck">NOT</span> <span class="ck">NULL</span>,     <span class="cl">-- the second the mood describes</span>
+    player_media_ms  <span class="ck">BIGINT</span>      <span class="ck">NOT</span> <span class="ck">NULL</span>,     <span class="cl">-- where THIS viewer's player was at render</span>
+    rendered_at      <span class="ck">TIMESTAMPTZ</span> <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (session_id, rendered_at)
+);
+
+<span class="ck">CREATE</span> <span class="ck">INDEX</span> <span class="ck">ON</span> <span class="cf">reaction_batch</span> (match_id, media_sec);
+<span class="ck">CREATE</span> <span class="ck">INDEX</span> <span class="ck">ON</span> <span class="cf">reaction_batch</span> (account_id);</div>
+
+    <div class="note reveal">
+      <div class="nh">Why the voice is a view, not a table</div>
+      <p>One person, one voice per media second, and the dominant emoji of that second is the voice. Eleven taps on 🔥 is one fire voice with intensity 10, not eleven votes. Headcount and intensity are different questions — "how many people feel this" and "how strongly" — and conflating them hands the mood to whoever has the fastest thumb or the best script. The voice is derived, so the rule can change without rewriting history.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="ingest">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 05 — INGEST</span>Batch on the phone, decide at the edge, never count twice</h2>
+    <p class="lede reveal">Three small programs carry the inbound side: the client batcher that groups taps by the second the viewer was watching, the edge's admission decision, and the idempotent write. Each is short; the judgement is in what they refuse to do.</p>
+
+    <h3 class="reveal">1 · The client — group by media second, keep the sequence on retry</h3>
+    <p class="reveal">The app knows where its player is, so it is the only place the media clock is free. It groups taps by that second, sends at most once a wall-clock second, and keeps <span class="m">batch_seq</span> unchanged through every retry. It gives up after five attempts, because this is a mood, not money.</p>
+    <div class="codelabel">PYTHON · TESTED (test_reaction.py) — CLIENT BATCHER</div>
+    <div class="codeblock" tabindex="0" data-src="py/coalescer.py"><span class="cs">"""Client side (shown in Python; the app runs the same logic natively).
+
+Taps are grouped by the MEDIA second the viewer was watching, not by wall
+time, and leave the phone at most once per second. A batch keeps its
+batch_seq through every retry, so the server can drop duplicates.
+"""</span>
+<span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass, field
+
+MAX_TAPS_PER_EMOJI = 50
+
+
+@dataclass
+<span class="ck">class</span> <span class="cf">Batch</span>:
+    batch_seq: int
+    media_sec: int
+    taps: dict[str, int]
+    attempts: int = 0
+
+
+@dataclass
+<span class="ck">class</span> <span class="cf">Coalescer</span>:
+    session_id: str
+    _seq: int = 0
+    _open: dict[int, dict[str, int]] = field(default_factory=dict)   <span class="cl"># media_sec -&gt; taps</span>
+    _unacked: dict[int, Batch] = field(default_factory=dict)          <span class="cl"># batch_seq -&gt; batch</span>
+
+    <span class="ck">def</span> <span class="cf">tap</span>(self, emoji: str, player_media_ms: int) -&gt; <span class="ck">None</span>:
+        sec = player_media_ms // 1000            <span class="cl"># where the viewer IS, not what time it is</span>
+        bucket = self._open.setdefault(sec, {})
+        bucket[emoji] = min(bucket.get(emoji, 0) + 1, MAX_TAPS_PER_EMOJI)
+
+    <span class="ck">def</span> <span class="cf">flush</span>(self) -&gt; list[Batch]:
+        <span class="cs">"""Called once per wall-clock second. New batches, then any still unacked."""</span>
+        <span class="ck">for</span> sec <span class="ck">in</span> sorted(self._open):
+            self._seq += 1
+            self._unacked[self._seq] = Batch(self._seq, sec, self._open[sec])
+        self._open.clear()
+        due = sorted(self._unacked.values(), key=<span class="ck">lambda</span> b: b.batch_seq)
+        <span class="ck">for</span> b <span class="ck">in</span> due:
+            b.attempts += 1
+        <span class="ck">return</span> [b <span class="ck">for</span> b <span class="ck">in</span> due <span class="ck">if</span> b.attempts &lt;= 5]   <span class="cl"># give up quietly: it is a mood, not money</span>
+
+    <span class="ck">def</span> <span class="cf">ack</span>(self, batch_seq: int) -&gt; <span class="ck">None</span>:
+        self._unacked.pop(batch_seq, <span class="ck">None</span>)</div>
+
+    <h3 class="reveal">2 · Admission — two buckets, and the order matters</h3>
+    <p class="reveal">Token buckets per account and per device fingerprint, so a farm of fresh accounts on one device still shares one bucket. Anonymous batches are stored for analysis and never counted. A batch with more than sixteen taps in a second is not a thumb. The order of the two checks is a design decision the tests pin down: a throttled account must not spend the tokens its device shares with others.</p>
+    <div class="codelabel">PYTHON · TESTED — EDGE ADMISSION</div>
+    <div class="codeblock" tabindex="0" data-src="py/admission.py"><span class="cs">"""Edge admission: decide before anything is counted.
+
+Token buckets per account AND per device fingerprint (a farm of fresh
+accounts on one device still shares one bucket). In production the buckets
+live in the edge node's memory, keyed so a session always lands on the same
+node; nothing here needs a network round-trip on the hot path.
+"""</span>
+<span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass
+<span class="ck">from</span> typing <span class="ck">import</span> Callable
+
+MAX_TAPS_PER_BATCH = 16          <span class="cl"># more than this in one second is not a thumb</span>
+
+
+@dataclass
+<span class="ck">class</span> <span class="cf">TokenBucket</span>:
+    rate: float                  <span class="cl"># tokens per second</span>
+    burst: float
+    tokens: float = -1.0
+    updated: float = 0.0
+
+    <span class="ck">def</span> <span class="cf">take</span>(self, now: float) -&gt; bool:
+        <span class="ck">if</span> self.tokens &lt; 0:
+            self.tokens, self.updated = self.burst, now
+        self.tokens = min(self.burst, self.tokens + (now - self.updated) * self.rate)
+        self.updated = now
+        <span class="ck">if</span> self.tokens &gt;= 1:
+            self.tokens -= 1
+            <span class="ck">return</span> <span class="ck">True</span>
+        <span class="ck">return</span> <span class="ck">False</span>
+
+
+<span class="ck">class</span> <span class="cf">Admission</span>:
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, clock: Callable[[], float],
+                 per_account=(2.0, 4.0), per_device=(6.0, 12.0)):
+        self.clock = clock
+        self.per_account, self.per_device = per_account, per_device
+        self.accounts: dict[int, TokenBucket] = {}
+        self.devices: dict[str, TokenBucket] = {}
+
+    <span class="ck">def</span> <span class="cf">decide</span>(self, account_id: int | <span class="ck">None</span>, device_fp: str, taps: dict[str, int]) -&gt; str:
+        <span class="ck">if</span> account_id <span class="ck">is</span> <span class="ck">None</span>:
+            <span class="ck">return</span> <span class="cs">"unauthenticated"</span>     <span class="cl"># stored for analysis, never counted in the mood</span>
+        <span class="ck">if</span> sum(taps.values()) &gt; MAX_TAPS_PER_BATCH:
+            <span class="ck">return</span> <span class="cs">"throttled"</span>
+        now = self.clock()
+        acct = self.accounts.setdefault(account_id, TokenBucket(*self.per_account))
+        dev = self.devices.setdefault(device_fp, TokenBucket(*self.per_device))
+        <span class="cl"># both must have a token. Account first: an account that is already</span>
+        <span class="cl"># throttled must not spend the tokens its device shares with others.</span>
+        <span class="ck">if</span> <span class="ck">not</span> acct.take(now) <span class="ck">or</span> <span class="ck">not</span> dev.take(now):
+            <span class="ck">return</span> <span class="cs">"throttled"</span>
+        <span class="ck">return</span> <span class="cs">"admitted"</span></div>
+
+    <h3 class="reveal">3 · The write — idempotent by construction</h3>
+    <p class="reveal">Retries are certain: phones lose signal on trains. The batch's primary key is the idempotency key, so the second arrival inserts nothing and the tap rows, chained in the same statement, are never written twice. The function returns whether anything was stored, which is how the pipeline counts duplicates without a second table.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — IDEMPOTENT INGEST</div>
+    <div class="codeblock" tabindex="0" data-src="sql/20_ingest.sql"><span class="cl">-- Idempotent ingest. The stream sink calls this once per client batch.</span>
+<span class="cl">-- A retry carries the same (session_id, batch_seq), so the second call</span>
+<span class="cl">-- inserts nothing and returns FALSE: duplicates cannot inflate the mood.</span>
+<span class="ck">CREATE</span> <span class="ck">FUNCTION</span> <span class="cf">ingest_batch</span>(p <span class="ck">JSONB</span>) <span class="ck">RETURNS</span> <span class="ck">BOOLEAN</span>
+<span class="ck">LANGUAGE</span> sql <span class="ck">AS</span> <span class="ck">$$</span>
+    <span class="ck">WITH</span> b <span class="ck">AS</span> (
+        <span class="ck">INSERT</span> <span class="ck">INTO</span> <span class="cf">reaction_batch</span> (session_id, batch_seq, account_id, device_fp, asn,
+                                    region, match_id, media_sec,
+                                    client_sent_at, edge_received_at, admission)
+        <span class="ck">VALUES</span> ((p-&gt;&gt;<span class="cs">'session_id'</span>)::uuid, (p-&gt;&gt;<span class="cs">'batch_seq'</span>)::int,
+                (p-&gt;&gt;<span class="cs">'account_id'</span>)::bigint, p-&gt;&gt;<span class="cs">'device_fp'</span>, (p-&gt;&gt;<span class="cs">'asn'</span>)::int,
+                p-&gt;&gt;<span class="cs">'region'</span>, (p-&gt;&gt;<span class="cs">'match_id'</span>)::int, (p-&gt;&gt;<span class="cs">'media_sec'</span>)::int,
+                (p-&gt;&gt;<span class="cs">'client_sent_at'</span>)::timestamptz, (p-&gt;&gt;<span class="cs">'edge_received_at'</span>)::timestamptz,
+                p-&gt;&gt;<span class="cs">'admission'</span>)
+        <span class="ck">ON</span> <span class="ck">CONFLICT</span> (session_id, batch_seq) <span class="ck">DO</span> <span class="ck">NOTHING</span>
+        <span class="ck">RETURNING</span> session_id, batch_seq
+    ), t <span class="ck">AS</span> (
+        <span class="ck">INSERT</span> <span class="ck">INTO</span> <span class="cf">reaction_tap</span> (session_id, batch_seq, emoji, taps)
+        <span class="ck">SELECT</span> b.session_id, b.batch_seq, e.key, <span class="cf">LEAST</span>(e.value::int, 50)
+        <span class="ck">FROM</span> b <span class="ck">CROSS</span> <span class="ck">JOIN</span> <span class="cf">jsonb_each_text</span>(p-&gt;<span class="cs">'taps'</span>) <span class="ck">AS</span> e
+        <span class="ck">RETURNING</span> 1
+    )
+    <span class="ck">SELECT</span> <span class="ck">EXISTS</span> (<span class="ck">SELECT</span> 1 <span class="ck">FROM</span> b);
+<span class="ck">$$</span>;</div>
+    <div class="reslabel">Result · every synthetic payload, retries included, through ingest_batch()</div>
+    <pre class="result" tabindex="0" data-src="results/20_ingest.txt"> payloads received | stored | retries ignored
+-------------------+--------+----------------
+            47,874 | 46,787 |           1,087</pre>
+    <p class="reveal">The verification goes further than the table: it then replays 500 stored batches with different tap contents and checks that not one tap row changed. Idempotency is a claim about the second call, so it is tested on the second call.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="aggregate">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 06 — AGGREGATION</span>Deltas, revisions, and the hot key that is not there</h2>
+    <p class="lede reveal">The aggregation is where the obvious answer spends its effort, and where this design spends almost none. The edge does the reduction; the aggregator adds up deltas; the publisher emits revisions. The hard parts are the hot key and the clock, and both are settled before a stream processor is chosen.</p>
+
+    <h3 class="reveal">The hot partition, measured</h3>
+    <p class="reveal">Key the stream by match and every reaction in the country lands on one partition — a hot partition with a cricket score. Key it by session and the same load spreads. The query below hashes the same synthetic batches both ways into 64 partitions.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — PARTITION SKEW BY KEY</div>
+    <div class="codeblock" tabindex="0" data-src="sql/62_skew.sql"><span class="cl">-- The hot partition, measured. Same batches, two candidate keys, 64 partitions.</span>
+<span class="cl">-- Keyed by match, one partition takes everything; keyed by session, load spreads.</span>
+<span class="ck">WITH</span> k <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="cf">abs</span>(<span class="cf">hashtext</span>(match_id::text))   % 64 <span class="ck">AS</span> by_match,
+           <span class="cf">abs</span>(<span class="cf">hashtext</span>(session_id::text)) % 64 <span class="ck">AS</span> by_session
+    <span class="ck">FROM</span> reaction_batch
+), load <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="cs">'match_id'</span> <span class="ck">AS</span> key, by_match <span class="ck">AS</span> p, <span class="cf">count</span>(*) <span class="ck">AS</span> n <span class="ck">FROM</span> k <span class="ck">GROUP</span> <span class="ck">BY</span> by_match
+    <span class="ck">UNION</span> <span class="ck">ALL</span>
+    <span class="ck">SELECT</span> <span class="cs">'session_id'</span>, by_session, <span class="cf">count</span>(*) <span class="ck">FROM</span> k <span class="ck">GROUP</span> <span class="ck">BY</span> by_session
+)
+<span class="ck">SELECT</span> key,
+       <span class="cf">count</span>(*)                                  <span class="ck">AS</span> partitions_used,
+       <span class="cf">max</span>(n)                                    <span class="ck">AS</span> hottest,
+       <span class="cf">round</span>(<span class="cf">max</span>(n) / (<span class="cf">sum</span>(n) / 64.0), 1)        <span class="ck">AS</span> hottest_vs_fair_share
+<span class="ck">FROM</span> load
+<span class="ck">GROUP</span> <span class="ck">BY</span> key
+<span class="ck">ORDER</span> <span class="ck">BY</span> key;</div>
+    <div class="reslabel">Result · synthetic batches</div>
+    <pre class="result" tabindex="0" data-src="results/62_skew.txt">    key     | partitions_used | hottest | hottest_vs_fair_share 
+------------+-----------------+---------+-----------------------
+ match_id   |               1 |   46787 |                  64.0
+ session_id |              64 |    1047 |                   1.4</pre>
+
+    <h3 class="reveal">Edge pre-aggregation — additive deltas</h3>
+    <p class="reveal">Sessions are routed to edge nodes by a hash of the session, so per-session state — dedup and one voice per second — is local. Every 250 ms a node flushes <em>deltas</em>: counts since the last flush, keyed by match, region, media second and emoji. Deltas are additive, so any number of nodes merge by summing, in any order, and a media second can keep receiving revisions while slower viewers reach it. A batch more than ninety media seconds behind the newest is counted in the statistics and kept out of the mood.</p>
+    <div class="codelabel">PYTHON · TESTED — EDGE PRE-AGGREGATOR</div>
+    <div class="codeblock" tabindex="0" data-src="py/preagg.py"><span class="cs">"""Edge pre-aggregation: millions of batches in, thousands of tiny records out.
+
+Sessions are routed to edge nodes by hash(session_id), so the per-session
+state (dedup and one-voice-per-second) is local. Every 250 ms the node
+flushes DELTAS — counts since the last flush — keyed by
+(match, region, media_sec, emoji). Deltas are additive, so any number of
+nodes merge by summing, in any order, and a media second can keep receiving
+revisions while viewers who are further behind reach it.
+"""</span>
+<span class="ck">from</span> collections <span class="ck">import</span> Counter, OrderedDict
+<span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass
+
+ALLOWED_LATENESS_S = 90          <span class="cl"># the slowest stream we serve, plus margin</span>
+SEEN_CAPACITY = 2_000_000        <span class="cl"># (session, batch_seq) pairs remembered for dedup</span>
+
+
+@dataclass(frozen=<span class="ck">True</span>)
+<span class="ck">class</span> <span class="cf">Delta</span>:
+    match_id: int
+    region: str
+    media_sec: int
+    emoji: str
+    voices: int
+
+
+<span class="ck">class</span> <span class="cf">PreAggregator</span>:
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, seen_capacity: int = SEEN_CAPACITY):
+        self.counts: Counter = Counter()
+        self.seen_batches: OrderedDict = OrderedDict()   <span class="cl"># bounded LRU</span>
+        self.voiced: OrderedDict = OrderedDict()         <span class="cl"># (session, match, media_sec)</span>
+        self.capacity = seen_capacity
+        self.newest_sec: dict[int, int] = {}
+        self.stats = Counter()
+
+    <span class="ck">def</span> <span class="cf">_remember</span>(self, lru: OrderedDict, key) -&gt; bool:
+        <span class="cs">"""True if key was new. Oldest keys fall out when the LRU is full."""</span>
+        <span class="ck">if</span> key <span class="ck">in</span> lru:
+            lru.move_to_end(key)
+            <span class="ck">return</span> <span class="ck">False</span>
+        lru[key] = <span class="ck">None</span>
+        <span class="ck">if</span> len(lru) &gt; self.capacity:
+            lru.popitem(last=<span class="ck">False</span>)
+        <span class="ck">return</span> <span class="ck">True</span>
+
+    <span class="ck">def</span> <span class="cf">accept</span>(self, b: dict) -&gt; <span class="ck">None</span>:
+        <span class="ck">if</span> b[<span class="cs">"admission"</span>] != <span class="cs">"admitted"</span>:
+            self.stats[b[<span class="cs">"admission"</span>]] += 1
+            <span class="ck">return</span>
+        <span class="ck">if</span> <span class="ck">not</span> self._remember(self.seen_batches, (b[<span class="cs">"session_id"</span>], b[<span class="cs">"batch_seq"</span>])):
+            self.stats[<span class="cs">"duplicate"</span>] += 1                  <span class="cl"># a retry: already counted</span>
+            <span class="ck">return</span>
+        m, sec = b[<span class="cs">"match_id"</span>], b[<span class="cs">"media_sec"</span>]
+        newest = self.newest_sec[m] = max(self.newest_sec.get(m, sec), sec)
+        <span class="ck">if</span> sec &lt; newest - ALLOWED_LATENESS_S:
+            self.stats[<span class="cs">"too_late"</span>] += 1                   <span class="cl"># counted in stats, not in the mood</span>
+            <span class="ck">return</span>
+        <span class="ck">if</span> <span class="ck">not</span> self._remember(self.voiced, (b[<span class="cs">"session_id"</span>], m, sec)):
+            self.stats[<span class="cs">"second_voice"</span>] += 1               <span class="cl"># one voice per person per second</span>
+            <span class="ck">return</span>
+        emoji = max(sorted(b[<span class="cs">"taps"</span>]), key=<span class="ck">lambda</span> e: b[<span class="cs">"taps"</span>][e])   <span class="cl"># dominant, ties by name</span>
+        self.counts[(m, b[<span class="cs">"region"</span>], sec, emoji)] += 1
+        self.stats[<span class="cs">"voiced"</span>] += 1
+
+    <span class="ck">def</span> <span class="cf">flush</span>(self) -&gt; list[Delta]:
+        out = [Delta(m, r, s, e, n) <span class="ck">for</span> (m, r, s, e), n <span class="ck">in</span> sorted(self.counts.items())]
+        self.counts.clear()
+        <span class="ck">return</span> out
+
+
+<span class="ck">def</span> <span class="cf">merge</span>(*node_deltas: list[Delta]) -&gt; Counter:
+    <span class="cs">"""The aggregator's whole job, given deltas: add them up."""</span>
+    total: Counter = Counter()
+    <span class="ck">for</span> deltas <span class="ck">in</span> node_deltas:
+        <span class="ck">for</span> d <span class="ck">in</span> deltas:
+            total[(d.match_id, d.region, d.media_sec, d.emoji)] += d.voices
+    <span class="ck">return</span> total</div>
+
+    <h3 class="reveal">The same job as Flink SQL</h3>
+    <p class="reveal">If the organisation already runs Flink well, the aggregation is one job. Note what is absent: no window and no watermark. A window would hold each second's result until its slowest viewer arrived — thirty seconds or more — which defeats the purpose. An updating <span class="m">GROUP BY</span> emits a change whenever a count changes, an upsert sink turns every change into a revision, keep-first deduplication enforces one voice per person-second, and two-phase aggregation does on the cluster what the edge does in the Python above.</p>
+    <div class="codelabel">FLINK SQL · NOT EXECUTED HERE — CHECK AGAINST YOUR FLINK VERSION</div>
+    <div class="codeblock" tabindex="0" data-src="flink/mood.sql"><span class="cl">-- The live aggregation as one Flink SQL job. NOT EXECUTED for this page:</span>
+<span class="cl">-- syntax follows the Apache Flink SQL documentation; check it against your</span>
+<span class="cl">-- Flink version. Input is the edge's voice stream (one row per person per</span>
+<span class="cl">-- media second, dominant emoji already chosen).</span>
+<span class="ck">SET</span> <span class="cs">'table.exec.mini-batch.enabled'</span> = <span class="cs">'true'</span>;           <span class="cl">-- buffer, then update state once</span>
+<span class="ck">SET</span> <span class="cs">'table.exec.mini-batch.allow-latency'</span> = <span class="cs">'250 ms'</span>;
+<span class="ck">SET</span> <span class="cs">'table.exec.mini-batch.size'</span> = <span class="cs">'5000'</span>;
+<span class="ck">SET</span> <span class="cs">'table.optimizer.agg-phase-strategy'</span> = <span class="cs">'TWO_PHASE'</span>; <span class="cl">-- local pre-aggregate: defuses hot keys</span>
+<span class="ck">SET</span> <span class="cs">'table.exec.state.ttl'</span> = <span class="cs">'3 min'</span>;                   <span class="cl">-- forget seconds nobody can still reach</span>
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">voice_src</span> (
+    session_id   <span class="ck">STRING</span>,
+    batch_seq    <span class="ck">INT</span>,
+    match_id     <span class="ck">INT</span>,
+    region       <span class="ck">STRING</span>,
+    program_ms   <span class="ck">BIGINT</span>,       <span class="cl">-- EXT-X-PROGRAM-DATE-TIME of the frame being watched</span>
+    emoji        <span class="ck">STRING</span>,
+    media_sec <span class="ck">AS</span> program_ms / 1000,
+    pt <span class="ck">AS</span> <span class="cf">PROCTIME</span>()
+) <span class="ck">WITH</span> (
+    <span class="cs">'connector'</span> = <span class="cs">'kafka'</span>,
+    <span class="cs">'topic'</span> = <span class="cs">'reaction-voices'</span>,
+    <span class="cs">'properties.bootstrap.servers'</span> = <span class="cs">'kafka:9092'</span>,
+    <span class="cs">'properties.group.id'</span> = <span class="cs">'mood'</span>,
+    <span class="cs">'scan.startup.mode'</span> = <span class="cs">'latest-offset'</span>,
+    <span class="cs">'format'</span> = <span class="cs">'json'</span>
+);
+
+<span class="cl">-- An upsert sink: every change to a (second, emoji) count is a new revision.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">mood_revision</span> (
+    match_id   <span class="ck">INT</span>,
+    region     <span class="ck">STRING</span>,
+    media_sec  <span class="ck">BIGINT</span>,
+    emoji      <span class="ck">STRING</span>,
+    voices     <span class="ck">BIGINT</span>,
+    <span class="ck">PRIMARY</span> <span class="ck">KEY</span> (match_id, region, media_sec, emoji) <span class="ck">NOT</span> <span class="ck">ENFORCED</span>
+) <span class="ck">WITH</span> (
+    <span class="cs">'connector'</span> = <span class="cs">'upsert-kafka'</span>,
+    <span class="cs">'topic'</span> = <span class="cs">'mood-revisions'</span>,
+    <span class="cs">'properties.bootstrap.servers'</span> = <span class="cs">'kafka:9092'</span>,
+    <span class="cs">'key.format'</span> = <span class="cs">'json'</span>,
+    <span class="cs">'value.format'</span> = <span class="cs">'json'</span>
+);
+
+<span class="cl">-- No window and no watermark: a window would hold the result until the</span>
+<span class="cl">-- slowest viewer arrived. An updating GROUP BY emits as voices arrive, and</span>
+<span class="cl">-- the state TTL bounds how long a second stays open.</span>
+<span class="ck">INSERT</span> <span class="ck">INTO</span> mood_revision
+<span class="ck">SELECT</span> match_id, region, media_sec, emoji, <span class="cf">COUNT</span>(*) <span class="ck">AS</span> voices
+<span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> *,
+           <span class="cf">ROW_NUMBER</span>() <span class="ck">OVER</span> (<span class="ck">PARTITION</span> <span class="ck">BY</span> session_id, media_sec <span class="ck">ORDER</span> <span class="ck">BY</span> pt <span class="ck">ASC</span>) <span class="ck">AS</span> rn
+    <span class="ck">FROM</span> voice_src
+)
+<span class="ck">WHERE</span> rn = 1                       <span class="cl">-- keep-first deduplication: one voice per person-second</span>
+<span class="ck">GROUP</span> <span class="ck">BY</span> match_id, region, media_sec, emoji;</div>
+
+    <h3 class="reveal">Voices, and the mood as of a moment</h3>
+    <p class="reveal">In the warehouse the same rules are views. The voice view applies one-voice-per-second; the function computes a second's mood <em>as known at a wall-clock instant</em> — the exact question the publisher asks on every tick.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — ONE VOICE PER PERSON-SECOND</div>
+    <div class="codeblock" tabindex="0" data-src="sql/30_voice.sql"><span class="cl">-- One person, one voice per media second. Taps measure intensity, not headcount:</span>
+<span class="cl">-- eleven taps on fire is ONE fire voice with intensity 10 (capped).</span>
+<span class="ck">CREATE</span> <span class="ck">VIEW</span> reaction_voice <span class="ck">AS</span>
+<span class="ck">SELECT</span> <span class="ck">DISTINCT</span> <span class="ck">ON</span> (b.session_id, b.match_id, b.media_sec)
+       b.match_id, b.media_sec, b.region, b.session_id, b.account_id,
+       b.device_fp, b.asn, b.edge_received_at, t.emoji,
+       <span class="cf">LEAST</span>(t.taps, 10) <span class="ck">AS</span> intensity
+<span class="ck">FROM</span> reaction_batch b
+<span class="ck">JOIN</span> reaction_tap   t <span class="ck">USING</span> (session_id, batch_seq)
+<span class="ck">WHERE</span> b.admission = <span class="cs">'admitted'</span>
+<span class="ck">ORDER</span> <span class="ck">BY</span> b.session_id, b.match_id, b.media_sec, t.taps <span class="ck">DESC</span>, t.emoji;</div>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — THE MOOD AS OF A MOMENT</div>
+    <div class="codeblock" tabindex="0" data-src="sql/31_mood_as_of.sql"><span class="cl">-- The mood of media second m, AS KNOWN at wall time p_as_of: voices over the</span>
+<span class="cl">-- five media seconds ending at m that had reached the edge by then. Called by</span>
+<span class="cl">-- the publisher on every tick, so the same second gets fuller revisions as</span>
+<span class="cl">-- viewers who are further behind reach it.</span>
+<span class="ck">CREATE</span> <span class="ck">FUNCTION</span> <span class="cf">mood_as_of</span>(p_match <span class="ck">INT</span>, p_sec <span class="ck">INT</span>, p_as_of <span class="ck">TIMESTAMPTZ</span>)
+<span class="ck">RETURNS</span> <span class="ck">TABLE</span> (emoji <span class="ck">TEXT</span>, voices <span class="ck">BIGINT</span>, share <span class="ck">NUMERIC</span>)
+<span class="ck">LANGUAGE</span> sql <span class="ck">STABLE</span> <span class="ck">AS</span> <span class="ck">$$</span>
+    <span class="ck">SELECT</span> v.emoji, <span class="cf">count</span>(*),
+           <span class="cf">round</span>(<span class="cf">count</span>(*)::numeric / <span class="cf">sum</span>(<span class="cf">count</span>(*)) <span class="ck">OVER</span> (), 3)
+    <span class="ck">FROM</span> reaction_voice v
+    <span class="ck">WHERE</span> v.match_id = p_match
+      <span class="ck">AND</span> v.media_sec <span class="ck">BETWEEN</span> p_sec - 4 <span class="ck">AND</span> p_sec
+      <span class="ck">AND</span> v.edge_received_at &lt;= p_as_of
+    <span class="ck">GROUP</span> <span class="ck">BY</span> v.emoji
+<span class="ck">$$</span>;</div>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — PUBLISHING REVISIONS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/32_publish.sql"><span class="cl">-- Publish three revisions of the second right after the six (media 125),</span>
+<span class="cl">-- at 3, 10 and 30 seconds of wall time after it was first broadcast.</span>
+<span class="ck">INSERT</span> <span class="ck">INTO</span> <span class="cf">mood_snapshot</span> (match_id, region, media_sec, revision, published_at,
+                           voices, is_partial, shares)
+<span class="ck">SELECT</span> 1, <span class="cs">'ALL'</span>, 129, r.revision, r.as_of,
+       <span class="cf">COALESCE</span>(<span class="cf">sum</span>(m.voices), 0)::int, false,
+       <span class="cf">COALESCE</span>(<span class="cf">jsonb_object_agg</span>(m.emoji, m.share) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> m.emoji <span class="ck">IS</span> <span class="ck">NOT</span> <span class="ck">NULL</span>), <span class="cs">'{}'</span>)
+<span class="ck">FROM</span> (<span class="ck">VALUES</span> (1, 3), (2, 10), (3, 30)) <span class="ck">AS</span> <span class="cf">r0</span>(revision, lag_s)
+<span class="ck">CROSS</span> <span class="ck">JOIN</span> <span class="ck">LATERAL</span> (
+    <span class="ck">SELECT</span> r0.revision,
+           d.starts_at + <span class="cf">make_interval</span>(secs =&gt; 129 + r0.lag_s) <span class="ck">AS</span> as_of
+    <span class="ck">FROM</span> dim_match d <span class="ck">WHERE</span> d.match_id = 1) <span class="ck">AS</span> r
+<span class="ck">LEFT</span> <span class="ck">JOIN</span> <span class="ck">LATERAL</span> <span class="cf">mood_as_of</span>(1, 129, r.as_of) <span class="ck">AS</span> m <span class="ck">ON</span> true
+<span class="ck">GROUP</span> <span class="ck">BY</span> r.revision, r.as_of;</div>
+    <div class="reslabel">Result · three revisions of media second 129, four seconds after the six</div>
+    <pre class="result" tabindex="0" data-src="results/32_publish_view.txt"> revision | published | voices |                            shares                             
+----------+-----------+--------+---------------------------------------------------------------
+        1 | 14:02:12  |    170 | {"clap": 0.218, "fire": 0.659, "pray": 0.047, "shock": 0.076}
+        2 | 14:02:19  |   1740 | {"clap": 0.254, "fire": 0.630, "pray": 0.041, "shock": 0.075}
+        3 | 14:02:39  |   6225 | {"clap": 0.263, "fire": 0.610, "pray": 0.045, "shock": 0.082}</pre>
+    <p class="reveal">The shape of the mood was right from the first revision — fire ahead, clap second — while the headcount grew more than thirtyfold. That is the honest version of "real-time": the direction is available early, the magnitude arrives later, and a screen that shows the first revision should say how many voices it rests on.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="fanout">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 07 — FAN-OUT</span>One slot per socket, never a queue</h2>
+    <p class="lede reveal">Twelve and a half million messages a second is the real load, and the design choice that keeps it survivable is small: each connection holds one slot, not a queue. A new snapshot overwrites whatever the connection has not sent yet. A slow phone skips revisions instead of falling further and further behind.</p>
+
+    <p class="reveal">That is backpressure that drops the past rather than delaying the present — exactly right for a mood meter and exactly wrong for anything where each message matters, such as chat or payments. The publisher never awaits a socket, so one slow client blocks only itself. The client applies the last rule: never show a moment the player has not finished, and never pass an old mood off as live.</p>
+    <div class="codelabel">PYTHON · TESTED — LATEST-ONLY FAN-OUT AND THE CLIENT'S RENDER RULE</div>
+    <div class="codeblock" tabindex="0" data-src="py/fanout.py"><span class="cs">"""Fan-out: millions of open connections, one tiny snapshot each.
+
+Each connection holds ONE slot, not a queue. A new snapshot overwrites
+whatever the connection has not sent yet, so a slow phone skips revisions
+instead of falling further and further behind: backpressure that drops
+the past rather than delaying the present. (Right for a mood meter; it
+would be wrong for anything where each message matters.)
+"""</span>
+<span class="ck">import</span> asyncio
+<span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass
+
+
+@dataclass(frozen=<span class="ck">True</span>)
+<span class="ck">class</span> <span class="cf">Snapshot</span>:
+    match_id: int
+    media_sec: int
+    revision: int
+    shares: dict
+
+
+<span class="ck">class</span> <span class="cf">Connection</span>:
+    <span class="ck">def</span> <span class="cf">__init__</span>(self, send):
+        self._send = send                      <span class="cl"># async callable: the socket write</span>
+        self._latest: Snapshot | <span class="ck">None</span> = <span class="ck">None</span>
+        self._ready = asyncio.Event()
+        self.sent = 0
+        self.skipped = 0
+
+    <span class="ck">def</span> <span class="cf">offer</span>(self, snap: Snapshot) -&gt; <span class="ck">None</span>:
+        <span class="ck">if</span> self._latest <span class="ck">is</span> <span class="ck">not</span> <span class="ck">None</span>:
+            self.skipped += 1                  <span class="cl"># overwritten before it could be sent</span>
+        self._latest = snap
+        self._ready.set()
+
+    <span class="ck">async</span> <span class="ck">def</span> <span class="cf">pump</span>(self) -&gt; <span class="ck">None</span>:
+        <span class="ck">while</span> <span class="ck">True</span>:
+            <span class="ck">await</span> self._ready.wait()
+            snap, self._latest = self._latest, <span class="ck">None</span>
+            self._ready.clear()
+            <span class="ck">await</span> self._send(snap)             <span class="cl"># a slow client blocks only itself</span>
+            self.sent += 1
+
+
+<span class="ck">class</span> <span class="cf">Hub</span>:
+    <span class="cs">"""One per edge process, per match. Region hubs subscribe to the merged feed."""</span>
+
+    <span class="ck">def</span> <span class="cf">__init__</span>(self):
+        self.connections: set[Connection] = set()
+
+    <span class="ck">def</span> <span class="cf">publish</span>(self, snap: Snapshot) -&gt; <span class="ck">None</span>:
+        <span class="ck">for</span> c <span class="ck">in</span> self.connections:             <span class="cl"># O(connections), no awaits: never blocks</span>
+            c.offer(snap)
+
+
+<span class="ck">def</span> <span class="cf">renderable</span>(snap: Snapshot, player_media_ms: int, max_age_ms: int = 5000) -&gt; str:
+    <span class="cs">"""The client's rule: never spoil, never pass stale off as live."""</span>
+    ends_ms = (snap.media_sec + 1) * 1000
+    <span class="ck">if</span> ends_ms &gt; player_media_ms:
+        <span class="ck">return</span> <span class="cs">"hold"</span>        <span class="cl"># describes a moment this viewer has not seen yet</span>
+    <span class="ck">if</span> player_media_ms - ends_ms &gt; max_age_ms:
+        <span class="ck">return</span> <span class="cs">"stale"</span>       <span class="cl"># show 'catching up', not old excitement as live</span>
+    <span class="ck">return</span> <span class="cs">"show"</span></div>
+
+    <div class="note reveal">
+      <div class="nh">What the test proves</div>
+      <p>Five revisions are published to a fast client and a slow one. The fast client receives all five. The slow client receives the first and the last, skips the rest, and <em>always ends on the newest</em>; received plus skipped equals published. The render rule holds a snapshot while the viewer is still inside the second it describes, shows it once that second is over, and marks it stale five seconds later.</p>
+    </div>
+
+    <p class="reveal">Two operational notes belong on the whiteboard. Reconnect storms after a regional blip are the fan-out tier's most dangerous moment, so clients reconnect with jittered backoff and are served the latest revision on connect rather than a backlog. And the hub tier is sized for the fan-out math, not the ingest math: a design that scales the stream processor and forgets the sockets has scaled the wrong thing.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="integrity">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 08 — INTEGRITY</span>A tap is a claim, not a fact</h2>
+    <p class="lede reveal">Every box so far treated a tap as a fact. It is a claim: someone, or something, would like you to believe the crowd feels this way. A script taps faster than any fan. A fan club can be asked to flood 😡 during a rival's innings. And a flood during the final over is a cheap way to knock over a highly visible feature.</p>
+
+    <p class="reveal">The synthetic match contains one scripted cluster: 180 new accounts on a single device fingerprint and network, sending 😡 every second for a minute of quiet play, perfectly on time. Three signals, each weak alone, are combined, and a session is excluded only on <strong>two independent signals</strong> — because a six makes an honest crowd synchronous too.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — THREE SIGNALS, TWO REQUIRED</div>
+    <div class="codeblock" tabindex="0" data-src="sql/50_integrity.sql"><span class="cl">-- Three signals, each weak alone. Computed BEFORE the mood is summed: once a</span>
+<span class="cl">-- scripted voice is in a total, only the raw batches can take it out again.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> session_integrity <span class="ck">AS</span>
+<span class="ck">WITH</span> cadence <span class="ck">AS</span> (            <span class="cl">-- humans jitter; scripts keep perfect time</span>
+    <span class="ck">SELECT</span> session_id,
+           <span class="cf">count</span>(*)                                   <span class="ck">AS</span> batches,
+           <span class="cf">stddev_samp</span>(gap_ms)                        <span class="ck">AS</span> gap_jitter_ms
+    <span class="ck">FROM</span> (
+        <span class="ck">SELECT</span> session_id,
+               <span class="cf">extract</span>(epoch <span class="ck">FROM</span> client_sent_at
+                   - <span class="cf">lag</span>(client_sent_at) <span class="ck">OVER</span> (<span class="ck">PARTITION</span> <span class="ck">BY</span> session_id
+                                               <span class="ck">ORDER</span> <span class="ck">BY</span> client_sent_at)) * 1000 <span class="ck">AS</span> gap_ms
+        <span class="ck">FROM</span> reaction_batch
+    ) g
+    <span class="ck">WHERE</span> gap_ms <span class="ck">IS</span> <span class="ck">NOT</span> <span class="ck">NULL</span>
+    <span class="ck">GROUP</span> <span class="ck">BY</span> session_id
+), fp_fanin <span class="ck">AS</span> (             <span class="cl">-- one device fingerprint, many "people"</span>
+    <span class="ck">SELECT</span> device_fp, <span class="cf">count</span>(<span class="ck">DISTINCT</span> session_id) <span class="ck">AS</span> sessions_on_fp
+    <span class="ck">FROM</span> reaction_batch
+    <span class="ck">GROUP</span> <span class="ck">BY</span> device_fp
+), s <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> <span class="ck">DISTINCT</span> <span class="ck">ON</span> (b.session_id)
+           b.session_id, b.account_id, b.device_fp, b.asn,
+           m.starts_at - a.created_at                 <span class="ck">AS</span> account_age
+    <span class="ck">FROM</span> reaction_batch b
+    <span class="ck">JOIN</span> dim_match m <span class="ck">USING</span> (match_id)
+    <span class="ck">LEFT</span> <span class="ck">JOIN</span> dim_account a <span class="ck">USING</span> (account_id)
+    <span class="ck">ORDER</span> <span class="ck">BY</span> b.session_id
+)
+<span class="ck">SELECT</span> s.session_id, s.asn,
+       <span class="cf">COALESCE</span>(c.batches &gt;= 20 <span class="ck">AND</span> c.gap_jitter_ms &lt; 5, false)  <span class="ck">AS</span> metronomic,
+       f.sessions_on_fp &gt;= 25                                   <span class="ck">AS</span> shared_device,
+       s.account_age &lt; interval <span class="cs">'1 day'</span>                         <span class="ck">AS</span> new_account,
+       <span class="cl">-- two independent signals, never one: a six makes honest crowds synchronous too</span>
+       ( (<span class="cf">COALESCE</span>(c.batches &gt;= 20 <span class="ck">AND</span> c.gap_jitter_ms &lt; 5, false))::int
+       + (f.sessions_on_fp &gt;= 25)::int
+       + (s.account_age &lt; interval <span class="cs">'1 day'</span>)::int ) &gt;= 2          <span class="ck">AS</span> excluded
+<span class="ck">FROM</span> s
+<span class="ck">JOIN</span> fp_fanin f <span class="ck">USING</span> (device_fp)
+<span class="ck">LEFT</span> <span class="ck">JOIN</span> cadence c <span class="ck">USING</span> (session_id);</div>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — WHAT EVERY DOWNSTREAM NUMBER READS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/52_counted_voice.sql"><span class="cl">-- What every downstream number reads: voices from sessions that passed integrity.</span>
+<span class="ck">CREATE</span> <span class="ck">VIEW</span> counted_voice <span class="ck">AS</span>
+<span class="ck">SELECT</span> v.*
+<span class="ck">FROM</span> reaction_voice v
+<span class="ck">JOIN</span> session_integrity i <span class="ck">USING</span> (session_id)
+<span class="ck">WHERE</span> <span class="ck">NOT</span> i.excluded;</div>
+
+    <p class="reveal">Then the minute the script ran, raw and cleaned. The cleaned view also applies a contribution cap: no network may exceed one and a half times its own normal share of voices in any window. A flat cap would punish the two or three ISPs that carry most of a country's mobile traffic; "normal" has to be measured, not assumed.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — THE ANGRY MINUTE, RAW AND CLEANED</div>
+    <div class="codeblock" tabindex="0" data-src="sql/51_mood_clean.sql"><span class="cl">-- The angry minute: media 60-119, a quiet passage of play. Raw versus cleaned.</span>
+<span class="cl">-- Then a contribution cap: no network may exceed 1.5x its OWN normal share of</span>
+<span class="cl">-- voices in any window. (A flat cap would punish the two ISPs that carry most</span>
+<span class="cl">-- of a country; "normal" is measured, not assumed.)</span>
+<span class="ck">WITH</span> clean <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> r.*
+    <span class="ck">FROM</span> reaction_voice r
+    <span class="ck">JOIN</span> session_integrity i <span class="ck">USING</span> (session_id)
+    <span class="ck">WHERE</span> r.match_id = 1 <span class="ck">AND</span> <span class="ck">NOT</span> i.excluded
+), baseline <span class="ck">AS</span> (                         <span class="cl">-- each network's share across the match</span>
+    <span class="ck">SELECT</span> asn, <span class="cf">count</span>(*)::numeric / <span class="cf">sum</span>(<span class="cf">count</span>(*)) <span class="ck">OVER</span> () <span class="ck">AS</span> normal_share
+    <span class="ck">FROM</span> clean <span class="ck">GROUP</span> <span class="ck">BY</span> asn
+), win <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> * <span class="ck">FROM</span> clean <span class="ck">WHERE</span> media_sec <span class="ck">BETWEEN</span> 60 <span class="ck">AND</span> 119
+), weighted <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> w.emoji,
+           <span class="cf">LEAST</span>(1.0, 1.5 * b.normal_share * (<span class="ck">SELECT</span> <span class="cf">count</span>(*) <span class="ck">FROM</span> win)
+                      / <span class="cf">count</span>(*) <span class="ck">OVER</span> (<span class="ck">PARTITION</span> <span class="ck">BY</span> w.asn))  <span class="ck">AS</span> weight
+    <span class="ck">FROM</span> win w <span class="ck">JOIN</span> baseline b <span class="ck">USING</span> (asn)
+)
+<span class="ck">SELECT</span> <span class="cs">'raw'</span> <span class="ck">AS</span> view, emoji,
+       <span class="cf">round</span>(100.0 * <span class="cf">count</span>(*) / <span class="cf">sum</span>(<span class="cf">count</span>(*)) <span class="ck">OVER</span> (), 1) <span class="ck">AS</span> pct
+<span class="ck">FROM</span> reaction_voice
+<span class="ck">WHERE</span> match_id = 1 <span class="ck">AND</span> media_sec <span class="ck">BETWEEN</span> 60 <span class="ck">AND</span> 119
+<span class="ck">GROUP</span> <span class="ck">BY</span> emoji
+<span class="ck">UNION</span> <span class="ck">ALL</span>
+<span class="ck">SELECT</span> <span class="cs">'cleaned + capped'</span>, emoji,
+       <span class="cf">round</span>(100.0 * <span class="cf">sum</span>(weight) / <span class="cf">sum</span>(<span class="cf">sum</span>(weight)) <span class="ck">OVER</span> (), 1)
+<span class="ck">FROM</span> weighted <span class="ck">GROUP</span> <span class="ck">BY</span> emoji
+<span class="ck">ORDER</span> <span class="ck">BY</span> view <span class="ck">DESC</span>, pct <span class="ck">DESC</span>;</div>
+    <div class="reslabel">Result · media seconds 60–119</div>
+    <pre class="result" tabindex="0" data-src="results/51_mood_clean.txt">       view       | emoji | pct  
+------------------+-------+------
+ raw              | angry | 76.0
+ raw              | clap  | 12.0
+ raw              | fire  |  6.9
+ raw              | pray  |  4.0
+ raw              | sad   |  1.1
+ cleaned + capped | clap  | 50.0
+ cleaned + capped | fire  | 28.8
+ cleaned + capped | pray  | 16.7
+ cleaned + capped | sad   |  4.6</pre>
+    <p class="reveal">On the synthetic data the rule excluded all 180 scripted sessions and none of the 3,000 genuine ones — a property <span class="m">verify.py</span> asserts, not one this page assumes. On real traffic the trade-off between missed scripts and wrongly excluded fans has to be measured and tuned; two-of-three is a starting rule, not a law.</p>
+
+    <h3 class="reveal">Participation is not sentiment</h3>
+    <p class="reveal">Even with perfect integrity, the meter measures only the people who chose to tap. The schoolteacher with her eyes shut is not in it, nor the student whose remote is in pieces. A mood meter is a weather vane, not a census: it shows which way expressed participation is blowing among self-selected users, not how a country feels. Label it that way in the product.</p>
+    <p class="reveal">And the display changes what it measures. In Salganik, Dodds and Watts' 2006 MusicLab experiment, people who could see what others had chosen produced more unequal and less predictable outcomes than those who could not. A mood meter broadcasts a social signal back to the crowd it is measuring. That makes it a feedback loop, and feedback loops deserve as much design attention as partitions.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="analytics">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 09 — ANALYTICS SQL</span>Interrogating the match, and the promise</h2>
+    <p class="lede reveal">The warehouse answers three kinds of question: what the crowd felt (the settled mood), whether the promise was kept (the SLO), and whether every batch is accounted for (conservation).</p>
+
+    <h3 class="reveal">The settled mood — a dense grid so a window means seconds</h3>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — SETTLED MOOD BY MEDIA SECOND</div>
+    <div class="codeblock" tabindex="0" data-src="sql/33_mood_settled.sql"><span class="cl">-- The settled mood, for analytics: every voice, however late it arrived.</span>
+<span class="ck">CREATE</span> <span class="ck">VIEW</span> mood_by_second <span class="ck">AS</span>
+<span class="ck">WITH</span> grid <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> m.match_id, s.media_sec, e.emoji
+    <span class="ck">FROM</span> dim_match m
+    <span class="ck">CROSS</span> <span class="ck">JOIN</span> <span class="cf">generate_series</span>(0, 194) <span class="ck">AS</span> <span class="cf">s</span>(media_sec)
+    <span class="ck">CROSS</span> <span class="ck">JOIN</span> <span class="cf">unnest</span>(ARRAY[<span class="cs">'fire'</span>,<span class="cs">'clap'</span>,<span class="cs">'pray'</span>,<span class="cs">'shock'</span>,<span class="cs">'sad'</span>,<span class="cs">'angry'</span>]) <span class="ck">AS</span> <span class="cf">e</span>(emoji)
+), per_sec <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> match_id, media_sec, emoji, <span class="cf">count</span>(*) <span class="ck">AS</span> voices
+    <span class="ck">FROM</span> reaction_voice
+    <span class="ck">GROUP</span> <span class="ck">BY</span> 1, 2, 3
+), windowed <span class="ck">AS</span> (
+    <span class="cl">-- the dense grid makes ROWS BETWEEN mean "seconds", not "rows that exist"</span>
+    <span class="ck">SELECT</span> g.match_id, g.media_sec, g.emoji,
+           <span class="cf">sum</span>(<span class="cf">COALESCE</span>(p.voices, 0)) <span class="ck">OVER</span> (
+               <span class="ck">PARTITION</span> <span class="ck">BY</span> g.match_id, g.emoji
+               <span class="ck">ORDER</span> <span class="ck">BY</span> g.media_sec
+               <span class="ck">ROWS</span> <span class="ck">BETWEEN</span> 4 <span class="ck">PRECEDING</span> <span class="ck">AND</span> <span class="ck">CURRENT</span> <span class="ck">ROW</span>) <span class="ck">AS</span> voices_5s
+    <span class="ck">FROM</span> grid g
+    <span class="ck">LEFT</span> <span class="ck">JOIN</span> per_sec p <span class="ck">USING</span> (match_id, media_sec, emoji)
+)
+<span class="ck">SELECT</span> match_id, media_sec, emoji, voices_5s,
+       <span class="cf">round</span>(voices_5s::numeric / <span class="cf">NULLIF</span>(<span class="cf">sum</span>(voices_5s) <span class="ck">OVER</span> w, 0), 3) <span class="ck">AS</span> share
+<span class="ck">FROM</span> windowed
+<span class="ck">WINDOW</span> w <span class="ck">AS</span> (<span class="ck">PARTITION</span> <span class="ck">BY</span> match_id, media_sec);</div>
+
+    <h3 class="reveal">How did the crowd answer each ball?</h3>
+    <p class="reveal">A range join on the media clock: voices in the ten seconds after each delivery, counted voices only. Before the integrity step, balls 1.5 to 2.2 — a quiet passage — came out "angry", because that was the scripted minute. After it, they read as what they were.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — REACTION PER BALL</div>
+    <div class="codeblock" tabindex="0" data-src="sql/40_ball_reactions.sql"><span class="cl">-- How did the crowd answer each ball? Voices in the ten media seconds after</span>
+<span class="cl">-- it was bowled — a range join on the media clock, never on wall time.</span>
+<span class="ck">SELECT</span> d.over_no || <span class="cs">'.'</span> || d.ball_no              <span class="ck">AS</span> ball,
+       d.outcome,
+       <span class="cf">count</span>(v.session_id)                         <span class="ck">AS</span> voices,
+       <span class="cf">mode</span>() <span class="ck">WITHIN</span> <span class="ck">GROUP</span> (<span class="ck">ORDER</span> <span class="ck">BY</span> v.emoji)      <span class="ck">AS</span> top_emoji,
+       <span class="cf">round</span>(<span class="cf">avg</span>(v.intensity), 1)                  <span class="ck">AS</span> avg_intensity
+<span class="ck">FROM</span> dim_delivery d
+<span class="ck">LEFT</span> <span class="ck">JOIN</span> counted_voice v
+       <span class="ck">ON</span> v.match_id = d.match_id
+      <span class="ck">AND</span> v.media_sec <span class="ck">BETWEEN</span> d.media_sec <span class="ck">AND</span> d.media_sec + 9
+<span class="ck">GROUP</span> <span class="ck">BY</span> d.over_no, d.ball_no, d.outcome
+<span class="ck">ORDER</span> <span class="ck">BY</span> d.over_no, d.ball_no;</div>
+    <div class="reslabel">Result · synthetic match</div>
+    <pre class="result" tabindex="0" data-src="results/40_ball_reactions.txt"> ball | outcome | voices | top_emoji | avg_intensity 
+------+---------+--------+-----------+---------------
+ 1.1  | dot     |    512 | clap      |           5.1
+ 1.2  | run     |    950 | clap      |           5.4
+ 1.3  | four    |   5650 | fire      |           5.3
+ 1.4  | dot     |    547 | clap      |           5.1
+ 1.5  | run     |    942 | clap      |           5.4
+ 1.6  | dot     |    483 | clap      |           5.1
+ 2.1  | run     |    903 | clap      |           5.3
+ 2.2  | dot     |    507 | clap      |           5.0
+ 2.3  | six     |  10046 | fire      |           5.4
+ 2.4  | run     |    937 | clap      |           5.3
+ 2.5  | wicket  |   8972 | sad       |           5.0
+ 2.6  | dot     |    498 | clap      |           5.2</pre>
+
+    <h3 class="reveal">The SLO, measured where the promise lives</h3>
+    <p class="reveal">Lag is measured on each viewer's own timeline: how far their player had moved past the end of the second the mood describes. Negative lag is a spoiler and is counted separately, because it must be zero whatever the percentiles say.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — FRESHNESS PERCENTILES AND SPOILERS</div>
+    <div class="codeblock" tabindex="0" data-src="sql/60_slo.sql"><span class="cl">-- The SLO, measured where the promise lives: in each viewer's own timeline.</span>
+<span class="cl">-- lag = how far the player had moved past the end of the second the mood</span>
+<span class="cl">-- describes. Negative lag = the mood described a moment the viewer had not</span>
+<span class="cl">-- seen yet: a spoiler. That count must be zero, whatever the percentiles say.</span>
+<span class="ck">WITH</span> r <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> player_media_ms - (snapshot_media_sec + 1) * 1000 <span class="ck">AS</span> lag_ms
+    <span class="ck">FROM</span> render_receipt
+    <span class="ck">WHERE</span> match_id = 1
+)
+<span class="ck">SELECT</span> <span class="cf">count</span>(*)                                                    <span class="ck">AS</span> receipts,
+       <span class="cf">percentile_cont</span>(0.50) <span class="ck">WITHIN</span> <span class="ck">GROUP</span> (<span class="ck">ORDER</span> <span class="ck">BY</span> lag_ms)::int    <span class="ck">AS</span> p50_ms,
+       <span class="cf">percentile_cont</span>(0.95) <span class="ck">WITHIN</span> <span class="ck">GROUP</span> (<span class="ck">ORDER</span> <span class="ck">BY</span> lag_ms)::int    <span class="ck">AS</span> p95_ms,
+       <span class="cf">percentile_cont</span>(0.99) <span class="ck">WITHIN</span> <span class="ck">GROUP</span> (<span class="ck">ORDER</span> <span class="ck">BY</span> lag_ms)::int    <span class="ck">AS</span> p99_ms,
+       <span class="cf">round</span>(100.0 * <span class="cf">avg</span>((lag_ms <span class="ck">BETWEEN</span> 0 <span class="ck">AND</span> 2000)::int), 2)      <span class="ck">AS</span> pct_within_2s,
+       <span class="cf">count</span>(*) <span class="ck">FILTER</span> (<span class="ck">WHERE</span> lag_ms &lt; 0)                           <span class="ck">AS</span> spoilers
+<span class="ck">FROM</span> r;</div>
+    <div class="reslabel">Result · synthetic render receipts</div>
+    <pre class="result" tabindex="0" data-src="results/60_slo.txt"> receipts | p50_ms | p95_ms | p99_ms | pct_within_2s | spoilers 
+----------+--------+--------+--------+---------------+----------
+    10879 |   1110 |   2087 |   3770 |         94.04 |        1</pre>
+    <p class="reveal">Read it as an on-call engineer would. The median is comfortable. The p95 is just over two seconds, so the promise as written is broken, narrowly, by a slow tail — and the "94% within two seconds" a dashboard might proudly display is the same fact in a kinder font. And there is one spoiler. One is not a rounding error; it is a viewer who was shown the crowd celebrating a six they had not yet seen, and it is the line that should page someone.</p>
+
+    <h3 class="reveal">Conservation — every batch accounted for</h3>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — THE FUNNEL</div>
+    <div class="codeblock" tabindex="0" data-src="sql/61_funnel.sql"><span class="cl">-- Conservation: every batch that reached the edge is accounted for, and no</span>
+<span class="cl">-- stage may report more than the stage before it.</span>
+<span class="ck">SELECT</span> stage, n <span class="ck">FROM</span> (
+    <span class="ck">SELECT</span> 1 <span class="ck">AS</span> step, <span class="cs">'batches stored (after dedup)'</span> <span class="ck">AS</span> stage, <span class="cf">count</span>(*) <span class="ck">AS</span> n <span class="ck">FROM</span> reaction_batch
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 2, <span class="cs">'  rejected: throttled'</span>,       <span class="cf">count</span>(*) <span class="ck">FROM</span> reaction_batch <span class="ck">WHERE</span> admission = <span class="cs">'throttled'</span>
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 3, <span class="cs">'  rejected: unauthenticated'</span>, <span class="cf">count</span>(*) <span class="ck">FROM</span> reaction_batch <span class="ck">WHERE</span> admission = <span class="cs">'unauthenticated'</span>
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 4, <span class="cs">'admitted'</span>,                    <span class="cf">count</span>(*) <span class="ck">FROM</span> reaction_batch <span class="ck">WHERE</span> admission = <span class="cs">'admitted'</span>
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 5, <span class="cs">'voices (one per person-second)'</span>, <span class="cf">count</span>(*) <span class="ck">FROM</span> reaction_voice
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 6, <span class="cs">'  excluded by integrity'</span>,     <span class="cf">count</span>(*) <span class="ck">FROM</span> reaction_voice v
+                                                       <span class="ck">JOIN</span> session_integrity i <span class="ck">USING</span> (session_id)
+                                                       <span class="ck">WHERE</span> i.excluded
+    <span class="ck">UNION</span> <span class="ck">ALL</span> <span class="ck">SELECT</span> 7, <span class="cs">'voices counted'</span>,              <span class="cf">count</span>(*) <span class="ck">FROM</span> counted_voice
+) f
+<span class="ck">ORDER</span> <span class="ck">BY</span> step;</div>
+    <div class="reslabel">Result · synthetic match</div>
+    <pre class="result" tabindex="0" data-src="results/61_funnel.txt">             stage              |   n   
+--------------------------------+-------
+ batches stored (after dedup)   | 46787
+   rejected: throttled          |   224
+   rejected: unauthenticated    |  2680
+ admitted                       | 43883
+ voices (one per person-second) | 43883
+   excluded by integrity        | 10800
+ voices counted                 | 33083</pre>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="money">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 10 — THE MONEY CONTRAST</span>The same boxes with money in them</h2>
+    <p class="lede reveal">For a mood meter, losing half a percent of reactions is invisible, and so is counting a few twice. Put money in the same boxes and every one of those tolerances becomes a defect. The same architecture that makes one business successful can make another bankrupt.</p>
+
+    <div class="tblwrap reveal" tabindex="0">
+    <table>
+      <tr><th>Dimension</th><th>Reaction mood</th><th>Payment platform</th></tr>
+      <tr><td>Unit of truth</td><td>The aggregate</td><td>Each individual transaction</td></tr>
+      <tr><td>Loss</td><td>Small, bounded, measured</td><td>No accepted payment may be lost</td></tr>
+      <tr><td>Duplicates</td><td>Bounded inflation tolerable</td><td>Prevented by design: idempotency keys, unique ids</td></tr>
+      <tr><td>Freshness</td><td>Seconds, staleness labelled</td><td>The decision is synchronous; reporting may lag</td></tr>
+      <tr><td>Under overload</td><td>Drop the past, keep the present</td><td>Refuse new work explicitly; never accept and lose</td></tr>
+      <tr><td>Audit</td><td>Usually none</td><td>Mandatory, durable, reconciled</td></tr>
+    </table>
+    </div>
+
+    <p class="reveal">Be precise about eventual consistency, because payments use it on purpose. Card authorisation and settlement complete at different times, which is why reconciliation exists at all. Dashboards, reports, fraud features and replicated balance views can lag, provided they say so. The decision cannot: the check that funds exist and the debit that consumes them, the uniqueness of a payment, the atomic pair of ledger entries. <strong>Eventual consistency is acceptable for knowing about money. It is unacceptable for moving it.</strong></p>
+
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — A LEDGER THAT REFUSES TO BE UNBALANCED</div>
+    <div class="codeblock" tabindex="0" data-src="sql/70_ledger.sql"><span class="cl">-- The same boxes with money in them. Here the record, not the aggregate, is</span>
+<span class="cl">-- the product. Double entry: every transaction's entries sum to zero, checked</span>
+<span class="cl">-- by the database at COMMIT, not by a nightly job.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">wallet</span> (
+    customer_id   <span class="ck">BIGINT</span>  <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    balance_minor <span class="ck">BIGINT</span>  <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (balance_minor &gt;= 0)
+);
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">payment_intent</span> (
+    intent_id        <span class="ck">BIGSERIAL</span>   <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    idempotency_key  <span class="ck">TEXT</span>        <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">UNIQUE</span>,     <span class="cl">-- ★ one charge per intent, forever</span>
+    order_id         <span class="ck">BIGINT</span>      <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    customer_id      <span class="ck">BIGINT</span>      <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">REFERENCES</span> wallet,
+    amount_minor     <span class="ck">BIGINT</span>      <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (amount_minor &gt; 0),
+    created_at       <span class="ck">TIMESTAMPTZ</span> <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">DEFAULT</span> <span class="cf">now</span>()
+);
+
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">ledger_entry</span> (
+    entry_id      <span class="ck">BIGSERIAL</span> <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    txn_id        <span class="ck">BIGINT</span>    <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">REFERENCES</span> <span class="cf">payment_intent</span> (intent_id),
+    account       <span class="ck">TEXT</span>      <span class="ck">NOT</span> <span class="ck">NULL</span>,                 <span class="cl">-- 'customer:42', 'merchant'</span>
+    amount_minor  <span class="ck">BIGINT</span>    <span class="ck">NOT</span> <span class="ck">NULL</span> <span class="ck">CHECK</span> (amount_minor &lt;&gt; 0)
+);
+
+<span class="ck">CREATE</span> <span class="ck">FUNCTION</span> <span class="cf">assert_balanced</span>() <span class="ck">RETURNS</span> trigger <span class="ck">LANGUAGE</span> plpgsql <span class="ck">AS</span> <span class="ck">$$</span>
+<span class="ck">BEGIN</span>
+    <span class="ck">IF</span> (<span class="ck">SELECT</span> <span class="cf">sum</span>(amount_minor) <span class="ck">FROM</span> ledger_entry <span class="ck">WHERE</span> txn_id = NEW.txn_id) &lt;&gt; 0 <span class="ck">THEN</span>
+        <span class="ck">RAISE</span> <span class="ck">EXCEPTION</span> <span class="cs">'txn % does not balance'</span>, NEW.txn_id;
+    <span class="ck">END</span> <span class="ck">IF</span>;
+    <span class="ck">RETURN</span> <span class="ck">NULL</span>;
+<span class="ck">END</span> <span class="ck">$$</span>;
+
+<span class="ck">CREATE</span> <span class="ck">CONSTRAINT</span> <span class="ck">TRIGGER</span> ledger_balances
+    <span class="ck">AFTER</span> <span class="ck">INSERT</span> <span class="ck">ON</span> ledger_entry
+    <span class="ck">DEFERRABLE</span> <span class="ck">INITIALLY</span> <span class="ck">DEFERRED</span>
+    <span class="ck">FOR</span> <span class="ck">EACH</span> <span class="ck">ROW</span> <span class="ck">EXECUTE</span> <span class="ck">FUNCTION</span> <span class="cf">assert_balanced</span>();</div>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — CHARGE EXACTLY ONCE</div>
+    <div class="codeblock" tabindex="0" data-src="sql/71_charge.sql"><span class="cl">-- Charge exactly once. A retry with the same key returns the original intent</span>
+<span class="cl">-- and moves no money; the same key with a different amount is a client bug,</span>
+<span class="cl">-- refused loudly. The funds check and the debit happen under one row lock.</span>
+<span class="ck">CREATE</span> <span class="ck">FUNCTION</span> <span class="cf">charge</span>(p_key <span class="ck">TEXT</span>, p_order <span class="ck">BIGINT</span>, p_customer <span class="ck">BIGINT</span>, p_amount <span class="ck">BIGINT</span>)
+<span class="ck">RETURNS</span> <span class="ck">BIGINT</span> <span class="ck">LANGUAGE</span> plpgsql <span class="ck">AS</span> <span class="ck">$$</span>
+<span class="ck">DECLARE</span>
+    v_id   <span class="ck">BIGINT</span>;
+    v_prev payment_intent%<span class="ck">ROWTYPE</span>;
+<span class="ck">BEGIN</span>
+    <span class="ck">INSERT</span> <span class="ck">INTO</span> <span class="cf">payment_intent</span> (idempotency_key, order_id, customer_id, amount_minor)
+    <span class="ck">VALUES</span> (p_key, p_order, p_customer, p_amount)
+    <span class="ck">ON</span> <span class="ck">CONFLICT</span> (idempotency_key) <span class="ck">DO</span> <span class="ck">NOTHING</span>
+    <span class="ck">RETURNING</span> intent_id <span class="ck">INTO</span> v_id;
+
+    <span class="ck">IF</span> v_id <span class="ck">IS</span> <span class="ck">NULL</span> <span class="ck">THEN</span>                                  <span class="cl">-- a replay</span>
+        <span class="ck">SELECT</span> * <span class="ck">INTO</span> v_prev <span class="ck">FROM</span> payment_intent <span class="ck">WHERE</span> idempotency_key = p_key;
+        <span class="ck">IF</span> v_prev.amount_minor &lt;&gt; p_amount <span class="ck">OR</span> v_prev.customer_id &lt;&gt; p_customer <span class="ck">THEN</span>
+            <span class="ck">RAISE</span> <span class="ck">EXCEPTION</span> <span class="cs">'idempotency key % reused with a different request'</span>, p_key;
+        <span class="ck">END</span> <span class="ck">IF</span>;
+        <span class="ck">RETURN</span> v_prev.intent_id;
+    <span class="ck">END</span> <span class="ck">IF</span>;
+
+    <span class="ck">UPDATE</span> wallet <span class="ck">SET</span> balance_minor = balance_minor - p_amount
+    <span class="ck">WHERE</span> customer_id = p_customer <span class="ck">AND</span> balance_minor &gt;= p_amount;
+    <span class="ck">IF</span> <span class="ck">NOT</span> <span class="ck">FOUND</span> <span class="ck">THEN</span>
+        <span class="ck">RAISE</span> <span class="ck">EXCEPTION</span> <span class="cs">'insufficient funds for customer %'</span>, p_customer;  <span class="cl">-- rolls back the intent too</span>
+    <span class="ck">END</span> <span class="ck">IF</span>;
+
+    <span class="ck">INSERT</span> <span class="ck">INTO</span> <span class="cf">ledger_entry</span> (txn_id, account, amount_minor) <span class="ck">VALUES</span>
+        (v_id, <span class="cs">'customer:'</span> || p_customer, -p_amount),
+        (v_id, <span class="cs">'merchant'</span>,                 p_amount);
+    <span class="ck">RETURN</span> v_id;
+<span class="ck">END</span> <span class="ck">$$</span>;</div>
+    <div class="reslabel">Result · what the database refuses</div>
+    <pre class="result" tabindex="0" data-src="results/71_errors.txt">SELECT charge('k-1003', 1003, 3, 900);   -- same key, different amount
+ERROR:  idempotency key k-1003 reused with a different request
+
+SELECT charge('k-big', 1004, 2, 999999); -- more than the wallet holds
+ERROR:  insufficient funds for customer 2
+
+BEGIN; INSERT INTO ledger_entry (txn_id, account, amount_minor)
+       VALUES (1, 'merchant', 1); COMMIT;  -- a one-sided entry
+ERROR:  txn 1 does not balance</pre>
+
+    <h3 class="reveal">The green dashboard that lies</h3>
+    <p class="reveal">Now the failure that aggregates cannot see. One customer's app timed out and retried with a <em>new</em> key — the idempotency key was minted per attempt instead of per order — so the order was charged twice. Another customer's charge call was dropped and never made. Nothing errored.</p>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — THE DAY'S SCENARIO</div>
+    <div class="codeblock" tabindex="0" data-src="sql/73_ledger_scenario.sql"><span class="cl">-- The day's three orders, and what the payment path actually did with them.</span>
+<span class="ck">CREATE</span> <span class="ck">TABLE</span> <span class="cf">orders</span> (
+    order_id     <span class="ck">BIGINT</span> <span class="ck">PRIMARY</span> <span class="ck">KEY</span>,
+    customer_id  <span class="ck">BIGINT</span> <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    amount_minor <span class="ck">BIGINT</span> <span class="ck">NOT</span> <span class="ck">NULL</span>,
+    order_date   <span class="ck">DATE</span>   <span class="ck">NOT</span> <span class="ck">NULL</span>
+);
+<span class="ck">INSERT</span> <span class="ck">INTO</span> wallet <span class="ck">VALUES</span> (1, 5000), (2, 5000), (3, 5000);
+<span class="ck">INSERT</span> <span class="ck">INTO</span> orders <span class="ck">VALUES</span> (1001, 1, 500, <span class="cs">'2026-11-17'</span>),
+                          (1002, 2, 500, <span class="cs">'2026-11-17'</span>),
+                          (1003, 3, 700, <span class="cs">'2026-11-17'</span>);
+
+<span class="ck">SELECT</span> <span class="cf">charge</span>(<span class="cs">'k-1001-a'</span>, 1001, 1, 500);   <span class="cl">-- timed out at the client...</span>
+<span class="ck">SELECT</span> <span class="cf">charge</span>(<span class="cs">'k-1001-b'</span>, 1001, 1, 500);   <span class="cl">-- ...which retried with a NEW key: double charge</span>
+<span class="ck">SELECT</span> <span class="cf">charge</span>(<span class="cs">'k-1003'</span>,   1003, 3, 700);   <span class="cl">-- timed out...</span>
+<span class="ck">SELECT</span> <span class="cf">charge</span>(<span class="cs">'k-1003'</span>,   1003, 3, 700);   <span class="cl">-- ...retried with the SAME key: returns intent, no money moves</span>
+<span class="cl">-- order 1002: the charge call was never made (a dropped message). Nothing errors.</span></div>
+    <div class="codelabel">SQL · POSTGRESQL 16 · EXECUTED — RECONCILIATION, ROW BY ROW</div>
+    <div class="codeblock" tabindex="0" data-src="sql/72_recon.sql"><span class="cl">-- The green dashboard that lies. Customer 1's order was charged twice (the</span>
+<span class="cl">-- app minted a NEW key on retry), customer 2's charge never happened. The</span>
+<span class="cl">-- day's totals agree to the paisa; reconciliation is row by row, or it is</span>
+<span class="cl">-- not reconciliation.</span>
+<span class="ck">WITH</span> expected <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> order_id, customer_id, amount_minor <span class="ck">FROM</span> orders <span class="ck">WHERE</span> order_date = <span class="ck">DATE</span> <span class="cs">'2026-11-17'</span>
+), charged <span class="ck">AS</span> (
+    <span class="ck">SELECT</span> order_id, <span class="cf">sum</span>(amount_minor) <span class="ck">AS</span> amount_minor
+    <span class="ck">FROM</span> payment_intent <span class="ck">GROUP</span> <span class="ck">BY</span> order_id
+)
+<span class="ck">SELECT</span> <span class="cs">'totals'</span> <span class="ck">AS</span> check_level,
+       (<span class="ck">SELECT</span> <span class="cf">sum</span>(amount_minor) <span class="ck">FROM</span> expected) <span class="ck">AS</span> expected,
+       (<span class="ck">SELECT</span> <span class="cf">sum</span>(amount_minor) <span class="ck">FROM</span> charged)  <span class="ck">AS</span> charged,
+       <span class="ck">NULL</span>::bigint                             <span class="ck">AS</span> order_id
+<span class="ck">UNION</span> <span class="ck">ALL</span>
+<span class="ck">SELECT</span> <span class="cs">'row break'</span>, e.amount_minor, <span class="cf">COALESCE</span>(c.amount_minor, 0), e.order_id
+<span class="ck">FROM</span> expected e
+<span class="ck">LEFT</span> <span class="ck">JOIN</span> charged c <span class="ck">USING</span> (order_id)
+<span class="ck">WHERE</span> e.amount_minor <span class="ck">IS</span> <span class="ck">DISTINCT</span> <span class="ck">FROM</span> c.amount_minor;</div>
+    <div class="reslabel">Result</div>
+    <pre class="result" tabindex="0" data-src="results/72_recon.txt"> check_level | expected | charged | order_id 
+-------------+----------+---------+----------
+ totals      |     1700 |    1700 |         
+ row break   |      500 |    1000 |     1001
+ row break   |      500 |       0 |     1002</pre>
+    <p class="reveal">The totals agree to the paisa; two customers have been wronged. In a mood meter the aggregate <em>is</em> the product. In payments the aggregate is a checksum over the product, and checksums can be fooled by errors that cancel. The idempotency key belongs to the <em>intent</em> — the order — and must survive every retry, which is also exactly what <span class="m">batch_seq</span> does for a reaction batch, for the same reason.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="agents">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 11 — AI AGENTS</span>Intelligence is not reliability</h2>
+    <p class="lede reveal">The fashionable next step is to put an AI agent in charge of the stadium. Some of that is sensible: an agent reads dashboards faster than a sleepy on-call engineer, correlates a latency spike with a deploy, suggests pre-scaling before the toss, and flags patterns that look coordinated.</p>
+
+    <p class="reveal">Now the final over. Reactions jump forty-fold in three seconds, perfectly synchronised, from every region. An agent taught that synchronised surges look like attacks concludes, in flawless prose, that the platform is under a bot attack, and throttles ingest. It is not an attack. It is a six. The system has suppressed the most genuine moment of the match, and the post-incident summary will be beautifully written.</p>
+
+    <p class="reveal">The answer is not a better prompt. It is a deterministic layer between the agent and production that gives the same verdict for the same inputs, logs every verdict with the evidence it saw, and never calls a model. The agent proposes; this code decides what may happen without a person. It knows something the agent's pattern-matching does not: the ball-by-ball feed. A synchronised surge within twenty media seconds of a boundary or a wicket is expected, and throttling then needs a human.</p>
+    <div class="codelabel">PYTHON · TESTED — THE GUARDRAIL BETWEEN AN AGENT AND PRODUCTION</div>
+    <div class="codeblock" tabindex="0" data-src="py/guardrail.py"><span class="cs">"""The deterministic layer between an AI operations agent and production.
+
+The agent proposes; this code decides what may happen without a person.
+It is boring on purpose: the same inputs give the same verdict, every
+verdict is logged with the evidence it saw, and nothing here calls a model.
+"""</span>
+<span class="ck">import</span> hashlib
+<span class="ck">import</span> json
+<span class="ck">from</span> dataclasses <span class="ck">import</span> dataclass, field
+
+AUTO_SCALE_LIMIT_PCT = 50        <span class="cl"># per decision, either direction</span>
+MATCH_EVENT_QUIET_S = 20         <span class="cl"># media seconds after a boundary or wicket</span>
+INTEGRITY_SIGNALS_REQUIRED = 2   <span class="cl"># independent signals, never one</span>
+
+
+@dataclass(frozen=<span class="ck">True</span>)
+<span class="ck">class</span> <span class="cf">Proposal</span>:
+    action: str                  <span class="cl"># 'scale_fanout' | 'throttle_ingest' | 'degrade' | 'page_human'</span>
+    params: dict
+    rationale: str               <span class="cl"># the agent's words: logged, never trusted</span>
+
+
+@dataclass(frozen=<span class="ck">True</span>)
+<span class="ck">class</span> <span class="cf">Context</span>:
+    media_sec: int
+    last_match_event: tuple[str, int] | <span class="ck">None</span>   <span class="cl"># ('six', 125) from the ball-by-ball feed</span>
+    integrity_signals: frozenset[str]          <span class="cl"># e.g. {'metronomic', 'shared_device'}</span>
+
+
+@dataclass
+<span class="ck">class</span> <span class="cf">Guardrail</span>:
+    audit: list = field(default_factory=list)
+
+    <span class="ck">def</span> <span class="cf">decide</span>(self, p: Proposal, ctx: Context) -&gt; str:
+        verdict, reason = self._rule(p, ctx)
+        evidence = {<span class="cs">"proposal"</span>: p.__dict__, <span class="cs">"context"</span>: {
+            <span class="cs">"media_sec"</span>: ctx.media_sec, <span class="cs">"last_match_event"</span>: ctx.last_match_event,
+            <span class="cs">"integrity_signals"</span>: sorted(ctx.integrity_signals)}}
+        self.audit.append({
+            <span class="cs">"verdict"</span>: verdict, <span class="cs">"reason"</span>: reason, <span class="cs">"evidence"</span>: evidence,
+            <span class="cs">"evidence_sha256"</span>: hashlib.sha256(
+                json.dumps(evidence, sort_keys=<span class="ck">True</span>).encode()).hexdigest()})
+        <span class="ck">return</span> verdict
+
+    <span class="ck">def</span> <span class="cf">_rule</span>(self, p: Proposal, ctx: Context) -&gt; tuple[str, str]:
+        <span class="ck">if</span> p.action == <span class="cs">"page_human"</span>:
+            <span class="ck">return</span> <span class="cs">"execute"</span>, <span class="cs">"asking a person is always allowed"</span>
+        <span class="ck">if</span> p.action == <span class="cs">"scale_fanout"</span>:
+            pct = p.params.get(<span class="cs">"pct"</span>, 0)
+            <span class="ck">if</span> abs(pct) &lt;= AUTO_SCALE_LIMIT_PCT:
+                <span class="ck">return</span> <span class="cs">"execute"</span>, <span class="cs">"within the automatic scaling bound"</span>
+            <span class="ck">return</span> <span class="cs">"needs_human"</span>, <span class="cs">"scaling beyond the automatic bound"</span>
+        <span class="ck">if</span> p.action == <span class="cs">"throttle_ingest"</span>:
+            ev = ctx.last_match_event
+            <span class="ck">if</span> ev <span class="ck">and</span> ev[0] <span class="ck">in</span> {<span class="cs">"four"</span>, <span class="cs">"six"</span>, <span class="cs">"wicket"</span>} <span class="ck">and</span> ctx.media_sec - ev[1] &lt;= MATCH_EVENT_QUIET_S:
+                <span class="ck">return</span> <span class="cs">"needs_human"</span>, <span class="cs">f"a {ev[0]} at media {ev[1]} explains a synchronised surge"</span>
+            <span class="ck">if</span> len(ctx.integrity_signals) &lt; INTEGRITY_SIGNALS_REQUIRED:
+                <span class="ck">return</span> <span class="cs">"needs_human"</span>, <span class="cs">"fewer than two independent integrity signals"</span>
+            <span class="ck">return</span> <span class="cs">"execute"</span>, <span class="cs">"two or more integrity signals, no match event"</span>
+        <span class="ck">if</span> p.action == <span class="cs">"degrade"</span>:
+            level = p.params.get(<span class="cs">"level"</span>, 0)
+            <span class="ck">if</span> level &lt;= 2:
+                <span class="ck">return</span> <span class="cs">"execute"</span>, <span class="cs">"levels 1-2 are reversible and pre-approved"</span>
+            <span class="ck">return</span> <span class="cs">"needs_human"</span>, <span class="cs">"level 3+ turns the feature off for everyone"</span>
+        <span class="ck">return</span> <span class="cs">"reject"</span>, <span class="cs">f"unknown action {p.action!r}"</span></div>
+
+    <div class="note reveal">
+      <div class="nh">The rules, in one line each</div>
+      <p>Agents recommend; bounded deterministic policies act; a human approves anything irreversible or wide in blast radius; every action is logged with the hash of the evidence it saw; and the kill switch never depends on the agent. A system that is usually brilliant and occasionally confidently wrong needs a supervisor, not a promotion. (The longer argument is in <a href="/articles/the-supervised-agentic-enterprise.html">The Supervised Agentic Enterprise</a>.)</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="failure">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 12 — FAILURE</span>When the stadium goes silent</h2>
+    <p class="lede reveal">Each of these will happen. The only choice is whether the response was designed or improvised live, in the final over, by whoever is on call.</p>
+
+    <div class="tblwrap reveal" tabindex="0">
+    <table>
+      <tr><th>Failure</th><th>What viewers see</th><th>Designed response</th></tr>
+      <tr><td>Regional cloud outage in the final over</td><td>The mood freezes for one region</td><td>Regions aggregate independently; the merged view is marked <span class="m">is_partial</span>; the video never depends on the meter</td></tr>
+      <tr><td>Aggregator falls behind</td><td>Old excitement shown as live</td><td>Every snapshot names its media second; screens apply the render rule and show "catching up" past 5 s</td></tr>
+      <tr><td>Fan-out tier overloaded</td><td>Disconnects, then a reconnect storm</td><td>Latest-only slots; jittered reconnects; slower updates under load; shed the meter before the video</td></tr>
+      <tr><td>Client retries after a flaky network</td><td>Inflated counts</td><td>Idempotent on <span class="m">(session_id, batch_seq)</span>; the funnel counts what was ignored</td></tr>
+      <tr><td>A scripted flood</td><td>A fake mood</td><td>Edge buckets per account and device; two-of-three integrity; recount from the log</td></tr>
+      <tr><td>A delayed replay of the log</td><td>Yesterday's excitement as today's reality</td><td>Replays write to a separate path, never into the live view</td></tr>
+      <tr><td>An agent misreads a six</td><td>The best moment suppressed</td><td>The guardrail: match events block automatic throttling</td></tr>
+    </table>
+    </div>
+
+    <h3 class="reveal">The degradation ladder — written before the match</h3>
+    <div class="tblwrap reveal" tabindex="0">
+    <table class="ladder">
+      <tr><th>Level</th><th>Trigger <span class="prov illus">Illustrative</span></th><th>Behaviour</th><th>Approval</th></tr>
+      <tr><td>0 · normal</td><td>—</td><td>Revisions pushed as they change, at most 2 per second</td><td>—</td></tr>
+      <tr><td>1 · slower</td><td>Fan-out CPU &gt; 70%</td><td>At most one update every 2 s; intensity hidden</td><td>Automatic</td></tr>
+      <tr><td>2 · coarser</td><td>Fan-out CPU &gt; 85% or reconnect storm</td><td>Merged national view only; every 5 s</td><td>Automatic</td></tr>
+      <tr><td>3 · frozen</td><td>Aggregator or a region down</td><td>Last good mood, labelled "paused"</td><td>On-call engineer</td></tr>
+      <tr><td>4 · off</td><td>The meter threatens the video</td><td>Feature hidden; taps still logged for replay</td><td>On-call engineer</td></tr>
+    </table>
+    </div>
+
+    <p class="reveal">The principles are few. Degrade gracefully: the meter is a garnish and must never take down the meal. Isolate faults so one region or tier fails alone. Keep the log wherever you might need to recount. Set recovery objectives per feature; the meter's honest one may be "lose it and move on". And rehearse. Netflix built Chaos Monkey in 2011 to terminate production instances on purpose, because the only failure plan you can trust is one that has already met failure. Before a tournament, the drills write themselves: kill a region during a replayed final over, inject a scripted flood, stall the aggregator for thirty seconds, and drop a third of the hubs. Resilience is designed in. You cannot buy it as a managed service any more than you can buy fitness with a gym membership.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="dashboard">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 13 — THE DASHBOARD</span>Proving the promise is being kept</h2>
+    <p class="lede reveal">Every safeguard above is invisible without instruments. The dashboard watches the promise (freshness and spoilers), the honesty (integrity and loss), and the plumbing (skew and fan-out). The values below are from the synthetic run; the shape is the point.</p>
+
+    <div class="dash reveal">
+      <div class="dash-head">
+        <span class="dash-title">Live Mood — Match Ops</span>
+        <span class="dash-sub">SYNTHETIC RUN · OVER 2 · LEVEL 0</span>
+      </div>
+      <div class="dash-grid">
+        <div class="tile"><div class="tl">Freshness p50</div><div class="tv ok">1.11<small>s</small></div></div>
+        <div class="tile"><div class="tl">Freshness p95</div><div class="tv warn">2.09<small>s</small></div></div>
+        <div class="tile"><div class="tl">Within 2 s</div><div class="tv warn">94.0<small>%</small></div></div>
+        <div class="tile"><div class="tl">Spoilers</div><div class="tv bad">1</div></div>
+        <div class="tile"><div class="tl">Retries ignored</div><div class="tv ok">1,087</div></div>
+        <div class="tile"><div class="tl">Voices excluded</div><div class="tv warn">10,800</div></div>
+        <div class="tile"><div class="tl">Partition skew</div><div class="tv ok">1.4<small>×</small></div></div>
+        <div class="tile"><div class="tl">Crowd seen at 2 s</div><div class="tv warn">5.1<small>%</small></div></div>
+      </div>
+    </div>
+    <div class="caption reveal" style="margin-top:-26px">FIG. 2 — Every value is a number computed in § 05–09 from synthetic data. Amber is a promise under strain; red is a promise broken.</div>
+
+    <p class="reveal" style="margin-top:36px">Read the tiles together. The plumbing is fine: retries are absorbed, the session key keeps skew near fair share. The honesty is working: a scripted minute was taken out. The promise is not: the slow tail pushes p95 past two seconds, and one viewer was shown a moment early. A team that watched only the median would call this match a success. The spoiler tile is red on purpose — it is the one number in the system that has no acceptable non-zero value.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="closing">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 14 — THE RUBRIC</span>What was actually being tested</h2>
+
+    <h3 class="reveal">The architect's six questions, before any technology</h3>
+    <dl class="reveal">
+      <div class="defrow"><dt>1 · OUTCOME</dt><dd>What is the business outcome? "Make the match feel shared" and "move money exactly once" are different systems: one sells the aggregate, the other the record.</dd></div>
+      <div class="defrow"><dt>2 · CORRECTNESS</dt><dd>What exactly must be correct? Name the invariant. Here: one voice per person-second, no spoilers, stale never shown as live. For payments: one charge per intent, a balanced ledger.</dd></div>
+      <div class="defrow"><dt>3 · FRESHNESS</dt><dd>How fresh, and against which clock? Wall time, event time, or the viewer's own place in the stream.</dd></div>
+      <div class="defrow"><dt>4 · TOLERANCE</dt><dd>How much inconsistency or loss is tolerable? Put a number on it. A number can be tested; "minimal" cannot.</dd></div>
+      <div class="defrow"><dt>5 · FAILURE</dt><dd>What happens during failure? Write the degradation ladder before the happy path, or the system will choose one for you, live.</dd></div>
+      <div class="defrow"><dt>6 · COST</dt><dd>What does the guarantee cost? Exactly-once, multi-region state and durable logs cost money and pager hours. Pay where the invariant demands it, nowhere else.</dd></div>
+    </dl>
+
+    <h3 class="reveal">If you get sixty seconds, say this</h3>
+    <p class="reveal">"Before tech: two seconds on which clock? Streams are many seconds behind live and unevenly so, so I key the mood on media time — the position each viewer was watching — and promise freshness on the viewer's own timeline, with zero spoilers. Phones batch taps by media second; the edge admits, deduplicates on session and sequence, makes one voice per person per second, and flushes additive deltas every 250 ms, so the aggregator just sums. No window on the live path: each second's mood is a revision that fills in as later viewers arrive. Fan-out is the real load — 12.5 million messages a second — so each socket gets a latest-only slot, not a queue. Integrity runs before the sum on two independent signals. The log keeps every batch for recounts, and the SLO is measured from render receipts. And if this were payments, I would throw half of this away and start from an idempotent, double-entry ledger."</p>
+
+    <h3 class="reveal">The probes that decide it</h3>
+    <dl class="reveal">
+      <div class="defrow"><dt>"WHY NOT A 2 S WINDOW?"</dt><dd>It spends the whole budget by itself, and in media time it never closes until the slowest viewer arrives. Updating aggregates with revisions give the fast viewers something now and everyone the full answer later.</dd></div>
+      <div class="defrow"><dt>"KAFKA KEY?"</dt><dd>Never the match: one partition takes the country (64× fair share in the measurement above). Key by session, which also gives each edge node the per-session state it needs.</dd></div>
+      <div class="defrow"><dt>"EXACTLY-ONCE?"</dt><dd>Not end to end, and not needed. Idempotent ingest on the batch key gives effectively-once counting where it matters; the rest is measured loss. For the ledger, yes — enforced by the database at commit.</dd></div>
+      <div class="defrow"><dt>"WHAT IF A REGION DIES?"</dt><dd>The region's hubs and edges fail alone; the merged mood is marked partial; the video is untouched; clients see "paused", not a fake number.</dd></div>
+      <div class="defrow"><dt>"HOW DO YOU KNOW IT WORKS?"</dt><dd>Render receipts: p95 freshness on the viewer's timeline and a spoiler count that must be zero, plus the conservation funnel. Not CPU graphs.</dd></div>
+    </dl>
+
+    <h3 class="reveal">Common mistakes</h3>
+    <div class="mistake reveal"><strong>Naming the stack in the first minute.</strong> The interviewer learns what you have used, not how you decide.</div>
+    <div class="mistake reveal"><strong>Measuring two seconds on the wall clock.</strong> Builds a spoiler engine with excellent latency.</div>
+    <div class="mistake reveal"><strong>Counting taps as votes.</strong> Hands the mood to the fastest thumb and the cheapest script.</div>
+    <div class="mistake reveal"><strong>Sizing ingest and forgetting fan-out.</strong> The load going out is several times the load coming in.</div>
+    <div class="mistake reveal"><strong>A queue per socket.</strong> Slow phones fall further behind forever; latest-only is the right backpressure here.</div>
+    <div class="mistake reveal"><strong>Letting an agent throttle on one signal.</strong> A six is a synchronised surge.</div>
+
+    <div class="pull reveal">A good engineer knows how to move twenty-five million events. A good architect knows which events matter, how much truth can be sacrificed for speed, and when sacrificing truth is unacceptable.<span>— Closing argument</span></div>
+    <p class="reveal">So the question to leave with every team proud of its latency charts: as our systems get faster, are they becoming more trustworthy — or just quicker at being confidently wrong?</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="sources">
+  <div class="wrap">
+    <h2 class="reveal"><span class="num">§ 15 — SOURCES AND METHOD</span>What is real, what is illustrative, what was run</h2>
+    <p class="reveal"><span class="prov ran">Executed</span>Every SQL block labelled "executed" ran on PostgreSQL 16 against synthetic data, and every Python block labelled "tested" is covered by unit tests. The code on this page is copied into it by a build script from the files that were run (<span class="m">interview/whiteboard/reaction/</span> in the site's repository: <span class="m">verify.py</span>, <span class="m">py/test_reaction.py</span>, <span class="m">build.py</span>). <span class="prov notrun">Not executed</span>The Flink SQL was not run here. <span class="prov illus">Illustrative</span>Envelope numbers, budgets and ladder triggers are assumptions for discussion. <span class="prov hist">Historical</span>Hotstar's 2019 design is described only as its engineers published it. The synthetic data describes no real match, platform or person.</p>
+    <p class="reveal">Prompted by Shubham Srivastava's <a href="https://www.linkedin.com/posts/shubham-srivstv_most-people-answer-this-with-kafka-plus-share-7528107235793625090-wHIP/" rel="noopener">LinkedIn discussion</a> of how most people answer this question; the design and arguments here are our own.</p>
+    <ol style="margin-left:22px;font-size:16px">
+      <li>Dedeepya Bonthu, <a href="https://highscalability.com/capturing-a-billion-emo-j-i-ons/" rel="noopener">“Capturing a Billion Emo(j)i-ons”</a>, Hotstar engineering, 2019 (republished by High Scalability).</li>
+      <li>Piyush Gupta, <a href="https://hasgeek.com/rootconf/2020-delhi/sub/pubsub-realtime-messaging-service-hotstar-LP7A7b7ZVu6ibfgYFAcvXZ" rel="noopener">“PubSub: realtime messaging service at Hotstar”</a>, Rootconf 2020.</li>
+      <li>Disney Star newsroom, <a href="https://www.disneystar.com/newsroom/hotstar-breaks-global-record-yet-again-during-the-india-vs-new-zealand-icc-cricket-world-cup-semi-final/" rel="noopener">25.3 million concurrent viewers</a>, July 2019; <a href="https://discover.hotstar.com/wp-content/uploads/2019/12/India_Watch_Report_2019.pdf" rel="noopener">India Watch Report 2019</a>.</li>
+      <li>TechCrunch, <a href="https://techcrunch.com/2023/11/19/india-and-australia-world-cup-final-shatters-streaming-records-on-hotstar/" rel="noopener">2023 World Cup final streaming record on Hotstar</a>, November 2023.</li>
+      <li>R. Pantos and W. May, <a href="https://www.rfc-editor.org/rfc/rfc8216" rel="noopener">RFC 8216, HTTP Live Streaming</a> (EXT-X-PROGRAM-DATE-TIME), 2017.</li>
+      <li>Akhilesh Gupta (LinkedIn), <a href="https://archive.qconlondon.com/node/112704" rel="noopener">“Streaming a Million Likes/Second: Real-Time Interactions on Live Video”</a>, QCon London.</li>
+      <li>Brandur Leach, <a href="https://stripe.com/blog/idempotency" rel="noopener">“Designing robust and predictable APIs with idempotency”</a>, Stripe, 2017.</li>
+      <li>Uber Engineering, <a href="https://www.uber.com/en-US/blog/real-time-exactly-once-ad-event-processing/" rel="noopener">“Real-Time Exactly-Once Ad Event Processing with Apache Flink, Kafka, and Pinot”</a>, 2021.</li>
+      <li>Apache Flink documentation: <a href="https://nightlies.apache.org/flink/flink-docs-stable/docs/concepts/time/" rel="noopener">Timely Stream Processing</a>; <a href="https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/table/sql/queries/deduplication/" rel="noopener">Deduplication</a>; <a href="https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/table/tuning/" rel="noopener">Performance Tuning</a> (mini-batch, two-phase aggregation).</li>
+      <li>Jeffrey Dean and Luiz André Barroso, <a href="https://research.google/pubs/pub40801/" rel="noopener">“The Tail at Scale”</a>, Communications of the ACM 56 (2013).</li>
+      <li>Google, <a href="https://sre.google/sre-book/service-level-objectives/" rel="noopener"><em>Site Reliability Engineering</em>, ch. 4, “Service Level Objectives”</a>.</li>
+      <li>Netflix Technology Blog, <a href="https://techblog.netflix.com/2011/07/netflix-simian-army.html" rel="noopener">“The Netflix Simian Army”</a>, 2011; <a href="https://principlesofchaos.org/" rel="noopener">Principles of Chaos Engineering</a>.</li>
+      <li>Matthew Salganik, Peter Dodds and Duncan Watts, <a href="https://doi.org/10.1126/science.1121066" rel="noopener">“Experimental Study of Inequality and Unpredictability in an Artificial Cultural Market”</a>, Science 311 (2006).</li>
+    </ol>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="sig">PaddySpeaks</div>
+    <div class="fmeta">SYSTEMS AT THE WHITEBOARD · Nº 41 — THE REACTION PROBLEM<br>LIVE STREAMING · MEDIA TIME · THE PROMISE BEFORE THE STACK<br><a href="index.html">← Design index</a></div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var els = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    els.forEach(function(el){ el.classList.add('in'); });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+  els.forEach(function(el){ io.observe(el); });
+})();
+</script>
+
+<div class="back-home"><a href="https://paddyspeaks.com">← paddyspeaks.com</a></div>
+<div class="scroll-btns"><a href="#top" title="Back to top" aria-label="Back to top">↑</a><a href="#bottom" title="Go to bottom" aria-label="Go to bottom">↓</a></div>
+<div id="bottom"></div>
+<img src="https://ps.paddyspeaks.com/api/px.gif?p=/interview.app/design/the-reaction-problem.html" alt="" width="1" height="1" style="position:absolute;opacity:0" loading="eager">
+<script defer src="/lib/ps-platform.js"></script>
+</body>
+</html>
