@@ -6,6 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
+- **NEWEST (2026-11-17): article “25 Million Viewers, Two Seconds, and One Dangerous
+  Assumption”** (`articles/what-does-real-time-actually-mean.html`, technology). Real-time
+  architecture judgement: latency budgets and media time, mood meter vs payment ledger,
+  bots, AI agents, designing for failure, six questions. Hotstar's 2019 emoji pipeline is
+  labelled Historical; all workload and latency numbers are labelled illustrative. Inline
+  SVG diagram; share card generated with Pillow (no script kept).
+
 - **NEWEST (2026-11-04): the Navagraha Sūktam study edition** (`/navagraha/edition/`,
   `docs/NAVAGRAHA-EDITION.md`), on the Sandhyāvandanam's engine, now generalised
   (`edition.json` per edition: names, witnesses, page words). 27 Vedic mantras in the
