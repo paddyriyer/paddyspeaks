@@ -9806,6 +9806,22 @@
       ],
       "answer": 1,
       "explanation": "itertools.tee() creates multiple independent iterators from a single input, allowing windowing via staggered zip with different starting positions. Option 0 still requires buffering. Option 2 generates all combinations, not sliding windows. Option 3 doesn't efficiently produce sliding windows without additional logic."
+    },
+    {
+      "id": "py-new-221",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-11-17",
+      "prompt": "You're building a data ingestion service that fetches data from 500 APIs concurrently using asyncio. Each API call takes 2-5 seconds and returns ~1MB of data. You notice memory usage grows linearly with concurrent requests and hits OOM at ~100 concurrent tasks. What's the most effective solution to bound memory while maintaining throughput?",
+      "options": [
+        "Use asyncio.Semaphore to limit concurrent tasks to ~20-30, ensuring each completes before the next batch starts",
+        "Switch to threading.Thread with a ThreadPoolExecutor(max_workers=50) since threads handle memory better than asyncio tasks",
+        "Implement a queue-based producer-consumer pattern with asyncio.Queue(maxsize=50) to decouple fetching from processing, allowing backpressure",
+        "Use asyncio.gather() with return_exceptions=True to automatically manage memory by discarding results after each batch completes"
+      ],
+      "answer": 2,
+      "explanation": "An asyncio.Queue with bounded maxsize implements backpressure\u2014when the queue fills, producers (API fetchers) pause, preventing unbounded task accumulation in memory. This decouples network I/O from processing, allowing you to maintain high throughput while keeping resident memory constant. Semaphore (option 0) limits concurrency but doesn't handle intermediate result buffering. Threading (option 1) doesn't solve the buffering problem and has GIL overhead. gather() (option 3) doesn't provide memory bounds since exceptions are still stored."
     }
   ]
 }

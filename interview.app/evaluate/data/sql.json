@@ -16390,6 +16390,22 @@
       ],
       "answer": 3,
       "explanation": "All three expressions are functionally equivalent and return the first non-NULL value in the specified order. COALESCE (option 0) is the most concise and readable. IFNULL chains (option 1) work but are verbose. CASE (option 2) is explicit but longer. All are correct; modern SQL optimizers typically handle them similarly, though COALESCE is preferred for readability."
+    },
+    {
+      "id": "sql-new-222",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "medium",
+      "added_date": "2026-11-17",
+      "prompt": "You have a BigQuery table `orders(order_id INT64, customer_id INT64, order_date DATE, amount NUMERIC)` with 500M rows. You need to find the most recent order date for each customer and return only the customer_id and order_date. Performance is critical. Which approach is most efficient?",
+      "options": [
+        "SELECT DISTINCT ON (customer_id) customer_id, order_date FROM orders ORDER BY customer_id, order_date DESC",
+        "SELECT customer_id, MAX(order_date) as order_date FROM orders GROUP BY customer_id",
+        "SELECT customer_id, order_date FROM (SELECT customer_id, order_date, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) as rn FROM orders) WHERE rn = 1",
+        "SELECT customer_id, order_date FROM orders WHERE order_date = (SELECT MAX(order_date) FROM orders)"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery optimizes GROUP BY with aggregate functions like MAX() better than window functions or subqueries for this use case. Option 0 uses DISTINCT ON which is PostgreSQL syntax, not supported in BigQuery. Option 3 performs a full table scan for every row comparison. Option 1 leverages BigQuery's columnar storage and query optimizer effectively."
     }
   ]
 }
