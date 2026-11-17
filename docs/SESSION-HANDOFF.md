@@ -6,12 +6,16 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-17): article “25 Million Viewers, Two Seconds, and One Dangerous
-  Assumption”** (`articles/what-does-real-time-actually-mean.html`, technology). Real-time
-  architecture judgement: latency budgets and media time, mood meter vs payment ledger,
-  bots, AI agents, designing for failure, six questions. Hotstar's 2019 emoji pipeline is
-  labelled Historical; all workload and latency numbers are labelled illustrative. Inline
-  SVG diagram; share card generated with Pillow (no script kept).
+- **NEWEST (2026-11-17): Systems at the Whiteboard Nº 41, The Reaction Problem**
+  (`interview.app/design/the-reaction-problem.html`). At Paddy's request the essay
+  "25 Million Viewers, Two Seconds, and One Dangerous Assumption" (#980, live for a few
+  hours) became a design: media time vs wall time, idempotent ingest, edge deltas,
+  latest-only fan-out, integrity, the SLO with a spoiler count, a double-entry ledger for
+  contrast, an AI-agent guardrail, the failure ladder. Its code is copied into the page
+  from `interview/whiteboard/reaction/` (SQL verified on PostgreSQL by `verify.py`,
+  Python by `py/test_reaction.py`, page sync by `build.py --check`, the last two in
+  Validate Content); never edit code in the HTML. The old article URL forwards there
+  (noindex stub); it left `article_metadata.json`, the deck and the sitemap.
 
 - **NEWEST (2026-11-04): the Navagraha Sūktam study edition** (`/navagraha/edition/`,
   `docs/NAVAGRAHA-EDITION.md`), on the Sandhyāvandanam's engine, now generalised
