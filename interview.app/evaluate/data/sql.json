@@ -16406,6 +16406,22 @@
       ],
       "answer": 1,
       "explanation": "BigQuery optimizes GROUP BY with aggregate functions like MAX() better than window functions or subqueries for this use case. Option 0 uses DISTINCT ON which is PostgreSQL syntax, not supported in BigQuery. Option 3 performs a full table scan for every row comparison. Option 1 leverages BigQuery's columnar storage and query optimizer effectively."
+    },
+    {
+      "id": "sql-new-223",
+      "type": "single",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-11-18",
+      "prompt": "You have an `org_hierarchy(employee_id INT, manager_id INT, name TEXT, salary DECIMAL)` table representing a company organization structure. You need to find all employees under a given manager (direct and indirect reports) along with their depth level in the hierarchy, and calculate the total salary expense for that subtree. Which approach using a recursive CTE is most efficient and correct?",
+      "options": [
+        "WITH RECURSIVE org_tree AS (SELECT employee_id, manager_id, name, salary, 1 as depth, salary as subtree_salary FROM org_hierarchy WHERE manager_id = ? UNION ALL SELECT o.employee_id, o.manager_id, o.name, o.salary, ot.depth + 1, ot.subtree_salary + o.salary FROM org_hierarchy o JOIN org_tree ot ON o.manager_id = ot.employee_id) SELECT * FROM org_tree;",
+        "WITH RECURSIVE org_tree AS (SELECT employee_id, manager_id, name, salary, 0 as depth FROM org_hierarchy WHERE employee_id = ? UNION ALL SELECT o.employee_id, o.manager_id, o.name, o.salary, ot.depth + 1 FROM org_hierarchy o JOIN org_tree ot ON ot.employee_id = o.manager_id) SELECT employee_id, name, depth, SUM(salary) OVER (ORDER BY depth) as subtree_salary FROM org_tree;",
+        "WITH RECURSIVE org_tree AS (SELECT employee_id, manager_id, name, salary, 1 as depth, salary as subtree_salary FROM org_hierarchy WHERE employee_id = ? UNION ALL SELECT o.employee_id, o.manager_id, o.name, o.salary, ot.depth + 1, o.salary FROM org_hierarchy o JOIN org_tree ot ON ot.employee_id = o.manager_id) SELECT employee_id, name, depth, SUM(subtree_salary) OVER (PARTITION BY manager_id) as subtree_salary FROM org_tree;",
+        "WITH RECURSIVE org_tree AS (SELECT employee_id, manager_id, name, salary, 1 as depth FROM org_hierarchy WHERE manager_id IS NULL UNION ALL SELECT o.employee_id, o.manager_id, o.name, o.salary, ot.depth + 1 FROM org_hierarchy o JOIN org_tree ot ON o.manager_id = ot.employee_id WHERE ot.employee_id = ?) SELECT employee_id, name, depth, SUM(salary) as subtree_salary FROM org_tree GROUP BY employee_id, name, depth;"
+      ],
+      "answer": 0,
+      "explanation": "Option A correctly starts with the given manager (anchor), recursively joins to find direct reports by matching manager_id = employee_id, increments depth properly, and accumulates subtree_salary by adding each child's salary to the running total. Options B and C have logic errors in depth initialization or salary aggregation, and Option D incorrectly starts from the root (manager_id IS NULL) instead of the specified manager."
     }
   ]
 }

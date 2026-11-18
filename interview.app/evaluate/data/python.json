@@ -9822,6 +9822,22 @@
       ],
       "answer": 2,
       "explanation": "An asyncio.Queue with bounded maxsize implements backpressure\u2014when the queue fills, producers (API fetchers) pause, preventing unbounded task accumulation in memory. This decouples network I/O from processing, allowing you to maintain high throughput while keeping resident memory constant. Semaphore (option 0) limits concurrency but doesn't handle intermediate result buffering. Threading (option 1) doesn't solve the buffering problem and has GIL overhead. gather() (option 3) doesn't provide memory bounds since exceptions are still stored."
+    },
+    {
+      "id": "py-new-222",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-11-18",
+      "prompt": "You're building a data validation library and need to create a descriptor that enforces type checking and lazy evaluation for DataFrame column accessors. The descriptor should cache computed values per instance, support both class and instance access, and raise TypeError if a non-numeric value is assigned. Which implementation correctly handles all these requirements including the descriptor protocol's __set_name__ for tracking attribute names?",
+      "options": [
+        "class ValidatedColumn:\n    def __set_name__(self, owner, name):\n        self.name = f'_{name}'\n    def __get__(self, obj, objtype=None):\n        if obj is None: return self\n        return getattr(obj, self.name, None)\n    def __set__(self, obj, value):\n        if not isinstance(value, (int, float)):\n            raise TypeError(f'Expected numeric, got {type(value).__name__}')\n        setattr(obj, self.name, value)",
+        "class ValidatedColumn:\n    def __get__(self, obj, objtype=None):\n        if obj is None: return self\n        return obj._cache[self.name]\n    def __set__(self, obj, value):\n        if not isinstance(value, (int, float)):\n            raise TypeError(f'Expected numeric, got {type(value).__name__}')\n        obj._cache[self.name] = value",
+        "class ValidatedColumn:\n    def __init__(self):\n        self.cache = {}\n    def __get__(self, obj, objtype=None):\n        if obj is None: return self\n        return self.cache.get(id(obj))\n    def __set__(self, obj, value):\n        if not isinstance(value, (int, float)):\n            raise TypeError(f'Expected numeric, got {type(value).__name__}')\n        self.cache[id(obj)] = value",
+        "class ValidatedColumn:\n    def __get__(self, obj, objtype=None):\n        if obj is None: return self\n        return obj.__dict__.get(self.name)\n    def __set__(self, obj, value):\n        if not isinstance(value, (int, float)):\n            raise TypeError(f'Expected numeric, got {type(value).__name__}')\n        obj.__dict__[self.name] = value"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 is correct because __set_name__ is the proper way to automatically track attribute names per descriptor instance, allowing self.name to work reliably. It avoids the shared cache bug in option 2 (leaks memory via id()) and the circular reference risk in option 4. Option 3 bypasses __set_name__ entirely, requiring manual name assignment which defeats the descriptor protocol's design."
     }
   ]
 }
