@@ -9848,6 +9848,22 @@
       "prompt": "You're building a data ingestion module where you define an Event dataclass with fields: event_id (int), timestamp (str), metadata (dict), and tags (list). Later, you need to serialize these Events to JSON and deserialize them back while preserving type information. You also want to prevent accidental mutation of Event instances after creation. Which approach best combines type safety, immutability, and serialization compatibility?\n\nA) Use `@dataclass(frozen=True)` with `field(default_factory=dict)` for mutable defaults, then use `dataclasses.asdict()` and `json.dumps()` for serialization.\n\nB) Use `@dataclass` with `__post_init__` to validate types, then override `__setattr__` to raise an error on modification attempts.\n\nC) Use `@dataclass` with explicit `__init__` that accepts **kwargs, then manually convert to dict for JSON serialization.\n\nD) Use `typing.NamedTuple` with `@functools.cached_property` for lazy field computation and `json.JSONEncoder` subclass for serialization.",
       "answer": 0,
       "explanation": "`@dataclass(frozen=True)` provides immutability at the dataclass level and is the standard approach. Using `field(default_factory=dict)` avoids the mutable default argument pitfall. `dataclasses.asdict()` correctly handles serialization of dataclass instances to dictionaries, which `json.dumps()` can then serialize. Options B, C, and D introduce unnecessary complexity or don't properly enforce immutability\u2014NamedTuple with cached_property is not designed for this use case."
+    },
+    {
+      "id": "py-new-224",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "medium",
+      "added_date": "2026-11-20",
+      "prompt": "You're processing a Polars DataFrame with 500M rows containing user events. You need to compute the count of distinct `user_id` values per `event_type` for the last 7 days, then filter to only event types with more than 10K distinct users. Which approach minimizes memory usage and execution time?",
+      "options": [
+        "Use `df.filter(col('timestamp') > datetime.now() - timedelta(days=7)).group_by('event_type').agg(col('user_id').n_unique().alias('distinct_users')).filter(col('distinct_users') > 10000)`",
+        "Convert to pandas, use groupby with nunique(), filter, then convert back to Polars",
+        "Use `df.lazy().filter(...).group_by(...).agg(...).collect()` to defer computation until all operations are defined",
+        "Split the DataFrame into chunks, process each in a separate process using multiprocessing, then combine results"
+      ],
+      "answer": 2,
+      "explanation": "Polars' lazy evaluation mode (`.lazy()`) automatically optimizes the entire query plan before execution, pushing down filters and pruning columns, which significantly reduces memory usage and improves performance on large DataFrames. Option 1 executes eagerly without optimization, option 2 unnecessarily converts to pandas losing Polars' performance benefits, and option 4 adds unnecessary multiprocessing overhead since Polars is already optimized for single-machine parallelism."
     }
   ]
 }

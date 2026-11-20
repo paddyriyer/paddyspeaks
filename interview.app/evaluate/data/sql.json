@@ -16438,6 +16438,22 @@
       ],
       "answer": 1,
       "explanation": "In READ COMMITTED isolation, Transaction A reads balance=100 initially, but when it performs its UPDATE after Transaction B commits, the UPDATE uses the current committed value (150) as the basis for the balance + 50 expression, resulting in 200. READ COMMITTED does not prevent lost updates at the application level\u2014it only ensures dirty reads and phantom reads don't occur at the READ phase. The subsequent UPDATE uses the latest committed data."
+    },
+    {
+      "id": "sql-new-225",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-11-20",
+      "prompt": "In Snowflake, you're building an incremental load pipeline where multiple concurrent processes read from `raw_events(event_id INT, event_ts TIMESTAMP_NTZ, payload VARIANT)` and write deduplicated records to `processed_events`. You set the session's isolation level to SERIALIZABLE and use a merge statement with `WHEN MATCHED THEN UPDATE` logic. However, you notice frequent serialization failures (error code 90001) even though the table has a UNIQUE constraint on event_id. Which factor is most likely causing these conflicts, and how should you resolve it?",
+      "options": [
+        "The VARIANT column is causing excessive memory pressure; switch payload to STRING and use JSON functions instead to reduce lock contention.",
+        "SERIALIZABLE isolation is overkill for this idempotent merge; switch to READ COMMITTED isolation and ensure the merge's join condition properly identifies duplicates to prevent phantom reads.",
+        "Snowflake's UNIQUE constraint doesn't prevent duplicates during concurrent merges; add an explicit DELETE step before the merge to clear matching records.",
+        "The event_ts column lacks a clustering key; add `CLUSTER BY (event_ts)` to the table to reduce row lock conflicts during concurrent writes."
+      ],
+      "answer": 1,
+      "explanation": "SERIALIZABLE isolation in Snowflake enforces strict ordering and causes conflicts when multiple transactions touch overlapping row ranges, even on insert-only scenarios. READ COMMITTED is sufficient for idempotent merge operations because the UNIQUE constraint on event_id prevents true duplicates post-commit. The merge's join condition itself ensures correctness, making SERIALIZABLE unnecessary and performance-detrimental. Clustering and VARIANT data type are orthogonal to serialization failures; constraint violations are the root cause."
     }
   ]
 }
