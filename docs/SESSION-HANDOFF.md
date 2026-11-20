@@ -11,8 +11,8 @@ clones fresh each time). CLAUDE.md points here._
   `body.studio-skin a` (studio.css, specificity 0,1,2) and failed WCAG contrast (3.0:1 and
   lower; 2.0:1 for Interview Intel in dark mode). Colours are now pinned as `.ip-topnav a.x`,
   with dark-mode colours for the three accent links; all 41 pages pass axe in light, dark and
-  the phone menu. Paddy's image pack (`images/PaddySpeaks_Revenue_Contextual_Images.zip`) is
-  in `images/interview/revenue-problem/` (WebP + PNG, hero, share card; editable SVGs in
+  the phone menu. Paddy's image pack (uploaded as a zip, removed after extraction at his
+  request) is in `images/interview/revenue-problem/` (WebP + PNG, hero, share card; editable SVGs in
   `src/`). Image 05's "UNEXPLAINED" badge covered two labels: fixed in the SVG and re-rendered.
 
 - **(2026-11-20): The Boardroom Problem, a live design mock**
