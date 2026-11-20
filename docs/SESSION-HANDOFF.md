@@ -6,7 +6,18 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-20): Systems at the Whiteboard Nº 42, The Revenue Problem**
+- **NEWEST (2026-11-20): The Boardroom Problem, a live design mock**
+  (`interview.app/design/boardroom/`), the playable sequel to Nº 42. 08:40, leadership at
+  09:00; GOV is skewed by an A/B test that double-logs purchases (checkout_v2 treatment), a
+  load test in production and a replayed day, while a pricing test's discount is real and
+  must stay. Viewer in production, Editor in an uncertified sandbox, deploy freeze. A game
+  clock (no real-time pressure unless "pressure mode" is ticked), lenses/actions/filters,
+  four questions in the room, five scored dimensions, a debrief. Data from
+  `interview/whiteboard/boardroom/gen.py` (`--check`); engine/game/scenario are ES modules
+  tested by `tests/check.mjs` against the generator's figures (both in Validate Content).
+  No browser storage. The nav's Design count is now the `interview.design_problems` stat.
+
+- **(2026-11-20): Systems at the Whiteboard Nº 42, The Revenue Problem**
   (`interview.app/design/the-revenue-problem.html`): the "$400K disappearing act" senior
   UX design interview in six rounds (discovery, research, metric architecture, the twist,
   validation, the CEO who wants $4.4M). Synthetic orders reproduce $4.6M / $4.2M exactly;
