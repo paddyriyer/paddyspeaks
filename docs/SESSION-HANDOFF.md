@@ -6,7 +6,16 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-20): The Boardroom Problem, a live design mock**
+- **NEWEST (2026-11-20): Studio nav contrast fixed; Nº 42 illustrated.** The shared nav
+  (`interview.app/partials/nav.html` → `build_nav.py`, 41 pages) lost its link colours to
+  `body.studio-skin a` (studio.css, specificity 0,1,2) and failed WCAG contrast (3.0:1 and
+  lower; 2.0:1 for Interview Intel in dark mode). Colours are now pinned as `.ip-topnav a.x`,
+  with dark-mode colours for the three accent links; all 41 pages pass axe in light, dark and
+  the phone menu. Paddy's image pack (`images/PaddySpeaks_Revenue_Contextual_Images.zip`) is
+  in `images/interview/revenue-problem/` (WebP + PNG, hero, share card; editable SVGs in
+  `src/`). Image 05's "UNEXPLAINED" badge covered two labels: fixed in the SVG and re-rendered.
+
+- **(2026-11-20): The Boardroom Problem, a live design mock**
   (`interview.app/design/boardroom/`), the playable sequel to Nº 42. 08:40, leadership at
   09:00; GOV is skewed by an A/B test that double-logs purchases (checkout_v2 treatment), a
   load test in production and a replayed day, while a pricing test's discount is real and
