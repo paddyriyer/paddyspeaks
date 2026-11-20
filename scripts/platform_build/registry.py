@@ -62,6 +62,13 @@ def deck_counts(catalog) -> dict:
     }
 
 
+def career_counts() -> dict:
+    """Career Prep counts, from the GENERATED data (interview/careers/build.py)."""
+    p = ROOT / "interview.app" / "careers" / "data" / "careers.json"
+    c = read_json("interview.app/careers/data/careers.json")["counts"] if p.exists() else {}
+    return {k: c.get(k, 0) for k in ("roles", "tracks", "questions")}
+
+
 def interview_counts(catalog) -> dict:
     qs = read_json("interview/data/questions.json")
     langs = Counter(q["language"] for q in qs)
@@ -85,6 +92,7 @@ def interview_counts(catalog) -> dict:
         "data_model_scenarios": len(scenarios),
         "design_problems": len(problems),
         "tracks": len(catalog["interview_tracks"]),
+        "career_prep": career_counts(),
     }
 
 
@@ -126,6 +134,9 @@ def stats(reg: dict) -> dict[str, int]:
         "interview.data_models": iv["data_model_scenarios"],
         "interview.design_problems": iv["design_problems"],
         "interview.tracks": iv["tracks"],
+        "interview.career_roles": iv["career_prep"]["roles"],
+        "interview.career_tracks": iv["career_prep"]["tracks"],
+        "interview.career_questions": iv["career_prep"]["questions"],
         "sacred.texts": reg["sacred_texts"]["count"],
         "demos.total": reg["demos"]["count"],
     }
