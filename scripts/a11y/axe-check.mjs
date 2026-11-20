@@ -45,7 +45,8 @@ const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', 
 // One representative page per journey, ratcheted against the baseline.
 const LEGACY = ['/contact/', '/privacy/', '/bhagavad-gita/', '/abhirami-andhadhi/',
   '/interview.app/', '/interview.app/evaluate/', '/jobs/', '/jobs/search/?q=data%20engineer',
-  '/articles/the-job-posting-is-not-the-job.html', '/ai-command-center/'];
+  '/articles/the-job-posting-is-not-the-job.html', '/ai-command-center/',
+  '/interview.app/jobs/', '/interview.app/careers/', '/interview.app/careers/?role=tpm&level=senior&company=Stripe'];
 const WIDTHS = [1280, 390];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 

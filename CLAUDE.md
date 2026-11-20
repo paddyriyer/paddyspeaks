@@ -93,6 +93,22 @@ or `jobsignal/`.
   index using the shipped ranker).
 - Ingestion: `.github/workflows/jobsignal-ingest.yml`, every 4 hours.
 
+## Career Prep (`/interview.app/careers/`) and the Studio jobs board (`/interview.app/jobs/`)
+
+Read **`docs/CAREER-PREP.md`** before touching `interview/careers/`,
+`interview.app/careers/`, `interview.app/jobs/` or `interview/scripts/build_jobs.py`.
+
+- **One taxonomy:** `interview/careers/roles.json` (families, seniority, roles with stable
+  ids and ordered title patterns). Add a role there, not in UI code. Role ids never change.
+- **Sources are `interview/careers/*.json`; `interview.app/careers/data/` is GENERATED** by
+  `python3 interview/careers/build.py` (CI `--check`), which also fails on employer
+  attribution, prediction language, typed scenario numbers and PM/TPM curricula converging.
+- **Technical Product Manager and Technical Program Manager are different tracks.** Never
+  merge them or share their questions.
+- All posting judgement is Python (`classify.py`, `build_jobs.py`); the jobs page only
+  filters. No invented listings; sample mode is labelled; a failed fetch never expires jobs.
+- Scores are self-assessment, never a hiring prediction; PM roles never get SQL substituted.
+
 ## Interview Intelligence (`/interview.app/reported/`)
 
 The interview question discovery engine is documented in

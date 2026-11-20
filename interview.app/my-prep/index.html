@@ -174,6 +174,7 @@
         <a href="/interview.app/evaluate/">Skill Check<small>auto-graded quiz</small></a>
         <a href="/interview.app/simulator/">Simulator<small>timed mock loop</small></a>
         <a href="/interview.app/loop/">Five-Round Loop<small>senior DE · practice, mock, assess</small></a>
+        <a href="/interview.app/careers/">Career Prep<small>PM · AI PM · TPM · data · growth</small></a>
         <a href="/interview.app/mock/">Mock Interview<small>anatomy of a good loop</small></a>
         <a href="/interview.app/mock-ai/">AI Mock<small>grade my answer · beta</small></a>
         <a href="/interview.app/flashcards/">Flashcards<small>spaced repetition</small></a>
@@ -204,7 +205,7 @@
         <a href="/interview.app/companies/">Companies<small>per-company tracks</small></a>
         <a href="/interview.app/reported/">Reported Questions<small>from public interview reports</small></a>
         <a href="/interview.app/reported/company/">Company Intelligence<small>reported topics by company</small></a>
-        <a href="/interview.app/jobs/">Jobs<small>roles ↔ their questions</small></a>
+        <a href="/interview.app/jobs/">Jobs<small>product · AI · program · data · engineering</small></a>
         <a href="/interview.app/company-research/">Research<small>do your homework</small></a>
         <a href="/interview.app/behavioral/">Behavioral<small>STAR · leadership</small></a>
         <a href="/interview.app/stories/">Stories<small>round-by-round</small></a>
@@ -249,6 +250,7 @@
       <a href="/interview.app/evaluate/">Skill Check</a>
       <a href="/interview.app/simulator/">Simulator</a>
       <a href="/interview.app/loop/">Five-Round Loop</a>
+      <a href="/interview.app/careers/">Career Prep</a>
       <a href="/interview.app/mock/">Mock Interview</a>
       <a href="/interview.app/mock-ai/">AI Mock</a>
       <a href="/interview.app/flashcards/">Flashcards</a>
@@ -419,13 +421,16 @@ function render() {
   const hist = lsGet("ps-history", []);
   const attempts = lsGet("ps-attempts", []);
   const favs = lsGet("ps-favs", []);
+  const careers = lsGet("ps.careers.v1", null);
+  const cpAttempts = (careers && careers.attempts) || [];
+  const cpPractised = careers && careers.practice ? Object.keys(careers.practice).length : 0;
   const root = document.getElementById("mp-root");
 
-  if (!hist.length && !attempts.length && !favs.length) {
+  if (!hist.length && !attempts.length && !favs.length && !cpAttempts.length && !cpPractised) {
     root.innerHTML = `
       <div class="mp-empty">
         <h2>Nothing here yet.</h2>
-        <p>Take a Skill Check quiz, run the Interview Simulator, or review some Flashcards — your results will start showing up here automatically.</p>
+        <p>Take a Skill Check quiz, run the Interview Simulator, review some Flashcards or try a <a href="/interview.app/careers/">Career Prep</a> mock interview — your results will start showing up here automatically.</p>
         <a class="mp-cta" href="/interview.app/evaluate/">Take your first quiz →</a>
       </div>`;
     return;
@@ -511,11 +516,31 @@ function render() {
       <table class="mp-attempts"><thead><tr><th>When</th><th>Section</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
+  /* Career Prep (product, AI, program, data, growth roles) — self-assessed */
+  if (cpAttempts.length || cpPractised) {
+    html += `<div class="mp-h2">Career Prep</div><p style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--color-light-muted);">${cpPractised} practice question${cpPractised === 1 ? "" : "s"} self-assessed · ${cpAttempts.length} mock interview${cpAttempts.length === 1 ? "" : "s"} · scores are your own, 1–4, not a hiring prediction</p><div id="mp-careers"></div>`;
+  }
   root.innerHTML = html;
 
   if (favs.length) loadFavs(favs);
+  if (cpAttempts.length) loadCareers(cpAttempts);
 }
 
+async function loadCareers(list) {
+  const box = document.getElementById("mp-careers");
+  if (!box) return;
+  const roles = {};
+  try {
+    const d = await (await fetch("/interview.app/careers/data/careers.json")).json();
+    d.roles.forEach(r => { roles[r.id] = r.title; });
+  } catch {}
+  const avg = a => {
+    const xs = (a.rounds || []).flatMap(r => Object.values(r.scores || {})).filter(v => v >= 1 && v <= 4);
+    return xs.length ? (xs.reduce((s, v) => s + v, 0) / xs.length).toFixed(1) + " / 4" : "not scored";
+  };
+  const rows = list.slice(-8).reverse().map(a => `<tr><td>${new Date(a.finished).toLocaleDateString()}</td><td><a href="/interview.app/careers/?role=${encodeURIComponent(a.role)}#results">${esc(roles[a.role] || a.role)}</a>${a.company ? " · " + esc(a.company) : ""}</td><td class="score">${avg(a)}</td></tr>`).join("");
+  box.innerHTML = `<table class="mp-attempts"><thead><tr><th>When</th><th>Role</th><th>Your self-score</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
 async function loadFavs(favs) {
   const container = document.getElementById("mp-favs");
   if (!container) return;
@@ -541,7 +566,7 @@ async function loadFavs(favs) {
 
 function mpReset() {
   if (!confirm("Delete ALL locally stored prep data — history, attempts, favorites, votes, streak, flashcard schedule and study-plan progress? This cannot be undone.")) return;
-  ["ps-history","ps-attempts","ps-favs","ps-votes","ps-activity-days","ps-cards","ps-plan","ps-plan-start","ps-sim"].forEach(k => { try { localStorage.removeItem(k); } catch {} });
+  ["ps-history","ps-attempts","ps-favs","ps-votes","ps-activity-days","ps-cards","ps-plan","ps-plan-start","ps-sim","ps.careers.v1"].forEach(k => { try { localStorage.removeItem(k); } catch {} });
   location.reload();
 }
 

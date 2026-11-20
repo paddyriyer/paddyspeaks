@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-fetch_jobs_feed.py — pull real Data/AI-Engineer roles from companies' public ATS
+fetch_jobs_feed.py — pull real Data/AI-Engineer, product and program roles from companies' public ATS
 job boards (Greenhouse / Lever / Ashby) and write a feed.json that
 build_jobs.py consumes via --source.
 
@@ -27,6 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MAP = Path(__file__).resolve().parent / "ats_boards.json"
+sys.path.insert(0, str(ROOT))
+from interview.careers.classify import Taxonomy  # noqa: E402  (the shared career taxonomy)
 
 # A role counts as data/AI engineering if its title contains one of these.
 TITLE_INCLUDE = [
@@ -42,10 +44,12 @@ TIMEOUT = 20
 
 
 def title_ok(title: str) -> bool:
+    """Data/AI engineering titles, plus every role in the career taxonomy
+    (interview/careers/roles.json: product, AI product, TPM, data, growth)."""
     t = (title or "").lower()
     if any(x in t for x in TITLE_EXCLUDE):
         return False
-    return any(x in t for x in TITLE_INCLUDE)
+    return any(x in t for x in TITLE_INCLUDE) or Taxonomy.load().role_for(title) is not None
 
 
 def get_json(url: str):
