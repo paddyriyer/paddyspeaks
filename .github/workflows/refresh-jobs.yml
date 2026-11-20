@@ -12,7 +12,14 @@ name: Refresh Jobs Board
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 6 * * 1'   # Mondays 06:30 UTC
+    # Daily, 06:30 UTC: after JobSignal's 04:00 ingest has landed and before its
+    # 08:00 one, so the board reads a fresh index and the two rarely push together.
+    - cron: '30 6 * * *'
+
+# One rebuild at a time; a second trigger waits rather than racing the first.
+concurrency:
+  group: refresh-jobs
+  cancel-in-progress: false
 
 jobs:
   refresh-jobs:
@@ -55,4 +62,10 @@ jobs:
           git add interview.app/jobs/data/jobs.json
           git diff --cached --quiet && echo "No changes" && exit 0
           git commit -m "🤖 Refresh jobs board — $(date +%Y-%m-%d)"
-          git push
+          # JobSignal's ingest also pushes to main; rebase and retry instead of failing.
+          for attempt in 1 2 3 4; do
+            git push && break
+            echo "push failed, retrying in $((2 ** attempt))s"
+            sleep $((2 ** attempt))
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+          done

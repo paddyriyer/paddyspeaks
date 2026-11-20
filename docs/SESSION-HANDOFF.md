@@ -17,7 +17,7 @@ clones fresh each time). CLAUDE.md points here._
   every posting in Python, and has career-family, title, seniority, company, location,
   workplace, employment, salary and keyword filters in the URL; cards link to Career Prep
   with role, company and seniority. Technical Product Manager and TPM are separate tracks
-  (enforced). Open follow-up: rebuild the Studio board daily, not weekly (own small PR).
+  (enforced). The Studio board now rebuilds daily (`refresh-jobs.yml`, 06:30 UTC; was weekly).
 
 - **(2026-11-20): Studio nav contrast fixed; Nº 42 illustrated.** The shared nav
   (`interview.app/partials/nav.html` → `build_nav.py`, 41 pages) lost its link colours to
