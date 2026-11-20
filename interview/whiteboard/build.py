@@ -1,13 +1,15 @@
-"""Fill the Reaction Problem page's code and result slots from the verified sources.
+"""Fill a Systems-at-the-Whiteboard page's code and result slots from its verified sources.
 
-The page holds empty slots:
+Each design keeps its sources in interview/whiteboard/<name>/ and its page holds
+empty slots, paths relative to that folder:
     <div class="codeblock" data-src="sql/10_dims.sql"></div>
     <pre class="result" data-src="results/40_ball_reactions.txt"></pre>
 This script writes each file's text into its slot, highlighted, so the page
-shows exactly the code that verify.py and test_reaction.py executed.
+shows exactly the code that the design's verify.py and tests executed.
 
-    python3 build.py           # rewrite the page
-    python3 build.py --check   # exit 1 if the page is out of date
+    python3 interview/whiteboard/build.py              # rewrite every page
+    python3 interview/whiteboard/build.py revenue      # one design
+    python3 interview/whiteboard/build.py --check      # exit 1 if any page is stale
 """
 import html
 import re
@@ -15,7 +17,11 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-PAGE = HERE.parents[2] / "interview.app" / "design" / "the-reaction-problem.html"
+DESIGN = HERE.parents[1] / "interview.app" / "design"
+PAGES = {                      # source folder -> page
+    "reaction": "the-reaction-problem.html",
+    "revenue": "the-revenue-problem.html",
+}
 
 SQL_KW = r"""SELECT FROM WHERE GROUP BY ORDER HAVING JOIN LEFT CROSS LATERAL ON USING AS AND OR
 NOT NULL IS IN BETWEEN CASE WHEN THEN ELSE END WITH UNION ALL DISTINCT INSERT INTO VALUES
@@ -79,9 +85,9 @@ def hl_py(src: str) -> str:
 SLOT = re.compile(r'(<(div|pre) class="(codeblock|result)"[^>]*? data-src="([^"]+)"[^>]*>)(.*?)(</\2>)', re.S)
 
 
-def render(page: str) -> str:
+def render(page: str, src: Path) -> str:
     def fill(m: re.Match) -> str:
-        path = HERE / m.group(4)
+        path = src / m.group(4)
         text = path.read_text(encoding="utf-8").rstrip("\n")
         if m.group(3) == "result":
             body = html.escape(text, quote=False)
@@ -94,23 +100,29 @@ def render(page: str) -> str:
 
 
 def main() -> int:
-    page = PAGE.read_text(encoding="utf-8")
-    new = render(page)
-    slots = SLOT.findall(new)
-    declared = page.count("data-src=")
-    empty = [s[3] for s in slots if not s[4].strip()]
-    if len(slots) != declared or empty:
-        print(f"{len(slots)} of {declared} slots filled; empty: {empty}")
-        return 1
-    if "--check" in sys.argv:
-        if new != page:
-            print(f"{PAGE.name} is stale: run python3 {Path(__file__).relative_to(HERE.parents[2])}")
-            return 1
-        print("page in sync with verified sources")
-        return 0
-    PAGE.write_text(new, encoding="utf-8")
-    print(f"wrote {PAGE}")
-    return 0
+    check = "--check" in sys.argv
+    names = [a for a in sys.argv[1:] if not a.startswith("--")] or list(PAGES)
+    failed = 0
+    for name in names:
+        page_path = DESIGN / PAGES[name]
+        page = page_path.read_text(encoding="utf-8")
+        new = render(page, HERE / name)
+        slots = SLOT.findall(new)
+        declared = page.count("data-src=")
+        empty = [s[3] for s in slots if not s[4].strip()]
+        if len(slots) != declared or empty:
+            print(f"{page_path.name}: {len(slots)} of {declared} slots filled; empty: {empty}")
+            failed += 1
+        elif check:
+            if new != page:
+                print(f"{page_path.name} is stale: run python3 interview/whiteboard/build.py {name}")
+                failed += 1
+            else:
+                print(f"{page_path.name}: in sync with its verified sources ({len(slots)} slots)")
+        else:
+            page_path.write_text(new, encoding="utf-8")
+            print(f"wrote {page_path.name} ({len(slots)} slots)")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

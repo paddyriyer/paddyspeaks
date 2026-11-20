@@ -6,7 +6,15 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-17): Systems at the Whiteboard Nº 41, The Reaction Problem**
+- **NEWEST (2026-11-20): Systems at the Whiteboard Nº 42, The Revenue Problem**
+  (`interview.app/design/the-revenue-problem.html`): the "$400K disappearing act" senior
+  UX design interview in six rounds (discovery, research, metric architecture, the twist,
+  validation, the CEO who wants $4.4M). Synthetic orders reproduce $4.6M / $4.2M exactly;
+  the bridge's every step, a fan-out bug, the time-zone effect and "no definition gives
+  $4.4M" are executed SQL (`interview/whiteboard/revenue/verify.py`). The page builder is
+  now shared: `interview/whiteboard/build.py [name] [--check]` (README there).
+
+- **(2026-11-17): Systems at the Whiteboard Nº 41, The Reaction Problem**
   (`interview.app/design/the-reaction-problem.html`). At Paddy's request the essay
   "25 Million Viewers, Two Seconds, and One Dangerous Assumption" (#980, live for a few
   hours) became a design: media time vs wall time, idempotent ingest, edge deltas,

@@ -18,12 +18,12 @@ PGHOST=... PGPORT=... PGUSER=postgres python3 interview/whiteboard/reaction/veri
 # 2. run the Python tests
 (cd interview/whiteboard/reaction/py && python3 -m unittest -v test_reaction)
 # 3. copy code and results into the page
-python3 interview/whiteboard/reaction/build.py          # --check in CI
+python3 interview/whiteboard/build.py reaction   # --check in CI
 ```
 
 `verify.py` asserts what the page claims: idempotent ingest (a second pass changes
 nothing), one voice per person-second, revisions only grow, the integrity rule
 excludes every scripted session and no genuine one, exactly one seeded spoiler,
 totals that agree while two orders break, and the three refusals of `charge()`.
-CI (Validate Content) runs steps 2 and the `--check` of step 3; it does not run
+CI (Validate Content) runs step 2 and `interview/whiteboard/build.py --check`; it does not run
 PostgreSQL. After changing any SQL, run step 1 before step 3.
