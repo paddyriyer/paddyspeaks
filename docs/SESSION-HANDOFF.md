@@ -6,7 +6,13 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-21): New essay, “Manufacturing Your Career”**
+- **NEWEST (2026-11-21): New essay, “The Job Search Paradox”**
+  (`articles/the-job-search-paradox.html`, personality, ~1,600 words): IQ / EQ / SQ / AQ as
+  four lenses (not equal or independent measures), Gita 2.47 with the text from
+  `bhagavad-gita/data.js` and a reading that keeps “do not cling to inaction”, a 30-day plan,
+  a self-assessment and 17 sources. Labels: Research / Interpretation / Fictional.
+
+- **(2026-11-21): New essay, “Manufacturing Your Career”**
   (`articles/manufacturing-your-career.html`, personality). Ten lessons built on the
   “ten strategies of manipulation” — credited to Sylvain Timsit (2002), never to Chomsky —
   with Bernays and Herman & Chomsky distinguished, each lesson in six parts, three labelled
