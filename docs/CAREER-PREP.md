@@ -81,7 +81,7 @@ filters, counts and serialises the URL; `interview.app/js/jobs.js` renders.
 
 - **Sources.** JobSignal's verified board (`jobs/data/index.json`, refreshed every four
   hours by `jobsignal-ingest.yml`, staffing firms and `caution` confidence excluded), plus
-  the keyless ATS feed and optional Adzuna feed (`refresh-jobs.yml`, Mondays). Duplicates
+  the keyless ATS feed and optional Adzuna feed (`refresh-jobs.yml`, daily at 06:30 UTC). Duplicates
   across sources are dropped by apply URL and by company + title + location; JobSignal
   wins because it carries salary, workplace and a verified date.
 - **Summaries** are verbatim excerpts from the posting (`summarise()`), chosen for talking
@@ -121,10 +121,9 @@ The accessibility ratchet (`scripts/a11y/axe-check.mjs`) covers `/interview.app/
 
 ## Known limitations
 
-- The Studio board is rebuilt weekly (`refresh-jobs.yml`), while JobSignal refreshes every
-  four hours, so a listing JobSignal has already closed can show as open here for up to a
-  week. Every card shows when it was last checked. A daily rebuild is the obvious next step
-  and belongs in its own small PR (it changes a production workflow).
+- The Studio board is rebuilt daily (`refresh-jobs.yml`, 06:30 UTC), while JobSignal
+  refreshes every four hours, so a listing JobSignal has already closed can show as open
+  here for up to a day. Every card shows when it was last checked.
 - No live third-party jobs API is connected beyond JobSignal and the keyless ATS boards;
   Adzuna stays dormant until its secrets are set.
 - Interview Intelligence has no reports naming product or program roles yet, so the
