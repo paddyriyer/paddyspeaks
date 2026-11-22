@@ -16,6 +16,12 @@ clones fresh each time). CLAUDE.md points here._
   paper, contested), Ontario ESA posting rules (1 Jan 2026), EU Directive 2023/970, CRS
   IF12977 (no official ghost-job statistics), Barrick et al. 2009. New “Law” label. Still
   strictly secular. The action-plan table stacks into cards on phones.
+  Third pass (owner: "Immigration laws especially H1B, F1 OPT"): new Part III “The visa
+  clock” — OPT 90/150 unemployment days, H-1B 60-day grace, cap-gap to 1 April, wage-weighted
+  lottery (FY2027), the $100k H-1B payment (blocked by courts as of Nov 2026, appeals
+  pending, extended to 2027), proposed OPT fees (Oct 2026, not in effect). Dated “as of
+  22 November 2026” and “not legal advice” — **re-check these on any future edit**; they
+  move monthly. Amara is now an F-1 OPT graduate.
 - **(2026-11-22, first pass): “The Job Search Paradox” rebuilt** (owner's editorial brief)
   (`articles/the-job-search-paradox.html`, personality, 14 min). IQ / EQ / SQ / AQ are an
   editorial framework, never measured quotients. **SQ is strictly secular** — the Gita 2.47
