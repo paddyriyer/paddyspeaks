@@ -6,7 +6,23 @@ clones fresh each time). CLAUDE.md points here._
 
 ## TL;DR of current state
 
-- **NEWEST (2026-11-22): “The Job Search Paradox” rebuilt** (owner's editorial brief)
+- **NEWEST (2026-11-22, second pass): “The Job Search Paradox” punch-up** (owner's brief:
+  punch, sarcasm, 2026 realism). Now built on six contradictions of the 2026 market
+  (qualification, generative AI, experience, networking, transparency, resilience), each lens
+  as a confrontation with a scene (Amara 22 / Tomás 44 / Ruth 57, all labelled fictional,
+  no tidy endings), a Part III “The candidate is not always the problem”, and a closing
+  self-assessment + measurable action plan (the four-week plan is gone). New verified
+  sources: Stanford “Canaries” (descriptive, not causal), Hosseini & Lichtinger (working
+  paper, contested), Ontario ESA posting rules (1 Jan 2026), EU Directive 2023/970, CRS
+  IF12977 (no official ghost-job statistics), Barrick et al. 2009. New “Law” label. Still
+  strictly secular. The action-plan table stacks into cards on phones.
+  Third pass (owner: "Immigration laws especially H1B, F1 OPT"): new Part III “The visa
+  clock” — OPT 90/150 unemployment days, H-1B 60-day grace, cap-gap to 1 April, wage-weighted
+  lottery (FY2027), the $100k H-1B payment (blocked by courts as of Nov 2026, appeals
+  pending, extended to 2027), proposed OPT fees (Oct 2026, not in effect). Dated “as of
+  22 November 2026” and “not legal advice” — **re-check these on any future edit**; they
+  move monthly. Amara is now an F-1 OPT graduate.
+- **(2026-11-22, first pass): “The Job Search Paradox” rebuilt** (owner's editorial brief)
   (`articles/the-job-search-paradox.html`, personality, 14 min). IQ / EQ / SQ / AQ are an
   editorial framework, never measured quotients. **SQ is strictly secular** — the Gita 2.47
   verse, its link and source were removed at the owner's request; never add religious or
