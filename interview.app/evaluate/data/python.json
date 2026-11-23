@@ -9912,6 +9912,54 @@
       ],
       "answer": 1,
       "explanation": "Pattern matching with OR patterns (float(v) | int(v)) and multiple match arms handles both value types. Explicit case _ raises ValueError to prevent silent failures and schema drift\u2014critical for data quality in warehouses. Option 0 risks unmatched events going unhandled. Option 2 loses type safety benefits of pattern matching. Option 3 uses guards incorrectly (can't chain conditionals that way in match statements). The key is explicit error handling rather than silent data loss."
+    },
+    {
+      "id": "py-new-228",
+      "type": "single",
+      "topic": "pandas performance",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You have a pandas DataFrame with 100M rows and need to perform a groupby operation followed by a custom aggregation. The operation is currently taking 45 seconds. Which approach would provide the most significant performance improvement without changing the underlying data structure?",
+      "options": [
+        "Use `df.groupby().apply()` with `raw=True` parameter to pass numpy arrays instead of Series objects",
+        "Convert the DataFrame to Polars, perform the groupby, then convert back to pandas for consistency with existing code",
+        "Use `pd.eval()` to compile the groupby expression into bytecode before executing",
+        "Split the DataFrame into chunks using `np.array_split()`, apply groupby to each chunk in a multiprocessing Pool, then concatenate results"
+      ],
+      "answer": 0,
+      "explanation": "Using `raw=True` in groupby().apply() bypasses Series object creation overhead and passes numpy arrays directly, which significantly improves performance for large DataFrames. Converting to Polars and back adds serialization overhead, pd.eval() doesn't directly optimize groupby operations, and multiprocessing introduces inter-process communication overhead that often negates gains for this type of operation."
+    },
+    {
+      "id": "py-new-229",
+      "type": "single",
+      "topic": "polars",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're migrating a pandas pipeline to Polars and need to replicate a complex operation: grouping by multiple columns, computing a rolling sum over a date range, then joining back to the original data. When you replace `df.groupby().rolling().sum()` with Polars' lazy evaluation, the query plan shows an unexpected Collect operation. What is the most likely cause and solution?",
+      "options": [
+        "Polars doesn't support rolling windows in groupby context; you must use `over()` with `rolling_sum()` and ensure your DataFrame is sorted by the date column before the operation",
+        "The lazy evaluation is breaking because you're mixing eager and lazy operations; convert all operations to use `select()` and `with_columns()` instead of method chaining",
+        "Polars requires explicit schema definition for rolling operations; add `.schema()` before the groupby to specify output types",
+        "The Collect operation indicates a performance bottleneck; replace `pl.read_csv()` with `pl.scan_csv()` and use Parquet format instead"
+      ],
+      "answer": 0,
+      "explanation": "In Polars, the idiomatic approach for rolling window operations within groups is using `over()` with window functions like `rolling_sum()`, not groupby().rolling(). The DataFrame must be sorted by the date column for correct results. This avoids unnecessary Collect operations and maintains lazy evaluation efficiency. Options B, C, and D address different issues that wouldn't manifest as an unexpected Collect in this specific scenario."
+    },
+    {
+      "id": "py-new-230",
+      "type": "single",
+      "topic": "multiprocessing",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're using multiprocessing to parallelize data transformation across 16 worker processes. Each worker processes a batch of 10,000 records. After 2 hours, you observe that 2 processes are consuming significantly more memory (5GB each) while others remain at 500MB. The processes haven't crashed and are still running. What is the most likely cause and how should you diagnose it?",
+      "options": [
+        "Memory fragmentation in the worker processes; use `multiprocessing.Queue` with a maxsize limit to prevent unbounded buffer accumulation",
+        "A memory leak in the custom transformation function called by workers; profile individual worker processes using `tracemalloc` on a subset of data to identify which objects aren't being garbage collected",
+        "The multiprocessing context is using 'spawn' instead of 'fork', causing each process to duplicate the parent's memory; switch to 'fork' context using `mp.get_context('fork')`",
+        "Resource exhaustion from the OS file descriptor limit; increase ulimit and implement connection pooling in the worker function"
+      ],
+      "answer": 1,
+      "explanation": "Memory growth in specific worker processes over time strongly suggests a memory leak in the transformation logic rather than a systemic issue. Using `tracemalloc` to profile a subset of data in an isolated worker process is the standard diagnostic approach to identify leaked objects. Options A and D address different issues (buffer accumulation and file descriptors), while option C misunderstands multiprocessing memory behavior\u2014'fork' would inherit the parent's memory at start, not explain growing disparities between workers."
     }
   ]
 }

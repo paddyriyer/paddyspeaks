@@ -16518,6 +16518,70 @@
       ],
       "answer": 1,
       "explanation": "Option 1 is most efficient because it filters order_items first (smallest dataset) in a CTE, then joins with orders only for matching rows, avoiding duplicate counting issues. Option 0 creates unnecessary DISTINCT logic and multiple joins. Option 2 works but has no CTE structure as requested. Option 3 returns incomplete results (missing spend and rank)."
+    },
+    {
+      "id": "sql-new-230",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You have a BigQuery table `events(user_id STRING, event_type STRING, event_time TIMESTAMP)` partitioned by event_time and clustered by user_id. You need to query events for a specific user over the last 24 hours. Which query pattern will be most cost-efficient?",
+      "options": [
+        "SELECT * FROM events WHERE user_id = 'user123' AND event_time >= CURRENT_TIMESTAMP() - INTERVAL 24 HOUR;",
+        "SELECT * FROM events WHERE event_time >= CURRENT_TIMESTAMP() - INTERVAL 24 HOUR AND user_id = 'user123';",
+        "SELECT * FROM events WHERE user_id = 'user123';",
+        "SELECT * FROM events WHERE DATE(event_time) = CURRENT_DATE() AND user_id = 'user123';"
+      ],
+      "answer": 1,
+      "explanation": "BigQuery evaluates partition filters first, then cluster filters. Placing the partition column (event_time) filter before the cluster column (user_id) allows BigQuery to prune partitions first, reducing the data scanned. Option 0 also works but has suboptimal filter order; option 2 scans all data; option 3 uses DATE which may be slower than TIMESTAMP comparison."
+    },
+    {
+      "id": "sql-new-231",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "In Snowflake, you create a materialized view `mv_customer_metrics` that aggregates data from a 500GB `orders` table. The view is used by multiple dashboards. After 2 weeks, queries against the materialized view become slower. What is the most likely cause and best solution?",
+      "options": [
+        "The materialized view cache expired; recreate it with CACHE = TRUE.",
+        "The underlying orders table grew significantly; the materialized view is stale and needs manual refresh. Run ALTER MATERIALIZED VIEW mv_customer_metrics REFRESH.",
+        "Snowflake automatically compacted the view storage; rebuild the clustering with ALTER MATERIALIZED VIEW RECLUSTER.",
+        "The materialized view's query result set grew beyond memory; switch to a dynamic view to reduce memory usage."
+      ],
+      "answer": 1,
+      "explanation": "Snowflake materialized views do not auto-refresh when source tables change. As the underlying orders table grows, the view stale data becomes larger and performance degrades. The solution is explicit refresh using ALTER MATERIALIZED VIEW REFRESH. Option 0 is incorrect (no cache expiration mechanism); option 2 is unnecessary; option 3 defeats the purpose of materialization."
+    },
+    {
+      "id": "sql-new-232",
+      "type": "single",
+      "topic": "Snowflake-specific",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You have a Snowflake materialized view that joins `customers` and `orders` tables daily. The join condition uses customer.email = orders.customer_email. After data quality issues, you discover 15% of emails are NULL in the join. What is the impact on the materialized view result?",
+      "options": [
+        "NULL emails are treated as matching; rows with NULL on both sides are included in the result.",
+        "NULL emails cause the join to fail; the materialized view refresh returns an error.",
+        "Rows with NULL emails are excluded from the join result; SQL treats NULL != NULL.",
+        "NULL emails are automatically coerced to empty strings; they match if both sides are empty."
+      ],
+      "answer": 2,
+      "explanation": "In SQL (including Snowflake), NULL comparison (NULL = NULL) evaluates to UNKNOWN, not TRUE, so rows with NULL values are excluded from INNER JOIN results. This is standard SQL behavior and applies to materialized views. Options 0, 1, and 3 misrepresent how NULL handling works in SQL joins."
+    },
+    {
+      "id": "sql-new-233",
+      "type": "single",
+      "topic": "BigQuery-specific",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You query a BigQuery table `events` using `SELECT user_id, COUNT(*) as cnt FROM events GROUP BY user_id`. The query returns approximate results with a warning. The same query without approximation scans 2TB. What BigQuery feature is triggering approximation and how can you disable it?",
+      "options": [
+        "Approximate counts are enabled by default for large scans; use SET @@query_config = {approximate: false} before the query.",
+        "BigQuery's approximate query optimization kicks in for aggregations over 1TB; add EXACT_COUNT_DISTINCT() function.",
+        "The result cache is serving approximate results; disable with #standardSQL pragma and query large tables explicitly.",
+        "BigQuery is using HyperLogLog approximation for large GROUP BY operations; use approximate_count=false in query parameters or run on smaller date ranges."
+      ],
+      "answer": 3,
+      "explanation": "BigQuery applies HyperLogLog approximation heuristically for large GROUP BY aggregations to manage costs and latency. Users can disable it via query parameters or by filtering data to smaller scopes. Options 0 and 2 refer to non-existent BigQuery mechanisms; option 1 suggests EXACT_COUNT_DISTINCT which doesn't exist in that context."
     }
   ]
 }

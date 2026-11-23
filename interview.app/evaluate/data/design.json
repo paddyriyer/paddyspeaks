@@ -7336,6 +7336,54 @@
       ],
       "answer": 2,
       "explanation": "Option 2 is correct because dynamic task mapping reduces task overhead (single task definition, parallelized execution), `max_tries=3` handles retries cleanly, and the sensor with `allowed_states=[SUCCESS, FAILED]` lets the DAG continue even if units fail\u2014you then conditionally branch for alerting or reporting. Option 0 couples all units into one task (poor observability and retry granularity); Option 1 creates 150 static tasks (high DAG parse overhead); Option 3 is outdated (SubDAGs are deprecated in Airflow 2.0+) and adds unnecessary complexity."
+    },
+    {
+      "id": "ds-new-167",
+      "type": "single",
+      "topic": "CDC patterns",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're implementing a CDC pipeline from Oracle to Snowflake for a 50-table OLTP schema. The source has composite primary keys, frequent updates to slowly-changing dimensions, and a 4-hour SLA for data freshness. You evaluate Debezium (Kafka Connect), native Oracle LogMiner, and Query-based CDC. Which approach minimizes operational overhead while guaranteeing exactly-once semantics and handling schema evolution?",
+      "options": [
+        "Query-based CDC with timestamp columns and Airflow scheduling\u2014simplest to maintain, requires application logic to track last-processed timestamp",
+        "Debezium with Kafka and idempotent Snowflake MERGE statements keyed on PK + __lsn (log sequence number)\u2014leverages Kafka durability and CDC metadata for exactly-once",
+        "Oracle LogMiner with direct stream to Snowflake via custom Python consumer\u2014lowest latency but requires manual handling of redo log gaps and schema DDL events",
+        "Hybrid: Debezium for high-churn tables, Query-based CDC for dimension tables\u2014overly complex multi-pipeline orchestration with inconsistent freshness guarantees"
+      ],
+      "answer": 1,
+      "explanation": "Debezium (option B) is the production standard for CDC at scale because Kafka provides durable offset management (enabling exactly-once via idempotent upserts), Snowflake's MERGE handles PK deduplication, and schema changes are captured as events. Query-based CDC (A) lacks exactly-once guarantees without distributed transactions. LogMiner (C) requires operational expertise in redo log management and doesn't naturally support exactly-once without external coordination."
+    },
+    {
+      "id": "ds-new-168",
+      "type": "single",
+      "topic": "dbt best practices",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "Your dbt project has 400+ models across 8 layers (staging, intermediate, marts). Downstream BI tools depend on 60 core mart tables that must refresh in <30 minutes nightly. You notice dbt full-refresh takes 2.5 hours due to unoptimized upstream intermediate models. How should you restructure your dbt DAG to minimize refresh time while maintaining code quality?",
+      "options": [
+        "Split intermediate layer into two sub-layers: 'ephemeral' models (SQL compiled inline) for reusable logic, and 'materialized view' intermediate tables built fresh nightly\u2014reduces data motion",
+        "Convert all intermediate models to 'ephemeral' materialization\u2014eliminates intermediate tables entirely, reducing storage but increasing compute in downstream dependencies",
+        "Introduce 'incremental' materialization for all models, dbt selector to run only downstream of changed sources\u2014requires sophisticated state tracking and doesn't apply to full-refresh cycles",
+        "Build a separate 'mart_only' dbt manifest that sources only the 60 core tables and skips staging/intermediate\u2014violates DRY principle and breaks dependency traceability"
+      ],
+      "answer": 0,
+      "explanation": "Option A (ephemeral + materialized views) is the dbt best practice for this scenario: ephemeral models reduce intermediate table bloat by compiling inline in dependent models, while materialized intermediate views provide reusable, cached building blocks that can be referenced by multiple downstream models. This balances compute cost with maintainability. Option B eliminates tables entirely (increases downstream compute), option C doesn't solve full-refresh, and option D breaks architectural principle."
+    },
+    {
+      "id": "ds-new-169",
+      "type": "single",
+      "topic": "exactly-once semantics",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're building a Kafka \u2192 Flink \u2192 Iceberg pipeline that deduplicates financial transactions by order_id and maintains referential integrity with a Customer table. Flink's exactly-once checkpoint interval is 1 minute. During a broker failure, 500 messages (orders) are replayed. Your current design uses Iceberg's UPSERT (merge-on-read) keyed by order_id. A new requirement: transactions must never duplicate in the downstream BI warehouse. What is the critical gap in your exactly-once strategy?",
+      "options": [
+        "Iceberg's merge-on-read UPSERT mode prevents duplicates server-side, so exactly-once at Kafka/Flink level is sufficient\u2014no additional logic needed",
+        "Flink checkpoints only guarantee exactly-once within Flink; Iceberg UPSERT is non-idempotent if the same transaction batch is committed twice\u2014you need idempotent writes keyed by (order_id, source_partition, offset_range)",
+        "Kafka rebalancing during the replay window breaks exactly-once guarantees regardless of downstream system\u2014only consumer group coordination can fix this",
+        "Exactly-once requires transactional writes across Kafka consumer offset commits and Iceberg data writes\u2014Flink's 2-phase commit handles this automatically with Kafka and Iceberg connectors"
+      ],
+      "answer": 1,
+      "explanation": "Option B identifies the critical gap: Flink's exactly-once guarantee is scoped to its compute engine; without idempotent downstream writes (deduplication key beyond order_id alone), replayed messages can create duplicate rows in Iceberg. Option A incorrectly assumes server-side UPSERT prevents duplicates (it doesn't if the same merge batch is applied twice). Option C conflates Kafka delivery semantics with end-to-end exactly-once. Option D overstates Flink's automatic guarantees\u2014the connector must be configured correctly."
     }
   ]
 }
