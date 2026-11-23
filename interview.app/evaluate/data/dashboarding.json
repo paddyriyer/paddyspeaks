@@ -2045,6 +2045,38 @@
       ],
       "answer": 1,
       "explanation": "Pre-aggregated caches in semantic layers can become stale if invalidation rules depend on the warehouse being available. If the warehouse was unreachable during the outage, pre-computed YoY aggregates may not have been refreshed. After the warehouse came back online, the semantic layer would need explicit cache invalidation; without it, it continues serving the old aggregates. This explains why all dashboards are uniformly wrong and why the error is consistent (a fixed offset) rather than sporadic."
+    },
+    {
+      "id": "dash-new-073",
+      "type": "single",
+      "topic": "non-additive measures",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You are building a dashboard for a fintech platform showing account balances across regions and time periods. A stakeholder requests a tile that sums account balance by region for the current month. When you drill down from 'North America' to individual states, the totals no longer match the regional aggregate. What is the root cause and best remediation?",
+      "options": [
+        "The underlying fact table has duplicate account records; deduplicate before aggregation",
+        "Account balance is a non-additive measure (snapshot of a point in time); sums across dimensions are meaningless and should be replaced with average balance or month-end balance only",
+        "Row-level security filters are hiding some accounts in the drill-down view; audit the RLS policy",
+        "The ETL pipeline is using left outer join instead of inner join; switch to inner join in the data model"
+      ],
+      "answer": 1,
+      "explanation": "Account balance is a classic non-additive measure\u2014summing balances across regions or time periods produces meaningless results because each record represents a snapshot at a point in time, not a transaction. The best approach is to either show aggregate metrics like average balance, month-end balance, or total account count instead. Deduplication and join type changes would not solve the fundamental semantic problem."
+    },
+    {
+      "id": "dash-new-074",
+      "type": "single",
+      "topic": "metric definitions and governance",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "Your organization deployed a centralized metric layer (Looker Explores, dbt metrics, or Metaplane) with 150 defined metrics. After six months, the Finance team and Product team report different values for 'Monthly Recurring Revenue (MRR)' on their respective dashboards\u2014by 12%. Investigation reveals Finance excludes trials and uses month-end snapshots, while Product includes trials and uses a 30-day rolling average. What governance step would have prevented this?",
+      "options": [
+        "Implement real-time alerting on metric discrepancies so teams are notified when values diverge",
+        "Require all metrics to have a single, versioned definition with explicit inclusion/exclusion rules, documented owners, and a change-request process before metrics are published to dashboards",
+        "Store metric lineage in a data catalog so teams can trace which tables feed each metric calculation",
+        "Create separate metric layers for each business function (Finance, Product) so there is no expectation of alignment"
+      ],
+      "answer": 1,
+      "explanation": "The root cause is lack of governance around metric definitions. Without a single source of truth with explicit rules, inclusion criteria, and an approval process, teams will independently implement variants. Versioning, owners, and change control prevent drift and ensure consistency. Alerting (option A) detects the problem but doesn't prevent it; separate layers (option D) accept the problem; lineage (option C) helps diagnosis but not prevention."
     }
   ]
 }

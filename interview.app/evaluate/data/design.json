@@ -7288,6 +7288,54 @@
       ],
       "answer": 0,
       "explanation": "Data Vault 2.0 best practice uses a surrogate key in the Hub and stores source identifiers and matching metadata in a Satellite. This preserves auditability (you can trace which source IDs map to which customer), handles schema evolution, and allows updating match confidence without altering the Hub. Option 1 is the standard pattern."
+    },
+    {
+      "id": "ds-new-164",
+      "type": "single",
+      "topic": "idempotency",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're designing a payment reconciliation pipeline that processes transactions from Kafka into Snowflake. Duplicate transactions occasionally arrive from upstream (within 24 hours), and partial failures can cause mid-transaction restarts. Your reconciliation SLA requires exactly-once semantics. Which approach best ensures idempotency while minimizing latency and storage overhead?",
+      "options": [
+        "Use Snowflake's MERGE statement with a unique constraint on transaction_id + timestamp, and implement application-level deduplication using Redis with TTL",
+        "Implement a deterministic processing key (transaction_id + idempotency_key), store processed transaction IDs in a Snowflake dimension table with clustering on transaction_id, and use INSERT OR IGNORE semantics via MERGE with conflict resolution on the unique key",
+        "Write all transactions to a staging table, then use a stream on that table to capture changes, and replay only unprocessed rows into the fact table using Snowflake dynamic tables",
+        "Disable Kafka auto-commit, persist offsets in Snowflake after successful MERGE, and use transaction_id as the primary key with a UNIQUE constraint to reject duplicates at the database layer"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is correct because using MERGE with a unique constraint on (transaction_id + idempotency_key) provides true idempotency at the database level\u2014duplicate inserts are silently ignored\u2014while clustering on transaction_id minimizes lookup latency for the MERGE operation. Storing the processed key in Snowflake (not Redis) ensures durability and survives restarts. Option 0 adds unnecessary external state management; Option 2 adds complexity without direct idempotency guarantees; Option 3 risks offset-data skew and doesn't prevent duplicate rows if reprocessing occurs."
+    },
+    {
+      "id": "ds-new-165",
+      "type": "single",
+      "topic": "schema evolution",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "Your data platform receives Avro events from 80 producer services. A downstream consumer team wants to add an optional nested field `user_attributes.loyalty_tier` to an existing event schema used by 15 producers. You need to ensure backward compatibility, avoid breaking existing consumers, and minimize producer coordination overhead. Which strategy is most appropriate?",
+      "options": [
+        "Create a new major schema version; notify all 15 producers to migrate simultaneously within a 2-week window; maintain dual versions in Kafka for 1 month",
+        "Use Avro's union type with null default: define `loyalty_tier` as `[\"null\", \"string\"] = null` in the nested record, allowing producers to publish immediately without code changes; existing consumers ignore the field",
+        "Add the field to a separate companion Avro topic; have producers publish enrichment events asynchronously; join at the consumer side using user_id",
+        "Deploy the schema change to Confluent Schema Registry with compatibility mode set to BACKWARD_TRANSITIVE; require all producers to pass a schema validation test before updating"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is correct because adding an optional field with a union type and null default maintains backward compatibility\u2014old producers can omit it, new producers can include it, and all consumers can read both. This requires zero coordination. Option 0 creates coordination overhead and risk; Option 2 adds operational complexity and join latency; Option 3 is a governance step but doesn't solve the schema evolution problem itself\u2014it only validates that changes don't break existing readers."
+    },
+    {
+      "id": "ds-new-166",
+      "type": "single",
+      "topic": "Airflow patterns",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You're building an Airflow DAG that processes 150 nightly ETL jobs for different business units. Each job is independent and should be retried up to 3 times on transient failure. However, if a job fails permanently, the entire DAG should not fail\u2014instead, send an alert and skip that unit's downstream reporting. You need to minimize task overhead and log storage. Which Airflow pattern best solves this?",
+      "options": [
+        "Use a single BashOperator with a shell loop over all 150 units; implement retry logic and error handling inside the script; write failures to a Delta table for alerting",
+        "Create 150 separate PythonOperator tasks; set `max_tries=3` and `pool_slots=1` on each; wrap each in a try-except; use `trigger_rule=NONE_FAILED_MIN_ONE_SUCCESS` on the reporting task",
+        "Use dynamic task mapping with `expand()` over a list of 150 business units; set `max_tries=3` on the mapped task; use `upstream_list` sensor with `allowed_states=[State.SUCCESS, State.FAILED]` and conditional branching for reporting",
+        "Create a parent DAG that spawns 150 SubDAG tasks (one per unit); set retry policy at the parent level; use ExternalTaskSensor to monitor completion and skip reporting on failure"
+      ],
+      "answer": 2,
+      "explanation": "Option 2 is correct because dynamic task mapping reduces task overhead (single task definition, parallelized execution), `max_tries=3` handles retries cleanly, and the sensor with `allowed_states=[SUCCESS, FAILED]` lets the DAG continue even if units fail\u2014you then conditionally branch for alerting or reporting. Option 0 couples all units into one task (poor observability and retry granularity); Option 1 creates 150 static tasks (high DAG parse overhead); Option 3 is outdated (SubDAGs are deprecated in Airflow 2.0+) and adds unnecessary complexity."
     }
   ]
 }

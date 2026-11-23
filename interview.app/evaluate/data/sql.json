@@ -16454,6 +16454,70 @@
       ],
       "answer": 1,
       "explanation": "SERIALIZABLE isolation in Snowflake enforces strict ordering and causes conflicts when multiple transactions touch overlapping row ranges, even on insert-only scenarios. READ COMMITTED is sufficient for idempotent merge operations because the UNIQUE constraint on event_id prevents true duplicates post-commit. The merge's join condition itself ensures correctness, making SERIALIZABLE unnecessary and performance-detrimental. Clustering and VARIANT data type are orthogonal to serialization failures; constraint violations are the root cause."
+    },
+    {
+      "id": "sql-new-226",
+      "type": "single",
+      "topic": "CTEs with Recursive Queries",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You have an `org_hierarchy(employee_id INT, manager_id INT, name TEXT)` table representing a company structure. You need to find all direct and indirect reports under manager_id = 5, returning employee_id and depth level. Which approach is correct for this recursive CTE in Snowflake?",
+      "options": [
+        "WITH RECURSIVE reports AS (SELECT employee_id, manager_id, 1 as depth FROM org_hierarchy WHERE manager_id = 5 UNION ALL SELECT o.employee_id, o.manager_id, r.depth + 1 FROM org_hierarchy o JOIN reports r ON o.manager_id = r.employee_id) SELECT * FROM reports;",
+        "WITH reports AS (SELECT employee_id, manager_id FROM org_hierarchy WHERE manager_id = 5) SELECT DISTINCT employee_id FROM reports;",
+        "SELECT employee_id, ROW_NUMBER() OVER (ORDER BY manager_id) as depth FROM org_hierarchy WHERE manager_id = 5 OR manager_id IN (SELECT employee_id FROM org_hierarchy WHERE manager_id = 5);",
+        "SELECT RECURSIVE employee_id, manager_id, 1 as depth FROM org_hierarchy WHERE manager_id = 5 UNION SELECT employee_id, manager_id, depth + 1 FROM org_hierarchy;"
+      ],
+      "answer": 0,
+      "explanation": "The correct recursive CTE uses WITH RECURSIVE, establishes a base case (direct reports), and then recursively joins the base result with the original table to find indirect reports. Option 0 correctly implements both the anchor and recursive member with proper syntax and logic."
+    },
+    {
+      "id": "sql-new-227",
+      "type": "single",
+      "topic": "COALESCE and NULLIF Functions",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You have a `customer_feedback(feedback_id INT, rating INT, comment TEXT, updated_at TIMESTAMP)` table where rating can be NULL or 0-5. You need to flag rows where the rating is explicitly set to 0 (not NULL) for manual review. Which query correctly identifies these cases?",
+      "options": [
+        "SELECT feedback_id FROM customer_feedback WHERE rating = 0;",
+        "SELECT feedback_id FROM customer_feedback WHERE NULLIF(rating, 0) IS NULL AND rating IS NOT NULL;",
+        "SELECT feedback_id FROM customer_feedback WHERE COALESCE(rating, -1) = 0;",
+        "SELECT feedback_id FROM customer_feedback WHERE rating IS NULL OR rating = 0;"
+      ],
+      "answer": 1,
+      "explanation": "NULLIF(rating, 0) returns NULL when rating equals 0, and non-NULL otherwise. By checking if NULLIF(rating, 0) IS NULL AND rating IS NOT NULL, we ensure the original rating was exactly 0 (not NULL). Options 0 and 3 would include NULL values, and option 2 would incorrectly match NULLs."
+    },
+    {
+      "id": "sql-new-228",
+      "type": "single",
+      "topic": "DISTINCT ON (PostgreSQL/Redshift)",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You have a `user_sessions(user_id INT, session_id STRING, login_time TIMESTAMP, device TEXT)` table with multiple sessions per user. Using Redshift (which supports DISTINCT ON), you need the most recent session per user along with the device used. What is the correct query?",
+      "options": [
+        "SELECT DISTINCT ON (user_id) user_id, session_id, login_time, device FROM user_sessions ORDER BY user_id, login_time DESC;",
+        "SELECT user_id, session_id, login_time, device FROM user_sessions WHERE (user_id, login_time) IN (SELECT user_id, MAX(login_time) FROM user_sessions GROUP BY user_id);",
+        "SELECT DISTINCT user_id, session_id FROM user_sessions ORDER BY login_time DESC;",
+        "SELECT TOP 1 user_id, session_id, login_time, device FROM user_sessions ORDER BY login_time DESC;"
+      ],
+      "answer": 0,
+      "explanation": "DISTINCT ON in Redshift/PostgreSQL allows selecting one row per distinct value in specified columns, with the ORDER BY determining which row is selected. Option 0 correctly uses DISTINCT ON (user_id) and orders by login_time DESC to get the most recent session. Option 1 works but is less efficient than DISTINCT ON; options 2 and 3 don't preserve all required columns or logic."
+    },
+    {
+      "id": "sql-new-229",
+      "type": "single",
+      "topic": "CTEs with Multiple Joins",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "In BigQuery, you have `orders(order_id INT, customer_id INT, order_date DATE, amount DECIMAL)` and `order_items(item_id INT, order_id INT, product_id INT, quantity INT)` tables. You need to find customers who purchased products 101 OR 102, calculate total spend, and rank them by spend within their purchase group. Which CTE structure is most efficient?",
+      "options": [
+        "WITH customer_products AS (SELECT DISTINCT customer_id, order_id FROM orders o JOIN order_items oi ON o.order_id = oi.order_id WHERE product_id IN (101, 102)), customer_spend AS (SELECT customer_id, SUM(amount) as total_spend FROM customer_products cp JOIN orders o ON cp.order_id = o.order_id GROUP BY customer_id) SELECT customer_id, total_spend, RANK() OVER (ORDER BY total_spend DESC) as rank FROM customer_spend;",
+        "WITH filtered_items AS (SELECT order_id, product_id FROM order_items WHERE product_id IN (101, 102)), customer_spend AS (SELECT o.customer_id, SUM(o.amount) as total_spend FROM orders o JOIN filtered_items fi ON o.order_id = fi.order_id GROUP BY o.customer_id) SELECT customer_id, total_spend, RANK() OVER (ORDER BY total_spend DESC) as rank FROM customer_spend;",
+        "SELECT o.customer_id, SUM(o.amount) as total_spend, RANK() OVER (ORDER BY SUM(o.amount) DESC) as rank FROM orders o JOIN order_items oi ON o.order_id = oi.order_id WHERE oi.product_id IN (101, 102) GROUP BY o.customer_id;",
+        "WITH customer_products AS (SELECT DISTINCT customer_id FROM orders o WHERE EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.order_id AND oi.product_id IN (101, 102))) SELECT customer_id FROM customer_products;"
+      ],
+      "answer": 1,
+      "explanation": "Option 1 is most efficient because it filters order_items first (smallest dataset) in a CTE, then joins with orders only for matching rows, avoiding duplicate counting issues. Option 0 creates unnecessary DISTINCT logic and multiple joins. Option 2 works but has no CTE structure as requested. Option 3 returns incomplete results (missing spend and rank)."
     }
   ]
 }

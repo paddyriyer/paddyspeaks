@@ -9864,6 +9864,54 @@
       ],
       "answer": 2,
       "explanation": "Polars' lazy evaluation mode (`.lazy()`) automatically optimizes the entire query plan before execution, pushing down filters and pruning columns, which significantly reduces memory usage and improves performance on large DataFrames. Option 1 executes eagerly without optimization, option 2 unnecessarily converts to pandas losing Polars' performance benefits, and option 4 adds unnecessary multiprocessing overhead since Polars is already optimized for single-machine parallelism."
+    },
+    {
+      "id": "py-new-225",
+      "type": "single",
+      "topic": "asyncio",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're building a data ingestion service that fetches records from 10 different APIs concurrently. Each API call takes 2-5 seconds, and you need to process results as they complete (not wait for all). You're using asyncio.gather() but notice tail latency issues. Which approach best addresses this?\n\nCurrently:\n```python\nresults = await asyncio.gather(*[fetch_api(url) for url in urls])\n```",
+      "options": [
+        "Replace gather() with asyncio.as_completed() to process results incrementally and avoid blocking on slower requests",
+        "Use asyncio.wait() with return_when=FIRST_COMPLETED to wait only for the fastest request",
+        "Add asyncio.TimeoutError handling inside each coroutine to catch slow requests early",
+        "Switch to concurrent.futures.ThreadPoolExecutor to bypass asyncio's event loop overhead"
+      ],
+      "answer": 0,
+      "explanation": "asyncio.as_completed() returns an iterator of futures in completion order, allowing you to process results as they arrive without waiting for all coroutines. This directly reduces tail latency for data aggregation. gather() waits for all tasks, making it suboptimal when handling variable-latency sources. FIRST_COMPLETED only captures one result, and ThreadPoolExecutor won't help with I/O-bound async operations."
+    },
+    {
+      "id": "py-new-226",
+      "type": "single",
+      "topic": "type hints",
+      "difficulty": "medium",
+      "added_date": "2026-11-23",
+      "prompt": "You're refactoring a data pipeline library where a transformation function must handle three distinct input types: a single pandas Series, a list of Series objects, or a Polars DataFrame. The function signature currently causes type-checking failures. Which approach correctly enforces type safety while maintaining API flexibility?\n\n```python\ndef transform(data: ???) -> Union[Series, DataFrame]:\n    # Implementation handles all three cases\n    pass\n```",
+      "options": [
+        "Use Union[pd.Series, List[pd.Series], pl.DataFrame] with @overload decorators for each case in a .pyi stub file",
+        "Use TypeVar bound to 'DataFrameLike' protocol with @overload to define signatures for each input variant",
+        "Replace type hints with **kwargs and validate types at runtime with isinstance() checks",
+        "Use Generic[T] with T = TypeVar('T', pd.Series, List[pd.Series], pl.DataFrame) and return T"
+      ],
+      "answer": 1,
+      "explanation": "Protocol-based TypeVar with @overload provides proper type narrowing for mypy/pyright while documenting API contracts. Each @overload signature specifies exact input-output mapping, allowing static type checkers to infer return types correctly. Plain Union without overload loses type information at call sites. TypeVar Generic[T] doesn't work here because return type isn't directly tied to input variance. Runtime-only checks skip static analysis benefits."
+    },
+    {
+      "id": "py-new-227",
+      "type": "single",
+      "topic": "structural pattern matching",
+      "difficulty": "hard",
+      "added_date": "2026-11-23",
+      "prompt": "You're processing heterogeneous telemetry events in a data warehouse loader. Events have variable structure: some are dicts with 'metric_type', others are tuples (timestamp, value, tags). You need to route events to different handlers using Python 3.10+ pattern matching. Which implementation correctly handles nested optional fields and prevents silent data loss?\n\n```python\nmatch event:\n    case {'metric_type': 'gauge', 'value': float(v)} if v > threshold:\n        # gauge handler\n    case ???:\n        # catch edge cases\n```",
+      "options": [
+        "Use case {'metric_type': str(t), **rest} with guards to validate 'value' exists, then case _ to log unmatched events",
+        "Use case {'metric_type': 'gauge', 'value': float(v) | int(v)} | (float(), float(), _): with case _ raising ValueError for invalid schemas",
+        "Use case {**data} as catch-all, then validate required fields inside the handler with explicit type checks",
+        "Use guard clauses with case {'metric_type': t} if 'value' in event else case (_, v, _) if isinstance(v, (int, float)) else case _: logging.warning()"
+      ],
+      "answer": 1,
+      "explanation": "Pattern matching with OR patterns (float(v) | int(v)) and multiple match arms handles both value types. Explicit case _ raises ValueError to prevent silent failures and schema drift\u2014critical for data quality in warehouses. Option 0 risks unmatched events going unhandled. Option 2 loses type safety benefits of pattern matching. Option 3 uses guards incorrectly (can't chain conditionals that way in match statements). The key is explicit error handling rather than silent data loss."
     }
   ]
 }
