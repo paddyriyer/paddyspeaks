@@ -20,6 +20,12 @@ clones fresh each time). CLAUDE.md points here._
   prices (reported, not App Store-confirmed). Never imply the watch measures BP or glucose; never
   diagnose. Share card rendered from a scratchpad HTML template via Playwright. support.apple.com
   could not be fetched from this container (network policy); facts were verified through search results.
+  **Images (2026-11-23, owner's set `PaddySpeaks_2026_Health_Data_Images.zip`):** ten editorial cards
+  (“The Body, Observed”), WebP at 1600/960 px in `images/articles/your-apple-watch-knows-more-about-your-health/`,
+  each placed beside its section (hero → top; sleep, mobility → Part 2; ECG, devices → Part 3; 365-day
+  audit, HRV → Part 4; VO₂ → Scenario B; activity → Part 7; measure-verify-decide → Part 8), alt text
+  carrying every word on the card, captions labelled “Illustrative data · not an individual medical result”,
+  each linked full size. The raw zip was removed from `images/`; the contact sheet was not used.
 
 - **NEWEST (2026-11-22, second pass): “The Job Search Paradox” punch-up** (owner's brief:
   punch, sarcasm, 2026 realism). Now built on six contradictions of the 2026 market
