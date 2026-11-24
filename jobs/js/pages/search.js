@@ -111,6 +111,19 @@
     host.appendChild(s); host.appendChild(f);
   }
 
+  /* The phone bottom bar (Search · Filters) repeats controls the filter bar
+     already shows at the top of the page. Show it only once the filter bar
+     has scrolled out of view, so on first load it never sits on top of a
+     result card (axe target-size: a card's button under the bar's buttons). */
+  (function watchBottomBar() {
+    var bottom = document.getElementById('jsBottom');
+    if (!bottom || !barHost || !('IntersectionObserver' in window)) return;
+    bottom.hidden = true;
+    new IntersectionObserver(function (entries) {
+      bottom.hidden = entries[entries.length - 1].isIntersecting;
+    }).observe(barHost);
+  })();
+
   /* ── results ── */
   function page(reset) {
     if (reset) { window.JSDom.clear(resultsHost); shown = 0; }
