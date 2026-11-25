@@ -16592,6 +16592,22 @@
       "prompt": "You have a table `org_structure(emp_id INT, manager_id INT, department STRING, salary DECIMAL)` with 50,000 employees across multiple departments. You need to find the total compensation cost for each department's reporting hierarchy, starting from department heads (where manager_id IS NULL within that department) and including all direct and indirect reports. The compensation should include a 10% bonus for each level below the head, but NULL bonuses should be treated as 0. Which approach is most efficient in Snowflake?\n\nA) Use a recursive CTE to build the hierarchy, then window functions partitioned by department to calculate cumulative salary with COALESCE for NULL bonuses\n\nB) Use a recursive CTE to build the full hierarchy, then use NULLIF to convert 0 bonuses back to NULL, then aggregate by department\n\nC) Partition the table by department, use a recursive CTE on each partition to compute hierarchical depth, then apply COALESCE(bonus, 0) with salary multipliers, and sum by department\n\nD) Use multiple self-joins on the org_structure table partitioned by department, avoiding recursion entirely and using COALESCE for NULL handling",
       "answer": 2,
       "explanation": "Option C is correct because it combines all three required techniques: partitioning by department improves performance on large datasets, recursive CTEs handle the hierarchical traversal with depth tracking for the 10% per-level bonus calculation, and COALESCE(bonus, 0) safely handles NULL values in the bonus field. Options A and B are less efficient (A lacks partition pruning optimization, B wastes resources converting values back to NULL), and Option D avoids the standard hierarchical pattern needed for multi-level reporting structures."
+    },
+    {
+      "id": "sql-new-235",
+      "type": "single",
+      "topic": "Recursive CTEs with hierarchical queries",
+      "difficulty": "hard",
+      "added_date": "2026-11-25",
+      "prompt": "You have a `departments(dept_id INT, parent_dept_id INT, dept_name TEXT, budget DECIMAL)` table representing an organizational hierarchy. You need to find all descendant departments of department 5, including the total budget aggregated down the tree. Which recursive CTE approach correctly accumulates budget from leaf nodes upward while avoiding infinite loops?",
+      "options": [
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id, parent_dept_id, dept_name, budget, 0 as depth FROM departments WHERE dept_id = 5 UNION ALL SELECT d.dept_id, d.parent_dept_id, d.dept_name, d.budget, dt.depth + 1 FROM departments d JOIN dept_tree dt ON d.parent_dept_id = dt.dept_id WHERE dt.depth < 10) SELECT dept_id, SUM(budget) as total_budget FROM dept_tree GROUP BY dept_id",
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id, parent_dept_id, dept_name, budget, budget as cumulative_budget FROM departments WHERE parent_dept_id = 5 UNION ALL SELECT d.dept_id, d.parent_dept_id, d.dept_name, d.budget, d.budget + dt.cumulative_budget FROM departments d JOIN dept_tree dt ON d.dept_id = dt.parent_dept_id) SELECT * FROM dept_tree",
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id, parent_dept_id, dept_name, budget, 0 as depth FROM departments WHERE parent_dept_id = 5 UNION ALL SELECT d.dept_id, d.parent_dept_id, d.dept_name, d.budget, dt.depth + 1 FROM departments d JOIN dept_tree dt ON d.parent_dept_id = dt.dept_id WHERE dt.depth < 100) SELECT dept_id, dept_name, SUM(budget) OVER (ORDER BY depth DESC) as cumulative_budget FROM dept_tree",
+        "WITH RECURSIVE dept_tree AS (SELECT dept_id, parent_dept_id, dept_name, budget FROM departments WHERE parent_dept_id = 5 UNION ALL SELECT d.dept_id, d.parent_dept_id, d.dept_name, SUM(d.budget) FROM departments d JOIN dept_tree dt ON d.parent_dept_id = dt.dept_id GROUP BY d.dept_id, d.parent_dept_id, d.dept_name) SELECT dept_id, dept_name, budget FROM dept_tree"
+      ],
+      "answer": 0,
+      "explanation": "Option 0 correctly uses a recursive CTE that starts from dept_id = 5 (the anchor), finds all child departments (the recursive part), includes a depth limiter to prevent infinite loops, and aggregates budget across all descendants using GROUP BY. Options 1 and 3 have logic errors (attempting to sum within the CTE or improper parent-child joins), and option 2 uses incorrect window function semantics for this hierarchy."
     }
   ]
 }
