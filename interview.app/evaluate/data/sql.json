@@ -16608,6 +16608,22 @@
       ],
       "answer": 0,
       "explanation": "Option 0 correctly uses a recursive CTE that starts from dept_id = 5 (the anchor), finds all child departments (the recursive part), includes a depth limiter to prevent infinite loops, and aggregates budget across all descendants using GROUP BY. Options 1 and 3 have logic errors (attempting to sum within the CTE or improper parent-child joins), and option 2 uses incorrect window function semantics for this hierarchy."
+    },
+    {
+      "id": "sql-new-236",
+      "type": "single",
+      "topic": "recursive CTEs",
+      "difficulty": "hard",
+      "added_date": "2026-11-26",
+      "prompt": "You have a `bill_of_materials` table with columns `component_id INT, parent_id INT, quantity INT`. You need to find all leaf components (components that are never used as parents) and calculate their total required quantity when assembling a finished product with `parent_id = 1`, accounting for multi-level nesting. Which approach correctly uses a recursive CTE to solve this?\n\nGiven sample data:\n- (1, NULL, 1) - finished product\n- (2, 1, 3) - subassembly used 3x in product 1\n- (3, 1, 2) - subassembly used 2x in product 1\n- (4, 2, 5) - component used 5x in subassembly 2\n- (5, 3, 2) - component used 2x in subassembly 3\n\nWhat is the total required quantity for component 4?",
+      "options": [
+        "WITH RECURSIVE bom AS (SELECT component_id, parent_id, quantity, 1 AS level FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT b.component_id, b.parent_id, b.quantity, bom.level + 1 FROM bill_of_materials b JOIN bom ON b.parent_id = bom.component_id) SELECT component_id, SUM(quantity) FROM bom WHERE parent_id IS NULL GROUP BY component_id; Result: 15",
+        "WITH RECURSIVE bom AS (SELECT component_id, parent_id, quantity, quantity AS accumulated_qty FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT b.component_id, b.parent_id, b.quantity, bom.accumulated_qty * b.quantity FROM bill_of_materials b JOIN bom ON b.parent_id = bom.component_id) SELECT component_id, accumulated_qty FROM bom WHERE component_id = 4; Result: 15",
+        "WITH RECURSIVE bom AS (SELECT component_id, parent_id, quantity, quantity AS accumulated_qty FROM bill_of_materials WHERE component_id = 1 UNION ALL SELECT b.component_id, b.parent_id, b.quantity, bom.accumulated_qty * b.quantity FROM bill_of_materials b JOIN bom ON b.parent_id = bom.component_id) SELECT component_id, SUM(accumulated_qty) FROM bom WHERE component_id = 4 GROUP BY component_id; Result: 15",
+        "SELECT SUM(quantity) FROM bill_of_materials WHERE component_id = 4; Result: 5"
+      ],
+      "answer": 1,
+      "explanation": "In a recursive CTE for multi-level BOM traversal, the accumulated quantity must multiply at each level since component 4 is needed 5 times in subassembly 2, which itself is needed 3 times in product 1 (5 * 3 = 15 total). Option 1 incorrectly adds quantities instead of multiplying. Option 2 correctly multiplies the accumulated quantity by the child component's quantity in the recursive branch. Option 3 unnecessarily groups the final result since we're selecting a specific component_id. Option 4 ignores the hierarchy entirely."
     }
   ]
 }

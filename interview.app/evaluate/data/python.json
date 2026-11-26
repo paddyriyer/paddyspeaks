@@ -9992,6 +9992,22 @@
       ],
       "answer": 2,
       "explanation": "Using `collections.abc.Iterable` is the best practice because it's the protocol that both lists and generators implement, making the function work with any iterable without overfitting to specific types. It's also the standard library approach recommended in PEP 544 and avoids the runtime overhead of typing generics. While option 1 works, it's unnecessarily verbose; option 3 is the most Pythonic and idiomatic solution."
+    },
+    {
+      "id": "py-new-233",
+      "type": "single",
+      "topic": "GIL and threading in data pipelines",
+      "difficulty": "hard",
+      "added_date": "2026-11-26",
+      "prompt": "You're building a data ingestion pipeline that processes JSON records from Kafka and writes them to a data warehouse. The pipeline spawns 4 threads, each calling a function that: (1) deserializes JSON (~5ms, CPU-bound), (2) validates schema (~2ms, CPU-bound), and (3) makes a network call to insert into warehouse (~100ms, I/O-bound). You notice only ~1.3x throughput improvement with 4 threads vs 1 thread. What is the primary cause, and how would you best resolve it for this specific workload?",
+      "options": [
+        "The GIL is released during I/O operations (network calls), but held during JSON deserialization and schema validation. Use threading but move CPU-bound work to a separate multiprocessing.Pool to avoid GIL contention on deserialization/validation.",
+        "Network latency is the bottleneck. Add connection pooling and increase the thread count to 16, which will queue more requests and improve throughput regardless of GIL behavior.",
+        "The GIL prevents all threads from running in parallel. Replace threading entirely with asyncio, which eliminates the GIL by using coroutines instead of OS threads.",
+        "Context switching overhead between 4 threads exceeds the benefit of parallelism. Use a single thread with asyncio for all operations to avoid OS-level thread overhead."
+      ],
+      "answer": 0,
+      "explanation": "The GIL is released during blocking I/O (the network call), allowing multiple threads to progress concurrently there. However, JSON deserialization and schema validation are CPU-bound operations that hold the GIL, preventing true parallelism on those steps. Using multiprocessing.Pool for CPU-bound work sidesteps the GIL while keeping threading for I/O, achieving better overall throughput. Asyncio alone won't help since the CPU-bound deserialization still runs in the main thread and blocks other coroutines."
     }
   ]
 }
