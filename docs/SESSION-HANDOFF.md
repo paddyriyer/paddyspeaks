@@ -17,6 +17,12 @@ clones fresh each time). CLAUDE.md points here._
   schematic of today’s summary, not a screenshot; B: the proposal), invented numbers labelled.
   Prices (Fitness+ $9.99/mo or $79.99/yr; third-party apps) are reported: **re-check on edit**.
   Share card rendered from a scratchpad HTML template.
+  Images (owner's upload, 2026-11-26): the still life (opening), carousel “Receipts to
+  Intelligence” **cropped to panels 1–6** (panel 9 is a generated likeness of Steve Jobs, never
+  publish it; panels 7–8 make health claims the article disowns), and “Data to Real Progress”
+  (after the guardrails). The six “ChatGPT Image … 1/6–6/6” PNGs in `images/` belong to the next
+  article (Personal Health Intelligence: cohorts, Health Guard, provider sharing, insurance);
+  6/6 shows an unsupported “20–40% lower downstream cost” and 5/6 says “HIPAA-aware sharing”.
 - **(2026-11-24): Apple Watch guide, Edition 2** (owner's "Editorial Enhancement
   Prompt, Version 2.0"). Rules and change log: **`docs/APPLE-WATCH-HEALTH-GUIDE.md`**. Core path
   16 min (Start here · numbers with optional data/clinical layers · what the watch cannot tell
