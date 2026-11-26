@@ -22,7 +22,7 @@
     }
     var S = HL.state.pv, redraw = function () { root.innerHTML = ''; HL.views.provider(root, d); };
     HL.vhead(root, 'Provider Connect', 'What would I share with my clinician, and what would they actually receive?', null);
-    root.appendChild(h('p', { class: 'banner', role: 'note', html: '<span class="illus">Simulated</span><span><strong>No clinic is connected.</strong> Nothing is transmitted, reviewed or monitored. This shows how sharing, revocation and the clinician’s view would work, using the synthetic person’s data.</span>' }));
+    root.appendChild(h('p', { class: 'banner', role: 'note', html: '<span class="illus">Simulated</span><span><strong>No clinic is connected.</strong> The summary stays in this page: it is not sent to any clinic, reviewed or monitored. This shows how sharing, revocation and the clinician’s view would work, using the synthetic person’s data.</span>' }));
     root.appendChild(h('div', { style: 'height:14px' }));
     var grid = h('div', { class: 'grid g-side' });
 

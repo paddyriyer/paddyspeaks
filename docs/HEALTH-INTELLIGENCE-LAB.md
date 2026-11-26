@@ -10,7 +10,7 @@ Two linked deliverables (the owner's "Personal Health Intelligence Lab" brief, 2
 
 ## The rules (read before changing anything)
 
-- **Synthetic data only.** Five fictional personas from documented seeds. There is no upload, no real-data path, and nothing is sent anywhere. A real-data pilot waits for the production readiness gate in Round 7 of the design page.
+- **Synthetic data only.** Five fictional personas from documented seeds. There is no upload and no real-data path; the pages read only their own synthetic files (plus the site-wide anonymous page view). A real-data pilot waits for the production readiness gate in Round 7 of the design page.
 - **Never type a number.** Every value the Explorer shows is computed by `healthlab/` and shipped in `health-lab/data/*.json` (CI `python3 -m healthlab.build --check`). The browser formats and filters; it does not judge. The two exceptions run on the *visitor's own assumptions*, not on health data: the Goal Studio's arithmetic projection and the economics simulator (`health-lab/econ.js`, tested by `health-lab/tests/econ.mjs`).
 - **No health score.** Every label is Improving · Stable · Declining · Insufficient evidence (or "Changed" when weight is not a goal), with the metric, threshold, basis and coverage behind it.
 - **Insufficient evidence is an answer.** A window with fewer than half its days (or too few readings for sparse metrics) is never compared. Gaps are never zeros.
