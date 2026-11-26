@@ -81,7 +81,7 @@
         h('p', null, [h('a', { href: '../', text: 'Open the synthetic demo →' })])]),
       h('div', { class: 'mode on' }, [h('span', { class: 'tagline', text: 'Mode 2 · you are here' }), h('h3', { text: 'Analyze locally' }),
         h('p', { text: 'Your files are read and analyzed inside this browser tab, in a worker, in memory.' }),
-        h('ul', null, [h('li', { text: 'No upload, no account, no analytics on this page' }), h('li', { text: 'Deleted when you close the tab or press Delete' }),
+        h('ul', null, [h('li', { text: 'No upload, no account, no page-view counter on this page' }), h('li', { text: 'Deleted when you close the tab or press Delete' }),
           h('li', { text: 'Public site: synthetic files only, until the security review passes' })])]),
       h('div', { class: 'mode off' }, [h('span', { class: 'tagline', text: 'Mode 3 · not available' }), h('h3', { text: 'Managed analytics service' }),
         h('p', { text: 'Designed, not built. Before any upload a real service would have to show all of this, and get your explicit permission:' }),

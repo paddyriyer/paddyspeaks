@@ -46,7 +46,7 @@
     HL.vhead(root, 'Import & Privacy', 'Where is my data coming from, what will be processed, where will it go, and who can see it?', null);
     root.appendChild(h('div', { class: 'grid g3' }, [
       HL.card('1 · Explore the demo', 'You are here. Fictional people, no account, no personal data.', [h('p', null, [h('a', { href: '#/overview/' + d.profile.id, text: 'Health Overview →' })])]),
-      HL.card('2 · Analyze locally', 'Your files, read and analyzed in your browser. No upload; this page has no analytics. Public site: synthetic files only, until the security review passes.', [h('p', null, [h('a', { href: 'private/', text: 'Open My Private Health Lab →' })])]),
+      HL.card('2 · Analyze locally', 'Your files, read and analyzed in your browser. No upload; that page does not load the site’s page-view counter. Public site: synthetic files only, until the security review passes.', [h('p', null, [h('a', { href: 'private/', text: 'Open My Private Health Lab →' })])]),
       HL.card('3 · Managed service', 'Not available. Designed, not built: a hosted service would need consent, contracts, security operations and a legal review first.', [h('p', { class: 'note', text: 'See the readiness gate in the system design.' })])
     ]));
     root.appendChild(h('div', { style: 'height:16px' }));
