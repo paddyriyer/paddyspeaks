@@ -21,8 +21,7 @@ clones fresh each time). CLAUDE.md points here._
   `articles/apple-watch-actionable-health-intelligence/deck.pdf`); edit the HTML, re-render, look
   at every slide. Owner images used: 1/6, 2/6, 4/6 (captioned “not a real Apple screen; every
   value is invented”). **Not used:** 3/6 (condition cohorts with invented percentages), 5/6
-  (“HIPAA-aware sharing”), 6/6 (“↓20–40% lower downstream cost”) — still in `images/`, awaiting
-  the owner. RPM 2026 code details and ACCESS track list are from CMS / secondary sources:
+  (“HIPAA-aware sharing”), 6/6 (“↓20–40% lower downstream cost”) — deleted at the owner's request. RPM 2026 code details and ACCESS track list are from CMS / secondary sources:
   re-check on edit.
 - **(2026-11-26): “The $500 Workout Receipt: Why Is My Apple Watch Still So Dumb?”**
   (`articles/the-500-dollar-workout-receipt.html`, technology, 11 min). A product proposal
