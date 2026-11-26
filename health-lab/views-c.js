@@ -1,4 +1,4 @@
-/* Views: Provider Connect (simulated), Data Sources, Coverage & Economics. Then boot. */
+/* Views: Provider Connect (simulated), Data Sources, Coverage & Economics. Boot is in views-d.js. */
 (function () {
   'use strict';
   var HL = window.HL, h = HL.h;
@@ -23,6 +23,13 @@
     var S = HL.state.pv, redraw = function () { root.innerHTML = ''; HL.views.provider(root, d); };
     HL.vhead(root, 'Provider Connect', 'What would I share with my clinician, and what would they actually receive?', null);
     root.appendChild(h('p', { class: 'banner', role: 'note', html: '<span class="illus">Simulated</span><span><strong>No clinic is connected.</strong> The summary stays in this page: it is not sent to any clinic, reviewed or monitored. This shows how sharing, revocation and the clinician’s view would work, using the synthetic person’s data.</span>' }));
+    root.appendChild(h('div', { style: 'height:14px' }));
+    var steps = [['Choose', S.metrics.length > 0, 'What to share, for what purpose'], ['Preview', S.metrics.length > 0, 'Exactly what the clinic would receive (below)'],
+      ['Authorize', !!S.consent, 'Your explicit, time-limited grant'], ['Deliver', !!S.consent, 'Simulated: nothing leaves this page'], ['Confirm', !!S.consent, S.revoked ? 'Revoked' : 'Receipt and audit log']];
+    root.appendChild(h('ol', { class: 'stepper', 'aria-label': 'Sharing steps' }, steps.map(function (x, i) {
+      return h('li', { class: x[1] ? 'done' : '' }, [h('b', { text: (i + 1) + ' · ' + x[0] }), h('span', { text: x[2] + (x[1] ? '' : ' (not yet)') })]);
+    })));
+    root.appendChild(h('p', { class: 'note', text: 'In this prototype only Choose and Preview are real, plus saving the summary yourself. Authorize, Deliver and Confirm are simulated: a real service needs the clinic\u2019s agreement, an integration and a review before anything is sent.' }));
     root.appendChild(h('div', { style: 'height:14px' }));
     var grid = h('div', { class: 'grid g-side' });
 
@@ -59,6 +66,15 @@
     root.appendChild(grid);
     root.appendChild(h('div', { style: 'height:16px' }));
 
+    if (d.medications && d.medications.length) {
+      var MS = { active: 'improving', historical: 'stable', discontinued: 'stable', 'needs review': 'declining' };
+      root.appendChild(HL.card('Medication list, reconciled across sources', 'Prescribed, dispensed and what you reported are kept apart; disagreements are shown, never resolved by the app. No medication advice.', [
+        h('div', { class: 'rows' }, d.medications.map(function (m) {
+          return h('div', { class: 'row wide' }, [h('div', { class: 'nm', text: m.name }), h('span', { class: 'st ' + (MS[m.status] || 'insufficient'), text: m.status }),
+            h('div', { class: 'vals' }, [h('ul', { class: 'plain' }, m.sources.map(function (x) { return h('li', { text: x.text }); }).concat(m.reasons.map(function (r) { return h('li', null, [h('strong', { text: r })]); }))), h('p', { class: 'note', text: m.note })])]);
+        }))]));
+      root.appendChild(h('div', { style: 'height:16px' }));
+    }
     // the report
     var rep = report(d, S);
     var wrap = h('div', { class: 'print-target' }, [
@@ -242,5 +258,4 @@
     draw();
   };
 
-  HL.boot();
 })();

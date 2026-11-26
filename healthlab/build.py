@@ -13,7 +13,8 @@ import pathlib
 import sys
 
 from . import analyze as A
-from . import explain, synth
+from . import anonymity, explain, synth
+from . import ingest as IG
 from .ingest import METRICS, Ingest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -85,8 +86,8 @@ def provenance_samples(I):
     return picks[:12]
 
 
-def build_profile(p, strata):
-    files = synth.generate(p)
+def build_profile(p, strata, files=None):
+    files = files or synth.generate(p)
     I, recon = ingest(p, files)
     P = A.Profile(p, I, recon)
     ov = A.overview(P)
@@ -98,7 +99,9 @@ def build_profile(p, strata):
         "profile": {"id": p.id, "name": p.name, "age": p.age, "sex_category": p.sex_category, "home_tz": p.home_tz,
                     "headline": p.headline, "story": p.story, "goals": p.goals, "seed": p.seed, "synthetic": True},
         "as_of": synth.AS_OF.isoformat(), "start": synth.START.isoformat(), "days": synth.DAYS,
-        "clinical": I.clinical, "entries": I.entries,
+        "clinical": [c for c in I.clinical if c["type"] != "dispense"], "entries": I.entries,
+        "medications": I.medications, "notifications": I.notifications,
+        "coverage": A.coverage(P), "coverage_matrix": A.coverage_matrix(P),
         "sources": sources(I, recon, files), "notes": recon["notes"], "timezones": recon["timezones"],
         "away_days": recon["away_days"], "provenance": provenance_samples(I),
         "overview": ov,
@@ -144,7 +147,143 @@ def meta(strata):
                     "conditions": A.CONDITIONS, "pcts": A.PCTS, "strata": strata, "references": A.REFERENCES,
                     "label": "Illustrative synthetic cohort: generated for this demo from a documented seed (9090). Not a published reference."},
         "urgent_terms": A.URGENT_TERMS, "urgent_guidance": A.URGENT_GUIDANCE,
+        "min_cell": A.MIN_CELL, "anonymity": anonymity.demo(),
+        "import_spec": import_spec(),
     }
+
+
+def import_spec():
+    """Everything the browser engine needs to import and judge exactly as this pipeline does."""
+    return {
+        "metrics": {c: {"label": m[0], "unit": m[1], "kind": m[2], "loinc": m[3], "range": list(m[4])} for c, m in METRICS.items()},
+        "apple_types": IG.APPLE_TYPES, "apple_events": IG.APPLE_EVENTS,
+        "linear": [[a, b, f, o] for (a, b), (f, o) in IG.LINEAR.items()], "same_unit": [list(x) for x in sorted(IG.SAME_UNIT)],
+        "loinc_map": {k: list(v) for k, v in IG.LOINC_MAP.items()},
+        "cfg": A.CFG, "dec": A.DEC, "order": A.ORDER,
+        "bad": A.BAD, "limits": A.LIMITS, "context_terms": A.CONTEXT_TERMS, "next": A.NEXT,
+        "coverage": [list(c[:3]) + [c[3], c[4]] for c in A.COVERAGE],
+        "synthetic_mark": synth.SYNTHETIC_MARK,
+    }
+
+
+PARITY_BUNDLES = {   # what the browser engine must reproduce from the published sample files
+    "alex": ["alex-apple-health-export.zip"],
+    "ben": ["ben-apple-health-export.zip", "ben-blood-pressure-cuff.csv", "ben-scale.csv", "ben-clinical-records.json"],
+    "carmen": ["carmen-clinical-records.json", "carmen-glucose-sensor.csv"],
+    "dorothy": ["dorothy-apple-health-export.zip"],
+    "malformed": ["malformed-export.xml"],
+}
+
+
+def sample_text(name, data):
+    import io as _io
+    import zipfile
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(_io.BytesIO(data)) as z:
+            return z.read("apple_health_export/export.xml").decode()
+    return data.decode()
+
+
+def ingest_samples(names, samples):
+    """Ingest published sample files exactly as a person would provide them (no persona extras)."""
+    I = Ingest("local", IMPORTED_AT)
+    for n in names:
+        text = sample_text(n, samples[n])
+        if n.endswith((".zip", ".xml")):
+            I.apple_export(text, file=n)
+        elif "cuff" in n:
+            I.cuff_csv(text, file=n)
+        elif "scale" in n:
+            I.scale_csv(text, file=n)
+        elif "glucose-sensor" in n:
+            I.cgm_csv(text, file=n)
+        else:
+            I.fhir_bundle(text, file=n)
+    return I, I.reconcile()
+
+
+def parity(samples):
+    import statistics as st
+    local = synth.Persona("local", "Imported", 0, "female", "UTC", 0, "", "", [])
+    out = {}
+    for bundle, names in PARITY_BUNDLES.items():
+        I, recon = ingest_samples(names, samples)
+        P = A.Profile(local, I, recon)
+        files = {}
+        for row in recon["log"]:
+            files.setdefault(row["file"], {"kept": 0, "duplicate": 0, "rejected": 0, "skipped": 0})[row["outcome"]] += row["count"]
+        wins = {}
+        for w in (90, 365):
+            wins[str(w)] = {}
+            for c in A.ORDER:
+                if c in P.daily and A.CFG[c]["cadence"] in ("daily", "sparse"):
+                    x = P.window(c, w)
+                    wins[str(w)][c] = {"status": x["status"], "prev": x["prev"], "cur": x["cur"], "n_prev": x["n_prev"], "n_cur": x["n_cur"]}
+        out[bundle] = {
+            "files": files, "observations": len(I.obs), "workouts": len(I.workouts), "notifications": len(I.notifications),
+            "windows": wins,
+            "coverage": {c["id"]: c["status"] for c in A.coverage(P)},
+            "medications": {m["name"]: m["status"] for m in I.medications},
+            "signals": [[x["kind"], x["tier"], x["start"], x["end"]] for x in A.signals(P)],
+            "away_days": len(recon["away_days"]),
+        }
+    return out
+
+
+SAMPLES = ROOT / "health-lab" / "samples"
+SAMPLE_FILES = {   # published name -> (persona id, source file)
+    "alex-apple-health-export.zip": ("a", "apple_export.xml"),
+    "ben-apple-health-export.zip": ("b", "apple_export.xml"),
+    "ben-blood-pressure-cuff.csv": ("b", "cuff.csv"),
+    "ben-scale.csv": ("b", "scale.csv"),
+    "ben-clinical-records.json": ("b", "records.json"),
+    "carmen-clinical-records.json": ("c", "records.json"),
+    "carmen-glucose-sensor.csv": ("c", "cgm.csv"),
+    "dorothy-apple-health-export.zip": ("d", "apple_export.xml"),
+}
+MALFORMED = """<?xml version="1.0" encoding="UTF-8"?>
+<!-- PADDYSPEAKS-SYNTHETIC-DATA: a deliberately broken export for testing the importer. Not a real person. -->
+<HealthData locale="en_US">
+ <ExportDate value="2026-11-15 08:00:00 -0800"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-11-10 06:40:00 -0800" endDate="2026-11-10 06:41:00 -0800" value="61"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-11-10 06:40:00 -0800" endDate="2026-11-10 06:41:00 -0800" value="61"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-11-11 06:40:00 -0800" endDate="2026-11-11 06:41:00 -0800" value="0"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Scale" unit="stone" startDate="2026-11-11 07:00:00 -0800" endDate="2026-11-11 07:00:00 -0800" value="12"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="iPhone" unit="count" startDate="not a date" endDate="2026-11-12 09:00:00 -0800" value="4000"/>
+ <Record type="HKQuantityTypeIdentifierFutureSensorReading" sourceName="Apple Watch" unit="x" startDate="2026-11-12 06:40:00 -0800" endDate="2026-11-12 06:41:00 -0800" value="1"/>
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="iPhone" unit="count" startDate="2026-11-12 08:00:00 -0800" endDate="2026-11-12 09:00:00 -0800" value="4200"/>
+</HealthData>
+"""
+
+
+def sample_outputs(all_files):
+    import io as _io
+    import zipfile
+    out = {}
+    for name, (pid, src) in SAMPLE_FILES.items():
+        text = all_files[pid][src]
+        if name.endswith(".zip"):
+            buf = _io.BytesIO()
+            with zipfile.ZipFile(buf, "w") as z:
+                info = zipfile.ZipInfo("apple_health_export/export.xml", date_time=(2026, 11, 15, 8, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o644 << 16
+                z.writestr(info, text, compresslevel=6)
+            out[name] = buf.getvalue()
+        else:
+            out[name] = text.encode()
+    out["malformed-export.xml"] = MALFORMED.encode()
+    return out
+
+
+def sample_content(data: bytes, name: str) -> bytes:
+    """Compare zips by their contents: compressed bytes can differ between zlib versions."""
+    if not name.endswith(".zip"):
+        return data
+    import io as _io
+    import zipfile
+    with zipfile.ZipFile(_io.BytesIO(data)) as z:
+        return b"".join(n.encode() + z.read(n) for n in sorted(z.namelist()))
 
 
 def dumps(obj):
@@ -155,8 +294,12 @@ def main(argv):
     check = "--check" in argv
     strata = A.cohort_tables()
     outputs = {"meta.json": dumps(meta(strata))}
+    all_files = {}
     for p in synth.PERSONAS:
-        outputs[f"profile-{p.id}.json"] = dumps(build_profile(p, strata))
+        all_files[p.id] = synth.generate(p)
+        outputs[f"profile-{p.id}.json"] = dumps(build_profile(p, strata, all_files[p.id]))
+    samples = sample_outputs(all_files)
+    outputs["../tests/parity.json"] = json.dumps(parity(samples), ensure_ascii=False, indent=1) + "\n"
     stale = []
     for name, text in outputs.items():
         f = OUT / name
@@ -166,6 +309,14 @@ def main(argv):
         else:
             f.parent.mkdir(parents=True, exist_ok=True)
             f.write_text(text)
+    for name, data in samples.items():
+        f = SAMPLES / name
+        if check:
+            if not f.exists() or sample_content(f.read_bytes(), name) != sample_content(data, name):
+                stale.append("samples/" + name)
+        else:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_bytes(data)
     if check:
         if stale:
             print("health-lab data is stale: " + ", ".join(stale) + "\nRun: python3 -m healthlab.build")

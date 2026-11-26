@@ -32,7 +32,7 @@ const BASELINE = path.join(ROOT, 'scripts', 'a11y', 'baseline.json');
 const STRICT = ['/corrections/', '/privacy-policy/', '/terms/', '/disclaimer/', '/copyright/',
   '/changelog/', '/subscribe/', '/atlas/', '/about.html', '/mentoring/',
   '/privacy-command-center/', '/privacy-command-center/v10/', '/articles/every-arrow-is-a-decision.html', '/articles/every-arrow/edition-3.html',
-  '/', '/articles/', '/sacred/', '/explore/', '/health-lab/', '/interview.app/design/the-health-intelligence-problem.html',
+  '/', '/articles/', '/sacred/', '/explore/', '/health-lab/', '/health-lab/private/', '/interview.app/design/the-health-intelligence-problem.html', '/interview.app/design/the-private-health-lab-problem.html',
   '/upanishads/', '/upanishads/introduction.html', '/upanishads/glossary.html', '/upanishads/isha/',
   '/upanishads/isha/mantra-01.html', '/upanishads/isha/mantra-18.html', '/upanishads/isha/map.html',
   '/upanishads/isha/sources.html', '/upanishads/isha/studies/vidya-avidya.html',
@@ -66,7 +66,8 @@ function serve() {
 }
 
 async function audit(browser, base, url, width) {
-  const ctx = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+  // bypassCSP: pages with a strict Content-Security-Policy (/health-lab/private/) would block the injected axe script.
+  const ctx = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', bypassCSP: true });
   const page = await ctx.newPage();
   await page.route((u) => !u.href.startsWith(base), (r) => r.abort());
   await page.goto(base + url, { waitUntil: 'load' });

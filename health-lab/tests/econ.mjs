@@ -35,4 +35,13 @@ assert.equal(E.program({ eligible: NaN }).participants, Math.round(E.DEFAULTS.el
 // sensitivity grid matches program()
 const s = E.sensitivity(E.DEFAULTS, [-5, 0], [10, 20]);
 assert.equal(s.length, 2); assert.equal(s[1].cells[0].net, E.program({ ...E.DEFAULTS, enrollPct: 20, utilChangePct: -5 }).net);
-console.log('✓ econ.js: 12 checks passed');
+// processing economics: hand-checked, and fixed costs dominate at small scale
+const pr = E.processing(1000, { storageGbPerUser: 1, storagePrice: 0.02, computePerUser: 0.1, aiPerReport: 0.01, reportsPerUser: 2,
+  supportPerUserCloud: 0.5, securityOpsCloud: 1000, complianceCloud: 500, clinicalReviewPerUser: 0, hostingLocal: 10,
+  supportPerUserLocal: 0.1, securityLocal: 100, complianceLocal: 50 });
+assert.equal(Math.round(pr.cloudTotal * 100) / 100, 1000 * (0.02 + 0.1 + 0.02 + 0.5) + 1500);   // 2,140
+assert.equal(Math.round(pr.localTotal * 100) / 100, 10 + 100 + 100 + 50);                         // 260
+assert.ok(E.processing(1000).cloudPerUser > E.processing(100000).cloudPerUser, 'fixed costs spread with scale');
+assert.equal(E.processing(0).cloudPerUser, null);
+assert.equal(E.processing(10000, { aiPerReport: 0 }).cloud.ai, 0, 'no AI, no AI cost');
+console.log('✓ econ.js: 17 checks passed');

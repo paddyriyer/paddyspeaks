@@ -10,6 +10,7 @@
     ['overview', 'Health Overview'], ['activity', 'Activity Effectiveness'], ['trends', 'Health Trends'],
     ['cohorts', 'Cohort Explorer'], ['signals', 'Health Signals'], ['goals', 'Goal Studio'],
     ['annual', 'Annual Health Review'], ['provider', 'Provider Connect'], ['sources', 'Data Sources'],
+    ['privacy', 'Import & Privacy'], ['anonymity', 'Can It Be Anonymous?'], ['rights', 'My Data Rights'],
     ['economics', 'Coverage & Economics']
   ];
 

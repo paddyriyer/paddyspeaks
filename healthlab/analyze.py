@@ -288,7 +288,7 @@ def signals(P: Profile):
                 tier = "observed"
                 why = what + "."
             out.append({
-                "metric": code, "label": METRICS[code][0], "tier": tier, "start": a.isoformat(), "end": b.isoformat(),
+                "metric": code, "label": METRICS[code][0], "tier": tier, "kind": "baseline_change", "start": a.isoformat(), "end": b.isoformat(),
                 "ongoing": ongoing, "days": span,
                 "baseline": {"p10": r(p10, dec), "median": r(p50, dec), "p90": r(p90, dec),
                              "window": f"the 90 days ending a week before the change"},
@@ -305,7 +305,7 @@ def signals(P: Profile):
         w = P.window(code, 365)
         if w and w.get("status") == "declining":
             out.append({
-                "metric": code, "label": METRICS[code][0], "tier": "discuss", "gradual": True,
+                "metric": code, "label": METRICS[code][0], "tier": "discuss", "kind": "persistent_trend", "gradual": True,
                 "start": (AS_OF - dt.timedelta(days=729)).isoformat(), "end": AS_OF.isoformat(), "ongoing": True,
                 "days": 730, "baseline": {"median": w["prev"], "window": "the previous 365 days"},
                 "recent_median": w["cur"], "completeness": w.get("cov_cur"), "n": w["n_cur"],
@@ -315,17 +315,53 @@ def signals(P: Profile):
                 "limits": LIMITS[code], "next": next_step(code, "discuss"),
             })
     # record conflicts are signals about the data, not the body
-    for m in P.ing.clinical:
-        if m.get("conflict"):
-            out.append({"metric": "record", "label": "Medication record", "tier": "context", "start": m["conflict"]["reported_on"],
-                        "end": AS_OF.isoformat(), "ongoing": True, "days": None,
-                        "why": f"Your record lists {m['text']} as {m['record_status']}; you reported it {m['conflict']['reported_status']} on {m['conflict']['reported_on']}.",
-                        "context": [], "rule": "Clinical record and your own report disagree.",
-                        "limits": "The app cannot know which is current. It changes neither record.",
-                        "next": "Tell your clinician you stopped, and why. Do not restart or stop a medicine because of an app."})
+    for m in P.ing.medications:
+        if m["status"] == "needs review":
+            out.append({"metric": "record", "label": f"Medication: {m['name']}", "tier": "context", "kind": "record_conflict",
+                        "start": AS_OF.isoformat(), "end": AS_OF.isoformat(), "ongoing": True, "days": None,
+                        "why": " ".join(m["reasons"]),
+                        "evidence": [x["text"] for x in m["sources"]],
+                        "context": [], "rule": "The sources for one medicine disagree, or the fills stopped while the record still says active.",
+                        "limits": "The app cannot know which source is current. It changes no record.",
+                        "next": "Bring the list to your clinician or pharmacist. Do not start, stop or change a medicine because of an app."})
+    # validated device notifications: shown as recorded, with what they can and cannot mean
+    for n in P.ing.notifications:
+        out.append({"metric": "notification", "label": n["label"], "tier": "discuss", "kind": "device_notification",
+                    "start": n["local_date"], "end": n["local_date"], "ongoing": False, "days": None,
+                    "why": f"{n['label']} recorded by the watch on {n['local_date']}. This comes from a cleared watch feature, "
+                           "not from this lab's rules.",
+                    "context": [], "rule": "Shown whenever the device recorded the notification; the lab adds no interpretation.",
+                    "limits": "A notification is a prompt to talk to a clinician. It is not a diagnosis and its absence rules nothing out.",
+                    "next": "Mention it to your clinician. If you have chest pain, fainting, severe breathlessness or signs of stroke, call emergency services now."})
+    # data issues: when the data, not the body, is the finding
+    steps = P.daily.get("steps", {})
+    if steps:
+        idx = sorted(i for i in steps if i >= DAYS - 365)
+        for a_, b_ in zip(idx, idx[1:]):
+            if b_ - a_ - 1 >= 14:
+                out.append({"metric": "data", "label": "Gap in watch data", "tier": "observed", "kind": "data_issue",
+                            "start": i2d(a_ + 1).isoformat(), "end": i2d(b_ - 1).isoformat(), "ongoing": False, "days": b_ - a_ - 1,
+                            "why": f"No watch data for {b_ - a_ - 1} days ({i2d(a_ + 1).isoformat()} to {i2d(b_ - 1).isoformat()}). "
+                                   "Comparisons that include this stretch rest on fewer days.",
+                            "context": [], "rule": "14 or more days in a row without watch data in the last year.",
+                            "limits": "A gap means the watch was not worn or not synced; it says nothing about health.",
+                            "next": "Nothing to do. If you remember why (travel, a broken strap), add a note."})
+    old_labs = [o for o in P.obs if o["code"] in ("ldl", "chol_total") and (AS_OF - dt.date.fromisoformat(o["local_date"])).days > 365]
+    if old_labs and not any(o["code"] in ("ldl", "chol_total") and (AS_OF - dt.date.fromisoformat(o["local_date"])).days <= 365 for o in P.obs):
+        last = max(o["local_date"] for o in old_labs)
+        months = (AS_OF - dt.date.fromisoformat(last)).days // 30
+        has_bp = bool(P.values("systolic", AS_OF - dt.timedelta(days=364), AS_OF))
+        out.append({"metric": "data", "label": "Cardiovascular risk: not enough current data", "tier": "context", "kind": "data_issue",
+                    "start": last, "end": AS_OF.isoformat(), "ongoing": True, "days": None,
+                    "why": f"The latest cholesterol results are {months} months old"
+                           + ("" if has_bp else ", and there are no blood-pressure readings")
+                           + ". A current cardiovascular risk estimate would need current results and is a clinician's calculation.",
+                    "context": [], "rule": "Lipid results older than 12 months (product setting), with no newer result.",
+                    "limits": "The lab does not compute cardiovascular risk scores.",
+                    "next": "Ask your clinician whether and when these tests should be repeated."})
     for e in P.ing.entries:
         if e["type"] == "symptom" and any(t in e["text"].lower() for t in URGENT_TERMS):
-            out.append({"metric": "symptom", "label": "Reported symptom", "tier": "urgent", "start": e["date"], "end": e["date"],
+            out.append({"metric": "symptom", "label": "Reported symptom", "tier": "urgent", "kind": "symptom", "start": e["date"], "end": e["date"],
                         "why": f"You reported: {e['text']}", "next": URGENT_GUIDANCE, "rule": "Urgent-symptom terms", "limits": ""})
     order = {"urgent": 0, "discuss": 1, "context": 2, "observed": 3}
     out.sort(key=lambda x: (order[x["tier"]], x.get("end", "")), reverse=False)
@@ -343,16 +379,22 @@ def related(P, a, b):
     return out
 
 
-def next_step(code, tier):
-    if tier == "context":
-        return "Keep watching. If it does not settle once the explanation has passed, treat it as worth discussing."
-    if tier == "observed":
-        return "Nothing to do yet. Note how you feel; the trend matters more than a single stretch."
-    return {
+NEXT = {
+    "context": "Keep watching. If it does not settle once the explanation has passed, treat it as worth discussing.",
+    "observed": "Nothing to do yet. Note how you feel; the trend matters more than a single stretch.",
+    "discuss": {
         "systolic": "Measure with good technique for a week (two readings, morning and evening) and bring the averages to your clinician.",
         "walking_speed": "Mention it at your next visit; ask whether a balance or strength assessment would help.",
         "resting_hr": "If it persists, bring the chart to your next appointment and mention any symptoms, sleep or medicine changes.",
-    }.get(code, "Bring the chart to your next appointment.")
+        "_": "Bring the chart to your next appointment.",
+    },
+}
+
+
+def next_step(code, tier):
+    if tier in ("context", "observed"):
+        return NEXT[tier]
+    return NEXT["discuss"].get(code, NEXT["discuss"]["_"])
 
 
 # ======================================================================= workouts
@@ -553,6 +595,10 @@ AGE_BANDS = ["30–39", "40–49", "50–59", "60–69", "70–79"]
 ACTIVITY = [("Under 5,000 steps", 0, 5000), ("5,000–7,499", 5000, 7500), ("7,500–9,999", 7500, 10000), ("10,000 or more", 10000, 10 ** 9)]
 CONDITIONS = ["None recorded", "Hypertension (confirmed)", "Prediabetes (confirmed)"]
 PCTS = (5, 10, 25, 50, 75, 90, 95)
+# Cells with fewer people than this are suppressed (no percentiles shown). A PRODUCT SETTING for
+# statistical disclosure control in this demo, not a legal threshold; a real service would set it
+# with an expert determination and its own disclosure review.
+MIN_CELL = 100
 
 
 def cohort_tables(seed=9090):
@@ -574,7 +620,8 @@ def cohort_tables(seed=9090):
                                 mu -= 1.5
                             vals = [rng.gauss(mu, sd) for _ in range(n)]
                         key = f"{m}|{ai}|{sex}|{ki}|{ci}"
-                        strata[key] = {"n": n, "p": [round(pct(vals, q), 2 if m in ("walking_speed", "sleep_hours") else 1) for q in PCTS]}
+                        strata[key] = {"n": n, "p": [round(pct(vals, q), 2 if m in ("walking_speed", "sleep_hours") else 1) for q in PCTS]} \
+                            if n >= MIN_CELL else {"n": None, "p": None, "suppressed": True}
     return strata
 
 
@@ -614,6 +661,8 @@ def cohort_for(P: Profile, strata):
     cond_ok = [0] + [1 if "hypertension" in t.lower() else 2 for t in confirmed if "hypertension" in t.lower() or "prediabetes" in t.lower()]
     ranks = {}
     for key, s in strata.items():
+        if s.get("suppressed"):
+            continue
         m = key.split("|")[0]
         v = cur[m]["value"]
         if v is None:
@@ -842,3 +891,87 @@ def overview(P: Profile):
     labs = {c: P.labs(c) for c in ("hba1c", "ldl") if any(o["code"] == c for o in P.obs)}
     return {"available": avail, "missing": missing, "windows": windows, "labs": labs,
             "changes_since_review": {"date": prev_review.isoformat(), "items": changes}}
+
+
+# ======================================================================= coverage & confidence
+
+COVERAGE = [
+    # (id, label, codes, source kind, what it needs)
+    ("activity", "Activity", ("steps", "exercise_min"), "daily", "Wearing the watch most days."),
+    ("resting_hr", "Resting heart rate", ("resting_hr",), "daily", "Wearing the watch overnight."),
+    ("sleep", "Sleep", ("sleep_hours",), "daily", "Wearing the watch overnight; stages are estimates."),
+    ("fitness", "Cardio fitness (estimate)", ("vo2max",), "sparse", "Outdoor walks or runs with the watch."),
+    ("mobility", "Mobility", ("walking_speed", "steadiness"), "daily", "Carrying the phone while walking."),
+    ("weight", "Body weight", ("weight",), "sparse", "A scale or regular entries; the watch does not measure weight."),
+    ("blood_pressure", "Blood pressure", ("systolic",), "sparse", "A validated home cuff; the watch does not measure blood pressure values."),
+    ("glucose", "Glucose", ("glucose_cgm", "glucose_fasting"), "external", "A glucose meter, a sensor, or a lab result; the watch does not measure glucose."),
+    ("hba1c", "HbA1c", ("hba1c",), "lab", "A laboratory result, if your clinician orders one."),
+    ("lipids", "Cholesterol", ("ldl", "chol_total", "hdl", "triglycerides"), "lab", "A laboratory result, if your clinician orders one."),
+    ("kidney", "Kidney function", ("creatinine",), "lab", "A laboratory result, if your clinician orders one."),
+]
+
+
+def coverage(P: Profile):
+    """What the data can and cannot support, computed from what was loaded."""
+    rows = []
+    for cid, label, codes, kind, needs in COVERAGE:
+        obs = [o for o in P.obs if o["code"] in codes]
+        if not obs:
+            rows.append({"id": cid, "label": label, "status": "requires external source" if kind in ("external", "lab") or cid in ("weight", "blood_pressure") else "not imported",
+                         "evidence": "No measurements imported.", "needs": needs,
+                         "conclusion": "No measurement → no usable evidence → no conclusion. Missing data never means a condition is absent."})
+            continue
+        last = max(o["local_date"] for o in obs)
+        age = (AS_OF - dt.date.fromisoformat(last)).days
+        if kind == "lab":
+            status = "available" if age <= 365 else "stale"
+            ev = f"{len({o['local_date'] for o in obs})} result dates; latest {last} ({age // 30} months ago)."
+        elif kind in ("daily",):
+            days90 = {o["local_date"] for o in obs if (AS_OF - dt.date.fromisoformat(o["local_date"])).days < 90}
+            cov = len(days90) / 90
+            status = "available" if cov >= 0.6 else ("partial" if days90 else "stale")
+            ev = f"{round(cov * 100)}% of the last 90 days have data; latest {last}."
+        else:
+            n90 = sum(1 for o in obs if (AS_OF - dt.date.fromisoformat(o["local_date"])).days < 90)
+            status = "available" if n90 >= 8 or (kind == "external" and age <= 365) else ("partial" if n90 else "stale")
+            ev = f"{n90} readings in the last 90 days; latest {last}."
+        rows.append({"id": cid, "label": label, "status": status, "evidence": ev, "needs": needs,
+                     "sources": sorted({o["source"]["name"] for o in obs}),
+                     "conclusion": None if status == "available" else "Thin or old data: conclusions are limited to what the dates show."})
+    meds = P.ing.medications
+    rows.append({"id": "medications", "label": "Medication status",
+                 "status": "requires reconciliation" if any(m["status"] == "needs review" for m in meds) else ("available" if meds else "not imported"),
+                 "evidence": f"{len(meds)} medicine{'' if len(meds) == 1 else 's'} from records and your entries." if meds else "No medication records imported.",
+                 "needs": "Imported medication lists, prescriptions or pharmacy records; your own list.",
+                 "conclusion": None if meds else "No records → no conclusion about what is or is not taken."})
+    ecg = P.ing.notifications
+    rows.append({"id": "rhythm", "label": "ECG / heart rhythm",
+                 "status": "notification recorded" if ecg else "unavailable",
+                 "evidence": (f"{len(ecg)} device notification(s); no ECG recordings imported." if ecg else "No ECG recordings or rhythm notifications imported."),
+                 "needs": "ECG recordings from the watch (exported as CSV files) or a clinical ECG.",
+                 "conclusion": "Absence of notifications rules nothing out."})
+    rows.append({"id": "cohorts", "label": "Comparisons with other people", "status": "illustrative only",
+                 "evidence": "Only an illustrative synthetic cohort is loaded; no validated reference population.",
+                 "needs": "A licensed, method-matched reference dataset.", "conclusion": "Compare with your earlier self first."})
+    return rows
+
+
+def coverage_matrix(P: Profile):
+    """Share of days (or readings) per month per measure, for the coverage heatmap."""
+    months = []
+    d = dt.date(START.year, START.month, 1)
+    while d <= AS_OF:
+        months.append(f"{d.year}-{d.month:02d}")
+        d = dt.date(d.year + (d.month == 12), d.month % 12 + 1, 1)
+    rows = []
+    for code in ORDER:
+        if code not in P.daily or CFG[code]["cadence"] in ("lab", "episode"):
+            continue
+        cnt = defaultdict(int)
+        for i in P.daily[code]:
+            if 0 <= i < DAYS:
+                x = i2d(i); cnt[f"{x.year}-{x.month:02d}"] += 1
+        daily = CFG[code]["cadence"] == "daily"
+        rows.append({"code": code, "label": METRICS[code][0], "daily": daily,
+                     "cells": [round(cnt[m] / 30, 2) if daily else cnt[m] for m in months]})
+    return {"months": months, "rows": rows}
