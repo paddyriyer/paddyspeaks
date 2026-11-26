@@ -65,7 +65,39 @@
     });
   }
 
-  var api = { trajectory: trajectory, program: program, sensitivity: sensitivity, DEFAULTS: DEFAULTS };
+  /* Processing economics: on the person's device (Mode 2) versus a managed cloud service
+     (Mode 3), per month. Every default is a PLACEHOLDER assumption to replace; no vendor
+     price, Apple price or insurer figure is implied. */
+  var PROC_DEFAULTS = {
+    storageGbPerUser: 0.5,     // canonical history per user, GB
+    storagePrice: 0.023,       // $ per GB-month (placeholder; check your provider)
+    computePerUser: 0.05,      // $ per user-month for ingestion, normalization, analytics
+    aiPerReport: 0.02,         // $ per AI-drafted explanation (0 = no AI)
+    reportsPerUser: 1,         // AI explanations per user-month
+    supportPerUserCloud: 0.30, // $ support per user-month, hosted
+    securityOpsCloud: 15000,   // $ per month: monitoring, on-call, pen tests, key management
+    complianceCloud: 10000,    // $ per month: audits, legal, contracts, DPAs/BAAs where applicable
+    clinicalReviewPerUser: 0,  // $ per user-month if clinicians review (0 = no clinical service)
+    hostingLocal: 50,          // $ per month: static hosting for the local app
+    supportPerUserLocal: 0.10, // $ support per user-month, local
+    securityLocal: 3000,       // $ per month: code review, dependency and supply-chain checks
+    complianceLocal: 2000      // $ per month: privacy review, policy
+  };
+  function processing(users, inp) {
+    var x = {}; for (var k in PROC_DEFAULTS) x[k] = inp && inp[k] != null && isFinite(inp[k]) ? +inp[k] : PROC_DEFAULTS[k];
+    var n = Math.max(0, users);
+    var cloud = {
+      storage: n * x.storageGbPerUser * x.storagePrice, compute: n * x.computePerUser, ai: n * x.aiPerReport * x.reportsPerUser,
+      support: n * x.supportPerUserCloud, clinical: n * x.clinicalReviewPerUser, security: x.securityOpsCloud, compliance: x.complianceCloud
+    };
+    var local = { hosting: x.hostingLocal, support: n * x.supportPerUserLocal, security: x.securityLocal, compliance: x.complianceLocal };
+    var sum = function (o) { var t = 0; for (var k in o) t += o[k]; return t; };
+    var c = sum(cloud), l = sum(local);
+    return { users: n, cloud: cloud, local: local, cloudTotal: c, localTotal: l,
+      cloudPerUser: n ? c / n : null, localPerUser: n ? l / n : null };
+  }
+
+  var api = { trajectory: trajectory, program: program, sensitivity: sensitivity, DEFAULTS: DEFAULTS, processing: processing, PROC_DEFAULTS: PROC_DEFAULTS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.HL = root.HL || {}; root.HL.econ = api; }
 })(this);

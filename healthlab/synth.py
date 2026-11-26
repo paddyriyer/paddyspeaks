@@ -34,6 +34,9 @@ AS_OF = dt.date(2026, 11, 15)          # the demo's "today"; fixed for reproduci
 DAYS = 730                              # two years of history
 START = AS_OF - dt.timedelta(days=DAYS - 1)
 EXPORTED_AT = "2026-11-15 08:00:00"
+# Every generated file carries this mark. The browser importer refuses files without it
+# on the public site, so no real health data can be loaded there before the security review.
+SYNTHETIC_MARK = "PADDYSPEAKS-SYNTHETIC-DATA"
 
 
 @dataclass
@@ -205,7 +208,12 @@ def generate(p: Persona) -> dict:
         if p.id == "b" and d in (dt.date(2025, 7, 4), dt.date(2026, 1, 19)):
             q("HKQuantityTypeIdentifierRestingHeartRate", "count/min", 0, morning + dt.timedelta(minutes=5))
 
-        # walking steadiness for Dorothy, weekly
+        # one irregular rhythm notification for Dorothy (an FDA-cleared watch feature; synthetic event)
+        if p.id == "d" and d == dt.date(2026, 10, 18):
+            rec.append(f'<Record type="HKCategoryTypeIdentifierIrregularHeartRhythmEvent" sourceName="Apple Watch" '
+                       f'sourceVersion="27.1" device="Watch" creationDate="{stamp(morning)}" startDate="{stamp(morning - dt.timedelta(hours=5))}" '
+                       f'endDate="{stamp(morning)}" value="HKCategoryValueNotApplicable"/>')
+                # walking steadiness for Dorothy, weekly
         if p.id == "d" and wd == 0:
             st = 62 - 18 * s + n["ws"]() * 200
             q("HKQuantityTypeIdentifierAppleWalkingSteadiness", "%", round(max(5, min(99, st)), 0),
@@ -329,6 +337,20 @@ def generate(p: Persona) -> dict:
             {"resourceType": "MedicationStatement", "status": "active",
              "medicationCodeableConcept": {"text": "Lisinopril 10 mg tablet"},
              "effectivePeriod": {"start": "2024-06-12"}, "dateAsserted": "2025-09-30"},
+            {"resourceType": "MedicationRequest", "status": "active", "intent": "order",
+             "medicationCodeableConcept": {"text": "Lisinopril 10 mg tablet"}, "authoredOn": "2024-06-12",
+             "requester": {"display": "Synthetic Clinic, primary care"},
+             "dispenseRequest": {"numberOfRepeatsAllowed": 11, "expectedSupplyDuration": {"value": 90, "unit": "days"}}},
+        ]
+        # pharmacy fills every 90 days until July 2026; none after the person says they stopped
+        fill = dt.date(2024, 6, 14)
+        while fill <= dt.date(2026, 7, 10):
+            fhir.append({"resourceType": "MedicationDispense", "status": "completed",
+                         "medicationCodeableConcept": {"text": "Lisinopril 10 mg tablet"},
+                         "whenHandedOver": fill.isoformat(), "daysSupply": {"value": 90, "unit": "days"},
+                         "performer": [{"actor": {"display": "Synthetic Pharmacy"}}]})
+            fill += dt.timedelta(days=90)
+        fhir += [
             {"resourceType": "Goal", "lifecycleStatus": "active",
              "description": {"text": "Home blood pressure below 130/80 mmHg (set by clinician)"},
              "target": [{"measure": {"text": "Systolic"}, "detailQuantity": {"value": 130, "unit": "mmHg"}},
@@ -354,6 +376,15 @@ def generate(p: Persona) -> dict:
             obs("59261-8", "Hemoglobin A1c/Hemoglobin.total in Blood by IFCC protocol", 41, "mmol/mol", "mmol/mol", "2026-04-14", org="Synthetic Regional Lab"),
             obs("4548-4", "Hemoglobin A1c/Hemoglobin.total in Blood", 5.8, "%", "%", "2026-09-22"),
             obs("13457-7", "Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation", 131, "mg/dL", "mg/dL", "2024-09-03"),
+            obs("2093-3", "Cholesterol [Mass/volume] in Serum or Plasma", 212, "mg/dL", "mg/dL", "2024-09-03"),
+            obs("2085-9", "Cholesterol in HDL [Mass/volume] in Serum or Plasma", 52, "mg/dL", "mg/dL", "2024-09-03"),
+            obs("2571-8", "Triglyceride [Mass/volume] in Serum or Plasma", 145, "mg/dL", "mg/dL", "2024-09-03"),
+            obs("1558-6", "Fasting glucose [Mass/volume] in Serum or Plasma", 104, "mg/dL", "mg/dL", "2026-09-22"),
+            obs("2160-0", "Creatinine [Mass/volume] in Serum or Plasma", 0.8, "mg/dL", "mg/dL", "2026-09-22"),
+            {"resourceType": "MedicationRequest", "status": "completed", "intent": "order",
+             "medicationCodeableConcept": {"text": "Atorvastatin 20 mg tablet"}, "authoredOn": "2023-03-01",
+             "requester": {"display": "Synthetic Clinic, primary care"},
+             "dispenseRequest": {"validityPeriod": {"start": "2023-03-01", "end": "2024-03-01"}}},
             {"resourceType": "Goal", "lifecycleStatus": "active",
              "description": {"text": "Discuss HbA1c at each visit; aim to stay below the diabetes range (target to be set with clinician)"},
              "expressedBy": {"display": "Synthetic Clinic, primary care"}, "startDate": "2025-01-10"},
@@ -371,20 +402,23 @@ def generate(p: Persona) -> dict:
         entries.append({"type": "goal", "date": "2025-01-01" if p.id != "e" else "2026-09-25", "goal": g})
 
     files = {}
-    head = (f'<?xml version="1.0" encoding="UTF-8"?>\n<HealthData locale="en_US">\n'
+    head = (f'<?xml version="1.0" encoding="UTF-8"?>\n'
+            f'<!-- {SYNTHETIC_MARK}: fictional person "{p.name}", seed {p.seed}. Not a real person. -->\n'
+            f'<HealthData locale="en_US">\n'
             f' <ExportDate value="{EXPORTED_AT} -0800"/>\n'
             f' <Me HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSex{p.sex_category.capitalize()}"/>\n')
     files["apple_export.xml"] = head + "\n".join(" " + r for r in rec) + "\n</HealthData>\n"
     if ring:
-        files["ring.csv"] = "date,hrv_rmssd_ms,resting_hr_bpm\n" + "\n".join(ring) + "\n"
+        files["ring.csv"] = f"# {SYNTHETIC_MARK}\n" + "date,hrv_rmssd_ms,resting_hr_bpm\n" + "\n".join(ring) + "\n"
     if cuff:
-        files["cuff.csv"] = "measured_at,systolic_mmHg,diastolic_mmHg,pulse_bpm,device\n" + "\n".join(cuff) + "\n"
+        files["cuff.csv"] = f"# {SYNTHETIC_MARK}\n" + "measured_at,systolic_mmHg,diastolic_mmHg,pulse_bpm,device\n" + "\n".join(cuff) + "\n"
     if scale:
-        files["scale.csv"] = "measured_at,weight,unit\n" + "\n".join(scale) + "\n"
+        files["scale.csv"] = f"# {SYNTHETIC_MARK}\n" + "measured_at,weight,unit\n" + "\n".join(scale) + "\n"
     if cgm:
-        files["cgm.csv"] = "timestamp,glucose_mg_dl\n" + "\n".join(cgm) + "\n"
+        files["cgm.csv"] = f"# {SYNTHETIC_MARK}\n" + "timestamp,glucose_mg_dl\n" + "\n".join(cgm) + "\n"
     if fhir:
         files["records.json"] = json.dumps({"resourceType": "Bundle", "type": "collection",
+                                            "meta": {"tag": [{"system": "https://paddyspeaks.com/fhir/tags", "code": "synthetic", "display": SYNTHETIC_MARK}]},
                                             "entry": [{"resource": r} for r in fhir]}, indent=1)
     files["entries.json"] = json.dumps(entries, indent=1)
     return files

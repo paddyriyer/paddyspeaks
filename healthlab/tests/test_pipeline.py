@@ -133,7 +133,7 @@ class Ingestion(unittest.TestCase):
         med = next(c for c in I.clinical if c["type"] == "medication")
         self.assertEqual(med["record_status"], "active", "the clinical record is never edited by a patient report")
         self.assertEqual(med["conflict"]["reported_status"], "stopped")
-        self.assertTrue(any(n["what"] == "medication status conflict" for n in recon["notes"]))
+        self.assertTrue(any(n["what"] == "medication needs review" for n in recon["notes"]))
 
     def test_patient_reports_never_become_diagnoses(self):
         _, I, _, Pr = run("d")   # Dorothy reports a trip and a PT suggestion; neither is a condition
@@ -146,6 +146,74 @@ class Ingestion(unittest.TestCase):
         _, I, _, _ = run("c")
         ldl = next(o for o in I.obs.values() if o["code"] == "ldl")
         self.assertTrue(any("months old" in f for f in ldl["flags"]))
+
+
+class LabThree(unittest.TestCase):
+    """Lab 3.0: medications, coverage, typed signals, samples, disclosure control."""
+
+    def test_medication_reconciliation(self):
+        _, I, _, _ = run("b")
+        m = next(x for x in I.medications if x["name"].startswith("Lisinopril"))
+        self.assertEqual(m["status"], "needs review")
+        self.assertEqual(len(m["reasons"]), 2, "the report and the fill gap are both stated")
+        kinds = {s["kind"] for s in m["sources"]}
+        self.assertEqual(kinds, {"prescribed", "dispensed", "listed", "patient_reported"})
+
+    def test_old_prescription_is_never_current(self):
+        _, I, _, _ = run("c")
+        m = next(x for x in I.medications if x["name"].startswith("Atorvastatin"))
+        self.assertEqual(m["status"], "historical")
+
+    def test_coverage_is_computed_not_assumed(self):
+        cov = lambda pid: {c["id"]: c["status"] for c in A.coverage(run(pid)[3])}
+        self.assertEqual(cov("c")["lipids"], "stale")
+        self.assertEqual(cov("c")["hba1c"], "available")
+        self.assertEqual(cov("b")["medications"], "requires reconciliation")
+        self.assertEqual(cov("a")["blood_pressure"], "requires external source")
+        self.assertEqual(cov("e")["activity"], "partial")
+        self.assertEqual(cov("d")["rhythm"], "notification recorded")
+        for c in A.coverage(run("a")[3]):
+            if c["status"] in ("requires external source", "not imported"):
+                self.assertIn("no conclusion", c["conclusion"])
+
+    def test_signal_kinds(self):
+        kinds = lambda pid: {(s["kind"], s["tier"]) for s in A.signals(run(pid)[3])}
+        self.assertIn(("device_notification", "discuss"), kinds("d"))
+        self.assertIn(("data_issue", "observed"), kinds("d"))
+        self.assertIn(("data_issue", "context"), kinds("c"))
+        self.assertIn(("record_conflict", "context"), kinds("b"))
+        self.assertIn(("baseline_change", "discuss"), kinds("b"))
+        self.assertEqual(kinds("e"), set())
+
+    def test_device_notification_is_not_interpreted(self):
+        s = next(x for x in A.signals(run("d")[3]) if x["kind"] == "device_notification")
+        self.assertIn("not a diagnosis", s["limits"])
+        self.assertIn("rules nothing out", s["limits"])
+
+    def test_small_cohort_cells_suppressed(self):
+        strata = A.cohort_tables()
+        sup = [v for v in strata.values() if v.get("suppressed")]
+        self.assertTrue(sup)
+        self.assertTrue(all(v["p"] is None and v["n"] is None for v in sup))
+        self.assertTrue(all(v["n"] >= A.MIN_CELL for v in strata.values() if not v.get("suppressed")))
+
+    def test_anonymity_demo_shows_the_mechanism(self):
+        from healthlab import anonymity
+        d = anonymity.demo()
+        lv = {r["label"]: r for r in d["levels"]}
+        self.assertGreater(d["levels"][0]["unique_pct"], 90)
+        self.assertEqual(d["levels"][-1]["unique_pct"], 0.0)
+        self.assertIn("not real-world", d["note"])
+
+    def test_every_sample_is_marked_synthetic(self):
+        import zipfile
+        for f in (ROOT / "health-lab" / "samples").iterdir():
+            data = f.read_bytes()
+            if f.suffix == ".zip":
+                with zipfile.ZipFile(f) as z:
+                    self.assertEqual(z.namelist(), ["apple_health_export/export.xml"])
+                    data = z.read("apple_health_export/export.xml")
+            self.assertIn(b"PADDYSPEAKS-SYNTHETIC-DATA", data[:600], f.name)
 
 
 class Calculations(unittest.TestCase):
@@ -218,7 +286,8 @@ class Restraint(unittest.TestCase):
         self.assertEqual(A.cohort_for(run("b")[3], A.cohort_tables())["conditions_allowed"], [0, 1])
         self.assertEqual(A.cohort_for(run("c")[3], A.cohort_tables())["conditions_allowed"], [0, 2])
         for s in meta["cohorts"]["strata"].values():
-            self.assertEqual(s["p"], sorted(s["p"]))
+            if s["p"]:
+                self.assertEqual(s["p"], sorted(s["p"]))
         self.assertTrue(all(not r["loaded"] or r["metric"] == "steps" for r in meta["cohorts"]["references"]))
 
 

@@ -32,14 +32,15 @@
     if (f.age !== me.age_band) warn.push('This is not your age band.');
     if (f.sex !== me.sex) warn.push('This is not your reference category.');
     if (me.activity != null && f.act !== me.activity) warn.push('Your own step count puts you in a different activity level.');
-    if (st.n < 200) warn.push('Small cohort (' + st.n + '): ranks move a lot with a few people.');
+    if (st.suppressed) warn.push('Suppressed: fewer than ' + HL.meta.min_cell + ' people match. Small groups are hidden so that no one in them can be singled out (a product setting, not a legal threshold).');
+    else if (st.n < 200) warn.push('Small cohort (' + st.n + '): ranks move a lot with a few people.');
     var grid = h('div', { class: 'grid g-side' });
     grid.appendChild(HL.card('Where you sit in this cohort', cur.value == null ? HL.esc(cur.reason) : 'Your last-90-day median: <strong>' + HL.esc(HL.fmt(cur.value, m)) + '</strong> from ' + cur.n + ' days or readings.', [
-      cur.value == null ? h('p', { text: 'No comparison: the lab will not compare a value it does not have.' }) :
+      cur.value == null ? h('p', { text: 'No comparison: the lab will not compare a value it does not have.' }) : st.suppressed ? h('p', { html: '<strong>Suppressed.</strong> Fewer than ' + HL.meta.min_cell + ' people in this group, so no statistics are shown. Widen the filters.' }) :
         HL.box({ p: st.p, value: cur.value, code: m, aria: 'Box plot of the illustrative cohort with your value marked; rank ' + rank + '.' }),
-      cur.value != null ? h('p', { html: '<strong>Rank within this illustrative cohort:</strong> ' + HL.esc(typeof rank === 'number' ? 'about the ' + rank + 'th percentile' : rank) + ' <span class="illus">Illustrative</span>' }) : null,
+      cur.value != null && !st.suppressed ? h('p', { html: '<strong>Rank within this illustrative cohort:</strong> ' + HL.esc(typeof rank === 'number' ? 'about the ' + rank + 'th percentile' : rank) + ' <span class="illus">Illustrative</span>' }) : null,
       warn.length ? h('ul', { class: 'plain' }, warn.map(function (w) { return h('li', { text: w }); })) : null,
-      HL.alt('Show the cohort percentiles as a table', HL.table(['Percentile'].concat(C.pcts.map(function (q) { return q + 'th'; })), [[HL.label(m)].concat(st.p.map(function (v) { return HL.num(v, m); }))], 'Cohort percentiles'))
+      st.suppressed ? null : HL.alt('Show the cohort percentiles as a table', HL.table(['Percentile'].concat(C.pcts.map(function (q) { return q + 'th'; })), [[HL.label(m)].concat(st.p.map(function (v) { return HL.num(v, m); }))], 'Cohort percentiles'))
     ]));
     grid.appendChild(HL.card('Why this cohort', null, [
       h('dl', { class: 'kv' }, [
@@ -47,11 +48,18 @@
         h('dt', { text: 'Reference category' }), h('dd', { text: f.sex }),
         h('dt', { text: 'Activity level' }), h('dd', { text: C.activity[f.act] }),
         h('dt', { text: 'Condition' }), h('dd', { text: C.conditions[f.cond] }),
-        h('dt', { text: 'People (synthetic)' }), h('dd', { text: st.n.toLocaleString() })]),
+        h('dt', { text: 'People (synthetic)' }), h('dd', { text: st.suppressed ? 'Fewer than ' + HL.meta.min_cell + ' (suppressed)' : st.n.toLocaleString() })]),
       h('p', { class: 'note', style: 'margin-top:10px', text: 'Conditions appear only when your clinical records confirm them; the lab never infers one from exercise or heart rate. Activity level comes from your own steps.' }),
       h('p', { class: 'note', text: 'Compare with your earlier self first: your own trend (Health Trends) is measured the same way every day, by the same device, on the same body.' })
     ]));
     root.appendChild(grid);
+    root.appendChild(h('div', { style: 'height:16px' }));
+    root.appendChild(HL.card('Five kinds of comparison, never mixed', 'Every comparison says which kind it is.', [HL.table(['Kind', 'What it is', 'In this demo'], [
+      ['Your earlier self', 'Your own measurements, same device, same body, earlier period.', 'Used throughout (Health Trends, Annual Review).'],
+      ['Validated clinical reference', 'Ranges established with clinical measurement methods (for example office blood pressure categories).', 'Used for labels only, where the method matches.'],
+      ['Published population study', 'Percentiles from a named study, with its own methods and population.', 'Catalogued below; not loaded.'],
+      ['Synthetic or illustrative cohort', 'Made-up people, to show how a comparison would work.', 'This page. Never a population percentile.'],
+      ['Unavailable', 'No comparable group exists for this measure and method.', 'Said plainly instead of guessed.']], 'Comparison kinds')]));
     root.appendChild(h('div', { style: 'height:16px' }));
     var refs = C.references.filter(function (r) { return r.metric === m; });
     root.appendChild(HL.card('Published references a real system would use', 'None of these is loaded in this demo except where marked. Each needs a method match before it can be compared with a watch.', [
@@ -92,6 +100,7 @@
       h('p', { class: 'note', text: 'This example is not from this person’s data. Consumer wearables cannot rule out a heart attack or stroke; symptoms outrank the watch. The rule is tested in healthlab/tests.' })]));
   };
 
+  var SIGKIND = { baseline_change: 'Change from your own baseline', persistent_trend: 'Persistent trend', record_conflict: 'Records disagree (needs reconciliation)', device_notification: 'Notification from a validated device feature', data_issue: 'Missing or out-of-date data', symptom: 'Symptom you reported', measurement_anomaly: 'Measurement anomaly' };
   function sigCard(s, d) {
     var kids = [h('h3', null, [HL.tier(s.tier), s.label, h('span', { class: 'note', text: HL.date(s.start) + (s.end && s.end !== s.start ? ' – ' + (s.ongoing ? 'now' : HL.date(s.end)) : '') })])];
     if (d.series[s.metric] && !s.gradual) {
@@ -105,8 +114,11 @@
     }
     var src = (d.overview.available.filter(function (x) { return x.code === s.metric; })[0] || {}).sources;
     kids.push(h('dl', null, [
+      h('dt', { text: 'Kind of signal' }), h('dd', { text: SIGKIND[s.kind] || s.kind }),
       h('dt', { text: 'What changed' }), h('dd', { text: s.why }),
-      h('dt', { text: 'Source measurements' }), h('dd', { text: src ? src.join(', ') : (s.metric === 'record' ? 'Clinical record and your own entry' : '—') }),
+      s.evidence && s.evidence.length ? h('dt', { text: 'Evidence' }) : null,
+      s.evidence && s.evidence.length ? h('dd', null, [h('ul', { class: 'plain' }, s.evidence.map(function (e) { return h('li', { text: e }); }))]) : null,
+      h('dt', { text: 'Source measurements' }), h('dd', { text: src ? src.join(', ') : ({ record: 'Clinical records and your own entry', notification: 'Apple Watch notification record (the export keeps the event, not the tachogram)', data: 'Coverage of the data you imported' }[s.metric] || '—') }),
       s.completeness != null ? h('dt', { text: 'Data completeness' }) : null, s.completeness != null ? h('dd', { text: Math.round(s.completeness * 100) + '% of days (' + s.n + ')' }) : null,
       h('dt', { text: 'Why it surfaced' }), h('dd', { text: s.rule }),
       h('dt', { text: 'Known limits' }), h('dd', { text: s.limits }),
