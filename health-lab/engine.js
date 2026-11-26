@@ -344,7 +344,7 @@
       }
       return { id: id, label: label, status: status, evidence: ev, needs: needs, conclusion: status === 'available' ? null : 'Thin or old data: conclusions are limited to what the dates show.' };
     });
-    cov.push({ id: 'medications', label: 'Medication status', status: meds.some(function (m) { return m.status === 'needs review'; }) ? 'requires reconciliation' : (meds.length ? 'available' : 'not imported'), evidence: meds.length ? meds.length + ' medicines from your records.' : 'No medication records imported.', needs: 'Medication lists, prescriptions or pharmacy records.' });
+    cov.push({ id: 'medications', label: 'Medication status', status: meds.some(function (m) { return m.status === 'needs review'; }) ? 'requires reconciliation' : (meds.length ? 'available' : 'not imported'), evidence: meds.length ? meds.length + (meds.length === 1 ? ' medicine' : ' medicines') + ' from your records.' : 'No medication records imported.', needs: 'Medication lists, prescriptions or pharmacy records.' });
     cov.push({ id: 'rhythm', label: 'ECG / heart rhythm', status: this.notifications.length ? 'notification recorded' : 'unavailable', evidence: this.notifications.length ? this.notifications.length + ' device notification(s); no ECG recordings imported.' : 'No ECG recordings or rhythm notifications imported.', needs: 'ECG recordings or a clinical ECG.', conclusion: 'Absence of notifications rules nothing out.' });
     cov.push({ id: 'cohorts', label: 'Comparisons with other people', status: 'illustrative only', evidence: 'No validated reference population is loaded.', needs: 'A licensed, method-matched reference dataset.' });
     // chart series (last 730 days)
