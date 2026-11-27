@@ -16624,6 +16624,16 @@
       ],
       "answer": 1,
       "explanation": "In a recursive CTE for multi-level BOM traversal, the accumulated quantity must multiply at each level since component 4 is needed 5 times in subassembly 2, which itself is needed 3 times in product 1 (5 * 3 = 15 total). Option 1 incorrectly adds quantities instead of multiplying. Option 2 correctly multiplies the accumulated quantity by the child component's quantity in the recursive branch. Option 3 unnecessarily groups the final result since we're selecting a specific component_id. Option 4 ignores the hierarchy entirely."
+    },
+    {
+      "id": "sql-new-237",
+      "type": "single",
+      "topic": "MERGE / UPSERT",
+      "difficulty": "medium",
+      "added_date": "2026-11-27",
+      "prompt": "You have a Snowflake table `customer_accounts(customer_id INT, email STRING, last_updated TIMESTAMP, account_status STRING)` and a staging table `stg_customer_updates(customer_id INT, email STRING, account_status STRING)` with 50,000 new/updated records. You need to merge data such that: (1) new customers are inserted, (2) existing customers are updated only if their email or status changed, (3) the last_updated timestamp is refreshed only on actual changes. Which MERGE statement correctly handles this?\n\nA) MERGE INTO customer_accounts t USING stg_customer_updates s ON t.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET email = s.email, account_status = s.account_status, last_updated = CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (customer_id, email, account_status, last_updated) VALUES (s.customer_id, s.email, s.account_status, CURRENT_TIMESTAMP());\n\nB) MERGE INTO customer_accounts t USING stg_customer_updates s ON t.customer_id = s.customer_id WHEN MATCHED AND (t.email != s.email OR t.account_status != s.account_status) THEN UPDATE SET email = s.email, account_status = s.account_status, last_updated = CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (customer_id, email, account_status, last_updated) VALUES (s.customer_id, s.email, s.account_status, CURRENT_TIMESTAMP());\n\nC) MERGE INTO customer_accounts t USING stg_customer_updates s ON t.customer_id = s.customer_id AND t.email = s.email WHEN MATCHED THEN UPDATE SET account_status = s.account_status, last_updated = CURRENT_TIMESTAMP() WHEN NOT MATCHED THEN INSERT (customer_id, email, account_status, last_updated) VALUES (s.customer_id, s.email, s.account_status, CURRENT_TIMESTAMP());\n\nD) MERGE INTO customer_accounts t USING stg_customer_updates s ON t.customer_id = s.customer_id WHEN MATCHED THEN UPDATE SET email = s.email, account_status = s.account_status WHEN NOT MATCHED THEN INSERT (customer_id, email, account_status, last_updated) VALUES (s.customer_id, s.email, s.account_status, CURRENT_TIMESTAMP());",
+      "answer": 1,
+      "explanation": "Option B correctly adds a AND condition to the MATCHED clause that checks if either email or account_status actually changed before updating. This avoids unnecessary updates and timestamp refreshes when data hasn't changed, reducing write amplification and query history bloat. Option A always updates on match, Option C uses email in the join key (incorrect logic), and Option D fails to update last_updated on matched rows."
     }
   ]
 }

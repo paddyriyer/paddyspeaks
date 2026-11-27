@@ -10008,6 +10008,22 @@
       ],
       "answer": 0,
       "explanation": "The GIL is released during blocking I/O (the network call), allowing multiple threads to progress concurrently there. However, JSON deserialization and schema validation are CPU-bound operations that hold the GIL, preventing true parallelism on those steps. Using multiprocessing.Pool for CPU-bound work sidesteps the GIL while keeping threading for I/O, achieving better overall throughput. Asyncio alone won't help since the CPU-bound deserialization still runs in the main thread and blocks other coroutines."
+    },
+    {
+      "id": "py-new-234",
+      "type": "single",
+      "topic": "descriptors",
+      "difficulty": "hard",
+      "added_date": "2026-11-27",
+      "prompt": "You're building a data validation framework where numeric columns must be cached after first access to avoid repeated expensive computations. You implement a descriptor that stores computed values in an instance dictionary. After creating an instance and accessing the descriptor twice, you check `instance.__dict__`. What will you observe?\n\nclass CachedValidator:\n    def __init__(self):\n        self.computation_count = 0\n    \n    def __get__(self, obj, objtype=None):\n        if obj is None:\n            return self\n        # Store in instance dict to bypass descriptor on next access\n        value = obj.__dict__.get('_cached', None)\n        if value is None:\n            self.computation_count += 1\n            value = compute_expensive_validation()\n            obj.__dict__['_cached'] = value\n        return value\n\nclass DataColumn:\n    validator = CachedValidator()\n\ncol = DataColumn()\n_ = col.validator\n_ = col.validator\nprint(col.__dict__)",
+      "options": [
+        "{'_cached': <result>} \u2014 The descriptor caches the value and subsequent accesses return it directly from __dict__, bypassing __get__",
+        "{'validator': <result>} \u2014 The descriptor overwrites itself in the class dictionary after first access",
+        "{} \u2014 Descriptors cannot modify instance __dict__ and the value is stored in the descriptor's closure",
+        "{'_cached': <result>, 'validator': <result>} \u2014 Both the cached value and the descriptor reference are stored"
+      ],
+      "answer": 0,
+      "explanation": "Data descriptors (with __get__ only) can be shadowed by instance dictionary entries. After the first access, 'validator' calls __get__, which stores '_cached' in obj.__dict__. On the second access, Python finds '_cached' in the instance dict before consulting the descriptor, so it returns the cached value directly without calling __get__. This is a common optimization pattern in performance-critical data pipelines."
     }
   ]
 }
